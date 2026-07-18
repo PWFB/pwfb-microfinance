@@ -7,7 +7,6 @@ COPY package*.json ./
 RUN npm install
 
 COPY apps/backend ./apps/backend
-COPY packages ./packages
 
 WORKDIR /app/apps/backend
 

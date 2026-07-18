@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
 
@@ -17,17 +21,42 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
+
       - name: Install dependencies
         run: npm install
 
+
       - name: Run PWFB Build System
         run: npm run build:pwfb
+
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f docker/Dockerfile.backend \
+            -t ghcr.io/${{ github.repository }}/backend:${{ github.sha }} .
+
+
+      - name: Push Docker image
+        run: |
+          docker push \
+            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
+
 
       - name: Upload release package
         uses: actions/upload-artifact@v4

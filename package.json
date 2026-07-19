@@ -7,9 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "echo \"Development environment\"",
-    "build": "echo \"Build started\"",
-    "test": "echo \"Tests\""
+  "dev": "npm run start:dev --workspace=backend",
+  "build": "npm run build --workspace=backend",
+  "build:pwfb": "npm run build --workspace=backend",
+  "test": "npm run test --workspace=backend"
   },
   "engines": {
     "node": ">=20"
@@ -19,5 +20,9 @@
     "@prisma/engines@6.16.3": true,
     "prisma@6.16.3": true,
     "unrs-resolver@1.12.2": true
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "prisma": "^6.19.3"
   }
 }

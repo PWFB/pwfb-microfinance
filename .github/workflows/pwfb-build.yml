@@ -45,18 +45,17 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-      - name: Build Docker image
+            - name: Build Docker image
         run: |
+          IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
           docker build \
             -f docker/Dockerfile.backend \
-            -t ghcr.io/${{ github.repository }}/backend:${{ github.sha }} .
-
+            -t "$IMAGE_NAME" .
 
       - name: Push Docker image
         run: |
-          docker push \
-            ghcr.io/${{ github.repository }}/backend:${{ github.sha }}
-
+          IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
+          docker push "$IMAGE_NAME"
 
       - name: Upload release package
         uses: actions/upload-artifact@v4

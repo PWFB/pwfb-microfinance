@@ -4,8 +4,6 @@ WORKDIR /app
 
 RUN apk add --no-cache wget
 
-COPY . .
-
 RUN npm install
 
 WORKDIR /app/apps/backend

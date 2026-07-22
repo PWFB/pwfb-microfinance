@@ -41,10 +41,12 @@ export class AuthService {
       role: user.role,
     });
 
+    const { password, ...safeUser } = user;
+
     return {
       message: 'Registration successful',
       access_token: accessToken,
-      user,
+      user: safeUser,
     };
   }
 
@@ -74,10 +76,12 @@ export class AuthService {
       role: user.role,
     });
 
+    const { password, ...safeUser } = user;
+
     return {
       message: 'Login successful',
       access_token: accessToken,
-      user,
+      user: safeUser,
     };
   }
 }

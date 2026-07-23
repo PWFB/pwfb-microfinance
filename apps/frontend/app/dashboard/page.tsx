@@ -13,37 +13,37 @@ export default function Dashboard() {
       title: "Customers",
       value: 0,
       icon: "👥",
-      path: "/customers",
+      link: "/customers",
     },
     {
       title: "Savings",
       value: 0,
       icon: "💰",
-      path: "/savings",
+      link: "/savings",
     },
     {
       title: "Loans",
       value: 0,
       icon: "🏦",
-      path: "/loans",
+      link: "/loans",
     },
     {
       title: "Transactions",
       value: 0,
       icon: "💳",
-      path: "/transactions",
+      link: "/transactions",
     },
     {
       title: "Reports",
       value: 0,
       icon: "📊",
-      path: "/reports",
+      link: "/reports",
     },
     {
       title: "Administration",
       value: 0,
       icon: "⚙️",
-      path: "/admin",
+      link: "/admin",
     },
   ];
 
@@ -63,12 +63,7 @@ export default function Dashboard() {
         },
       }
     )
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error("Unauthorized");
-        }
-        return res.json();
-      })
+      .then((res) => res.json())
       .then((data) => {
         setUser(data);
       })
@@ -86,10 +81,8 @@ export default function Dashboard() {
   return (
     <main
       style={{
-        padding: "30px",
-        fontFamily: "Arial, sans-serif",
-        background: "#f7f7f7",
-        minHeight: "100vh",
+        padding: 30,
+        fontFamily: "Arial",
       }}
     >
       <div
@@ -97,78 +90,71 @@ export default function Dashboard() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: "20px",
         }}
       >
-        <div>
-          <h1>PWFB Microfinance Dashboard</h1>
+        <h1>
+          PWFB Microfinance Dashboard
+        </h1>
 
-          {user && (
-            <>
-              <p>
-                <strong>
-                  Welcome, {user.firstName} {user.lastName}
-                </strong>
-              </p>
-
-              <p>Role: {user.role}</p>
-
-              <p>Email: {user.email}</p>
-            </>
-          )}
-        </div>
-
-        <button
-          onClick={logout}
-          style={{
-            padding: "10px 20px",
-            cursor: "pointer",
-          }}
-        >
+        <button onClick={logout}>
           Logout
         </button>
       </div>
 
+      {user && (
+        <p>
+          Welcome, {user.firstName} {user.lastName}
+          <br />
+          Role: {user.role}
+        </p>
+      )}
+
       <p>
-        Welcome to the PWFB Microfinance Core Banking System.
+        Welcome to PWFB Core Banking System.
       </p>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-          gap: "20px",
-          marginTop: "30px",
+          gridTemplateColumns:
+            "repeat(auto-fit,minmax(180px,1fr))",
+          gap: 20,
+          marginTop: 30,
         }}
       >
         {cards.map((card) => (
           <div
             key={card.title}
-            onClick={() => router.push(card.path)}
+            onClick={() =>
+              router.push(card.link)
+            }
             style={{
-              background: "#ffffff",
-              borderRadius: "12px",
-              padding: "25px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+              border: "1px solid #ddd",
+              borderRadius: 10,
+              padding: 20,
               textAlign: "center",
               cursor: "pointer",
-              transition: "0.2s",
             }}
           >
-            <div
+            <h2
               style={{
-                fontSize: "48px",
-                marginBottom: "10px",
+                fontSize: 40,
               }}
             >
               {card.icon}
-            </div>
+            </h2>
 
-            <h2>{card.title}</h2>
+            <h3>
+              {card.title}
+            </h3>
 
-            <h1>{card.value}</h1>
+            <h1>
+              {card.value}
+            </h1>
 
-            <p>Open Module</p>
+            <p>
+              Open Module
+            </p>
           </div>
         ))}
       </div>

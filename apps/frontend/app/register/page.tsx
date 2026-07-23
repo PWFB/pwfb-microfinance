@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest } from "../../lib/api";
 
 export default function RegisterPage() {
+  const router = useRouter();
+
   const [form, setForm] = useState({
-    email: "",
-    password: "",
     firstName: "",
     lastName: "",
+    email: "",
     phone: "",
+    password: "",
   });
 
   const [message, setMessage] = useState("");
@@ -32,14 +35,20 @@ export default function RegisterPage() {
         body: JSON.stringify(form),
       });
 
-      console.log(result);
+      if (result.access_token) {
+        localStorage.setItem("token", result.access_token);
+        setMessage("Registration successful");
 
-      setMessage(
-        result.message ||
-        result.error ||
-        "Registration completed"
-      );
-
+        setTimeout(() => {
+          router.push("/dashboard");
+        }, 1000);
+      } else {
+        setMessage(
+          result.message ||
+          result.error ||
+          "Registration failed"
+        );
+      }
     } catch (error) {
       console.error(error);
       setMessage("Connection error");
@@ -47,64 +56,65 @@ export default function RegisterPage() {
   }
 
   return (
-    <main style={{ padding: "40px" }}>
+    <main style={{ padding: "40px", fontFamily: "Arial, sans-serif" }}>
       <h1>PWFB Microfinance Registration</h1>
 
-      <form onSubmit={handleSubmit}>
-
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+          maxWidth: "400px",
+        }}
+      >
         <input
           name="firstName"
           placeholder="First Name"
           value={form.firstName}
           onChange={handleChange}
+          required
         />
-
-        <br /><br />
 
         <input
           name="lastName"
           placeholder="Last Name"
           value={form.lastName}
           onChange={handleChange}
+          required
         />
 
-        <br /><br />
-
         <input
+          type="email"
           name="email"
           placeholder="Email"
           value={form.email}
           onChange={handleChange}
+          required
         />
-
-        <br /><br />
 
         <input
           name="phone"
-          placeholder="Phone"
+          placeholder="Phone (optional)"
           value={form.phone}
           onChange={handleChange}
         />
 
-        <br /><br />
-
         <input
-          name="password"
           type="password"
+          name="password"
           placeholder="Password"
           value={form.password}
           onChange={handleChange}
+          required
         />
-
-        <br /><br />
 
         <button type="submit">
           Register
         </button>
 
-       </form>
-
-      <h3>{message}</h3>
+        <p>{message}</p>
+      </form>
     </main>
   );
 }

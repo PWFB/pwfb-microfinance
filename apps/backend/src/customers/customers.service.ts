@@ -5,15 +5,15 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Injectable()
 export class CustomersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  create(createCustomerDto: CreateCustomerDto) {
+  async create(createCustomerDto: CreateCustomerDto) {
     return this.prisma.customer.create({
       data: createCustomerDto,
     });
   }
 
-  findAll() {
+  async findAll() {
     return this.prisma.customer.findMany({
       orderBy: {
         createdAt: 'desc',
@@ -21,7 +21,7 @@ export class CustomersService {
     });
   }
 
-  findOne(id: string) {
+  async findOne(id: string) {
     return this.prisma.customer.findUnique({
       where: {
         id,
@@ -29,7 +29,7 @@ export class CustomersService {
     });
   }
 
-  update(id: string, updateCustomerDto: UpdateCustomerDto) {
+  async update(id: string, updateCustomerDto: UpdateCustomerDto) {
     return this.prisma.customer.update({
       where: {
         id,
@@ -38,7 +38,7 @@ export class CustomersService {
     });
   }
 
-  remove(id: string) {
+  async remove(id: string) {
     return this.prisma.customer.delete({
       where: {
         id,

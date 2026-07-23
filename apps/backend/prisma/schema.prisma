@@ -1,4 +1,4 @@
-generator client {
+generator prisma {
   provider = "prisma-client-js"
 }
 
@@ -35,4 +35,21 @@ model Customer {
   dateOfBirth DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  savings     Savings[]
+}
+
+model Savings {
+  id          String   @id @default(cuid())
+  customerId  String
+  amount      Float
+  accountType String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  customer Customer @relation(
+    fields: [customerId],
+    references: [id],
+    onDelete: Cascade
+  )
 }

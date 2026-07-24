@@ -3,23 +3,37 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
-import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
-import { UsersModule } from './users/users.module';
+
+import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customers.module';
 import { SavingsModule } from './savings/savings.module';
 import { LoansModule } from './loans/loans.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { RepaymentsModule } from './repayments/repayments.module';
 
 @Module({
   imports: [
-    AuthModule,
     PrismaModule,
-    UsersModule,
+    AuthModule,
     CustomersModule,
     SavingsModule,
     LoansModule,
+    TransactionsModule,
+    RepaymentsModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [
+    AppController,
+  ],
+  providers: [
+    AppService,
+  ],
 })
 export class AppModule {}
+cd ~/pwfb-microfinance
+
+git status
+backend
+cd ~/pwfb-microfinance
+
+git status

@@ -65,7 +65,8 @@ model Loan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  repayments Repayment[]
 }
 
 model Transaction {
@@ -79,4 +80,18 @@ model Transaction {
   updatedAt DateTime @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Repayment {
+  id          String   @id @default(cuid())
+  loanId      String
+  amount      Float
+  paymentDate DateTime @default(now())
+  method      String?
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
 }

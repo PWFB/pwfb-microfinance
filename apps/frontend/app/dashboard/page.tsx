@@ -1,163 +1,72 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from 'react';
 
-export default function Dashboard() {
-  const router = useRouter();
+export default function DashboardPage() {
+  const [summary, setSummary] = useState({
+    totalCustomers: 0,
+    totalSavings: 0,
+    totalLoans: 0,
+    totalTransactions: 0,
+    totalRepayments: 0,
+  });
 
-  const [user, setUser] = useState<any>(null);
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/reports/summary`)
+      .then((res) => res.json())
+      .then((data) => setSummary(data))
+      .catch((err) => console.error(err));
+  }, []);
 
   const cards = [
     {
-      title: "Customers",
-      value: 0,
-      icon: "👥",
-      link: "/customers",
+      title: 'Customers',
+      value: summary.totalCustomers,
     },
     {
-      title: "Savings",
-      value: 0,
-      icon: "💰",
-      link: "/savings",
+      title: 'Savings',
+      value: summary.totalSavings,
     },
     {
-      title: "Loans",
-      value: 0,
-      icon: "🏦",
-      link: "/loans",
+      title: 'Loans',
+      value: summary.totalLoans,
     },
     {
-      title: "Transactions",
-      value: 0,
-      icon: "💳",
-      link: "/transactions",
+      title: 'Transactions',
+      value: summary.totalTransactions,
     },
     {
-      title: "Reports",
-      value: 0,
-      icon: "📊",
-      link: "/reports",
-    },
-    {
-      title: "Administration",
-      value: 0,
-      icon: "⚙️",
-      link: "/admin",
+      title: 'Repayments',
+      value: summary.totalRepayments,
     },
   ];
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-
-    fetch(
-      "https://pwfb-microfinance-lnsm.onrender.com/auth/profile",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      }
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        setUser(data);
-      })
-      .catch(() => {
-        localStorage.removeItem("token");
-        router.push("/login");
-      });
-  }, [router]);
-
-  function logout() {
-    localStorage.removeItem("token");
-    router.push("/login");
-  }
-
   return (
-    <main
-      style={{
-        padding: 30,
-        fontFamily: "Arial",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h1>
-          PWFB Microfinance Dashboard
-        </h1>
+    <div className="p-6">
 
-        <button onClick={logout}>
-          Logout
-        </button>
-      </div>
+      <h1 className="text-3xl font-bold mb-6">
+        Dashboard
+      </h1>
 
-      {user && (
-        <p>
-          Welcome, {user.firstName} {user.lastName}
-          <br />
-          Role: {user.role}
-        </p>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-      <p>
-        Welcome to PWFB Core Banking System.
-      </p>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns:
-            "repeat(auto-fit,minmax(180px,1fr))",
-          gap: 20,
-          marginTop: 30,
-        }}
-      >
         {cards.map((card) => (
           <div
             key={card.title}
-            onClick={() =>
-              router.push(card.link)
-            }
-            style={{
-              border: "1px solid #ddd",
-              borderRadius: 10,
-              padding: 20,
-              textAlign: "center",
-              cursor: "pointer",
-            }}
+            className="border rounded-lg p-6 shadow"
           >
-            <h2
-              style={{
-                fontSize: 40,
-              }}
-            >
-              {card.icon}
+            <h2 className="text-lg font-semibold">
+              {card.title}
             </h2>
 
-            <h3>
-              {card.title}
-            </h3>
-
-            <h1>
+            <p className="text-3xl mt-3 font-bold">
               {card.value}
-            </h1>
-
-            <p>
-              Open Module
             </p>
           </div>
         ))}
+
       </div>
-    </main>
+
+    </div>
   );
 }

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
 }
 
 datasource db {
@@ -94,4 +95,55 @@ model Repayment {
   updatedAt DateTime @updatedAt
 
   loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff[]
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff[]
+}
+
+model Staff {
+  id String @id @default(cuid())
+
+  staffId String @unique
+
+  firstName  String
+  middleName String?
+  lastName   String
+
+  email String @unique
+  phone String
+
+  position String
+
+  departmentId String
+  branchId     String
+
+  employmentStatus StaffStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id])
+  branch     Branch     @relation(fields: [branchId], references: [id])
 }

@@ -14,13 +14,14 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
+  id        String  @id @default(cuid())
+  email     String  @unique
   password  String
   firstName String
   lastName  String
   phone     String?
-  role      Role     @default(CUSTOMER)
+  role      Role    @default(CUSTOMER)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -37,8 +38,9 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  savings Savings[]
-  loans   Loan[]
+  savings      Savings[]
+  loans        Loan[]
+  transactions Transaction[]
 }
 
 model Savings {
@@ -59,6 +61,19 @@ model Loan {
   amount       Float
   interestRate Float?
   status       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id          String  @id @default(cuid())
+  customerId  String
+  type        String
+  amount      Float
+  description String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

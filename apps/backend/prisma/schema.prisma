@@ -1,4 +1,4 @@
-generator prisma {
+generator client {
   provider = "prisma-client-js"
 }
 
@@ -14,42 +14,54 @@ enum Role {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  email      String   @unique
-  password   String
-  firstName  String
-  lastName   String
-  phone      String?
-  role       Role     @default(CUSTOMER)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      Role     @default(CUSTOMER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Customer {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   firstName   String
   lastName    String
-  email       String?  @unique
+  email       String?   @unique
   phone       String?
   address     String?
   dateOfBirth DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  savings     Savings[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  savings Savings[]
+  loans   Loan[]
 }
 
 model Savings {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   customerId  String
   amount      Float
   accountType String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
-  customer Customer @relation(
-    fields: [customerId],
-    references: [id],
-    onDelete: Cascade
-  )
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Loan {
+  id           String  @id @default(cuid())
+  customerId   String
+  amount       Float
+  interestRate Float?
+  status       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }

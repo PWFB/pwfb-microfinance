@@ -30,10 +30,3 @@ import { RepaymentsModule } from './repayments/repayments.module';
   ],
 })
 export class AppModule {}
-cd ~/pwfb-microfinance
-
-git status
-backend
-cd ~/pwfb-microfinance
-
-git status

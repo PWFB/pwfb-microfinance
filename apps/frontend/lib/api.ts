@@ -1,8 +1,8 @@
-const API_URL = "https://pwfb-microfinance-lnsm.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 export async function apiRequest(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ) {
   const response = await fetch(`${API_URL}${endpoint}`, {
     headers: {

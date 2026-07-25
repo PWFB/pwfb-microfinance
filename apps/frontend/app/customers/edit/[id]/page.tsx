@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-const API_URL = "https://pwfb-microfinance-lnsm.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 export default function EditCustomerPage() {
   const { id } = useParams();

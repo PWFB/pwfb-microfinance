@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-const API_URL = "https://pwfb-microfinance-lnsm.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 interface Customer {
   id: string;

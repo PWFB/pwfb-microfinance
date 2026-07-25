@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const API_URL = "https://pwfb-microfinance-lnsm.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 export default function AddSavingsPage() {
   const router = useRouter();

@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { StaffModule } from './staff/staff.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuthModule } from './auth/auth.module';
+import { BranchModule } from './branch/branch.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
     StaffModule,
     ReportsModule,
     AuthModule,
+    BranchModule,
   ],
   controllers: [AppController],
 })

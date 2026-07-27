@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
   async getSummary() {
     const [
@@ -14,18 +14,24 @@ export class ReportsService {
       totalRepayments,
     ] = await Promise.all([
       this.prisma.customer.count(),
-      this.prisma.savings.count(),
-      this.prisma.loan.count(),
+      this.prisma.savings.aggregate({
+        _sum: { amount: true },
+      }),
+      this.prisma.loan.aggregate({
+        _sum: { amount: true },
+      }),
       this.prisma.transaction.count(),
-      this.prisma.repayment.count(),
+      this.prisma.repayment.aggregate({
+        _sum: { amount: true },
+      }),
     ]);
 
     return {
       totalCustomers,
-      totalSavings,
-      totalLoans,
+      totalSavings: totalSavings._sum.amount ?? 0,
+      totalLoans: totalLoans._sum.amount ?? 0,
       totalTransactions,
-      totalRepayments,
+      totalRepayments: totalRepayments._sum.amount ?? 0,
     };
   }
 }

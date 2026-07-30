@@ -1,0 +1,12 @@
+/.
+/lib
+/lib/aarch64-linux-gnu
+/lib/aarch64-linux-gnu/libparted-fs-resize.so.0.0.1
+/usr
+/usr/share
+/usr/share/doc
+/usr/share/doc/libparted-fs-resize0
+/usr/share/doc/libparted-fs-resize0/changelog.Debian.gz
+/usr/share/doc/libparted-fs-resize0/changelog.gz
+/usr/share/doc/libparted-fs-resize0/copyright
+/lib/aarch64-linux-gnu/libparted-fs-resize.so.0

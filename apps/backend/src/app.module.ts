@@ -6,6 +6,7 @@ import { StaffModule } from './staff/staff.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchModule } from './branch/branch.module';
+import { CustomerModule } from './customer/customer.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { BranchModule } from './branch/branch.module';
     ReportsModule,
     AuthModule,
     BranchModule,
+    CustomerModule,
   ],
   controllers: [AppController],
 })

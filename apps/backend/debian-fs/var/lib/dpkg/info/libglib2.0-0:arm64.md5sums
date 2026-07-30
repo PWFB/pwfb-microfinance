@@ -1,0 +1,13 @@
+b486b2145d5a4d1205c26322d8b41073  usr/lib/aarch64-linux-gnu/glib-2.0/gio-launch-desktop
+2331d372a4ae079d18e27707b0ca6f10  usr/lib/aarch64-linux-gnu/glib-2.0/gio-querymodules
+cff052086bd8d39004a1cb675e9493f9  usr/lib/aarch64-linux-gnu/glib-2.0/glib-compile-schemas
+4e9d98f8f6e70a3458d1373c6c2c7f2f  usr/lib/aarch64-linux-gnu/libgio-2.0.so.0.5800.3
+320120215aadd1773467af767e5ef30f  usr/lib/aarch64-linux-gnu/libglib-2.0.so.0.5800.3
+f981d4af41b637f3596b4a889195921c  usr/lib/aarch64-linux-gnu/libgmodule-2.0.so.0.5800.3
+b84553f63ef8f1746f3fb04c125aaac8  usr/lib/aarch64-linux-gnu/libgobject-2.0.so.0.5800.3
+8f864e97672c806bc6bdd370743c1c2b  usr/lib/aarch64-linux-gnu/libgthread-2.0.so.0.5800.3
+7979b50d58ee4e62caf23b51e94c051f  usr/share/doc/libglib2.0-0/NEWS.gz
+3ae33dd9c2228658e7f980576cd2fafa  usr/share/doc/libglib2.0-0/README.md.gz
+15b7b2559de8adb42a1c9bb25a873e18  usr/share/doc/libglib2.0-0/changelog.Debian.gz
+a364df7750fec12e9fc3dedad535251b  usr/share/doc/libglib2.0-0/copyright
+fbe307034407c1f4cfee8d3892a87975  usr/share/lintian/overrides/libglib2.0-0

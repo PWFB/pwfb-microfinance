@@ -1,0 +1,153 @@
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  BRANCH_MANAGER
+  LOAN_OFFICER
+  TELLER
+  AUDITOR
+  CUSTOMER
+}
+
+model User {
+  id        String  @id @default(cuid())
+  email     String  @unique
+  password  String
+  firstName String
+  lastName  String
+  phone     String?
+  role      Role    @default(CUSTOMER)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  firstName   String
+  lastName    String
+  email       String?   @unique
+  phone       String?
+  address     String?
+  dateOfBirth DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  savings      Savings[]
+  loans        Loan[]
+  transactions Transaction[]
+}
+
+model Savings {
+  id          String  @id @default(cuid())
+  customerId  String
+  amount      Float
+  accountType String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Loan {
+  id           String  @id @default(cuid())
+  customerId   String
+  amount       Float
+  interestRate Float?
+  status       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  repayments Repayment[]
+}
+
+model Transaction {
+  id          String  @id @default(cuid())
+  customerId  String
+  type        String
+  amount      Float
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model Repayment {
+  id          String   @id @default(cuid())
+  loanId      String
+  amount      Float
+  paymentDate DateTime @default(now())
+  method      String?
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff[]
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff[]
+}
+
+model Staff {
+  id String @id @default(cuid())
+
+  staffId String @unique
+
+  firstName  String
+  middleName String?
+  lastName   String
+
+  email String @unique
+  phone String
+
+  position String
+
+  departmentId String
+  branchId     String
+
+  employmentStatus StaffStatus @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  department Department @relation(fields: [departmentId], references: [id])
+  branch     Branch     @relation(fields: [branchId], references: [id])
+}

@@ -1,0 +1,14 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
+
+# Local Debian filesystem/build environment
+/debian-fs/
+
+# Local/generated backend artifacts
+/dist/
+/backend@*
+/nest
+/prisma/schema.prisma.tmp

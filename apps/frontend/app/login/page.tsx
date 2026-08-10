@@ -10,9 +10,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    setMessage("");
+    setLoading(true);
 
     try {
       const data = await apiRequest("/auth/login", {
@@ -29,17 +33,26 @@ export default function LoginPage() {
 
         setTimeout(() => {
           router.push("/dashboard");
-        }, 1000);
+        }, 500);
       } else {
         setMessage(data.message || "Login failed");
       }
-    } catch {
-      setMessage("Connection error");
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Connection error",
+      );
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <main style={{ padding: "40px", fontFamily: "Arial, sans-serif" }}>
+    <main
+      style={{
+        padding: "40px",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
       <h1>PWFB Microfinance Login</h1>
 
       <form
@@ -67,9 +80,11 @@ export default function LoginPage() {
           required
         />
 
-        <button type="submit">Login</button>
+        <button type="submit" disabled={loading}>
+          {loading ? "Logging in..." : "Login"}
+        </button>
 
-        <p>{message}</p>
+        {message && <p>{message}</p>}
       </form>
     </main>
   );

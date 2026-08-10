@@ -42,12 +42,12 @@ async function main() {
 
   const adminEmail = "admin@pwfb.com";
   const adminPassword = "ChangeMe123!";
-
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
   await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
+      password: hashedPassword,
       role: Role.SUPER_ADMIN,
     },
     create: {

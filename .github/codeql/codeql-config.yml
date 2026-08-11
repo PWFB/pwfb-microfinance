@@ -1,0 +1,10 @@
+name: PWFB CodeQL Configuration
+
+queries:
+  - uses: security-and-quality
+
+paths-ignore:
+  - node_modules
+  - apps/backend/dist
+  - apps/backend/debian-fs
+  - apps/frontend/.next

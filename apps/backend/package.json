@@ -12,6 +12,7 @@
     "test": "jest",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
+    "prisma:push": "prisma db push --schema=prisma/schema.prisma",
     "prisma:seed": "prisma db seed"
   },
   "dependencies": {

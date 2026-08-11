@@ -16,6 +16,7 @@ enum Role {
   TELLER
   AUDITOR
   CUSTOMER
+  STAFF
 }
 
 model User {

@@ -3,8 +3,14 @@ import { PrismaClient, Role } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcryptjs";
 
+const databaseUrl = process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error("DATABASE_URL is required to run the PWFB seed");
+}
+
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
+  connectionString: databaseUrl,
 });
 
 const prisma = new PrismaClient({ adapter });
@@ -40,15 +46,30 @@ async function main() {
     },
   });
 
-  const adminEmail = "admin@pwfb.com";
-  const adminPassword = "ChangeMe123!";
+  const adminEmail = process.env.SUPER_ADMIN_EMAIL;
+  const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
+
+  if (!adminEmail) {
+    throw new Error(
+      "SUPER_ADMIN_EMAIL is required to create/update the initial Super Admin",
+    );
+  }
+
+  if (!adminPassword) {
+    throw new Error(
+      "SUPER_ADMIN_PASSWORD is required to create/update the initial Super Admin",
+    );
+  }
+
   const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: adminEmail },
     update: {
       password: hashedPassword,
       role: Role.SUPER_ADMIN,
+      firstName: "Super",
+      lastName: "Admin",
     },
     create: {
       email: adminEmail,
@@ -60,9 +81,9 @@ async function main() {
     },
   });
 
+  console.log(`Super Admin synchronized: ${admin.email}`);
+
   console.log("PWFB organization seed completed");
-  console.log("Head Office created");
-  console.log(`Super Admin: ${adminEmail}`);
 }
 
 main()

@@ -11,72 +11,170 @@ interface Repayment {
   method?: string;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+
 export default function RepaymentsPage() {
   const [repayments, setRepayments] = useState<Repayment[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/repayments`)
+    fetch(`${API_URL}/repayments`)
       .then((res) => res.json())
-      .then((data) => setRepayments(data))
-      .catch(console.error);
+      .then((data) => {
+        setRepayments(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Repayments</h1>
+  const totalCollected = repayments.reduce(
+    (sum, repayment) => sum + Number(repayment.amount || 0),
+    0,
+  );
 
-        <Link
-          href="/repayments/add"
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Add Repayment
+  return (
+    <main>
+      <div className="pwfb-page-header">
+        <div>
+          <p className="pwfb-eyebrow">LOAN SERVICING</p>
+          <h1 className="pwfb-page-title">Repayments</h1>
+          <p className="pwfb-page-description">
+            Record and monitor customer loan repayments and payment activity.
+          </p>
+        </div>
+
+        <Link href="/repayments/add" className="pwfb-primary-button">
+          + Record Repayment
         </Link>
       </div>
 
-      <table className="w-full border border-gray-300">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="border p-2">Loan ID</th>
-            <th className="border p-2">Amount</th>
-            <th className="border p-2">Payment Date</th>
-            <th className="border p-2">Method</th>
-            <th className="border p-2">Actions</th>
-          </tr>
-        </thead>
+      <section className="pwfb-stat-grid">
+        <div className="pwfb-stat-card">
+          <span>Total Repayments</span>
+          <strong>{loading ? '—' : repayments.length}</strong>
+          <small>Payment records</small>
+        </div>
 
-        <tbody>
-          {repayments.map((repayment) => (
-            <tr key={repayment.id}>
-              <td className="border p-2">{repayment.loanId}</td>
-              <td className="border p-2">{repayment.amount}</td>
-              <td className="border p-2">
-                {new Date(repayment.paymentDate).toLocaleDateString()}
-              </td>
-              <td className="border p-2">
-                {repayment.method ?? '-'}
-              </td>
-              <td className="border p-2">
-                <div className="flex gap-3">
-                  <Link
-                    href={`/repayments/view/${repayment.id}`}
-                    className="text-blue-600"
-                  >
-                    View
-                  </Link>
+        <div className="pwfb-stat-card pwfb-stat-orange">
+          <span>Total Collected</span>
+          <strong>
+            {loading
+              ? '—'
+              : `₦${totalCollected.toLocaleString('en-NG')}`}
+          </strong>
+          <small>Recorded repayment value</small>
+        </div>
 
-                  <Link
-                    href={`/repayments/edit/${repayment.id}`}
-                    className="text-green-600"
-                  >
-                    Edit
-                  </Link>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+        <div className="pwfb-stat-card">
+          <span>Payment Status</span>
+          <strong>Active</strong>
+          <small>Repayment operations</small>
+        </div>
+      </section>
+
+      <section className="pwfb-panel">
+        <div className="pwfb-panel-header">
+          <div>
+            <h2>Repayment Records</h2>
+            <p>Recent repayment transactions recorded in the system.</p>
+          </div>
+
+          <span className="pwfb-record-count">
+            {loading ? 'Loading...' : `${repayments.length} records`}
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="pwfb-empty-state">
+            <div className="pwfb-loading-dot" />
+            <p>Loading repayments...</p>
+          </div>
+        ) : repayments.length === 0 ? (
+          <div className="pwfb-empty-state">
+            <div className="pwfb-empty-icon">₦</div>
+            <h3>No repayments found</h3>
+            <p>Start by recording the first customer repayment.</p>
+            <Link
+              href="/repayments/add"
+              className="pwfb-secondary-button"
+            >
+              Record Repayment
+            </Link>
+          </div>
+        ) : (
+          <div className="pwfb-table-wrap">
+            <table className="pwfb-table">
+              <thead>
+                <tr>
+                  <th>Loan</th>
+                  <th>Amount</th>
+                  <th>Payment Date</th>
+                  <th>Method</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {repayments.map((repayment) => (
+                  <tr key={repayment.id}>
+                    <td>
+                      <div className="pwfb-customer-cell">
+                        <div className="pwfb-avatar">₦</div>
+                        <div>
+                          <strong>Loan</strong>
+                          <small>{repayment.loanId}</small>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <strong>
+                        ₦{Number(repayment.amount || 0).toLocaleString('en-NG')}
+                      </strong>
+                    </td>
+
+                    <td>
+                      {new Date(repayment.paymentDate).toLocaleDateString(
+                        'en-NG',
+                        {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        },
+                      )}
+                    </td>
+
+                    <td>{repayment.method || '—'}</td>
+
+                    <td>
+                      <span className="pwfb-status-badge">Completed</span>
+                    </td>
+
+                    <td>
+                      <div className="pwfb-actions">
+                        <Link
+                          href={`/repayments/view/${repayment.id}`}
+                          className="pwfb-action-view"
+                        >
+                          View
+                        </Link>
+
+                        <Link
+                          href={`/repayments/edit/${repayment.id}`}
+                          className="pwfb-action-edit"
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }

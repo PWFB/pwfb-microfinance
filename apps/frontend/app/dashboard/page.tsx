@@ -81,7 +81,7 @@ export default function DashboardPage() {
 
   const cards = [
     {
-      title: 'Clients',
+      title: 'Customers',
       count: summary.customers.count,
       amount: summary.portfolio.amount,
       label: 'Portfolio value',
@@ -94,7 +94,7 @@ export default function DashboardPage() {
       amount: summary.savings.amount,
       label: 'Total savings',
       href: '/savings',
-      icon: '💰',
+      icon: '₦',
     },
     {
       title: 'Loans',
@@ -102,7 +102,7 @@ export default function DashboardPage() {
       amount: summary.loans.amount,
       label: 'Loan portfolio',
       href: '/loans',
-      icon: '🏦',
+      icon: 'L',
     },
     {
       title: 'Repayments',
@@ -110,7 +110,7 @@ export default function DashboardPage() {
       amount: summary.repayments.amount,
       label: 'Total repayments',
       href: '/repayments',
-      icon: '↩️',
+      icon: '↩',
     },
     {
       title: 'Transactions',
@@ -118,147 +118,127 @@ export default function DashboardPage() {
       amount: summary.transactions.amount,
       label: 'Transaction value',
       href: '/transactions',
-      icon: '↔️',
+      icon: '↔',
     },
   ];
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <header className="mb-8">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-emerald-700">
-                PWFB Microfinance
-              </p>
-
-              <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900">
-                Main Dashboard
-              </h1>
-
-              <p className="mt-2 text-sm text-slate-500">
-                Real-time overview of your microfinance operations.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-emerald-100 bg-white px-5 py-3 shadow-sm">
-              <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
-                Access
-              </p>
-              <p className="mt-1 font-semibold text-emerald-700">
-                Super Admin
-              </p>
-            </div>
-          </div>
-        </header>
-
-        {error && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            {error}
-          </div>
-        )}
-
-        <section className="mb-8 rounded-3xl bg-gradient-to-r from-emerald-700 to-green-600 p-6 text-white shadow-lg sm:p-8">
-          <p className="text-sm font-medium text-emerald-100">
-            Client Portfolio
+    <main>
+      <div className="pwfb-page-header">
+        <div>
+          <p className="pwfb-eyebrow">EXECUTIVE OVERVIEW</p>
+          <h1 className="pwfb-page-title">Dashboard</h1>
+          <p className="pwfb-page-description">
+            Real-time overview of PWFB microfinance operations.
           </p>
+        </div>
 
-          <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-3xl font-bold sm:text-4xl">
-                {loading ? 'Loading...' : formatAmount(summary.portfolio.amount)}
-              </h2>
+        <div className="pwfb-admin-badge">
+          <span>ACCESS</span>
+          <strong>Super Admin</strong>
+        </div>
+      </div>
 
-              <p className="mt-2 text-sm text-emerald-100">
-                Combined savings and loan portfolio value
-              </p>
-            </div>
+      {error && (
+        <div className="pwfb-alert">
+          {error}
+        </div>
+      )}
 
-            <div className="rounded-2xl bg-white/10 px-5 py-4 backdrop-blur">
-              <p className="text-xs uppercase tracking-wide text-emerald-100">
-                Clients
-              </p>
-              <p className="mt-1 text-2xl font-bold">
-                {loading ? '—' : summary.customers.count}
-              </p>
-            </div>
-          </div>
-        </section>
+      <section className="pwfb-dashboard-hero">
+        <div>
+          <p>CLIENT PORTFOLIO</p>
 
-        <section className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {cards.map((card) => (
-            <Link
-              key={card.title}
-              href={card.href}
-              className="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-lg"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-2xl">
-                  {card.icon}
-                </div>
-
-                <span className="text-slate-300 transition group-hover:text-emerald-600">
-                  →
-                </span>
-              </div>
-
-              <p className="mt-6 text-sm font-semibold text-slate-500">
-                {card.title}
-              </p>
-
-              <p className="mt-1 text-3xl font-bold text-slate-900">
-                {loading ? '—' : card.count}
-              </p>
-
-              <div className="mt-4 border-t border-slate-100 pt-4">
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  {card.label}
-                </p>
-
-                <p className="mt-1 text-lg font-bold text-emerald-700">
-                  {loading ? 'Loading...' : formatAmount(card.amount)}
-                </p>
-              </div>
-            </Link>
-          ))}
-        </section>
-
-        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-900">
-            Operations
+          <h2>
+            {loading
+              ? 'Loading...'
+              : formatAmount(summary.portfolio.amount)}
           </h2>
 
-          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Link
-              href="/customers"
-              className="rounded-2xl bg-slate-50 p-4 text-center font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-            >
-              Customers
-            </Link>
+          <span>
+            Combined savings and loan portfolio value
+          </span>
+        </div>
 
-            <Link
-              href="/staff-dashboard"
-              className="rounded-2xl bg-slate-50 p-4 text-center font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-            >
-              Staff
-            </Link>
+        <div className="pwfb-dashboard-hero-stat">
+          <span>Customers</span>
+          <strong>
+            {loading ? '—' : summary.customers.count}
+          </strong>
+        </div>
+      </section>
 
-            <Link
-              href="/branches"
-              className="rounded-2xl bg-slate-50 p-4 text-center font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-            >
-              Branches
-            </Link>
+      <section className="pwfb-stat-grid">
+        {cards.map((card) => (
+          <Link
+            key={card.title}
+            href={card.href}
+            className="pwfb-dashboard-card"
+          >
+            <div className="pwfb-dashboard-card-top">
+              <div className="pwfb-dashboard-icon">
+                {card.icon}
+              </div>
 
-            <Link
-              href="/reports"
-              className="rounded-2xl bg-slate-50 p-4 text-center font-semibold text-slate-700 hover:bg-emerald-50 hover:text-emerald-700"
-            >
-              Reports
-            </Link>
+              <span>→</span>
+            </div>
+
+            <p>{card.title}</p>
+
+            <strong>
+              {loading ? '—' : card.count}
+            </strong>
+
+            <div className="pwfb-dashboard-card-value">
+              <small>{card.label}</small>
+              <b>
+                {loading ? 'Loading...' : formatAmount(card.amount)}
+              </b>
+            </div>
+          </Link>
+        ))}
+      </section>
+
+      <section className="pwfb-panel">
+        <div className="pwfb-panel-header">
+          <div>
+            <h2>Quick Operations</h2>
+            <p>Access the main operational areas of PWFB.</p>
           </div>
-        </section>
-      </div>
+        </div>
+
+        <div className="pwfb-quick-actions">
+          <Link href="/customers" className="pwfb-quick-action">
+            <strong>Customers</strong>
+            <span>Manage customer records →</span>
+          </Link>
+
+          <Link href="/loans" className="pwfb-quick-action">
+            <strong>Loans</strong>
+            <span>Manage loan portfolio →</span>
+          </Link>
+
+          <Link href="/savings" className="pwfb-quick-action">
+            <strong>Savings</strong>
+            <span>Manage savings accounts →</span>
+          </Link>
+
+          <Link href="/repayments" className="pwfb-quick-action">
+            <strong>Repayments</strong>
+            <span>Record loan repayments →</span>
+          </Link>
+
+          <Link href="/transactions" className="pwfb-quick-action">
+            <strong>Transactions</strong>
+            <span>View financial activity →</span>
+          </Link>
+
+          <Link href="/staff-dashboard" className="pwfb-quick-action">
+            <strong>Staff</strong>
+            <span>Open staff dashboard →</span>
+          </Link>
+        </div>
+      </section>
     </main>
   );
 }

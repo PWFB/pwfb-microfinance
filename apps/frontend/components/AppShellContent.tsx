@@ -5,17 +5,97 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 
-const links = [
-  ["Dashboard", "/dashboard", "⌂"],
-  ["Customers", "/customers", "👥"],
-  ["Savings", "/savings", "💰"],
-  ["Loans", "/loans", "🏦"],
-  ["Repayments", "/repayments", "↩"],
-  ["Transactions", "/transactions", "↔"],
-  ["Staff", "/staff-dashboard", "👤"],
-  ["Reports", "/reports", "📊"],
-  ["Branches", "/branches", "🏢"],
-  ["Customer Portal", "/customer-dashboard", "◎"],
+type NavLink = {
+  label: string;
+  href: string;
+  icon: string;
+  roles: string[];
+};
+
+const links: NavLink[] = [
+  {
+    label: "Dashboard",
+    href: "/dashboard",
+    icon: "⌂",
+    roles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "BRANCH_MANAGER",
+      "LOAN_OFFICER",
+      "TELLER",
+      "AUDITOR",
+    ],
+  },
+  {
+    label: "Customers",
+    href: "/customers",
+    icon: "👥",
+    roles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "BRANCH_MANAGER",
+      "LOAN_OFFICER",
+      "TELLER",
+    ],
+  },
+  {
+    label: "Savings",
+    href: "/savings",
+    icon: "💰",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+  },
+  {
+    label: "Loans",
+    href: "/loans",
+    icon: "🏦",
+    roles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "BRANCH_MANAGER",
+      "LOAN_OFFICER",
+    ],
+  },
+  {
+    label: "Repayments",
+    href: "/repayments",
+    icon: "↩",
+    roles: [
+      "SUPER_ADMIN",
+      "ADMIN",
+      "BRANCH_MANAGER",
+      "LOAN_OFFICER",
+    ],
+  },
+  {
+    label: "Transactions",
+    href: "/transactions",
+    icon: "↔",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+  },
+  {
+    label: "Staff",
+    href: "/staff-dashboard",
+    icon: "👤",
+    roles: ["SUPER_ADMIN", "ADMIN"],
+  },
+  {
+    label: "Reports",
+    href: "/reports",
+    icon: "📊",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"],
+  },
+  {
+    label: "Branches",
+    href: "/branches",
+    icon: "🏢",
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"],
+  },
+  {
+    label: "Customer Portal",
+    href: "/customer-dashboard",
+    icon: "◎",
+    roles: ["CUSTOMER"],
+  },
 ];
 
 const publicRoutes = ["/", "/login", "/register"];
@@ -57,11 +137,16 @@ export default function AppShellContent({
     [user.firstName, user.lastName].filter(Boolean).join(" ") ||
     user.email;
 
+  const visibleLinks = links.filter((link) =>
+    link.roles.includes(user.role),
+  );
+
   return (
     <div className="pwfb-shell">
       <aside className="pwfb-sidebar">
         <div className="pwfb-brand">
           <div className="pwfb-brand-mark">P</div>
+
           <div>
             <strong>PWFB</strong>
             <span>Microfinance</span>
@@ -74,21 +159,21 @@ export default function AppShellContent({
         </div>
 
         <nav className="pwfb-nav">
-          {links.map(([label, href, icon]) => {
+          {visibleLinks.map((link) => {
             const active =
-              pathname === href ||
-              pathname.startsWith(`${href}/`);
+              pathname === link.href ||
+              pathname.startsWith(`${link.href}/`);
 
             return (
               <Link
-                key={href}
-                href={href}
+                key={link.href}
+                href={link.href}
                 className={`pwfb-nav-link ${
                   active ? "pwfb-nav-link-active" : ""
                 }`}
               >
-                <span className="pwfb-nav-icon">{icon}</span>
-                <span>{label}</span>
+                <span className="pwfb-nav-icon">{link.icon}</span>
+                <span>{link.label}</span>
               </Link>
             );
           })}
@@ -96,6 +181,7 @@ export default function AppShellContent({
 
         <div className="pwfb-sidebar-status">
           <span className="pwfb-status-dot" />
+
           <div>
             <strong>System Online</strong>
             <small>Production</small>

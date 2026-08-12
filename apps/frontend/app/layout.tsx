@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import AppShell from "../components/AppShell";
 
 export const metadata: Metadata = {
   title: "PWFB Microfinance",
@@ -8,12 +9,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }

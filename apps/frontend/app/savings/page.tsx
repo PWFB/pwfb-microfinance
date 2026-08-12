@@ -23,83 +23,147 @@ export default function SavingsPage() {
         setSavings(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch(() => {
-        setLoading(false);
-      });
+      .catch(() => setLoading(false));
   }, []);
 
-  return (
-    <main
-      style={{
-        padding: 30,
-        fontFamily: "Arial",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <h1>💰 Savings</h1>
+  const totalSavings = savings.reduce(
+    (sum, item) => sum + Number(item.amount || 0),
+    0,
+  );
 
-        <Link href="/savings/add">
-          <button>
-            Add Savings
-          </button>
+  return (
+    <main>
+      <div className="pwfb-page-header">
+        <div>
+          <p className="pwfb-eyebrow">SAVINGS OPERATIONS</p>
+          <h1 className="pwfb-page-title">Savings</h1>
+          <p className="pwfb-page-description">
+            Manage customer savings accounts, balances and deposit activity.
+          </p>
+        </div>
+
+        <Link href="/savings/add" className="pwfb-primary-button">
+          + Add Savings
         </Link>
       </div>
 
-      {loading ? (
-        <p>Loading savings...</p>
-      ) : savings.length === 0 ? (
-        <p>No savings records found.</p>
-      ) : (
-        <table
-          border={1}
-          cellPadding={10}
-          cellSpacing={0}
-          width="100%"
-        >
-          <thead>
-            <tr>
-              <th>Customer ID</th>
-              <th>Amount</th>
-              <th>Account Type</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
+      <section className="pwfb-stat-grid">
+        <div className="pwfb-stat-card">
+          <span>Total Accounts</span>
+          <strong>{loading ? "—" : savings.length}</strong>
+          <small>Registered savings records</small>
+        </div>
 
-          <tbody>
-            {savings.map((item) => (
-              <tr key={item.id}>
-                <td>{item.customerId}</td>
+        <div className="pwfb-stat-card pwfb-stat-orange">
+          <span>Total Savings</span>
+          <strong>
+            {loading
+              ? "—"
+              : `₦${totalSavings.toLocaleString("en-NG")}`}
+          </strong>
+          <small>Recorded savings value</small>
+        </div>
 
-                <td>
-                  {item.amount}
-                </td>
+        <div className="pwfb-stat-card">
+          <span>Account Status</span>
+          <strong>Active</strong>
+          <small>Savings operations</small>
+        </div>
+      </section>
 
-                <td>
-                  {item.accountType || "-"}
-                </td>
+      <section className="pwfb-panel">
+        <div className="pwfb-panel-header">
+          <div>
+            <h2>Savings Accounts</h2>
+            <p>Customer savings records currently available in the system.</p>
+          </div>
 
-                <td>
-                  <Link href={`/savings/view/${item.id}`}>
-                    View
-                  </Link>
+          <span className="pwfb-record-count">
+            {loading ? "Loading..." : `${savings.length} records`}
+          </span>
+        </div>
 
-                  {" | "}
+        {loading ? (
+          <div className="pwfb-empty-state">
+            <div className="pwfb-loading-dot" />
+            <p>Loading savings...</p>
+          </div>
+        ) : savings.length === 0 ? (
+          <div className="pwfb-empty-state">
+            <div className="pwfb-empty-icon">₦</div>
+            <h3>No savings records found</h3>
+            <p>Start by adding the first customer savings record.</p>
+            <Link
+              href="/savings/add"
+              className="pwfb-secondary-button"
+            >
+              Add Savings
+            </Link>
+          </div>
+        ) : (
+          <div className="pwfb-table-wrap">
+            <table className="pwfb-table">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Account Type</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
 
-                  <Link href={`/savings/edit/${item.id}`}>
-                    Edit
-                  </Link>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+              <tbody>
+                {savings.map((item) => (
+                  <tr key={item.id}>
+                    <td>
+                      <div className="pwfb-customer-cell">
+                        <div className="pwfb-avatar">₦</div>
+                        <div>
+                          <strong>Customer</strong>
+                          <small>{item.customerId}</small>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td>
+                      <strong>
+                        ₦{Number(item.amount || 0).toLocaleString("en-NG")}
+                      </strong>
+                    </td>
+
+                    <td>{item.accountType || "—"}</td>
+
+                    <td>
+                      <span className="pwfb-status-badge">
+                        Active
+                      </span>
+                    </td>
+
+                    <td>
+                      <div className="pwfb-actions">
+                        <Link
+                          href={`/savings/view/${item.id}`}
+                          className="pwfb-action-view"
+                        >
+                          View
+                        </Link>
+
+                        <Link
+                          href={`/savings/edit/${item.id}`}
+                          className="pwfb-action-edit"
+                        >
+                          Edit
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </main>
   );
 }

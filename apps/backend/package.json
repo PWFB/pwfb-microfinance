@@ -39,9 +39,12 @@
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
     "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^26.1.1",
     "@types/passport-jwt": "^4.0.1",
+    "jest": "^30.4.2",
     "prisma": "^6.19.3",
+    "ts-jest": "^29.4.12",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"
   }

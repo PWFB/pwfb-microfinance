@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { apiRequest } from "../../lib/api";
 
 interface Savings {
   id: string;
@@ -17,13 +16,19 @@ export default function SavingsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/savings`)
-      .then((res) => res.json())
-      .then((data) => {
+    async function loadSavings() {
+      try {
+        const data = await apiRequest("/savings");
         setSavings(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error("Failed to load savings:", error);
+        setSavings([]);
+      } finally {
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      }
+    }
+
+    loadSavings();
   }, []);
 
   const totalSavings = savings.reduce(
@@ -75,7 +80,9 @@ export default function SavingsPage() {
         <div className="pwfb-panel-header">
           <div>
             <h2>Savings Accounts</h2>
-            <p>Customer savings records currently available in the system.</p>
+            <p>
+              Customer savings records currently available in the system.
+            </p>
           </div>
 
           <span className="pwfb-record-count">

@@ -1276,3 +1276,248 @@ button:disabled {
     font-size: 24px;
   }
 }
+
+/* =========================================
+   PWFB EXPANDABLE SIDEBAR
+   ========================================= */
+
+.pwfb-nav-section {
+  width: 100%;
+}
+
+.pwfb-nav-parent {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.pwfb-nav-chevron {
+  margin-left: auto;
+  font-size: 20px;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.pwfb-nav-chevron-open {
+  transform: rotate(90deg);
+}
+
+.pwfb-subnav {
+  margin: 2px 0 6px 18px;
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.pwfb-subnav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.pwfb-subnav-link:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.pwfb-subnav-link-active {
+  background: rgba(242, 140, 24, 0.18);
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.pwfb-subnav-dot {
+  color: var(--pwfb-orange);
+  font-size: 15px;
+}
+
+.pwfb-brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 12px;
+  background: var(--pwfb-orange);
+  color: #ffffff;
+  box-shadow: 0 5px 14px rgba(242, 140, 24, 0.25);
+}
+
+.pwfb-brand-mark span {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+@media (max-width: 760px) {
+  .pwfb-subnav {
+    margin-left: 10px;
+  }
+
+  .pwfb-subnav-link {
+    min-height: 42px;
+  }
+}
+
+/* =========================================================
+   PWFB EXPANDABLE SIDEBAR
+   ========================================================= */
+
+.pwfb-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+}
+
+.pwfb-brand-logo {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    var(--pwfb-orange),
+    var(--pwfb-green)
+  );
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(15, 123, 53, 0.25);
+  transform: rotate(-3deg);
+}
+
+.pwfb-brand-logo span {
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+  transform: rotate(3deg);
+}
+
+.pwfb-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.pwfb-brand-text strong {
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+}
+
+.pwfb-brand-text span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.pwfb-nav-group {
+  width: 100%;
+}
+
+.pwfb-nav-parent {
+  width: 100%;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  position: relative;
+}
+
+.pwfb-nav-parent:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pwfb-nav-link-parent-active {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.pwfb-nav-chevron {
+  margin-left: auto;
+  font-size: 15px;
+  line-height: 1;
+  opacity: 0.75;
+}
+
+.pwfb-subnav {
+  margin: 2px 10px 7px 18px;
+  padding: 5px 0 5px 18px;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  animation: pwfb-subnav-open 160ms ease-out;
+}
+
+@keyframes pwfb-subnav-open {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pwfb-subnav-link {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 34px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.68);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.pwfb-subnav-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.pwfb-subnav-link-active {
+  color: #ffffff;
+  background: rgba(242, 140, 24, 0.18);
+}
+
+.pwfb-subnav-dot {
+  width: 5px;
+  height: 5px;
+  min-width: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.pwfb-subnav-link-active .pwfb-subnav-dot {
+  background: var(--pwfb-orange);
+}
+
+/* Keep the sidebar clean on small screens */
+@media (max-width: 900px) {
+  .pwfb-subnav {
+    margin-left: 8px;
+  }
+
+  .pwfb-subnav-link {
+    font-size: 11px;
+  }
+}

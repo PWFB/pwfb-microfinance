@@ -2,34 +2,39 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
-type NavLink = {
+type NavItem = {
   label: string;
   href: string;
-  icon: string;
   roles: string[];
 };
 
-const links: NavLink[] = [
+type NavGroup = {
+  key: string;
+  label: string;
+  icon: string;
+  href: string;
+  roles: string[];
+  children: NavItem[];
+};
+
+const baseRoles = [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "BRANCH_MANAGER",
+  "LOAN_OFFICER",
+  "TELLER",
+  "AUDITOR",
+];
+
+const groups: NavGroup[] = [
   {
-    label: "Dashboard",
-    href: "/dashboard",
-    icon: "⌂",
-    roles: [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "BRANCH_MANAGER",
-      "LOAN_OFFICER",
-      "TELLER",
-      "AUDITOR",
-    ],
-  },
-  {
+    key: "customers",
     label: "Customers",
-    href: "/customers",
     icon: "👥",
+    href: "/customers",
     roles: [
       "SUPER_ADMIN",
       "ADMIN",
@@ -37,68 +42,186 @@ const links: NavLink[] = [
       "LOAN_OFFICER",
       "TELLER",
     ],
+    children: [
+      {
+        label: "Customer Overview",
+        href: "/customers",
+        roles: [
+          "SUPER_ADMIN",
+          "ADMIN",
+          "BRANCH_MANAGER",
+          "LOAN_OFFICER",
+          "TELLER",
+        ],
+      },
+      {
+        label: "Add Customer",
+        href: "/customers/add",
+        roles: [
+          "SUPER_ADMIN",
+          "ADMIN",
+          "BRANCH_MANAGER",
+          "LOAN_OFFICER",
+          "TELLER",
+        ],
+      },
+    ],
   },
   {
+    key: "savings",
     label: "Savings",
-    href: "/savings",
     icon: "💰",
+    href: "/savings",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+    children: [
+      {
+        label: "Savings Overview",
+        href: "/savings",
+        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+      },
+      {
+        label: "Add Savings",
+        href: "/savings/add",
+        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+      },
+    ],
   },
   {
+    key: "loans",
     label: "Loans",
-    href: "/loans",
     icon: "🏦",
+    href: "/loans",
     roles: [
       "SUPER_ADMIN",
       "ADMIN",
       "BRANCH_MANAGER",
       "LOAN_OFFICER",
     ],
+    children: [
+      {
+        label: "Loan Overview",
+        href: "/loans",
+        roles: [
+          "SUPER_ADMIN",
+          "ADMIN",
+          "BRANCH_MANAGER",
+          "LOAN_OFFICER",
+        ],
+      },
+      {
+        label: "Add Loan",
+        href: "/loans/add",
+        roles: [
+          "SUPER_ADMIN",
+          "ADMIN",
+          "BRANCH_MANAGER",
+          "LOAN_OFFICER",
+        ],
+      },
+    ],
   },
   {
+    key: "repayments",
     label: "Repayments",
-    href: "/repayments",
     icon: "↩",
+    href: "/repayments",
     roles: [
       "SUPER_ADMIN",
       "ADMIN",
       "BRANCH_MANAGER",
       "LOAN_OFFICER",
     ],
+    children: [
+      {
+        label: "Repayment Overview",
+        href: "/repayments",
+        roles: [
+          "SUPER_ADMIN",
+          "ADMIN",
+          "BRANCH_MANAGER",
+          "LOAN_OFFICER",
+        ],
+      },
+      {
+        label: "Add Repayment",
+        href: "/repayments/add",
+        roles: [
+          "SUPER_ADMIN",
+          "ADMIN",
+          "BRANCH_MANAGER",
+          "LOAN_OFFICER",
+        ],
+      },
+    ],
   },
   {
+    key: "transactions",
     label: "Transactions",
-    href: "/transactions",
     icon: "↔",
+    href: "/transactions",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+    children: [
+      {
+        label: "Transaction Overview",
+        href: "/transactions",
+        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+      },
+      {
+        label: "Add Transaction",
+        href: "/transactions/add",
+        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
+      },
+    ],
   },
   {
+    key: "staff",
     label: "Staff",
-    href: "/staff-dashboard",
     icon: "👤",
+    href: "/staff-dashboard",
     roles: ["SUPER_ADMIN", "ADMIN"],
+    children: [
+      {
+        label: "Staff Dashboard",
+        href: "/staff-dashboard",
+        roles: ["SUPER_ADMIN", "ADMIN"],
+      },
+    ],
   },
   {
+    key: "reports",
     label: "Reports",
-    href: "/reports",
     icon: "📊",
+    href: "/reports",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"],
+    children: [
+      {
+        label: "Reports & Analytics",
+        href: "/reports",
+        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"],
+      },
+    ],
   },
   {
+    key: "branches",
     label: "Branches",
-    href: "/branches",
     icon: "🏢",
+    href: "/branches",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"],
-  },
-  {
-    label: "Customer Portal",
-    href: "/customer-dashboard",
-    icon: "◎",
-    roles: ["CUSTOMER"],
+    children: [
+      {
+        label: "Branch Overview",
+        href: "/branches",
+        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"],
+      },
+    ],
   },
 ];
 
 const publicRoutes = ["/", "/login", "/register"];
+
+function isInside(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
 
 export default function AppShellContent({
   children,
@@ -109,6 +232,8 @@ export default function AppShellContent({
   const router = useRouter();
   const { user, loading, logout } = useAuth();
 
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+
   const isPublicRoute = publicRoutes.includes(pathname);
 
   useEffect(() => {
@@ -116,6 +241,16 @@ export default function AppShellContent({
       router.replace("/login");
     }
   }, [loading, user, isPublicRoute, router]);
+
+  useEffect(() => {
+    const activeGroup = groups.find((group) =>
+      isInside(pathname, group.href),
+    );
+
+    if (activeGroup) {
+      setOpenGroup(activeGroup.key);
+    }
+  }, [pathname]);
 
   if (isPublicRoute) {
     return <>{children}</>;
@@ -137,21 +272,24 @@ export default function AppShellContent({
     [user.firstName, user.lastName].filter(Boolean).join(" ") ||
     user.email;
 
-  const visibleLinks = links.filter((link) =>
-    link.roles.includes(user.role),
+  const visibleGroups = groups.filter((group) =>
+    group.roles.includes(user.role),
   );
 
   return (
     <div className="pwfb-shell">
       <aside className="pwfb-sidebar">
-        <div className="pwfb-brand">
-          <div className="pwfb-brand-mark">P</div>
+        {/* PWFB LOGO */}
+        <Link href="/dashboard" className="pwfb-brand">
+          <div className="pwfb-brand-logo">
+            <span>PWFB</span>
+          </div>
 
-          <div>
+          <div className="pwfb-brand-text">
             <strong>PWFB</strong>
             <span>Microfinance</span>
           </div>
-        </div>
+        </Link>
 
         <div className="pwfb-access">
           <small>ACCESS</small>
@@ -159,24 +297,100 @@ export default function AppShellContent({
         </div>
 
         <nav className="pwfb-nav">
-          {visibleLinks.map((link) => {
-            const active =
-              pathname === link.href ||
-              pathname.startsWith(`${link.href}/`);
+          {/* Dashboard */}
+          <Link
+            href="/dashboard"
+            className={`pwfb-nav-link ${
+              pathname === "/dashboard"
+                ? "pwfb-nav-link-active"
+                : ""
+            }`}
+          >
+            <span className="pwfb-nav-icon">⌂</span>
+            <span>Dashboard</span>
+          </Link>
+
+          {/* Expandable sections */}
+          {visibleGroups.map((group) => {
+            const active = isInside(pathname, group.href);
+            const expanded = openGroup === group.key;
+
+            const visibleChildren = group.children.filter((child) =>
+              child.roles.includes(user.role),
+            );
 
             return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`pwfb-nav-link ${
-                  active ? "pwfb-nav-link-active" : ""
+              <div
+                key={group.key}
+                className={`pwfb-nav-group ${
+                  expanded ? "pwfb-nav-group-open" : ""
                 }`}
               >
-                <span className="pwfb-nav-icon">{link.icon}</span>
-                <span>{link.label}</span>
-              </Link>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setOpenGroup(
+                      expanded ? null : group.key,
+                    )
+                  }
+                  className={`pwfb-nav-link pwfb-nav-parent ${
+                    active ? "pwfb-nav-link-parent-active" : ""
+                  }`}
+                >
+                  <span className="pwfb-nav-icon">
+                    {group.icon}
+                  </span>
+
+                  <span>{group.label}</span>
+
+                  <span className="pwfb-nav-chevron">
+                    {expanded ? "⌃" : "⌄"}
+                  </span>
+                </button>
+
+                {expanded && (
+                  <div className="pwfb-subnav">
+                    {visibleChildren.map((child) => {
+                      const childActive = isInside(
+                        pathname,
+                        child.href,
+                      );
+
+                      return (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`pwfb-subnav-link ${
+                            childActive
+                              ? "pwfb-subnav-link-active"
+                              : ""
+                          }`}
+                        >
+                          <span className="pwfb-subnav-dot" />
+                          <span>{child.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
+
+          {/* Customer Portal */}
+          {user.role === "CUSTOMER" && (
+            <Link
+              href="/customer-dashboard"
+              className={`pwfb-nav-link ${
+                pathname === "/customer-dashboard"
+                  ? "pwfb-nav-link-active"
+                  : ""
+              }`}
+            >
+              <span className="pwfb-nav-icon">◎</span>
+              <span>Customer Portal</span>
+            </Link>
+          )}
         </nav>
 
         <div className="pwfb-sidebar-status">

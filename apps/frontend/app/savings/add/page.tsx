@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
+import { apiRequest } from "../../../lib/api";
 
 export default function AddSavingsPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const [form, setForm] = useState({
     customerId: "",
@@ -17,7 +17,7 @@ export default function AddSavingsPage() {
   });
 
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement>
+    e: React.ChangeEvent<HTMLInputElement>,
   ) {
     setForm({
       ...form,
@@ -26,100 +26,138 @@ export default function AddSavingsPage() {
   }
 
   async function handleSubmit(
-    e: React.FormEvent
+    e: React.FormEvent,
   ) {
     e.preventDefault();
 
     setLoading(true);
+    setError("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/savings`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...form,
-            amount: Number(form.amount),
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "Failed to create savings"
-        );
-      }
+      await apiRequest("/savings", {
+        method: "POST",
+        body: JSON.stringify({
+          customerId: form.customerId,
+          amount: Number(form.amount),
+          accountType: form.accountType,
+        }),
+      });
 
       router.push("/savings");
-
     } catch (error) {
-      console.error(error);
-      alert("Unable to save savings record.");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save savings record.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (
-    <main
-      style={{
-        padding: 30,
-        fontFamily: "Arial",
-        maxWidth: 600,
-      }}
-    >
-      <h1>
-        Add Savings
-      </h1>
+    <main>
+      <div className="pwfb-page-header">
+        <div>
+          <p className="pwfb-eyebrow">SAVINGS OPERATIONS</p>
+          <h1 className="pwfb-page-title">Add Savings</h1>
+          <p className="pwfb-page-description">
+            Create a new customer savings record.
+          </p>
+        </div>
+      </div>
 
-      <form onSubmit={handleSubmit}>
+      <section className="pwfb-panel">
+        <div className="pwfb-panel-header">
+          <div>
+            <h2>New Savings Account</h2>
+            <p>
+              Enter the customer and savings information below.
+            </p>
+          </div>
+        </div>
 
-        <input
-          name="customerId"
-          placeholder="Customer ID"
-          value={form.customerId}
-          onChange={handleChange}
-          required
-        />
+        {error && (
+          <div className="pwfb-error">
+            {error}
+          </div>
+        )}
 
-        <br />
-        <br />
-
-        <input
-          name="amount"
-          type="number"
-          placeholder="Amount"
-          value={form.amount}
-          onChange={handleChange}
-          required
-        />
-
-        <br />
-        <br />
-
-        <input
-          name="accountType"
-          placeholder="Account Type"
-          value={form.accountType}
-          onChange={handleChange}
-        />
-
-        <br />
-        <br />
-
-        <button
-          type="submit"
-          disabled={loading}
+        <form
+          onSubmit={handleSubmit}
+          className="pwfb-form"
         >
-          {loading
-            ? "Saving..."
-            : "Save Savings"}
-        </button>
+          <div className="pwfb-form-grid">
+            <div className="pwfb-form-field">
+              <label htmlFor="customerId">
+                Customer ID
+              </label>
 
-      </form>
+              <input
+                id="customerId"
+                name="customerId"
+                placeholder="Enter customer ID"
+                value={form.customerId}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="pwfb-form-field">
+              <label htmlFor="amount">
+                Amount
+              </label>
+
+              <input
+                id="amount"
+                name="amount"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Enter amount"
+                value={form.amount}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="pwfb-form-field">
+              <label htmlFor="accountType">
+                Account Type
+              </label>
+
+              <input
+                id="accountType"
+                name="accountType"
+                placeholder="e.g. Regular Savings"
+                value={form.accountType}
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+
+          <div className="pwfb-form-actions">
+            <button
+              type="button"
+              className="pwfb-secondary-button"
+              onClick={() => router.push("/savings")}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="pwfb-primary-button"
+              disabled={loading}
+            >
+              {loading
+                ? "Saving..."
+                : "Save Savings"}
+            </button>
+          </div>
+        </form>
+      </section>
     </main>
   );
 }

@@ -1521,3 +1521,127 @@ button:disabled {
     font-size: 11px;
   }
 }
+
+/* =========================================================
+   PWFB MOBILE NAVIGATION DRAWER
+   Final mobile override
+   ========================================================= */
+
+.pwfb-mobile-menu-button,
+.pwfb-mobile-backdrop {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .pwfb-sidebar {
+    width: 280px !important;
+    max-width: 85vw;
+    padding: 20px 14px !important;
+    transform: translateX(-105%);
+    transition: transform 220ms ease;
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.18);
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .pwfb-sidebar.pwfb-sidebar-mobile-open {
+    transform: translateX(0);
+  }
+
+  .pwfb-sidebar .pwfb-brand {
+    justify-content: flex-start !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .pwfb-sidebar .pwfb-brand-text,
+  .pwfb-sidebar .pwfb-access,
+  .pwfb-sidebar .pwfb-nav-link span:not(.pwfb-nav-icon),
+  .pwfb-sidebar .pwfb-sidebar-status div {
+    display: block !important;
+  }
+
+  .pwfb-sidebar .pwfb-nav-link {
+    justify-content: flex-start !important;
+  }
+
+  .pwfb-sidebar .pwfb-sidebar-status {
+    justify-content: flex-start !important;
+  }
+
+  .pwfb-main {
+    margin-left: 0 !important;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .pwfb-topbar {
+    height: 62px;
+    padding: 0 14px !important;
+    gap: 10px;
+  }
+
+  .pwfb-mobile-menu-button {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    border: 0;
+    border-radius: 10px;
+    background: var(--pwfb-green-dark);
+    color: #ffffff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .pwfb-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    border: 0;
+    background: rgba(15, 23, 42, 0.48);
+    cursor: pointer;
+  }
+
+  .pwfb-sidebar.pwfb-sidebar-mobile-open ~ .pwfb-mobile-backdrop {
+    display: block;
+  }
+
+  .pwfb-content {
+    width: 100%;
+    max-width: 100%;
+    padding: 14px !important;
+    overflow-x: hidden;
+  }
+
+  .pwfb-page-header {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .pwfb-admin-badge {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pwfb-stat-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pwfb-dashboard-hero {
+    grid-template-columns: 1fr !important;
+  }
+
+  .pwfb-quick-actions {
+    grid-template-columns: 1fr !important;
+    padding: 14px;
+  }
+
+  .pwfb-dashboard-card,
+  .pwfb-panel,
+  .pwfb-dashboard-hero {
+    min-width: 0;
+  }
+}

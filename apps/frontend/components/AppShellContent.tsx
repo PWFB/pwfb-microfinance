@@ -20,51 +20,16 @@ type NavGroup = {
   children: NavItem[];
 };
 
-const baseRoles = [
-  "SUPER_ADMIN",
-  "ADMIN",
-  "BRANCH_MANAGER",
-  "LOAN_OFFICER",
-  "TELLER",
-  "AUDITOR",
-];
-
 const groups: NavGroup[] = [
   {
     key: "customers",
     label: "Customers",
     icon: "👥",
     href: "/customers",
-    roles: [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "BRANCH_MANAGER",
-      "LOAN_OFFICER",
-      "TELLER",
-    ],
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"],
     children: [
-      {
-        label: "Customer Overview",
-        href: "/customers",
-        roles: [
-          "SUPER_ADMIN",
-          "ADMIN",
-          "BRANCH_MANAGER",
-          "LOAN_OFFICER",
-          "TELLER",
-        ],
-      },
-      {
-        label: "Add Customer",
-        href: "/customers/add",
-        roles: [
-          "SUPER_ADMIN",
-          "ADMIN",
-          "BRANCH_MANAGER",
-          "LOAN_OFFICER",
-          "TELLER",
-        ],
-      },
+      { label: "Customer Overview", href: "/customers", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
+      { label: "Add Customer", href: "/customers/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
     ],
   },
   {
@@ -74,16 +39,8 @@ const groups: NavGroup[] = [
     href: "/savings",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
     children: [
-      {
-        label: "Savings Overview",
-        href: "/savings",
-        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
-      },
-      {
-        label: "Add Savings",
-        href: "/savings/add",
-        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
-      },
+      { label: "Savings Overview", href: "/savings", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
+      { label: "Add Savings", href: "/savings/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
     ],
   },
   {
@@ -91,33 +48,10 @@ const groups: NavGroup[] = [
     label: "Loans",
     icon: "🏦",
     href: "/loans",
-    roles: [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "BRANCH_MANAGER",
-      "LOAN_OFFICER",
-    ],
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"],
     children: [
-      {
-        label: "Loan Overview",
-        href: "/loans",
-        roles: [
-          "SUPER_ADMIN",
-          "ADMIN",
-          "BRANCH_MANAGER",
-          "LOAN_OFFICER",
-        ],
-      },
-      {
-        label: "Add Loan",
-        href: "/loans/add",
-        roles: [
-          "SUPER_ADMIN",
-          "ADMIN",
-          "BRANCH_MANAGER",
-          "LOAN_OFFICER",
-        ],
-      },
+      { label: "Loan Overview", href: "/loans", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
+      { label: "Add Loan", href: "/loans/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
     ],
   },
   {
@@ -125,33 +59,10 @@ const groups: NavGroup[] = [
     label: "Repayments",
     icon: "↩",
     href: "/repayments",
-    roles: [
-      "SUPER_ADMIN",
-      "ADMIN",
-      "BRANCH_MANAGER",
-      "LOAN_OFFICER",
-    ],
+    roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"],
     children: [
-      {
-        label: "Repayment Overview",
-        href: "/repayments",
-        roles: [
-          "SUPER_ADMIN",
-          "ADMIN",
-          "BRANCH_MANAGER",
-          "LOAN_OFFICER",
-        ],
-      },
-      {
-        label: "Add Repayment",
-        href: "/repayments/add",
-        roles: [
-          "SUPER_ADMIN",
-          "ADMIN",
-          "BRANCH_MANAGER",
-          "LOAN_OFFICER",
-        ],
-      },
+      { label: "Repayment Overview", href: "/repayments", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
+      { label: "Add Repayment", href: "/repayments/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
     ],
   },
   {
@@ -161,16 +72,8 @@ const groups: NavGroup[] = [
     href: "/transactions",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
     children: [
-      {
-        label: "Transaction Overview",
-        href: "/transactions",
-        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
-      },
-      {
-        label: "Add Transaction",
-        href: "/transactions/add",
-        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"],
-      },
+      { label: "Transaction Overview", href: "/transactions", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
+      { label: "Add Transaction", href: "/transactions/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
     ],
   },
   {
@@ -180,11 +83,7 @@ const groups: NavGroup[] = [
     href: "/staff-dashboard",
     roles: ["SUPER_ADMIN", "ADMIN"],
     children: [
-      {
-        label: "Staff Dashboard",
-        href: "/staff-dashboard",
-        roles: ["SUPER_ADMIN", "ADMIN"],
-      },
+      { label: "Staff Dashboard", href: "/staff-dashboard", roles: ["SUPER_ADMIN", "ADMIN"] },
     ],
   },
   {
@@ -194,11 +93,7 @@ const groups: NavGroup[] = [
     href: "/reports",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"],
     children: [
-      {
-        label: "Reports & Analytics",
-        href: "/reports",
-        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"],
-      },
+      { label: "Reports & Analytics", href: "/reports", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"] },
     ],
   },
   {
@@ -208,11 +103,7 @@ const groups: NavGroup[] = [
     href: "/branches",
     roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"],
     children: [
-      {
-        label: "Branch Overview",
-        href: "/branches",
-        roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"],
-      },
+      { label: "Branch Overview", href: "/branches", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"] },
     ],
   },
 ];
@@ -233,6 +124,7 @@ export default function AppShellContent({
   const { user, loading, logout } = useAuth();
 
   const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const isPublicRoute = publicRoutes.includes(pathname);
 
@@ -250,6 +142,8 @@ export default function AppShellContent({
     if (activeGroup) {
       setOpenGroup(activeGroup.key);
     }
+
+    setMobileOpen(false);
   }, [pathname]);
 
   if (isPublicRoute) {
@@ -278,39 +172,58 @@ export default function AppShellContent({
 
   return (
     <div className="pwfb-shell">
-      <aside className="pwfb-sidebar">
-        {/* PWFB LOGO */}
-        <Link href="/dashboard" className="pwfb-brand">
-          <div className="pwfb-brand-logo">
-            <span>PWFB</span>
-          </div>
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          className="pwfb-sidebar-overlay"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
 
-          <div className="pwfb-brand-text">
-            <strong>PWFB</strong>
-            <span>Microfinance</span>
-          </div>
-        </Link>
+      <aside
+        className={`pwfb-sidebar ${
+          mobileOpen ? "pwfb-sidebar-mobile-open" : ""
+        }`}
+      >
+        <div className="pwfb-sidebar-header">
+          <Link href="/dashboard" className="pwfb-brand">
+            <div className="pwfb-brand-logo">
+              <span>PWFB</span>
+            </div>
+
+            <div className="pwfb-brand-text">
+              <strong>PWFB</strong>
+              <span>MICROFINANCE</span>
+            </div>
+          </Link>
+
+          <button
+            type="button"
+            className="pwfb-sidebar-close"
+            aria-label="Close navigation"
+            onClick={() => setMobileOpen(false)}
+          >
+            ×
+          </button>
+        </div>
 
         <div className="pwfb-access">
-          <small>ACCESS</small>
+          <small>ACCESS LEVEL</small>
           <strong>{user.role.replaceAll("_", " ")}</strong>
         </div>
 
         <nav className="pwfb-nav">
-          {/* Dashboard */}
           <Link
             href="/dashboard"
             className={`pwfb-nav-link ${
-              pathname === "/dashboard"
-                ? "pwfb-nav-link-active"
-                : ""
+              pathname === "/dashboard" ? "pwfb-nav-link-active" : ""
             }`}
           >
             <span className="pwfb-nav-icon">⌂</span>
             <span>Dashboard</span>
           </Link>
 
-          {/* Expandable sections */}
           {visibleGroups.map((group) => {
             const active = isInside(pathname, group.href);
             const expanded = openGroup === group.key;
@@ -320,29 +233,18 @@ export default function AppShellContent({
             );
 
             return (
-              <div
-                key={group.key}
-                className={`pwfb-nav-group ${
-                  expanded ? "pwfb-nav-group-open" : ""
-                }`}
-              >
+              <div key={group.key} className="pwfb-nav-group">
                 <button
                   type="button"
                   onClick={() =>
-                    setOpenGroup(
-                      expanded ? null : group.key,
-                    )
+                    setOpenGroup(expanded ? null : group.key)
                   }
                   className={`pwfb-nav-link pwfb-nav-parent ${
                     active ? "pwfb-nav-link-parent-active" : ""
                   }`}
                 >
-                  <span className="pwfb-nav-icon">
-                    {group.icon}
-                  </span>
-
+                  <span className="pwfb-nav-icon">{group.icon}</span>
                   <span>{group.label}</span>
-
                   <span className="pwfb-nav-chevron">
                     {expanded ? "⌃" : "⌄"}
                   </span>
@@ -377,7 +279,6 @@ export default function AppShellContent({
             );
           })}
 
-          {/* Customer Portal */}
           {user.role === "CUSTOMER" && (
             <Link
               href="/customer-dashboard"
@@ -395,7 +296,6 @@ export default function AppShellContent({
 
         <div className="pwfb-sidebar-status">
           <span className="pwfb-status-dot" />
-
           <div>
             <strong>System Online</strong>
             <small>Production</small>
@@ -405,9 +305,20 @@ export default function AppShellContent({
 
       <div className="pwfb-main">
         <header className="pwfb-topbar">
-          <div>
-            <strong>PWFB Microfinance</strong>
-            <small>Perfect Wisdom For Better Limited</small>
+          <div className="pwfb-topbar-left">
+            <button
+              type="button"
+              className="pwfb-menu-button"
+              aria-label="Open navigation"
+              onClick={() => setMobileOpen(true)}
+            >
+              ☰
+            </button>
+
+            <div>
+              <strong>PWFB Microfinance</strong>
+              <small>Perfect Wisdom For Better Limited</small>
+            </div>
           </div>
 
           <div className="pwfb-user">
@@ -415,7 +326,7 @@ export default function AppShellContent({
               {displayName.slice(0, 2).toUpperCase()}
             </div>
 
-            <div>
+            <div className="pwfb-user-info">
               <strong>{displayName}</strong>
               <small>{user.role.replaceAll("_", " ")}</small>
             </div>
@@ -423,7 +334,7 @@ export default function AppShellContent({
             <button
               type="button"
               onClick={logout}
-              className="ml-3 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+              className="pwfb-logout-button"
             >
               Logout
             </button>

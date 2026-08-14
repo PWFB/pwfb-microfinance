@@ -108,6 +108,20 @@ const groups: NavGroup[] = [
   },
 ];
 
+const financeOperations: NavGroup = {
+  key: "finance-operations",
+  label: "Finance Operations",
+  icon: "💼",
+  href: "/cashbook",
+  roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER", "AUDITOR"],
+  children: [
+    { label: "Financial Periods", href: "/periods", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"] },
+    { label: "Payroll", href: "/payroll", roles: ["SUPER_ADMIN", "ADMIN"] },
+    { label: "Cashbook", href: "/cashbook", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
+    { label: "Collections", href: "/collections", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
+  ],
+};
+
 const publicRoutes = ["/", "/login", "/register"];
 
 function isInside(pathname: string, href: string) {

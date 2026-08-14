@@ -122,6 +122,8 @@ const financeOperations: NavGroup = {
   ],
 };
 
+groups.push(financeOperations);
+
 const publicRoutes = ["/", "/login", "/register"];
 
 function isInside(pathname: string, href: string) {

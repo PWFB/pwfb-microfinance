@@ -18,6 +18,11 @@ import { FinanceModule } from './finance/finance.module';
 import { RiskComplianceModule } from './risk-compliance/risk-compliance.module';
 import { HumanResourcesModule } from './human-resources/human-resources.module';
 import { SuperAdminModule } from './super-admin/super-admin.module';
+import { PeriodsModule } from './periods/periods.module';
+import { PayrollModule } from './payroll/payroll.module';
+import { CashbookModule } from './cashbook/cashbook.module';
+import { CollectionsModule } from './collections/collections.module';
+import { DashboardsModule } from './dashboards/dashboards.module';
 
 @Module({
   imports: [
@@ -38,6 +43,11 @@ import { SuperAdminModule } from './super-admin/super-admin.module';
     RepaymentsModule,
     TransactionsModule,
     ReportsModule,
+    PeriodsModule,
+    PayrollModule,
+    CashbookModule,
+    CollectionsModule,
+    DashboardsModule,
   ],
   controllers: [AppController],
 })

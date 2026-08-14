@@ -11,6 +11,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(true);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +35,11 @@ export default function LoginPage() {
         return;
       }
 
-      localStorage.setItem("token", data.access_token);
+      if (remember) {
+        localStorage.setItem("token", data.access_token);
+      } else {
+        sessionStorage.setItem("token", data.access_token);
+      }
 
       await refreshProfile();
 
@@ -43,7 +48,7 @@ export default function LoginPage() {
       setMessage(
         error instanceof Error
           ? error.message
-          : "Connection error",
+          : "Unable to connect to the server",
       );
     } finally {
       setLoading(false);
@@ -51,50 +56,57 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-lg">
-        <div className="mb-8 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-700 text-2xl font-bold text-white">
-            P
+    <main className="pwfb-login-page">
+      <div className="pwfb-login-card">
+
+        {/* BRAND */}
+        <div className="pwfb-login-brand">
+          <div className="pwfb-login-logo">
+            <span>PW</span>
+            <small>FB</small>
           </div>
 
-          <h1 className="mt-4 text-2xl font-bold text-slate-900">
-            PWFB Microfinance
-          </h1>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Sign in to your account
-          </p>
+          <div>
+            <div className="pwfb-login-brand-name">PWFB</div>
+            <div className="pwfb-login-company">
+              Perfect Wisdom For Better Ltd
+            </div>
+            <div className="pwfb-login-tagline">
+              ...empowering lives
+            </div>
+          </div>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="flex flex-col gap-5"
-        >
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-2 block text-sm font-semibold text-slate-700"
-            >
-              Email
+        {/* WELCOME */}
+        <div className="pwfb-login-heading">
+          <h1>Welcome Back</h1>
+          <p>Sign in to your account</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="pwfb-login-form">
+
+          {/* EMAIL / STAFF ID */}
+          <div className="pwfb-login-field">
+            <label htmlFor="email">
+              <span className="pwfb-field-icon">◉</span>
+              Staff ID / Email
             </label>
 
             <input
               id="email"
               type="email"
-              placeholder="Enter your email"
+              placeholder="Enter your Staff ID or email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              autoComplete="username"
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="password"
-              className="mb-2 block text-sm font-semibold text-slate-700"
-            >
+          {/* PASSWORD */}
+          <div className="pwfb-login-field">
+            <label htmlFor="password">
+              <span className="pwfb-field-icon">▣</span>
               Password
             </label>
 
@@ -105,24 +117,82 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              autoComplete="current-password"
             />
           </div>
 
+          {/* REMEMBER */}
+          <div className="pwfb-login-options">
+            <label className="pwfb-remember">
+              <input
+                type="checkbox"
+                checked={remember}
+                onChange={(e) => setRemember(e.target.checked)}
+              />
+              <span>Remember me</span>
+            </label>
+
+            <button
+              type="button"
+              className="pwfb-forgot"
+              onClick={() =>
+                setMessage(
+                  "Please contact your administrator to reset your password.",
+                )
+              }
+            >
+              Forgot Password?
+            </button>
+          </div>
+
           {message && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="pwfb-login-message">
               {message}
             </div>
           )}
 
+          {/* LOGIN */}
           <button
             type="submit"
             disabled={loading}
-            className="rounded-xl bg-emerald-700 px-4 py-3 font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="pwfb-login-button"
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading ? "Signing in..." : "Login"}
+          </button>
+
+          {/* DIVIDER */}
+          <div className="pwfb-login-divider">
+            <span>OR</span>
+          </div>
+
+          {/* GOOGLE */}
+          <button
+            type="button"
+            className="pwfb-social-button"
+            onClick={() =>
+              setMessage("Google sign-in is not enabled yet.")
+            }
+          >
+            <span className="pwfb-google-icon">G</span>
+            Continue with Google
+          </button>
+
+          {/* FINGERPRINT */}
+          <button
+            type="button"
+            className="pwfb-social-button"
+            onClick={() =>
+              setMessage("Fingerprint login is not enabled yet.")
+            }
+          >
+            <span className="pwfb-fingerprint">◉</span>
+            Login with Fingerprint
           </button>
         </form>
+
+        <div className="pwfb-login-footer">
+          <span>Secure access to PWFB Microfinance</span>
+        </div>
       </div>
     </main>
   );

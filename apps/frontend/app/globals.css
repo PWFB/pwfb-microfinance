@@ -1645,3 +1645,600 @@ button:disabled {
     min-width: 0;
   }
 }
+
+/* =========================================================
+   PWFB CLEAN RESPONSIVE SIDEBAR
+   ========================================================= */
+
+.pwfb-sidebar {
+  width: 270px;
+  padding: 18px 14px;
+  background: #075b2b;
+  color: #fff;
+  border-right: 1px solid rgba(255,255,255,.08);
+  box-shadow: 8px 0 30px rgba(0,0,0,.08);
+}
+
+.pwfb-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pwfb-brand {
+  padding: 8px 8px 20px;
+}
+
+.pwfb-brand-logo {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 12px;
+  background: #f28c18;
+  color: #fff;
+  box-shadow: 0 5px 15px rgba(242,140,24,.25);
+}
+
+.pwfb-brand-logo span {
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.pwfb-brand-text strong {
+  color: #fff;
+  font-size: 19px;
+  letter-spacing: .02em;
+}
+
+.pwfb-brand-text span {
+  margin-top: 2px;
+  color: #b9dbc5;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.pwfb-access {
+  margin: 2px 4px 16px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px;
+}
+
+.pwfb-access small {
+  color: #9ec8ad;
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+
+.pwfb-access strong {
+  margin-top: 4px;
+  color: #fff;
+  font-size: 11px;
+}
+
+.pwfb-nav {
+  gap: 3px;
+}
+
+.pwfb-nav-link {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #d9ebe0;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.pwfb-nav-link:hover {
+  background: rgba(255,255,255,.07);
+  color: #fff;
+}
+
+.pwfb-nav-link-active {
+  background: #f28c18;
+  color: #fff;
+  box-shadow: 0 5px 14px rgba(242,140,24,.18);
+}
+
+.pwfb-nav-link-parent-active {
+  color: #fff;
+  background: rgba(255,255,255,.08);
+}
+
+.pwfb-nav-icon {
+  width: 25px;
+  min-width: 25px;
+  color: #c8e4d1;
+  font-size: 16px;
+}
+
+.pwfb-nav-link-active .pwfb-nav-icon {
+  color: #fff;
+}
+
+.pwfb-nav-chevron {
+  margin-left: auto;
+  color: #9fc9ae;
+  font-size: 12px;
+}
+
+.pwfb-subnav {
+  margin: 2px 0 5px 25px;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255,255,255,.12);
+}
+
+.pwfb-subnav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  color: #a9cdb7;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.pwfb-subnav-link:hover {
+  color: #fff;
+  background: rgba(255,255,255,.05);
+}
+
+.pwfb-subnav-link-active {
+  color: #fff;
+  background: rgba(242,140,24,.18);
+}
+
+.pwfb-subnav-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #79b58e;
+}
+
+.pwfb-subnav-link-active .pwfb-subnav-dot {
+  background: #f28c18;
+}
+
+.pwfb-sidebar-status {
+  left: 14px;
+  right: 14px;
+}
+
+.pwfb-main {
+  margin-left: 270px;
+}
+
+.pwfb-topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pwfb-menu-button {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--pwfb-border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--pwfb-green-dark);
+  font-size: 20px;
+}
+
+.pwfb-sidebar-close {
+  display: none;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.pwfb-logout-button {
+  margin-left: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 12px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pwfb-logout-button:hover {
+  border-color: #f28c18;
+  color: #d96f00;
+}
+
+.pwfb-sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 800px) {
+  .pwfb-sidebar {
+    width: 280px;
+    padding: 18px 14px;
+    transform: translateX(-105%);
+    transition: transform .25s ease;
+    box-shadow: 12px 0 35px rgba(0,0,0,.18);
+  }
+
+  .pwfb-sidebar-mobile-open {
+    transform: translateX(0);
+  }
+
+  .pwfb-sidebar-close {
+    display: block;
+  }
+
+  .pwfb-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    border: 0;
+    background: rgba(0,0,0,.42);
+  }
+
+  .pwfb-main {
+    margin-left: 0;
+  }
+
+  .pwfb-menu-button {
+    display: grid;
+    place-items: center;
+  }
+
+  .pwfb-topbar {
+    height: 64px;
+    padding: 0 14px;
+  }
+
+  .pwfb-topbar > div:first-child strong {
+    font-size: 12px;
+  }
+
+  .pwfb-topbar > div:first-child small {
+    font-size: 9px;
+  }
+
+  .pwfb-user-info,
+  .pwfb-logout-button {
+    display: none;
+  }
+
+  .pwfb-user {
+    gap: 0;
+  }
+
+  .pwfb-content {
+    padding: 16px;
+  }
+}
+
+/* =========================================================
+   PWFB PROFESSIONAL LOGIN
+   ========================================================= */
+
+.pwfb-login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  background:
+    radial-gradient(circle at top left, rgba(15,123,53,.10), transparent 35%),
+    linear-gradient(145deg, #f7faf8 0%, #eef5f0 100%);
+}
+
+.pwfb-login-card {
+  width: 100%;
+  max-width: 480px;
+  padding: 34px;
+  border: 1px solid #e1ebe4;
+  border-radius: 28px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 61, 31, .12);
+}
+
+.pwfb-login-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 30px;
+}
+
+.pwfb-login-logo {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #0f7b35, #16a34a);
+  color: #ffffff;
+  box-shadow: 0 10px 24px rgba(15,123,53,.22);
+  font-weight: 900;
+  line-height: .8;
+}
+
+.pwfb-login-logo span {
+  font-size: 25px;
+  letter-spacing: -2px;
+}
+
+.pwfb-login-logo small {
+  margin-top: 6px;
+  font-size: 18px;
+  color: #ff8a00;
+}
+
+.pwfb-login-brand-name {
+  color: #0f7b35;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+
+.pwfb-login-company {
+  margin-top: 7px;
+  color: #176b37;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pwfb-login-tagline {
+  margin-top: 3px;
+  color: #f28c18;
+  font-size: 11px;
+  font-weight: 700;
+  font-style: italic;
+}
+
+.pwfb-login-heading {
+  margin-bottom: 24px;
+}
+
+.pwfb-login-heading h1 {
+  margin: 0;
+  color: #172033;
+  font-size: 30px;
+  font-weight: 850;
+}
+
+.pwfb-login-heading p {
+  margin: 7px 0 0;
+  color: #718096;
+  font-size: 14px;
+}
+
+.pwfb-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+
+.pwfb-login-field label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pwfb-field-icon {
+  color: #0f7b35;
+  font-size: 13px;
+}
+
+.pwfb-login-field input {
+  width: 100%;
+  height: 52px;
+  box-sizing: border-box;
+  padding: 0 15px;
+  border: 1px solid #d7e2db;
+  border-radius: 12px;
+  outline: none;
+  background: #fbfdfc;
+  color: #172033;
+  font-size: 14px;
+  transition: .2s ease;
+}
+
+.pwfb-login-field input::placeholder {
+  color: #a0acb8;
+}
+
+.pwfb-login-field input:focus {
+  border-color: #0f7b35;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(15,123,53,.09);
+}
+
+.pwfb-login-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: -2px;
+}
+
+.pwfb-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pwfb-remember input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0f7b35;
+}
+
+.pwfb-forgot {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #f28c18;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pwfb-forgot:hover {
+  color: #d8750d;
+  text-decoration: underline;
+}
+
+.pwfb-login-message {
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pwfb-login-button {
+  width: 100%;
+  height: 52px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #08752f, #0f963e);
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 850;
+  box-shadow: 0 9px 20px rgba(15,123,53,.20);
+  transition: .2s ease;
+}
+
+.pwfb-login-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(15,123,53,.26);
+}
+
+.pwfb-login-button:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+  transform: none;
+}
+
+.pwfb-login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pwfb-login-divider::before,
+.pwfb-login-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e5ebe7;
+}
+
+.pwfb-social-button {
+  width: 100%;
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid #dce5df;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 750;
+  transition: .2s ease;
+}
+
+.pwfb-social-button:hover {
+  border-color: #b8cdbf;
+  background: #f8fbf9;
+}
+
+.pwfb-google-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  color: #4285f4;
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.pwfb-fingerprint {
+  color: #0f7b35;
+  font-size: 21px;
+}
+
+.pwfb-login-footer {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #edf1ee;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+@media (max-width: 520px) {
+  .pwfb-login-page {
+    align-items: flex-start;
+    padding: 16px 12px;
+  }
+
+  .pwfb-login-card {
+    padding: 25px 20px;
+    border-radius: 22px;
+  }
+
+  .pwfb-login-brand {
+    margin-bottom: 25px;
+  }
+
+  .pwfb-login-logo {
+    width: 62px;
+    height: 62px;
+    flex-basis: 62px;
+    border-radius: 17px;
+  }
+
+  .pwfb-login-brand-name {
+    font-size: 24px;
+  }
+
+  .pwfb-login-heading h1 {
+    font-size: 27px;
+  }
+
+  .pwfb-login-options {
+    align-items: flex-start;
+  }
+}

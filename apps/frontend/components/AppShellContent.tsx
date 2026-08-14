@@ -116,9 +116,9 @@ const financeOperations: NavGroup = {
   roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER", "AUDITOR"],
   children: [
     { label: "Financial Periods", href: "/periods", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"] },
-    { label: "Payroll", href: "/payroll", roles: ["SUPER_ADMIN", "ADMIN"] },
-    { label: "Cashbook", href: "/cashbook", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Collections", href: "/collections", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
+    { label: "Payroll & Summary", href: "/payroll", roles: ["SUPER_ADMIN", "ADMIN"] },
+    { label: "Cashbook & Summary", href: "/cashbook", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
+    { label: "Daily Collections & Summary", href: "/collections", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
   ],
 };
 

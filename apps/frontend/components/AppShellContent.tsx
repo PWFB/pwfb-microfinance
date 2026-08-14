@@ -124,6 +124,23 @@ const financeOperations: NavGroup = {
 
 groups.push(financeOperations);
 
+const adminTools: NavGroup = {
+  key: "admin-tools",
+  label: "PWFB Control Center",
+  icon: "🛠️",
+  href: "/api-workbench",
+  roles: ["SUPER_ADMIN"],
+  children: [
+    { label: "API Workbench", href: "/api-workbench", roles: ["SUPER_ADMIN"] },
+    { label: "System Dashboard", href: "/dashboard", roles: ["SUPER_ADMIN"] },
+    { label: "Branch Management", href: "/branches", roles: ["SUPER_ADMIN"] },
+    { label: "Staff & Functions", href: "/staff-dashboard", roles: ["SUPER_ADMIN"] },
+    { label: "Reports & Analytics", href: "/reports", roles: ["SUPER_ADMIN"] },
+  ],
+};
+
+groups.push(adminTools);
+
 const publicRoutes = ["/", "/login", "/register"];
 
 function isInside(pathname: string, href: string) {

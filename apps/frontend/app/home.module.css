@@ -1,0 +1,306 @@
+.home {
+  min-height: 100vh;
+  background: #f5f7fa;
+  color: #172033;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 16px 40px;
+  background: #0f7b35;
+  color: #fff;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandMark {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 13px;
+  background: #f28c18;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.brandCopy {
+  display: flex;
+  flex-direction: column;
+}
+
+.brandCopy strong {
+  font-size: 18px;
+}
+
+.brandCopy small {
+  margin-top: 3px;
+  color: rgba(255,255,255,.78);
+  font-size: 11px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.nav a {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hero {
+  background: linear-gradient(135deg,#118e3e 0%,#169347 42%,#ff8800 100%);
+  color: #fff;
+  text-align: center;
+}
+
+.heroInner {
+  width: min(100%,980px);
+  margin: 0 auto;
+  padding: 78px 24px 82px;
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: clamp(38px,6vw,64px);
+  line-height: 1.05;
+}
+
+.heroText {
+  max-width: 700px;
+  margin: 20px auto 0;
+  font-size: clamp(17px,2.5vw,22px);
+  line-height: 1.5;
+}
+
+.heroActions {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 34px;
+}
+
+.loginButton,
+.registerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 132px;
+  min-height: 50px;
+  padding: 0 24px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+
+.loginButton {
+  background: #fff;
+  color: #118e3e;
+}
+
+.registerButton {
+  background: #f28c18;
+  color: #fff;
+}
+
+.section {
+  width: min(1180px,calc(100% - 48px));
+  margin: 0 auto;
+  padding: 58px 0 12px;
+}
+
+.sectionHeading {
+  margin-bottom: 24px;
+}
+
+.sectionEyebrow {
+  margin: 0 0 10px;
+  color: #118e3e;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+
+.sectionHeading h2 {
+  margin: 0;
+  font-size: clamp(26px,4vw,34px);
+}
+
+.moduleGrid,
+.statsGrid {
+  display: grid;
+  gap: 18px;
+}
+
+.moduleGrid,
+.statsGrid {
+  grid-template-columns: repeat(4,minmax(0,1fr));
+}
+
+.moduleCard,
+.statCard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 18px;
+  box-shadow: 0 5px 18px rgba(15,23,42,.06);
+}
+
+.moduleCard {
+  display: flex;
+  flex-direction: column;
+  min-height: 230px;
+  padding: 22px;
+}
+
+.moduleIcon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  background: #e9f7ee;
+  font-size: 23px;
+}
+
+.moduleCard h3 {
+  margin: 18px 0 7px;
+  font-size: 20px;
+}
+
+.moduleCard p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.moduleLink {
+  margin-top: auto;
+  padding-top: 20px;
+  color: #0f7b35;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.statsGrid {
+  padding-bottom: 44px;
+}
+
+.statCard {
+  padding: 22px;
+}
+
+.statCard h3 {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.statCard strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 30px;
+}
+
+.greenValue {
+  color: #0f7b35;
+}
+
+.orangeValue {
+  color: #d96f00;
+}
+
+.footer {
+  padding: 26px 20px;
+  background: #0f7b35;
+  color: #fff;
+  text-align: center;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .header {
+    padding: 14px 20px;
+  }
+
+  .moduleGrid,
+  .statsGrid {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .nav {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .heroInner {
+    padding: 56px 18px 62px;
+  }
+
+  .hero h1 {
+    font-size: 42px;
+  }
+
+  .heroActions {
+    gap: 12px;
+  }
+
+  .loginButton,
+  .registerButton {
+    min-width: 0;
+    flex: 1;
+    padding: 0 16px;
+  }
+
+  .section {
+    width: calc(100% - 28px);
+    padding-top: 42px;
+  }
+
+  .moduleGrid,
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .moduleCard {
+    min-height: 200px;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero h1 {
+    font-size: 36px;
+  }
+
+  .heroActions {
+    flex-direction: column;
+  }
+}

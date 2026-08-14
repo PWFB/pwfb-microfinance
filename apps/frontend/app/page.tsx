@@ -1,179 +1,97 @@
 import Link from "next/link";
+import styles from "./home.module.css";
 
-const cardStyle: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 16,
-  padding: 20,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-};
+const modules = [
+  ["👥", "Customers", "Manage customer profiles and KYC.", "/customers"],
+  ["💰", "Savings", "Create and manage savings accounts.", "/savings"],
+  ["🏦", "Loans", "Loan applications and approvals.", "/loans"],
+  ["💳", "Transactions", "View deposits, withdrawals and transfers.", "/transactions"],
+];
+
+const stats = [
+  ["Total Customers", "2,453", "green"],
+  ["Total Savings", "₦245M", "green"],
+  ["Total Loans", "₦158M", "orange"],
+  ["Transactions", "8,732", "green"],
+];
 
 export default function Home() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#f5f7fa",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      {/* Header */}
-      <header
-        style={{
-          background: "#0f7b35",
-          color: "#fff",
-          padding: "18px 40px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0 }}>PWFB Microfinance</h1>
-          <small>Perfect Wisdom For Better Limited</small>
-        </div>
+    <main className={styles.home}>
+      <header className={styles.header}>
+        <Link href="/" className={styles.brand}>
+          <span className={styles.brandMark}>PWFB</span>
+          <span className={styles.brandCopy}>
+            <strong>PWFB Microfinance</strong>
+            <small>Perfect Wisdom For Better Limited</small>
+          </span>
+        </Link>
 
-        <nav style={{ display: "flex", gap: 20 }}>
-          <Link href="/dashboard" style={{ color: "#fff" }}>Dashboard</Link>
-          <Link href="/customers" style={{ color: "#fff" }}>Customers</Link>
-          <Link href="/savings" style={{ color: "#fff" }}>Savings</Link>
-          <Link href="/loans" style={{ color: "#fff" }}>Loans</Link>
-          <Link href="/transactions" style={{ color: "#fff" }}>Transactions</Link>
+        <nav className={styles.nav}>
+          <Link href="/dashboard">Dashboard</Link>
+          <Link href="/customers">Customers</Link>
+          <Link href="/savings">Savings</Link>
+          <Link href="/loans">Loans</Link>
+          <Link href="/transactions">Transactions</Link>
         </nav>
       </header>
 
-      {/* Hero */}
-      <section
-        style={{
-          padding: 50,
-          textAlign: "center",
-          background: "linear-gradient(135deg,#118e3e,#ff8800)",
-          color: "#fff",
-        }}
-      >
-        <h1 style={{ fontSize: 42 }}>
-          Smart Finance. Better Future.
-        </h1>
+      <section className={styles.hero}>
+        <div className={styles.heroInner}>
+          <p className={styles.eyebrow}>PWFB MICROFINANCE</p>
+          <h1>Smart Finance. Better Future.</h1>
+          <p className={styles.heroText}>
+            Secure Savings • Fast Loans • Reliable Transactions
+          </p>
 
-        <p style={{ fontSize: 20 }}>
-          Secure Savings • Fast Loans • Reliable Transactions
-        </p>
-
-        <div
-          style={{
-            marginTop: 30,
-            display: "flex",
-            justifyContent: "center",
-            gap: 20,
-          }}
-        >
-          <Link
-            href="/login"
-            style={{
-              background: "#fff",
-              color: "#118e3e",
-              padding: "14px 30px",
-              borderRadius: 10,
-              textDecoration: "none",
-              fontWeight: "bold",
-            }}
-          >
-            Login
-          </Link>
-
-          <Link
-            href="/register"
-            style={{
-              background: "#ff8800",
-              color: "#fff",
-              padding: "14px 30px",
-              borderRadius: 10,
-              textDecoration: "none",
-              fontWeight: "bold",
-            }}
-          >
-            Register
-          </Link>
-        </div>
-      </section>
-
-      {/* Modules */}
-      <section
-        style={{
-          padding: 40,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
-          gap: 25,
-        }}
-      >
-        <div style={cardStyle}>
-          <h2>👥 Customers</h2>
-          <p>Manage customer profiles and KYC.</p>
-          <Link href="/customers">Open Module →</Link>
-        </div>
-
-        <div style={cardStyle}>
-          <h2>💰 Savings</h2>
-          <p>Create and manage savings accounts.</p>
-          <Link href="/savings">Open Module →</Link>
-        </div>
-
-        <div style={cardStyle}>
-          <h2>🏦 Loans</h2>
-          <p>Loan applications and approvals.</p>
-          <Link href="/loans">Open Module →</Link>
-        </div>
-
-        <div style={cardStyle}>
-          <h2>💳 Transactions</h2>
-          <p>View deposits, withdrawals and transfers.</p>
-          <Link href="/transactions">Open Module →</Link>
-        </div>
-      </section>
-
-      {/* Dashboard Preview */}
-      <section style={{ padding: 40 }}>
-        <h2 style={{ textAlign: "center", marginBottom: 30 }}>
-          Dashboard Overview
-        </h2>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-            gap: 20,
-          }}
-        >
-          <div style={cardStyle}>
-            <h3>Total Customers</h3>
-            <h1 style={{ color: "#118e3e" }}>2,453</h1>
-          </div>
-
-          <div style={cardStyle}>
-            <h3>Total Savings</h3>
-            <h1 style={{ color: "#118e3e" }}>₦245M</h1>
-          </div>
-
-          <div style={cardStyle}>
-            <h3>Total Loans</h3>
-            <h1 style={{ color: "#ff8800" }}>₦158M</h1>
-          </div>
-
-          <div style={cardStyle}>
-            <h3>Transactions</h3>
-            <h1 style={{ color: "#118e3e" }}>8,732</h1>
+          <div className={styles.heroActions}>
+            <Link href="/login" className={styles.loginButton}>
+              Login
+            </Link>
+            <Link href="/register" className={styles.registerButton}>
+              Register
+            </Link>
           </div>
         </div>
       </section>
 
-      <footer
-        style={{
-          background: "#0f7b35",
-          color: "#fff",
-          textAlign: "center",
-          padding: 25,
-          marginTop: 40,
-        }}
-      >
+      <section className={styles.section}>
+        <div className={styles.sectionHeading}>
+          <p className={styles.sectionEyebrow}>CORE OPERATIONS</p>
+          <h2>Everything you need to manage PWFB</h2>
+        </div>
+
+        <div className={styles.moduleGrid}>
+          {modules.map(([icon, title, description, href]) => (
+            <Link key={href} href={href} className={styles.moduleCard}>
+              <span className={styles.moduleIcon}>{icon}</span>
+              <h3>{title}</h3>
+              <p>{description}</p>
+              <span className={styles.moduleLink}>Open Module →</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHeading}>
+          <p className={styles.sectionEyebrow}>AT A GLANCE</p>
+          <h2>Dashboard Overview</h2>
+        </div>
+
+        <div className={styles.statsGrid}>
+          {stats.map(([label, value, tone]) => (
+            <div key={label} className={styles.statCard}>
+              <h3>{label}</h3>
+              <strong className={tone === "orange" ? styles.orangeValue : styles.greenValue}>
+                {value}
+              </strong>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <footer className={styles.footer}>
         © {new Date().getFullYear()} PWFB Microfinance • Perfect Wisdom For Better Limited
       </footer>
     </main>

@@ -23,9 +23,11 @@ import { PayrollModule } from './payroll/payroll.module';
 import { CashbookModule } from './cashbook/cashbook.module';
 import { CollectionsModule } from './collections/collections.module';
 import { DashboardsModule } from './dashboards/dashboards.module';
+import { BankingModule } from './banking/banking.module';
 
 @Module({
   imports: [
+    BankingModule,
     PrismaModule,
     AuthModule,
     UsersModule,

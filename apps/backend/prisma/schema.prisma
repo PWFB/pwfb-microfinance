@@ -47,6 +47,25 @@ enum CollectionType {
   OTHER
 }
 
+enum InstitutionType {
+  BANK
+  FINTECH
+  PAYMENT_PROVIDER
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum WalletTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
 model User {
   id        String  @id @default(cuid())
   email     String  @unique
@@ -74,10 +93,13 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  savings      Savings[]
-  loans        Loan[]
-  transactions Transaction[]
-  collections  DailyCollection[]
+  savings            Savings[]
+  loans              Loan[]
+  transactions       Transaction[]
+  collections        DailyCollection[]
+  bankAccounts       CustomerBankAccount[]
+  wallet             CustomerWallet?
+  walletTransactions WalletTransaction[]
 }
 
 model Savings {
@@ -167,9 +189,9 @@ model Department {
 }
 
 model Branch {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  address   String?
+  id      String  @id @default(cuid())
+  name    String  @unique
+  address String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -178,6 +200,7 @@ model Branch {
   cashbookEntries CashbookEntry[]
   collections     DailyCollection[]
   payrolls        Payroll[]
+  branchAccounts  BranchVirtualAccount[]
 }
 
 model Staff {
@@ -232,10 +255,10 @@ model FinancialPeriod {
 }
 
 model Payroll {
-  id        String        @id @default(cuid())
-  periodId  String
-  branchId  String?
-  status    PayrollStatus @default(DRAFT)
+  id       String        @id @default(cuid())
+  periodId String
+  branchId String?
+  status   PayrollStatus @default(DRAFT)
 
   totalBasic      Float @default(0)
   totalAllowances Float @default(0)
@@ -248,7 +271,7 @@ model Payroll {
   updatedAt DateTime @updatedAt
 
   period FinancialPeriod @relation(fields: [periodId], references: [id])
-  branch Branch?        @relation(fields: [branchId], references: [id])
+  branch Branch?         @relation(fields: [branchId], references: [id])
 
   items PayrollItem[]
 
@@ -257,14 +280,14 @@ model Payroll {
 }
 
 model PayrollItem {
-  id       String @id @default(cuid())
+  id        String @id @default(cuid())
   payrollId String
-  staffId  String
+  staffId   String
 
   basicSalary Float @default(0)
-  allowances Float @default(0)
-  deductions Float @default(0)
-  netSalary  Float @default(0)
+  allowances  Float @default(0)
+  deductions  Float @default(0)
+  netSalary   Float @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -277,20 +300,20 @@ model PayrollItem {
 }
 
 model CashbookEntry {
-  id          String      @id @default(cuid())
+  id          String       @id @default(cuid())
   periodId    String
   branchId    String
   type        CashbookType
   amount      Float
   reference   String?
   description String?
-  entryDate   DateTime    @default(now())
+  entryDate   DateTime     @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   period FinancialPeriod @relation(fields: [periodId], references: [id])
-  branch Branch         @relation(fields: [branchId], references: [id])
+  branch Branch          @relation(fields: [branchId], references: [id])
 
   @@index([periodId])
   @@index([branchId])
@@ -298,7 +321,7 @@ model CashbookEntry {
 }
 
 model DailyCollection {
-  id         String         @id @default(cuid())
+  id         String @id @default(cuid())
   periodId   String
   branchId   String
   staffId    String
@@ -343,4 +366,95 @@ model Passkey {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model BankInstitution {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  shortName String?
+  code      String?         @unique
+  type      InstitutionType @default(BANK)
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  customerAccounts CustomerBankAccount[]
+  branchAccounts   BranchVirtualAccount[]
+
+  @@index([type])
+  @@index([active])
+}
+
+model CustomerBankAccount {
+  id            String        @id @default(cuid())
+  customerId    String
+  institutionId String
+  accountNumber String
+  accountName   String?
+  status        AccountStatus @default(ACTIVE)
+  isPrimary     Boolean       @default(false)
+  verifiedAt    DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  customer    Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  institution BankInstitution @relation(fields: [institutionId], references: [id])
+
+  @@unique([institutionId, accountNumber])
+  @@index([customerId])
+  @@index([institutionId])
+}
+
+model BranchVirtualAccount {
+  id            String        @id @default(cuid())
+  branchId      String
+  institutionId String
+  accountNumber String        @unique
+  accountName   String
+  status        AccountStatus @default(ACTIVE)
+  isGenerated   Boolean       @default(false)
+  generatedAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  branch      Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  institution BankInstitution @relation(fields: [institutionId], references: [id])
+
+  @@unique([branchId, institutionId])
+  @@index([branchId])
+  @@index([institutionId])
+}
+
+model CustomerWallet {
+  id         String        @id @default(cuid())
+  customerId String        @unique
+  balance    Float         @default(0)
+  currency   String        @default("NGN")
+  status     AccountStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+}
+
+model WalletTransaction {
+  id              String                @id @default(cuid())
+  customerId      String
+  type            WalletTransactionType
+  amount          Float
+  previousBalance Float
+  newBalance      Float
+  reference       String                @unique
+  description     String?
+  branchId        String?
+  staffId         String?
+  createdAt       DateTime              @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([branchId])
+  @@index([staffId])
 }

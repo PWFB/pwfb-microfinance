@@ -8,10 +8,14 @@ describe('StaffService', () => {
   beforeEach(() => {
     repository = {
       create: jest.fn(),
+        createWithUser: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+        emailExists: jest.fn().mockResolvedValue(false),
+        staffIdExists: jest.fn().mockResolvedValue(false),
+        count: jest.fn().mockResolvedValue(0),
     } as unknown as jest.Mocked<StaffRepository>;
 
     service = new StaffService(repository);
@@ -33,11 +37,38 @@ describe('StaffService', () => {
       branch: 'branch-1',
     };
 
-    const result = { id: 'staff-1', ...dto };
-    repository.create.mockResolvedValue(result as any);
+    const staff = { id: 'staff-1', ...dto };
 
-    await expect(service.create(dto as any)).resolves.toBe(result);
-    expect(repository.create).toHaveBeenCalledWith(dto);
+    repository.createWithUser.mockResolvedValue({
+      staff,
+    } as any);
+
+    const result = await service.create(dto as any);
+
+    expect(result).toMatchObject({
+      message: 'Staff created successfully',
+      staff,
+      login: {
+        email: 'john.doe@pwfb.com',
+      },
+    });
+
+    expect(result.login.temporaryPassword).toMatch(
+      /^PWFB-[A-Z0-9]+-[0-9]{4}$/,
+    );
+
+    expect(repository.emailExists).toHaveBeenCalledWith(
+      'john.doe@pwfb.com',
+    );
+
+    expect(repository.createWithUser).toHaveBeenCalledWith(
+      dto,
+      expect.objectContaining({
+        staffId: 'ST-001',
+        email: 'john.doe@pwfb.com',
+        password: expect.any(String),
+      }),
+    );
   });
 
   it('should return all staff without a filter', async () => {

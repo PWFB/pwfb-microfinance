@@ -8,51 +8,61 @@ const departments = [
     name: "Administration",
     description: "Manage administration and organizational operations.",
     icon: "🏢",
+    href: "/api-workbench",
   },
   {
     name: "Monitoring",
     description: "Monitor operations, performance and compliance.",
     icon: "📊",
+    href: "/reports",
   },
   {
     name: "Customer Service",
     description: "Handle customer support and service requests.",
     icon: "👥",
+    href: "/customers",
   },
   {
     name: "Savings",
     description: "Manage customer savings and deposits.",
     icon: "💰",
+    href: "/savings",
   },
   {
     name: "Loans",
     description: "Manage loan applications and loan operations.",
     icon: "🏦",
+    href: "/loans",
   },
   {
     name: "Teller Operations",
     description: "Manage cash and daily teller transactions.",
     icon: "💵",
+    href: "/transactions",
   },
   {
     name: "Finance & Accounts",
     description: "Manage financial records and accounting.",
     icon: "📒",
+    href: "/cashbook",
   },
   {
     name: "Risk & Compliance",
     description: "Monitor risk, controls and regulatory compliance.",
     icon: "🛡️",
+    href: "/reports",
   },
   {
     name: "Reports & Analytics",
     description: "Review operational reports and performance data.",
     icon: "📈",
+    href: "/reports",
   },
   {
     name: "Human Resources",
     description: "Manage staff records and human resources.",
     icon: "🧑‍💼",
+    href: "/staff-dashboard",
   },
 ];
 
@@ -88,7 +98,7 @@ export default function StaffDashboardPage() {
 
         <div className="pwfb-department-grid">
           {departments.map((department) => (
-            <div className="pwfb-department-card" key={department.name}>
+            <Link href={department.href} className="pwfb-department-card" key={department.name}>
               <div className="pwfb-department-icon">
                 {department.icon}
               </div>
@@ -97,7 +107,7 @@ export default function StaffDashboardPage() {
                 <h3>{department.name}</h3>
                 <p>{department.description}</p>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </section>

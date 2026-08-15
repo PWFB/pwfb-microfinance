@@ -32,6 +32,7 @@ export default function BankingPage() {
   const [transactions, setTransactions] = useState<BankingTransaction[]>([]);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [reference, setReference] = useState("");
   const [recipientId, setRecipientId] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -81,6 +82,32 @@ export default function BankingPage() {
       return;
     }
 
+    const numericAmount = Number(amount);
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setMessage("Enter a valid amount greater than zero.");
+      return;
+    }
+
+    if (!reference.trim()) {
+      setMessage("Enter a transaction reference.");
+      return;
+    }
+
+    if (
+      operation === "withdraw" &&
+      wallet &&
+      numericAmount > Number(wallet.balance || 0)
+    ) {
+      setMessage("Insufficient wallet balance for this withdrawal.");
+      return;
+    }
+
+    if (operation === "transfer" && !recipientId) {
+      setMessage("Select a transfer recipient.");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
@@ -89,12 +116,14 @@ export default function BankingPage() {
         operation === "transfer"
           ? {
               recipientCustomerId: recipientId,
-              amount: Number(amount),
+              amount: numericAmount,
               description,
+              reference: reference.trim(),
             }
           : {
-              amount: Number(amount),
+              amount: numericAmount,
               description,
+              reference: reference.trim(),
             };
 
       if (operation === "deposit") {
@@ -102,11 +131,6 @@ export default function BankingPage() {
       } else if (operation === "withdraw") {
         await pwfbApi.banking.withdraw(customerId, body);
       } else {
-        if (!recipientId) {
-          setMessage("Select a transfer recipient.");
-          return;
-        }
-
         await pwfbApi.banking.transfer(customerId, body);
       }
 
@@ -125,6 +149,8 @@ export default function BankingPage() {
 
       setAmount("");
       setDescription("");
+      setReference("");
+      setRecipientId("");
       setMessage(
         operation.charAt(0).toUpperCase() +
           operation.slice(1) +
@@ -273,6 +299,16 @@ export default function BankingPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Transaction description"
+            />
+          </div>
+
+          <div>
+            <label>Transaction Reference</label>
+            <input
+              className="pwfb-input"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="e.g. PWFB-DEP-001"
             />
           </div>
 

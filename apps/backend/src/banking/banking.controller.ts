@@ -44,6 +44,64 @@ export class BankingController {
     });
   }
 
+  @Get('customers/:customerId/wallet')
+  getCustomerWallet(@Param('customerId') customerId: string) {
+    return this.bankingService.getCustomerWallet(customerId);
+  }
+
+  @Get('customers/:customerId/transactions')
+  getCustomerTransactions(
+    @Param('customerId') customerId: string,
+  ) {
+    return this.bankingService.getCustomerTransactions(customerId);
+  }
+
+  @Post('customers/:customerId/deposit')
+  deposit(
+    @Param('customerId') customerId: string,
+    @Body()
+    body: {
+      amount: number;
+      description?: string;
+      reference?: string;
+      branchId?: string;
+      staffId?: string;
+    },
+  ) {
+    return this.bankingService.deposit(customerId, body);
+  }
+
+  @Post('customers/:customerId/withdraw')
+  withdraw(
+    @Param('customerId') customerId: string,
+    @Body()
+    body: {
+      amount: number;
+      description?: string;
+      reference?: string;
+      branchId?: string;
+      staffId?: string;
+    },
+  ) {
+    return this.bankingService.withdraw(customerId, body);
+  }
+
+  @Post('customers/:customerId/transfer')
+  transfer(
+    @Param('customerId') customerId: string,
+    @Body()
+    body: {
+      recipientCustomerId: string;
+      amount: number;
+      description?: string;
+      reference?: string;
+      branchId?: string;
+      staffId?: string;
+    },
+  ) {
+    return this.bankingService.transfer(customerId, body);
+  }
+
   @Get('branches/:branchId/virtual-accounts')
   getBranchVirtualAccounts(@Param('branchId') branchId: string) {
     return this.bankingService.getBranchVirtualAccounts(branchId);

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PWFBCompanyBrand from "../../components/PWFBCompanyBrand";
 
 const departments = [
   {
@@ -58,6 +59,7 @@ const departments = [
 export default function StaffDashboardPage() {
   return (
     <main>
+      <div className="pwfb-dashboard-company-brand staff"><PWFBCompanyBrand small /></div>
       <div className="pwfb-page-header">
         <div>
           <p className="pwfb-eyebrow">STAFF OPERATIONS</p>

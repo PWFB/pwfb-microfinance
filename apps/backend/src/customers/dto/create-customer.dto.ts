@@ -27,4 +27,8 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
+
+  @IsOptional()
+  @IsString()
+  groupId?: string;
 }

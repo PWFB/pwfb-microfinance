@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
+import { Role } from '@prisma/client';
 
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
@@ -37,6 +44,10 @@ export class CreateStaffDto {
   @IsNotEmpty()
   @IsString()
   position: string;
+
+  @IsNotEmpty()
+  @IsEnum(Role)
+  role: Role;
 
   @IsNotEmpty()
   @IsString()

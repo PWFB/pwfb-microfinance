@@ -9,6 +9,99 @@ export class StaffRepository {
     private readonly prisma: PrismaService,
   ) {}
 
+  async emailExists(email: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    const staff = await this.prisma.staff.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    return !!user || !!staff;
+  }
+
+  async count() {
+    return this.prisma.staff.count();
+  }
+
+  async staffIdExists(staffId: string) {
+    const staff = await this.prisma.staff.findUnique({
+      where: { staffId },
+      select: { id: true },
+    });
+
+    return !!staff;
+  }
+
+  async createWithUser(
+    data: CreateStaffDto,
+    login: {
+      staffId: string;
+      email: string;
+      password: string;
+    },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const staff = await tx.staff.create({
+        data: {
+          staffId: login.staffId,
+
+          firstName: data.firstName,
+          middleName: data.middleName,
+          lastName: data.lastName,
+
+          email: login.email,
+          phone: data.phone,
+
+          position: data.position,
+
+          employmentStatus:
+            data.employmentStatus ?? 'ACTIVE',
+
+          department: {
+            connect: {
+              id: data.department,
+            },
+          },
+
+          branch: {
+            connect: {
+              id: data.branch,
+            },
+          },
+        },
+        include: {
+          department: true,
+          branch: true,
+        },
+      });
+
+      const user = await tx.user.create({
+        data: {
+          email: login.email,
+          password: login.password,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          role: data.role,
+          staff: {
+            connect: {
+              id: staff.id,
+            },
+          },
+        },
+      });
+
+      return {
+        staff,
+        user,
+      };
+    });
+  }
+
   create(data: CreateStaffDto) {
     return this.prisma.staff.create({
       data: {
@@ -51,6 +144,8 @@ export class StaffRepository {
       include: {
         department: true,
         branch: true,
+        user: true,
+        customers: true,
       },
     });
   }
@@ -63,6 +158,8 @@ export class StaffRepository {
       include: {
         department: true,
         branch: true,
+        user: true,
+        customers: true,
       },
     });
   }
@@ -88,6 +185,8 @@ export class StaffRepository {
       include: {
         department: true,
         branch: true,
+        user: true,
+        customers: true,
       },
     });
   }

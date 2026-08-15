@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 
@@ -29,13 +30,16 @@ export class CustomersController {
     'SUPER_ADMIN',
     'ADMIN',
     'BRANCH_MANAGER',
-    'CUSTOMER_SERVICE',
+    'LOAN_OFFICER',
+    'STAFF',
   )
   create(
     @Body() createCustomerDto: CreateCustomerDto,
+    @Req() req: any,
   ) {
     return this.customersService.create(
       createCustomerDto,
+      req.user,
     );
   }
 
@@ -48,9 +52,12 @@ export class CustomersController {
     'LOAN_OFFICER',
     'TELLER',
     'AUDITOR',
+    'STAFF',
   )
-  findAll() {
-    return this.customersService.findAll();
+  findAll(@Req() req: any) {
+    return this.customersService.findAll(
+      req.user,
+    );
   }
 
   @Get(':id')
@@ -62,11 +69,16 @@ export class CustomersController {
     'LOAN_OFFICER',
     'TELLER',
     'AUDITOR',
+    'STAFF',
   )
   findOne(
     @Param('id') id: string,
+    @Req() req: any,
   ) {
-    return this.customersService.findOne(id);
+    return this.customersService.findOne(
+      id,
+      req.user,
+    );
   }
 
   @Patch(':id')

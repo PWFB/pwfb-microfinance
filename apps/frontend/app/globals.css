@@ -2242,3 +2242,91 @@ button:disabled {
     align-items: flex-start;
   }
 }
+
+/* PWFB company identity */
+
+.pwfb-company-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.pwfb-company-logo {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  overflow: hidden;
+  border-radius: 11px;
+  background: var(--pwfb-orange);
+  color: white;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  box-shadow: 0 4px 12px rgba(242, 140, 24, 0.2);
+}
+
+.pwfb-logo-p,
+.pwfb-logo-w {
+  color: white;
+}
+
+.pwfb-logo-f,
+.pwfb-logo-b {
+  color: #dff5e6;
+}
+
+.pwfb-company-name {
+  color: var(--pwfb-green-dark);
+  font-size: 20px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.pwfb-company-brand-small {
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.pwfb-company-brand-small .pwfb-company-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  font-size: 8px;
+}
+
+.pwfb-company-brand-small .pwfb-company-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+@media (max-width: 640px) {
+  .pwfb-company-brand {
+    margin-bottom: 16px;
+  }
+
+  .pwfb-company-name {
+    font-size: 17px;
+  }
+
+  .pwfb-company-brand-small .pwfb-company-name {
+    font-size: 13px;
+  }
+}
+
+/* PWFB company identity at dashboard top */
+.pwfb-dashboard-company-brand {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--pwfb-border);
+}
+
+.pwfb-dashboard-company-brand.staff {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+}
+

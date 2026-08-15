@@ -63,6 +63,7 @@ export class BankingController {
     body: {
       amount: number;
       description?: string;
+      reference?: string;
       branchId?: string;
       staffId?: string;
     },
@@ -77,6 +78,7 @@ export class BankingController {
     body: {
       amount: number;
       description?: string;
+      reference?: string;
       branchId?: string;
       staffId?: string;
     },
@@ -92,6 +94,7 @@ export class BankingController {
       recipientCustomerId: string;
       amount: number;
       description?: string;
+      reference?: string;
       branchId?: string;
       staffId?: string;
     },

@@ -217,6 +217,7 @@ export class BankingService {
     data: {
       amount: number;
       description?: string;
+      reference?: string;
       branchId?: string;
       staffId?: string;
     },
@@ -257,7 +258,7 @@ export class BankingService {
           amount,
           previousBalance: wallet.balance,
           newBalance,
-          reference: this.reference('DEP'),
+          reference: data.reference?.trim() || this.reference('DEP'),
           description: data.description ?? 'Wallet deposit',
           branchId: data.branchId,
           staffId: data.staffId,
@@ -276,6 +277,7 @@ export class BankingService {
     data: {
       amount: number;
       description?: string;
+      reference?: string;
       branchId?: string;
       staffId?: string;
     },
@@ -324,7 +326,7 @@ export class BankingService {
           amount,
           previousBalance: wallet.balance,
           newBalance,
-          reference: this.reference('WDR'),
+          reference: data.reference?.trim() || this.reference('WDR'),
           description: data.description ?? 'Wallet withdrawal',
           branchId: data.branchId,
           staffId: data.staffId,
@@ -347,6 +349,7 @@ export class BankingService {
       recipientCustomerId: string;
       amount: number;
       description?: string;
+      reference?: string;
       branchId?: string;
       staffId?: string;
     },
@@ -447,7 +450,7 @@ export class BankingService {
           data: { balance: recipientBalance },
         });
 
-      const transferReference = this.reference('TRF');
+      const transferReference = data.reference?.trim() || this.reference('TRF');
 
       const outgoing = await tx.walletTransaction.create({
         data: {

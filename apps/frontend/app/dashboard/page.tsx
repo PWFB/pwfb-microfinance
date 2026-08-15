@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../lib/api';
+import PWFBCompanyBrand from '../../components/PWFBCompanyBrand';
 
 type Summary = {
   customers: {
@@ -124,6 +125,7 @@ export default function DashboardPage() {
 
   return (
     <main>
+      <div className="pwfb-dashboard-company-brand"><PWFBCompanyBrand /></div>
       <div className="pwfb-page-header">
         <div>
           <p className="pwfb-eyebrow">EXECUTIVE OVERVIEW</p>

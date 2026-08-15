@@ -2317,3 +2317,16 @@ button:disabled {
     font-size: 13px;
   }
 }
+
+/* PWFB company identity at dashboard top */
+.pwfb-dashboard-company-brand {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--pwfb-border);
+}
+
+.pwfb-dashboard-company-brand.staff {
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+}
+

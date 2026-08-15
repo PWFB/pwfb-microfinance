@@ -15,10 +15,21 @@ type Wallet = {
   currency?: string;
 };
 
+type BankingTransaction = {
+  id: string;
+  type?: string;
+  amount: number;
+  description?: string;
+  status?: string;
+  createdAt?: string;
+  created_at?: string;
+};
+
 export default function BankingPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [transactions, setTransactions] = useState<BankingTransaction[]>([]);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [recipientId, setRecipientId] = useState("");
@@ -46,6 +57,13 @@ export default function BankingPage() {
     pwfbApi.banking.customerWallet(customerId)
       .then(setWallet)
       .catch(() => setWallet(null));
+
+    pwfbApi.banking.customerTransactions(customerId)
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.data ?? [];
+        setTransactions(list);
+      })
+      .catch(() => setTransactions([]));
   }, [customerId]);
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
@@ -92,8 +110,18 @@ export default function BankingPage() {
         await pwfbApi.banking.transfer(customerId, body);
       }
 
-      const updatedWallet = await pwfbApi.banking.customerWallet(customerId);
+      const [updatedWallet, updatedTransactions] = await Promise.all([
+        pwfbApi.banking.customerWallet(customerId),
+        pwfbApi.banking.customerTransactions(customerId),
+      ]);
+
       setWallet(updatedWallet);
+
+      const transactionList = Array.isArray(updatedTransactions)
+        ? updatedTransactions
+        : updatedTransactions?.data ?? [];
+
+      setTransactions(transactionList);
 
       setAmount("");
       setDescription("");
@@ -156,6 +184,63 @@ export default function BankingPage() {
               </h2>
               <span>{customerName(selectedCustomer)}</span>
             </div>
+          </div>
+        )}
+      </section>
+
+      <section className="pwfb-panel">
+        <div className="pwfb-panel-header">
+          <div>
+            <h2>Recent Transactions</h2>
+            <p>Latest banking activity for the selected customer.</p>
+          </div>
+
+          <span className="pwfb-record-count">
+            {transactions.length} transactions
+          </span>
+        </div>
+
+        {!customerId ? (
+          <p className="pwfb-page-description">
+            Select a customer to view transaction history.
+          </p>
+        ) : transactions.length === 0 ? (
+          <p className="pwfb-page-description">
+            No banking transactions found for this customer.
+          </p>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="pwfb-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Description</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {transactions.map((transaction) => (
+                  <tr key={transaction.id}>
+                    <td>{transaction.type || "TRANSACTION"}</td>
+                    <td>
+                      ₦{Number(transaction.amount || 0).toLocaleString()}
+                    </td>
+                    <td>{transaction.description || "—"}</td>
+                    <td>{transaction.status || "COMPLETED"}</td>
+                    <td>
+                      {transaction.createdAt || transaction.created_at
+                        ? new Date(
+                            transaction.createdAt ||
+                              transaction.created_at
+                          ).toLocaleString()
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>

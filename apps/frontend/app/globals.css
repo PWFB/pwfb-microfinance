@@ -2615,3 +2615,285 @@ button:disabled {
     font-size: 22px;
   }
 }
+
+/* =========================================================
+   PWFB CUSTOMER SERVICE
+   Light green + orange service workspace
+   ========================================================= */
+
+.pwfb-customer-service-page {
+  max-width: 1500px;
+  margin: 0 auto;
+}
+
+.pwfb-cs-search-panel {
+  margin-bottom: 18px;
+}
+
+.pwfb-cs-search-grid,
+.pwfb-cs-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pwfb-cs-search-grid label,
+.pwfb-cs-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.pwfb-cs-search-grid label > span,
+.pwfb-cs-form label > span {
+  font-size: 12px;
+  font-weight: 800;
+  color: #166534;
+}
+
+.pwfb-cs-search-grid input,
+.pwfb-cs-form input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #cce8d4;
+  border-radius: 10px;
+  background: #fbfffc;
+  padding: 10px 13px;
+  color: #173b27;
+  outline: none;
+}
+
+.pwfb-cs-search-grid input:focus,
+.pwfb-cs-form input:focus {
+  border-color: #73c58b;
+  box-shadow: 0 0 0 3px rgba(115,197,139,.15);
+}
+
+.pwfb-cs-results {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.pwfb-cs-results button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  border: 1px solid #d7efdc;
+  border-radius: 11px;
+  background: #f6fff8;
+  padding: 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pwfb-cs-results button:hover {
+  border-color: #73c58b;
+  background: #effbf2;
+}
+
+.pwfb-cs-results button > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pwfb-cs-result-avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 50%;
+  background: #dff4e4;
+  color: #16703a;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.pwfb-cs-results strong {
+  color: #174d2b;
+  font-size: 13px;
+}
+
+.pwfb-cs-results small {
+  color: #6b8172;
+  font-size: 11px;
+}
+
+.pwfb-cs-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  border: 1px solid #bfe5c9;
+  border-radius: 12px;
+  background: #effaf1;
+  padding: 13px 15px;
+}
+
+.pwfb-cs-selected > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pwfb-cs-selected small {
+  color: #438057;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.pwfb-cs-selected strong {
+  color: #155b2d;
+}
+
+.pwfb-cs-selected span:not(.pwfb-status-badge) {
+  color: #668071;
+  font-size: 11px;
+}
+
+.pwfb-cs-layout {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 18px;
+}
+
+.pwfb-cs-service-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+  padding: 16px;
+}
+
+.pwfb-cs-service {
+  min-height: 125px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  border: 1px solid #d6ebda;
+  border-radius: 12px;
+  background: #fbfffc;
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pwfb-cs-service:hover {
+  border-color: #79c98f;
+}
+
+.pwfb-cs-service-active {
+  border-color: #66bb7c;
+  background: #ecf9ef;
+  box-shadow: 0 0 0 2px rgba(102,187,124,.10);
+}
+
+.pwfb-cs-service > span {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 9px;
+  background: #dff3e4;
+  color: #17713b;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.pwfb-cs-service strong {
+  color: #174d2b;
+  font-size: 13px;
+}
+
+.pwfb-cs-service small {
+  color: #6d8173;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.pwfb-cs-form {
+  padding-bottom: 18px;
+}
+
+.pwfb-cs-form > label,
+.pwfb-cs-form-grid {
+  margin: 0 16px 14px;
+}
+
+.pwfb-cs-bank-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0 16px 16px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.pwfb-cs-bank-list button {
+  border: 1px solid #d2ead8;
+  border-radius: 999px;
+  background: #f8fff9;
+  padding: 8px 11px;
+  color: #28613b;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pwfb-cs-bank-list button:hover,
+.pwfb-cs-bank-active {
+  border-color: #66bb7c !important;
+  background: #e7f7eb !important;
+  color: #145c2e !important;
+}
+
+.pwfb-cs-notice {
+  margin: 0 16px 14px;
+  border: 1px solid #f3d39d;
+  border-radius: 10px;
+  background: #fff9ed;
+  padding: 10px 12px;
+  color: #8a5a13;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pwfb-cs-submit {
+  margin: 0 16px;
+}
+
+@media (max-width: 900px) {
+  .pwfb-cs-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .pwfb-cs-search-grid,
+  .pwfb-cs-form-grid,
+  .pwfb-cs-service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pwfb-cs-search-panel,
+  .pwfb-cs-form {
+    overflow: hidden;
+  }
+
+  .pwfb-cs-selected {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pwfb-cs-bank-list {
+    max-height: 180px;
+  }
+
+  .pwfb-cs-service {
+    min-height: 105px;
+  }
+}

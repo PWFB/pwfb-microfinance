@@ -1,5 +1,6 @@
 import Link from "next/link";
 import styles from "./home.module.css";
+import PWFBCompanyBrand from "../components/PWFBCompanyBrand";
 
 const modules = [
   ["👥", "Customers", "Manage customer profiles and KYC.", "/customers"],
@@ -20,11 +21,7 @@ export default function Home() {
     <main className={styles.home}>
       <header className={styles.header}>
         <Link href="/" className={styles.brand}>
-          <span className={styles.brandMark}>PWFB</span>
-          <span className={styles.brandCopy}>
-            <strong>PWFB Microfinance</strong>
-            <small>Perfect Wisdom For Better Limited</small>
-          </span>
+          <PWFBCompanyBrand small />
         </Link>
 
         <nav className={styles.nav}>

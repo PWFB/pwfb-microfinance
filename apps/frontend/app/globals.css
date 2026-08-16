@@ -3383,3 +3383,127 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   PWFB APPROVED FRONT — BRAND + MOBILE SHELL
+   ========================================================= */
+
+.pwfb-sidebar {
+  background: #eaf7ef !important;
+  color: #174d2b;
+  border-right: 1px solid #cfe7d6;
+}
+
+.pwfb-sidebar-header {
+  background: #eaf7ef;
+}
+
+.pwfb-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+}
+
+.pwfb-brand .pwfb-company-brand {
+  width: 100%;
+}
+
+.pwfb-brand .pwfb-company-name {
+  color: #174d2b;
+}
+
+.pwfb-access {
+  margin: 0 12px 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #dff3e5;
+  color: #175c31;
+}
+
+.pwfb-access small {
+  color: #5d806a;
+}
+
+.pwfb-access strong {
+  color: #145c2e;
+}
+
+.pwfb-nav {
+  scrollbar-color: rgba(15,123,53,.35) transparent;
+}
+
+.pwfb-nav::-webkit-scrollbar-thumb {
+  background: rgba(15,123,53,.35);
+}
+
+.pwfb-nav-link {
+  color: #174d2b !important;
+}
+
+.pwfb-nav-link:hover {
+  background: #dff3e5 !important;
+}
+
+.pwfb-nav-link-active,
+.pwfb-nav-link-parent-active {
+  background: #cfeeda !important;
+  color: #0a5c28 !important;
+}
+
+.pwfb-subnav {
+  background: #f4fbf6 !important;
+  border-left-color: #9fd1ad !important;
+}
+
+.pwfb-subnav-link {
+  color: #356348 !important;
+}
+
+.pwfb-subnav-link:hover,
+.pwfb-subnav-link-active {
+  background: #e2f5e7 !important;
+  color: #0a5c28 !important;
+}
+
+.pwfb-sidebar-status {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: #dff3e5;
+  color: #174d2b;
+}
+
+.pwfb-topbar {
+  border-bottom-color: #dfeee3 !important;
+}
+
+.pwfb-company-logo {
+  flex-shrink: 0;
+}
+
+@media (max-width: 650px) {
+  .pwfb-sidebar {
+    width: min(88vw, 340px);
+  }
+
+  .pwfb-sidebar-header {
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+
+  .pwfb-nav {
+    padding-bottom: 150px !important;
+  }
+
+  .pwfb-company-name {
+    font-size: 11px;
+  }
+
+  .pwfb-content {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}

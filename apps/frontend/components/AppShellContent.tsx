@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import PWFBCompanyBrand from "./PWFBCompanyBrand";
 
 type NavItem = {
   label: string;
@@ -225,14 +226,7 @@ export default function AppShellContent({
       >
         <div className="pwfb-sidebar-header" style={{ flexShrink: 0 }}>
           <Link href="/dashboard" className="pwfb-brand">
-            <div className="pwfb-brand-logo">
-              <span>PWFB</span>
-            </div>
-
-            <div className="pwfb-brand-text">
-              <strong>PWFB</strong>
-              <span>MICROFINANCE</span>
-            </div>
+            <PWFBCompanyBrand small />
           </Link>
 
           <button

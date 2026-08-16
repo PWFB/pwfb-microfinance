@@ -258,7 +258,7 @@ export default function AppShellContent({
             minHeight: 0,
             overflowY: "auto",
             overflowX: "hidden",
-            paddingBottom: 24,
+            paddingBottom: 120,
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
             scrollbarGutter: "stable",

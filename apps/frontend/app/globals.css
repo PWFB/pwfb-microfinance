@@ -3338,3 +3338,48 @@ button:disabled {
     padding: 14px;
   }
 }
+
+/* PWFB approved mobile front */
+@media (max-width: 650px) {
+  .pwfb-approved-dashboard {
+    width: 100%;
+    padding: 0;
+  }
+
+  .pwfb-dashboard-welcome {
+    margin: 0 0 14px;
+    border-radius: 0 0 18px 18px;
+  }
+
+  .pwfb-approved-metrics {
+    gap: 10px;
+  }
+
+  .pwfb-approved-metric {
+    min-height: 76px;
+  }
+
+  .pwfb-approved-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pwfb-approved-left,
+  .pwfb-approved-banking {
+    width: 100%;
+  }
+
+  .pwfb-approved-banking {
+    order: 2;
+  }
+
+  .pwfb-approved-banking-list {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .pwfb-approved-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}

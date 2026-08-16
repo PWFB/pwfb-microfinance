@@ -2897,3 +2897,49 @@ button:disabled {
     min-height: 105px;
   }
 }
+
+/* =========================================================
+   PWFB SIDEBAR — FIXED CHROME + INDEPENDENT NAV SCROLL
+   ========================================================= */
+
+.pwfb-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+}
+
+.pwfb-sidebar-header,
+.pwfb-access {
+  flex-shrink: 0;
+}
+
+.pwfb-nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 90px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.25) transparent;
+}
+
+.pwfb-nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.pwfb-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pwfb-nav::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,.25);
+  border-radius: 999px;
+}
+
+.pwfb-sidebar-status {
+  flex-shrink: 0;
+  position: absolute;
+  z-index: 2;
+}

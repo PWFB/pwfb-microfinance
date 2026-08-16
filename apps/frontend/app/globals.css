@@ -2943,3 +2943,398 @@ button:disabled {
   position: absolute;
   z-index: 2;
 }
+
+/* =========================================================
+   APPROVED PWFB DASHBOARD
+   ========================================================= */
+
+.pwfb-approved-dashboard {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.pwfb-dashboard-welcome {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 22px;
+  padding: 22px;
+  margin-bottom: 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #0a5c28, #118e3e);
+  color: white;
+  box-shadow: 0 10px 30px rgba(15,123,53,.15);
+}
+
+.pwfb-dashboard-brand {
+  padding-right: 20px;
+  border-right: 1px solid rgba(255,255,255,.15);
+}
+
+.pwfb-dashboard-brand .pwfb-company-brand {
+  color: white;
+}
+
+.pwfb-dashboard-welcome-copy p,
+.pwfb-approved-heading p {
+  margin: 0 0 5px;
+  color: #f28c18;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.pwfb-dashboard-welcome-copy h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.pwfb-dashboard-welcome-copy span {
+  display: block;
+  margin-top: 7px;
+  color: #d7ecde;
+  font-size: 13px;
+}
+
+.pwfb-dashboard-online {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 130px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 13px;
+  background: rgba(255,255,255,.08);
+}
+
+.pwfb-dashboard-online strong,
+.pwfb-dashboard-online small {
+  display: block;
+}
+
+.pwfb-dashboard-online strong {
+  font-size: 11px;
+}
+
+.pwfb-dashboard-online small {
+  margin-top: 2px;
+  color: #b9d8c4;
+  font-size: 10px;
+}
+
+.pwfb-approved-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.pwfb-approved-metric {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 17px;
+  border: 1px solid var(--pwfb-border);
+  border-radius: 16px;
+  background: white;
+  box-shadow: 0 4px 16px rgba(15,123,53,.05);
+  transition: .18s ease;
+}
+
+.pwfb-approved-metric:hover {
+  transform: translateY(-2px);
+  border-color: #b9dcc5;
+  box-shadow: 0 8px 22px rgba(15,123,53,.1);
+}
+
+.pwfb-approved-metric-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: var(--pwfb-green-light);
+  font-size: 19px;
+}
+
+.pwfb-approved-metric span,
+.pwfb-approved-metric small {
+  display: block;
+}
+
+.pwfb-approved-metric span {
+  color: var(--pwfb-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pwfb-approved-metric strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--pwfb-green-dark);
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.pwfb-approved-metric small {
+  margin-top: 3px;
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.pwfb-approved-metric > b {
+  color: var(--pwfb-muted);
+  font-size: 17px;
+}
+
+.pwfb-approved-layout {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 360px;
+  gap: 20px;
+  align-items: start;
+}
+
+.pwfb-approved-left {
+  display: grid;
+  gap: 20px;
+}
+
+.pwfb-approved-panel,
+.pwfb-approved-banking {
+  border: 1px solid var(--pwfb-border);
+  border-radius: 18px;
+  background: white;
+  box-shadow: 0 4px 16px rgba(15,23,42,.04);
+}
+
+.pwfb-approved-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 20px 22px;
+  border-bottom: 1px solid #edf1f5;
+}
+
+.pwfb-approved-heading h2 {
+  margin: 0;
+  color: #172033;
+  font-size: 18px;
+}
+
+.pwfb-approved-heading span {
+  display: block;
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+.pwfb-approved-heading > a {
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--pwfb-orange-light);
+  color: var(--pwfb-orange-dark);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pwfb-approved-portfolio {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  padding: 22px;
+}
+
+.pwfb-approved-portfolio-main {
+  padding: 22px;
+  border-radius: 16px;
+  background: linear-gradient(135deg,#0a5c28,#118e3e);
+  color: white;
+}
+
+.pwfb-approved-portfolio-main small,
+.pwfb-approved-portfolio-main span {
+  display: block;
+}
+
+.pwfb-approved-portfolio-main small {
+  color: #c7e6d1;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.pwfb-approved-portfolio-main strong {
+  display: block;
+  margin-top: 10px;
+  font-size: 30px;
+}
+
+.pwfb-approved-portfolio-main span {
+  margin-top: 8px;
+  color: #d7ecde;
+  font-size: 11px;
+}
+
+.pwfb-approved-mini-stats {
+  display: grid;
+  gap: 12px;
+}
+
+.pwfb-approved-mini-stats div {
+  padding: 17px;
+  border-radius: 14px;
+  background: #f8faf9;
+  border: 1px solid #e5eee8;
+}
+
+.pwfb-approved-mini-stats small,
+.pwfb-approved-mini-stats strong {
+  display: block;
+}
+
+.pwfb-approved-mini-stats small {
+  color: var(--pwfb-muted);
+  font-size: 10px;
+}
+
+.pwfb-approved-mini-stats strong {
+  margin-top: 6px;
+  color: var(--pwfb-green-dark);
+  font-size: 18px;
+}
+
+.pwfb-approved-banking-list {
+  padding: 8px 14px 14px;
+}
+
+.pwfb-approved-banking-list a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  padding: 13px 9px;
+  border-bottom: 1px solid #eef2f5;
+}
+
+.pwfb-approved-banking-list a:last-child {
+  border-bottom: 0;
+}
+
+.pwfb-approved-banking-list a:hover {
+  background: var(--pwfb-green-light);
+  border-radius: 9px;
+}
+
+.pwfb-approved-banking-list strong {
+  color: #172033;
+  font-size: 12px;
+}
+
+.pwfb-approved-banking-list span {
+  color: #94a3b8;
+  font-size: 9px;
+}
+
+.pwfb-approved-banking-list b {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: center;
+  color: var(--pwfb-orange-dark);
+}
+
+.pwfb-approved-actions {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 12px;
+  padding: 18px;
+}
+
+.pwfb-approved-actions a {
+  padding: 15px;
+  border: 1px solid #e5eaf0;
+  border-radius: 13px;
+  background: #f8fafc;
+}
+
+.pwfb-approved-actions a:hover {
+  border-color: #b9dcc5;
+  background: var(--pwfb-green-light);
+}
+
+.pwfb-approved-actions strong,
+.pwfb-approved-actions span {
+  display: block;
+}
+
+.pwfb-approved-actions strong {
+  color: #172033;
+  font-size: 12px;
+}
+
+.pwfb-approved-actions span {
+  margin-top: 5px;
+  color: var(--pwfb-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (max-width: 1000px) {
+  .pwfb-approved-metrics {
+    grid-template-columns: repeat(2,1fr);
+  }
+
+  .pwfb-approved-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .pwfb-approved-banking {
+    order: 2;
+  }
+}
+
+@media (max-width: 650px) {
+  .pwfb-dashboard-welcome {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 18px;
+  }
+
+  .pwfb-dashboard-brand {
+    padding: 0 0 13px;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255,255,255,.15);
+  }
+
+  .pwfb-dashboard-welcome-copy h1 {
+    font-size: 23px;
+  }
+
+  .pwfb-dashboard-online {
+    width: 100%;
+  }
+
+  .pwfb-approved-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .pwfb-approved-layout {
+    gap: 14px;
+  }
+
+  .pwfb-approved-portfolio {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+
+  .pwfb-approved-heading {
+    padding: 17px;
+  }
+
+  .pwfb-approved-actions {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+}

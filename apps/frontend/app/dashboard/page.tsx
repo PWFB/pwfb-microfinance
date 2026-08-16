@@ -6,28 +6,12 @@ import { apiRequest } from '../../lib/api';
 import PWFBCompanyBrand from '../../components/PWFBCompanyBrand';
 
 type Summary = {
-  customers: {
-    count: number;
-  };
-  savings: {
-    count: number;
-    amount: number;
-  };
-  loans: {
-    count: number;
-    amount: number;
-  };
-  transactions: {
-    count: number;
-    amount: number;
-  };
-  repayments: {
-    count: number;
-    amount: number;
-  };
-  portfolio: {
-    amount: number;
-  };
+  customers: { count: number };
+  savings: { count: number; amount: number };
+  loans: { count: number; amount: number };
+  transactions: { count: number; amount: number };
+  repayments: { count: number; amount: number };
+  portfolio: { amount: number };
 };
 
 const initialSummary: Summary = {
@@ -39,40 +23,28 @@ const initialSummary: Summary = {
   portfolio: { amount: 0 },
 };
 
-function formatAmount(amount: number) {
+function money(value: number) {
   return new Intl.NumberFormat('en-NG', {
     style: 'currency',
     currency: 'NGN',
     maximumFractionDigits: 0,
-  }).format(Number(amount) || 0);
+  }).format(Number(value) || 0);
 }
 
 export default function DashboardPage() {
-  const [summary, setSummary] = useState<Summary>(initialSummary);
+  const [summary, setSummary] = useState(initialSummary);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     let active = true;
 
     apiRequest('/reports/summary')
       .then((data) => {
-        if (active) {
-          setSummary(data);
-          setError('');
-        }
+        if (active) setSummary(data);
       })
-      .catch((err) => {
-        console.error(err);
-
-        if (active) {
-          setError(err.message || 'Unable to load dashboard data.');
-        }
-      })
+      .catch(console.error)
       .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       });
 
     return () => {
@@ -83,163 +55,229 @@ export default function DashboardPage() {
   const cards = [
     {
       title: 'Customers',
-      count: summary.customers.count,
-      amount: summary.portfolio.amount,
-      label: 'Portfolio value',
-      href: '/customers',
+      value: summary.customers.count,
+      detail: 'Customer records',
       icon: '👥',
+      href: '/customers',
     },
     {
       title: 'Savings',
-      count: summary.savings.count,
-      amount: summary.savings.amount,
-      label: 'Total savings',
+      value: money(summary.savings.amount),
+      detail: `${summary.savings.count} savings records`,
+      icon: '💰',
       href: '/savings',
-      icon: '₦',
     },
     {
       title: 'Loans',
-      count: summary.loans.count,
-      amount: summary.loans.amount,
-      label: 'Loan portfolio',
+      value: money(summary.loans.amount),
+      detail: `${summary.loans.count} loan records`,
+      icon: '🏦',
       href: '/loans',
-      icon: 'L',
-    },
-    {
-      title: 'Repayments',
-      count: summary.repayments.count,
-      amount: summary.repayments.amount,
-      label: 'Total repayments',
-      href: '/repayments',
-      icon: '↩',
     },
     {
       title: 'Transactions',
-      count: summary.transactions.count,
-      amount: summary.transactions.amount,
-      label: 'Transaction value',
-      href: '/transactions',
+      value: money(summary.transactions.amount),
+      detail: `${summary.transactions.count} transactions`,
       icon: '↔',
+      href: '/transactions',
     },
   ];
 
   return (
-    <main>
-      <div className="pwfb-dashboard-company-brand"><PWFBCompanyBrand /></div>
-      <div className="pwfb-page-header">
-        <div>
-          <p className="pwfb-eyebrow">EXECUTIVE OVERVIEW</p>
-          <h1 className="pwfb-page-title">Dashboard</h1>
-          <p className="pwfb-page-description">
-            Real-time overview of PWFB microfinance operations.
-          </p>
+    <main className="pwfb-approved-dashboard">
+
+      <section className="pwfb-dashboard-welcome">
+        <div className="pwfb-dashboard-brand">
+          <PWFBCompanyBrand />
         </div>
 
-        <div className="pwfb-admin-badge">
-          <span>ACCESS</span>
-          <strong>Super Admin</strong>
-        </div>
-      </div>
-
-      {error && (
-        <div className="pwfb-alert">
-          {error}
-        </div>
-      )}
-
-      <section className="pwfb-dashboard-hero">
-        <div>
-          <p>CLIENT PORTFOLIO</p>
-
-          <h2>
-            {loading
-              ? 'Loading...'
-              : formatAmount(summary.portfolio.amount)}
-          </h2>
-
+        <div className="pwfb-dashboard-welcome-copy">
+          <p>EXECUTIVE DASHBOARD</p>
+          <h1>Welcome back, Super Admin</h1>
           <span>
-            Combined savings and loan portfolio value
+            Here&apos;s your PWFB microfinance operations overview.
           </span>
         </div>
 
-        <div className="pwfb-dashboard-hero-stat">
-          <span>Customers</span>
-          <strong>
-            {loading ? '—' : summary.customers.count}
-          </strong>
+        <div className="pwfb-dashboard-online">
+          <span className="pwfb-status-dot" />
+          <div>
+            <strong>System Online</strong>
+            <small>Production</small>
+          </div>
         </div>
       </section>
 
-      <section className="pwfb-stat-grid">
+      <section className="pwfb-approved-metrics">
         {cards.map((card) => (
           <Link
             key={card.title}
             href={card.href}
-            className="pwfb-dashboard-card"
+            className="pwfb-approved-metric"
           >
-            <div className="pwfb-dashboard-card-top">
-              <div className="pwfb-dashboard-icon">
-                {card.icon}
-              </div>
-
-              <span>→</span>
+            <div className="pwfb-approved-metric-icon">
+              {card.icon}
             </div>
 
-            <p>{card.title}</p>
-
-            <strong>
-              {loading ? '—' : card.count}
-            </strong>
-
-            <div className="pwfb-dashboard-card-value">
-              <small>{card.label}</small>
-              <b>
-                {loading ? 'Loading...' : formatAmount(card.amount)}
-              </b>
+            <div>
+              <span>{card.title}</span>
+              <strong>{loading ? '—' : card.value}</strong>
+              <small>{loading ? 'Loading...' : card.detail}</small>
             </div>
+
+            <b>→</b>
           </Link>
         ))}
       </section>
 
-      <section className="pwfb-panel">
-        <div className="pwfb-panel-header">
-          <div>
-            <h2>Quick Operations</h2>
-            <p>Access the main operational areas of PWFB.</p>
+      <section className="pwfb-approved-layout">
+
+        <div className="pwfb-approved-left">
+
+          <div className="pwfb-approved-panel">
+            <div className="pwfb-approved-heading">
+              <div>
+                <p>PORTFOLIO</p>
+                <h2>Financial Overview</h2>
+                <span>
+                  Current savings, lending and repayment position.
+                </span>
+              </div>
+
+              <Link href="/reports">
+                View Reports
+              </Link>
+            </div>
+
+            <div className="pwfb-approved-portfolio">
+              <div className="pwfb-approved-portfolio-main">
+                <small>Total Portfolio Value</small>
+
+                <strong>
+                  {loading ? '—' : money(summary.portfolio.amount)}
+                </strong>
+
+                <span>
+                  Combined customer savings and loan portfolio
+                </span>
+              </div>
+
+              <div className="pwfb-approved-mini-stats">
+                <div>
+                  <small>Repayments</small>
+                  <strong>
+                    {loading ? '—' : money(summary.repayments.amount)}
+                  </strong>
+                </div>
+
+                <div>
+                  <small>Transactions</small>
+                  <strong>
+                    {loading ? '—' : money(summary.transactions.amount)}
+                  </strong>
+                </div>
+              </div>
+            </div>
           </div>
+
+          <div className="pwfb-approved-panel">
+            <div className="pwfb-approved-heading">
+              <div>
+                <p>QUICK ACTIONS</p>
+                <h2>Common Operations</h2>
+              </div>
+            </div>
+
+            <div className="pwfb-approved-actions">
+              <Link href="/customers/add">
+                <strong>Add Customer</strong>
+                <span>Create a new customer record</span>
+              </Link>
+
+              <Link href="/savings/add">
+                <strong>New Deposit</strong>
+                <span>Post a savings deposit</span>
+              </Link>
+
+              <Link href="/loans/add">
+                <strong>Create Loan</strong>
+                <span>Start a new loan record</span>
+              </Link>
+
+              <Link href="/repayments/add">
+                <strong>Record Repayment</strong>
+                <span>Post a loan repayment</span>
+              </Link>
+            </div>
+          </div>
+
         </div>
 
-        <div className="pwfb-quick-actions">
-          <Link href="/customers" className="pwfb-quick-action">
-            <strong>Customers</strong>
-            <span>Manage customer records →</span>
-          </Link>
+        <aside className="pwfb-approved-banking">
 
-          <Link href="/loans" className="pwfb-quick-action">
-            <strong>Loans</strong>
-            <span>Manage loan portfolio →</span>
-          </Link>
+          <div className="pwfb-approved-heading">
+            <div>
+              <p>FINANCE OPERATIONS</p>
+              <h2>Banking Operations</h2>
+              <span>
+                Open the financial operation you need.
+              </span>
+            </div>
+          </div>
 
-          <Link href="/savings" className="pwfb-quick-action">
-            <strong>Savings</strong>
-            <span>Manage savings accounts →</span>
-          </Link>
+          <div className="pwfb-approved-banking-list">
 
-          <Link href="/repayments" className="pwfb-quick-action">
-            <strong>Repayments</strong>
-            <span>Record loan repayments →</span>
-          </Link>
+            <Link href="/banking">
+              <strong>Banking Operations</strong>
+              <span>Overview and banking activity</span>
+              <b>→</b>
+            </Link>
 
-          <Link href="/transactions" className="pwfb-quick-action">
-            <strong>Transactions</strong>
-            <span>View financial activity →</span>
-          </Link>
+            <Link href="/savings/add">
+              <strong>Deposit</strong>
+              <span>Record a customer deposit</span>
+              <b>→</b>
+            </Link>
 
-          <Link href="/staff-dashboard" className="pwfb-quick-action">
-            <strong>Staff</strong>
-            <span>Open staff dashboard →</span>
-          </Link>
-        </div>
+            <Link href="/transactions/add">
+              <strong>Withdrawal</strong>
+              <span>Record a withdrawal transaction</span>
+              <b>→</b>
+            </Link>
+
+            <Link href="/transactions/add">
+              <strong>Transfer</strong>
+              <span>Record a financial transfer</span>
+              <b>→</b>
+            </Link>
+
+            <Link href="/periods">
+              <strong>Financial Periods</strong>
+              <span>Manage accounting periods</span>
+              <b>→</b>
+            </Link>
+
+            <Link href="/payroll">
+              <strong>Payroll &amp; Summary</strong>
+              <span>Review payroll operations</span>
+              <b>→</b>
+            </Link>
+
+            <Link href="/cashbook">
+              <strong>Cashbook &amp; Summary</strong>
+              <span>Review cash movement</span>
+              <b>→</b>
+            </Link>
+
+            <Link href="/collections">
+              <strong>Daily Collections &amp; Summary</strong>
+              <span>Review collection activity</span>
+              <b>→</b>
+            </Link>
+
+          </div>
+        </aside>
+
       </section>
     </main>
   );

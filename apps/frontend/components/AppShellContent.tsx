@@ -223,7 +223,7 @@ export default function AppShellContent({
           mobileOpen ? "pwfb-sidebar-mobile-open" : ""
         }`}
       >
-        <div className="pwfb-sidebar-header">
+        <div className="pwfb-sidebar-header" style={{ flexShrink: 0 }}>
           <Link href="/dashboard" className="pwfb-brand">
             <div className="pwfb-brand-logo">
               <span>PWFB</span>
@@ -245,12 +245,25 @@ export default function AppShellContent({
           </button>
         </div>
 
-        <div className="pwfb-access">
+        <div className="pwfb-access" style={{ flexShrink: 0 }}>
           <small>ACCESS LEVEL</small>
           <strong>{user.role.replaceAll("_", " ")}</strong>
         </div>
 
-        <nav className="pwfb-nav">
+        <nav
+          className="pwfb-nav"
+          aria-label="Main navigation"
+          style={{
+            flex: "1 1 auto",
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+            paddingBottom: 24,
+            WebkitOverflowScrolling: "touch",
+            overscrollBehavior: "contain",
+            scrollbarGutter: "stable",
+          }}
+        >
           <Link
             href="/dashboard"
             className={`pwfb-nav-link ${
@@ -331,7 +344,7 @@ export default function AppShellContent({
           )}
         </nav>
 
-        <div className="pwfb-sidebar-status">
+        <div className="pwfb-sidebar-status" style={{ flexShrink: 0 }}>
           <span className="pwfb-status-dot" />
           <div>
             <strong>System Online</strong>

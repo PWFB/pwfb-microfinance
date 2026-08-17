@@ -10,7 +10,6 @@ import { Role } from '@prisma/client';
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
-  SUSPENDED = 'SUSPENDED',
 }
 
 export class CreateStaffDto {

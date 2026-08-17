@@ -3487,7 +3487,7 @@ button:disabled {
 
 @media (max-width: 650px) {
   .pwfb-sidebar {
-    width: min(88vw, 340px);
+    width: min(280px, 78vw);
   }
 
   .pwfb-sidebar-header {

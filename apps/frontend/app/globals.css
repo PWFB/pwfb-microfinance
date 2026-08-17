@@ -4146,7 +4146,7 @@ button:disabled {
 
 @media (max-width: 800px) {
   .pwfb-sidebar {
-    width: min(88vw, 340px) !important;
+    width: min(280px, 78vw) !important;
     transform: translateX(-105%) !important;
     transition: transform .25s ease !important;
   }

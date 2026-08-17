@@ -54,7 +54,7 @@ export default function BankingPage() {
       setOperation(requestedOperation);
     }
 
-    fetch("/api/customers")
+    pwfbApi.customers.search()
       .then((res) => res.json())
       .then((data) => {
         const list = Array.isArray(data) ? data : data?.data ?? [];

@@ -1,4 +1,5 @@
 "use client";
+import { apiRequest } from "../../../lib/api";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -38,32 +39,19 @@ export default function AddCustomerPage() {
     setMessage("");
 
     try {
-      const response = await fetch(
-        `${API_URL}/customers`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(form),
-        }
-      );
+      await apiRequest("/customers", {
+        method: "POST",
+        body: JSON.stringify(form),
+      });
 
-      const result = await response.json();
+      setMessage("Customer created successfully.");
 
-      if (response.ok) {
-        setMessage("Customer created successfully.");
+      setTimeout(() => {
+        router.push("/customers");
+      }, 1000);
 
-        setTimeout(() => {
-          router.push("/customers");
-        }, 1000);
-      } else {
-        setMessage(
-          result.message || "Unable to create customer."
-        );
-      }
-    } catch {
-      setMessage("Connection error.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to create customer.");
     }
 
     setLoading(false);

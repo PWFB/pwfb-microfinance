@@ -60,8 +60,8 @@ export default function BankingPage() {
         const list = Array.isArray(data) ? data : data?.data ?? [];
         setCustomers(list);
       })
-      .catch(() => {
-        setCustomers([]);
+      .catch((error) => {
+        console.error("Banking customer load failed:", error); setCustomers([]);
       });
   }, []);
 
@@ -85,7 +85,7 @@ export default function BankingPage() {
 
         setTransactions(list);
       })
-      .catch(() => {
+      .catch((error) => {
         setWallet(null);
         setTransactions([]);
       });

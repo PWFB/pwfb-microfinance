@@ -5,16 +5,17 @@ export async function apiRequest(
   options: RequestInit = {},
 ) {
   const token =
-    typeof window !== 'undefined'
-      ? localStorage.getItem('token')
+    typeof window !== "undefined"
+      ? localStorage.getItem("token") ||
+        sessionStorage.getItem("token")
       : null;
 
   const headers = new Headers(options.headers);
 
-  headers.set('Content-Type', 'application/json');
+  headers.set("Content-Type", "application/json");
 
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const response = await fetch(`${API_URL}${endpoint}`, {
@@ -31,23 +32,25 @@ export async function apiRequest(
   }
 
   if (response.status === 401) {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("token");
+      sessionStorage.removeItem("user");
+      window.location.href = "/login";
     }
 
-    throw new Error('Session expired. Please login again.');
+    throw new Error("Session expired. Please login again.");
   }
 
   if (response.status === 403) {
-    throw new Error('You do not have permission to perform this action.');
+    throw new Error(
+      "You do not have permission to perform this action.",
+    );
   }
 
   if (!response.ok) {
-    throw new Error(
-      data?.message || 'Request failed',
-    );
+    throw new Error(data?.message || "Request failed");
   }
 
   return data;

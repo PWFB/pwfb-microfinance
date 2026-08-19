@@ -43,9 +43,9 @@ export default function LoginPage() {
 
       await refreshProfile();
 
-      if (data.role === "CUSTOMER") {
+      if (data.user?.role === "CUSTOMER") {
         router.replace("/customer-dashboard");
-      } else if (data.role === "SUPER_ADMIN") {
+      } else if (data.user?.role === "SUPER_ADMIN") {
         router.replace("/dashboard");
       } else {
         router.replace("/staff-dashboard");

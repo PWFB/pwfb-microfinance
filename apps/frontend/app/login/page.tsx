@@ -43,7 +43,13 @@ export default function LoginPage() {
 
       await refreshProfile();
 
-      router.replace("/dashboard");
+      if (data.role === "CUSTOMER") {
+        router.replace("/customer-dashboard");
+      } else if (data.role === "SUPER_ADMIN") {
+        router.replace("/dashboard");
+      } else {
+        router.replace("/staff-dashboard");
+      }
     } catch (error) {
       setMessage(
         error instanceof Error

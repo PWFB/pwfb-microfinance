@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { StaffStatus } from '@prisma/client';
 
 @Injectable()
 export class StaffRepository {
@@ -59,7 +60,7 @@ export class StaffRepository {
           position: data.position,
 
           employmentStatus:
-            data.employmentStatus ?? 'ACTIVE',
+            data.employmentStatus ?? StaffStatus.ACTIVE,
 
           department: {
             connect: {
@@ -117,7 +118,7 @@ export class StaffRepository {
         position: data.position,
 
         employmentStatus:
-          data.employmentStatus ?? 'ACTIVE',
+          data.employmentStatus ?? StaffStatus.ACTIVE,
 
         department: {
           connect: {

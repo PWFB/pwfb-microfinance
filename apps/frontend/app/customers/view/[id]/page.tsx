@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { apiRequest } from "../../../../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 interface Customer {
   id: string;
@@ -27,8 +27,7 @@ export default function ViewCustomerPage() {
   useEffect(() => {
     if (!id) return;
 
-    fetch(`${API_URL}/customers/${id}`)
-      .then((res) => res.json())
+    apiRequest(`/customers/${id}`)
       .then((data) => {
         setCustomer(data);
         setLoading(false);

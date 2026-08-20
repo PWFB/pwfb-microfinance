@@ -5,19 +5,29 @@ export async function apiRequest(
   options: RequestInit = {},
 ) {
   const token =
-    typeof window !== 'undefined'
-      ? localStorage.getItem('token')
+    typeof window !== "undefined"
+      ? localStorage.getItem("token") ||
+        sessionStorage.getItem("token")
       : null;
+
+  const url = `${API_URL}${endpoint}`;
+
+  console.log("[PWFB API REQUEST]", {
+    url,
+    method: options.method || "GET",
+    hasToken: !!token,
+    tokenLength: token?.length || 0,
+  });
 
   const headers = new Headers(options.headers);
 
-  headers.set('Content-Type', 'application/json');
+  headers.set("Content-Type", "application/json");
 
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(url, {
     ...options,
     headers,
   });
@@ -30,23 +40,31 @@ export async function apiRequest(
     data = null;
   }
 
-  if (response.status === 401) {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
+  console.log("[PWFB API RESPONSE]", {
+    url,
+    status: response.status,
+    ok: response.ok,
+    data,
+  });
 
-    throw new Error('Session expired. Please login again.');
+  if (response.status === 401) {
+    throw new Error(
+      data?.message ||
+      `Unauthorized: ${endpoint}`,
+    );
   }
 
   if (response.status === 403) {
-    throw new Error('You do not have permission to perform this action.');
+    throw new Error(
+      data?.message ||
+      "You do not have permission to perform this action.",
+    );
   }
 
   if (!response.ok) {
     throw new Error(
-      data?.message || 'Request failed',
+      data?.message ||
+      "Request failed",
     );
   }
 

@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { apiRequest } from "../../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 interface Customer {
   id: string;
@@ -18,8 +18,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`${API_URL}/customers`)
-      .then((res) => res.json())
+    apiRequest("/customers")
       .then((data) => {
         setCustomers(Array.isArray(data) ? data : []);
         setLoading(false);

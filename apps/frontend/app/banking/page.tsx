@@ -54,14 +54,14 @@ export default function BankingPage() {
       setOperation(requestedOperation);
     }
 
-    fetch("/api/customers")
-      .then((res) => res.json())
+    pwfbApi.customers.search()
+      .then((data) => data)
       .then((data) => {
         const list = Array.isArray(data) ? data : data?.data ?? [];
         setCustomers(list);
       })
-      .catch(() => {
-        setCustomers([]);
+      .catch((error) => {
+        console.error("Banking customer load failed:", error); setCustomers([]);
       });
   }, []);
 
@@ -85,7 +85,7 @@ export default function BankingPage() {
 
         setTransactions(list);
       })
-      .catch(() => {
+      .catch((error) => {
         setWallet(null);
         setTransactions([]);
       });

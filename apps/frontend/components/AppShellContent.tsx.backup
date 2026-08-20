@@ -200,14 +200,7 @@ export default function AppShellContent({
     return null;
   }
 
-  // CUSTOMER accounts use the dedicated mobile banking application shell.
-  // Staff, admins and SUPER_ADMIN continue to use the professional admin shell.
-  if (user.role === "CUSTOMER") {
-    return <>{children}</>;
-  }
-
   const displayName =
-
     [user.firstName, user.lastName].filter(Boolean).join(" ") ||
     user.email;
 

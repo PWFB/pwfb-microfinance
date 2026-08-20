@@ -22,6 +22,18 @@ function query(params?: ApiListParams) {
 }
 
 export const pwfbApi = {
+  customers: {
+    me: () => apiRequest("/customers/me"),
+
+    search: (q?: string) =>
+      apiRequest(`/customers${query(q ? { search: q } : undefined)}`),
+  },
+
+  staff: {
+    search: (q?: string) =>
+      apiRequest(`/staff${query(q ? { search: q } : undefined)}`),
+  },
+
   reports: {
     summary: () => apiRequest("/reports/summary"),
   },

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { apiRequest } from "../../../../lib/api";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 
 export default function EditCustomerPage() {
   const { id } = useParams();
@@ -23,8 +23,7 @@ export default function EditCustomerPage() {
   useEffect(() => {
     if (!id) return;
 
-    fetch(`${API_URL}/customers/${id}`)
-      .then((res) => res.json())
+    apiRequest(`/customers/${id}`)
       .then((data) => {
         setForm({
           firstName: data.firstName || "",
@@ -56,8 +55,8 @@ export default function EditCustomerPage() {
   ) {
     e.preventDefault();
 
-    const response = await fetch(
-      `${API_URL}/customers/${id}`,
+    await apiRequest(
+      `/customers/${id}`,
       {
         method: "PATCH",
         headers: {
@@ -67,11 +66,7 @@ export default function EditCustomerPage() {
       }
     );
 
-    if (response.ok) {
-      router.push("/customers");
-    } else {
-      alert("Unable to update customer.");
-    }
+    router.push("/customers");
   }
 
   if (loading) {

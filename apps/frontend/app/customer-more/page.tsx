@@ -4,20 +4,26 @@ import Link from "next/link";
 import { useAuth } from "../../context/AuthContext";
 
 const sections = [
-  { title: "Money", items: [
-    { href: "/customer-wallet", icon: "₦", title: "My Wallet", description: "Balance and wallet activity" },
-    { href: "/customer-deposit", icon: "↓", title: "Deposit", description: "Add funds to your PWFB account" },
-    { href: "/customer-withdraw", icon: "↑", title: "Withdraw", description: "Withdraw available wallet funds" },
-    { href: "/customer-transfer", icon: "↔", title: "Transfer", description: "Send funds to another customer" },
-    { href: "/customer-savings", icon: "💰", title: "My Savings", description: "Savings balance and history" },
-    { href: "/customer-loans", icon: "▣", title: "My Loans", description: "Loans and repayment schedule" },
-    { href: "/customer-transactions", icon: "☷", title: "Transactions", description: "Deposits, withdrawals and transfers" },
-  ]},
-  { title: "Account", items: [
-    { href: "/customer-profile", icon: "👤", title: "My Profile", description: "Personal information and security" },
-    { href: "/customer-notifications", icon: "🔔", title: "Notifications", description: "View your account notifications" },
-    { href: "/customer-settings", icon: "⚙", title: "Settings", description: "Manage your application preferences" },
-  ]},
+  {
+    title: "Money",
+    items: [
+      { href: "/customer-wallet", icon: "₦", title: "My Wallet", description: "Balance and wallet activity" },
+      { href: "/customer-deposit", icon: "↓", title: "Deposit", description: "Add funds to your PWFB account" },
+      { href: "/customer-withdraw", icon: "↑", title: "Withdraw", description: "Withdraw available wallet funds" },
+      { href: "/customer-transfer", icon: "↔", title: "Transfer", description: "Send funds to another customer" },
+      { href: "/customer-savings", icon: "💰", title: "My Savings", description: "Savings balance and history" },
+      { href: "/customer-loans", icon: "▣", title: "My Loans", description: "Loans and repayment schedule" },
+      { href: "/customer-transactions", icon: "☷", title: "Transactions", description: "Deposits, withdrawals and transfers" },
+    ],
+  },
+  {
+    title: "Account",
+    items: [
+      { href: "/customer-profile", icon: "👤", title: "My Profile", description: "Personal information and security" },
+      { href: "/customer-notifications", icon: "🔔", title: "Notifications", description: "View your account notifications" },
+      { href: "/customer-settings", icon: "⚙", title: "Settings", description: "Manage your application preferences" },
+    ],
+  },
 ];
 
 export default function CustomerMorePage() {

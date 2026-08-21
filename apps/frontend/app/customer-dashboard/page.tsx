@@ -76,56 +76,29 @@ export default function CustomerDashboardPage() {
           <nav className="flex-1 space-y-1 p-4" aria-label="Customer navigation">
             {navigation.map((item) => {
               const active = item.href === "/customer-dashboard";
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${active ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"}`}
-                >
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-sm text-emerald-700">{item.icon}</span>
-                  {item.label}
-                </Link>
-              );
+              return <Link key={item.href} href={item.href} className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold transition ${active ? "bg-emerald-50 text-emerald-700" : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"}`}><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-sm text-emerald-700">{item.icon}</span>{item.label}</Link>;
             })}
           </nav>
-          <div className="m-4 rounded-2xl bg-emerald-600 p-4 text-white">
-            <p className="text-xs font-medium text-emerald-100">Available Balance</p>
-            <p className="mt-1 text-xl font-bold">{money(Number(wallet?.balance || 0))}</p>
-          </div>
+          <div className="m-4 rounded-2xl bg-emerald-600 p-4 text-white"><p className="text-xs font-medium text-emerald-100">Available Balance</p><p className="mt-1 text-xl font-bold">{money(Number(wallet?.balance || 0))}</p></div>
         </aside>
 
         <div className="min-w-0 flex-1">
           <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
-            <div className="mb-6">
-              <p className="text-sm text-slate-500">Welcome back</p>
-              <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{displayName}</h1>
-            </div>
+            <div className="mb-6"><p className="text-sm text-slate-500">Welcome back</p><h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{displayName}</h1></div>
 
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm"><p className="text-sm font-medium text-emerald-700">Available Balance</p><p className="mt-4 text-xl font-bold text-emerald-800">{money(Number(wallet?.balance || 0))}</p></div>
               <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"><p className="text-sm font-medium text-slate-500">Savings Balance</p><p className="mt-4 text-xl font-bold text-slate-900">{money(savingsBalance)}</p></div>
               <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"><p className="text-sm font-medium text-slate-500">Borrowed Loan</p><p className="mt-4 text-xl font-bold text-slate-900">{money(borrowedLoan)}</p></div>
               <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"><p className="text-sm font-medium text-slate-500">Loan Balance</p><p className="mt-4 text-xl font-bold text-slate-900">{money(loanBalance)}</p></div>
             </section>
 
-            <section className="mt-6"><h2 className="mb-3 text-lg font-bold text-slate-900">Quick Actions</h2><div className="grid grid-cols-3 gap-3">
-              <Link href="/customer-deposit" className="rounded-xl bg-emerald-600 p-4 text-center text-white shadow-sm"><span className="block text-xl">₦</span><span className="mt-1 block text-xs font-semibold">Deposit</span></Link>
-              <Link href="/customer-withdraw" className="rounded-xl bg-orange-500 p-4 text-center text-white shadow-sm"><span className="block text-xl">↗</span><span className="mt-1 block text-xs font-semibold">Withdrawal</span></Link>
-              <Link href="/customer-transfer" className="rounded-xl border border-slate-200 bg-white p-4 text-center text-slate-800 shadow-sm"><span className="block text-xl">↔</span><span className="mt-1 block text-xs font-semibold">Transfer</span></Link>
-            </div></section>
+            <section className="mt-6"><h2 className="mb-3 text-lg font-bold text-slate-900">Quick Actions</h2><div className="grid grid-cols-3 gap-3"><Link href="/customer-deposit" className="rounded-xl bg-emerald-600 p-4 text-center text-white shadow-sm"><span className="block text-xl">₦</span><span className="mt-1 block text-xs font-semibold">Deposit</span></Link><Link href="/customer-withdraw" className="rounded-xl bg-orange-500 p-4 text-center text-white shadow-sm"><span className="block text-xl">↗</span><span className="mt-1 block text-xs font-semibold">Withdrawal</span></Link><Link href="/customer-transfer" className="rounded-xl border border-slate-200 bg-white p-4 text-center text-slate-800 shadow-sm"><span className="block text-xl">↔</span><span className="mt-1 block text-xs font-semibold">Transfer</span></Link></div></section>
 
-            <section className="mt-6 rounded-2xl border border-slate-100 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="font-semibold text-slate-900">Recent Transactions</h2><p className="text-xs text-slate-500">Your latest wallet activity</p></div><Link href="/customer-transactions" className="text-sm font-semibold text-emerald-600">History →</Link></div>
-              {transactions.length === 0 ? <div className="p-6 text-center"><div className="text-2xl">₦</div><p className="mt-2 font-medium text-slate-700">No transactions yet</p><p className="mt-1 text-sm text-slate-500">Your wallet activity will appear here.</p></div> : <div>{transactions.slice(0, 5).map((transaction) => <div key={transaction.id} className="flex items-center justify-between border-b border-slate-100 p-4 last:border-b-0"><div className="min-w-0"><p className="truncate font-medium text-slate-800">{transaction.description || transaction.type || "Transaction"}</p><p className="text-xs text-slate-500">{formatDate(transaction.createdAt || transaction.created_at)}</p></div><p className="ml-4 font-semibold text-slate-900">{money(Number(transaction.amount || 0))}</p></div>)}</div>}
-            </section>
+            <section className="mt-6 rounded-2xl border border-slate-100 bg-white shadow-sm"><div className="flex items-center justify-between border-b border-slate-100 p-4"><div><h2 className="font-semibold text-slate-900">Recent Transactions</h2><p className="text-xs text-slate-500">Your latest wallet activity</p></div><Link href="/customer-transactions" className="text-sm font-semibold text-emerald-600">History →</Link></div>{transactions.length === 0 ? <div className="p-6 text-center"><div className="text-2xl">₦</div><p className="mt-2 font-medium text-slate-700">No transactions yet</p><p className="mt-1 text-sm text-slate-500">Your wallet activity will appear here.</p></div> : <div>{transactions.slice(0, 5).map((transaction) => <div key={transaction.id} className="flex items-center justify-between border-b border-slate-100 p-4 last:border-b-0"><div className="min-w-0"><p className="truncate font-medium text-slate-800">{transaction.description || transaction.type || "Transaction"}</p><p className="text-xs text-slate-500">{formatDate(transaction.createdAt || transaction.created_at)}</p></div><p className="ml-4 font-semibold text-slate-900">{money(Number(transaction.amount || 0))}</p></div>)}</div>}</section>
           </div>
 
-          <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white lg:hidden"><div className="mx-auto flex max-w-2xl items-center justify-around px-2 py-2">
-            <Link href="/customer-dashboard" className="flex flex-col items-center px-2 py-1 text-emerald-600"><span className="text-lg">⌂</span><span className="text-[10px] font-semibold">Home</span></Link>
-            <Link href="/customer-wallet" className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">₦</span><span className="text-[10px]">Wallet</span></Link>
-            <Link href="/customer-savings" className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">💰</span><span className="text-[10px]">Saving</span></Link>
-            <Link href="/customer-loans" className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">▣</span><span className="text-[10px]">Loan</span></Link>
-            <button type="button" onClick={() => router.push("/customer-more")} className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">•••</span><span className="text-[10px]">More</span></button>
-          </div></nav>
+          <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-slate-200 bg-white lg:hidden"><div className="mx-auto flex max-w-2xl items-center justify-around px-2 py-2"><Link href="/customer-dashboard" className="flex flex-col items-center px-2 py-1 text-emerald-600"><span className="text-lg">⌂</span><span className="text-[10px] font-semibold">Home</span></Link><Link href="/customer-wallet" className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">₦</span><span className="text-[10px]">Wallet</span></Link><Link href="/customer-savings" className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">💰</span><span className="text-[10px]">Saving</span></Link><Link href="/customer-loans" className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">▣</span><span className="text-[10px]">Loan</span></Link><button type="button" onClick={() => router.push("/customer-more")} className="flex flex-col items-center px-2 py-1 text-slate-600"><span className="text-lg">•••</span><span className="text-[10px]">More</span></button></div></nav>
         </div>
       </div>
     </main>

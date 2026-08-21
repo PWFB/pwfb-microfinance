@@ -86,7 +86,7 @@ export default function CustomerDashboardPage() {
           <div className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
             <div className="mb-6"><p className="text-sm text-slate-500">Welcome back</p><h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{displayName}</h1></div>
 
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <section className="grid grid-cols-2 gap-4">
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-5 shadow-sm"><p className="text-sm font-medium text-emerald-700">Available Balance</p><p className="mt-4 text-xl font-bold text-emerald-800">{money(Number(wallet?.balance || 0))}</p></div>
               <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"><p className="text-sm font-medium text-slate-500">Savings Balance</p><p className="mt-4 text-xl font-bold text-slate-900">{money(savingsBalance)}</p></div>
               <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"><p className="text-sm font-medium text-slate-500">Borrowed Loan</p><p className="mt-4 text-xl font-bold text-slate-900">{money(borrowedLoan)}</p></div>

@@ -76,13 +76,23 @@ export default function CustomerDepositPage() {
 
     setSubmitting(true);
     try {
-      // Deposits remain verification-based until a verified funding flow is connected.
-      setMessage("Deposit request prepared. Your wallet will be credited after the deposit is verified.");
+      const result = await pwfbApi.banking.deposit(customerId, {
+        amount: numericAmount,
+        description: description.trim() || undefined,
+      });
+
+      if (result?.wallet) {
+        setWallet(result.wallet);
+      } else {
+        setWallet(await pwfbApi.banking.customerWallet(customerId));
+      }
+
+      setMessage("Deposit completed successfully. Your wallet balance has been updated.");
       setSuccess(true);
       setAmount("");
       setDescription("");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Deposit request could not be submitted.");
+      setMessage(error instanceof Error ? error.message : "Deposit could not be completed.");
     } finally {
       setSubmitting(false);
     }
@@ -140,7 +150,7 @@ export default function CustomerDepositPage() {
           </div>
 
           <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">
-            Your balance is updated only after the funding transaction has been verified by PWFB.
+            Deposits are recorded with a transaction reference and your wallet balance is updated by PWFB.
           </div>
 
           <button type="button" disabled={submitting} onClick={submitDeposit} className="mt-5 w-full rounded-2xl bg-emerald-600 px-4 py-4 font-bold text-white shadow-sm shadow-emerald-600/20 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">

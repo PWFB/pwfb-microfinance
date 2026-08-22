@@ -7,9 +7,10 @@ ALTER TABLE "WalletTransaction"
   ADD COLUMN "processedAt" TIMESTAMP(3),
   ADD COLUMN "reversedAt" TIMESTAMP(3);
 
+-- PostgreSQL permits multiple NULLs in a normal UNIQUE index, so providerReference
+-- remains optional while real provider references are globally idempotent.
 CREATE UNIQUE INDEX "WalletTransaction_providerReference_key"
-  ON "WalletTransaction"("providerReference")
-  WHERE "providerReference" IS NOT NULL;
+  ON "WalletTransaction"("providerReference");
 
 CREATE INDEX "WalletTransaction_status_idx"
   ON "WalletTransaction"("status");

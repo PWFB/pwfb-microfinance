@@ -24,10 +24,12 @@ import { CashbookModule } from './cashbook/cashbook.module';
 import { CollectionsModule } from './collections/collections.module';
 import { DashboardsModule } from './dashboards/dashboards.module';
 import { BankingModule } from './banking/banking.module';
+import { VirtualAccountsModule } from './virtual-accounts/virtual-accounts.module';
 
 @Module({
   imports: [
     BankingModule,
+    VirtualAccountsModule,
     PrismaModule,
     AuthModule,
     UsersModule,

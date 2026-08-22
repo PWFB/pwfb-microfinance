@@ -63,7 +63,7 @@ export default function CustomerDepositPage() {
       return;
     }
 
-    if (!/^\\d{10}$/.test(accountNumber.trim())) {
+    if (accountNumber.trim().length !== 10 || !/^\d+$/.test(accountNumber.trim())) {
       setMessage("Enter a valid 10-digit bank account number.");
       return;
     }

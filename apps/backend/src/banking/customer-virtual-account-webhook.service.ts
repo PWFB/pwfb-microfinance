@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -25,7 +26,6 @@ export class CustomerVirtualAccountWebhookService {
     secret?: string;
   }) {
     this.checkSecret(payload.secret);
-
     const accountNumber = String(payload.accountNumber ?? '').replace(/\D/g, '');
     if (!accountNumber) throw new BadRequestException('Account number is required');
 
@@ -48,7 +48,7 @@ export class CustomerVirtualAccountWebhookService {
       INSERT INTO "CustomerVirtualAccount"
         ("id", "customerId", "institutionId", "branchId", "accountNumber", "accountName", "provider", "providerReference", "status", "assignedAt", "failureReason", "requestedAt", "createdAt", "updatedAt")
       VALUES
-        (gen_random_uuid()::text, ${customerId}, ${payload.institutionId ?? null}, ${payload.branchId ?? null}, ${accountNumber}, ${payload.accountName ?? null}, ${payload.provider ?? null}, ${payload.providerReference ?? null}, ${status}, ${status === 'ACTIVE' ? new Date() : null}, ${payload.failureReason ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        (${randomUUID()}, ${customerId}, ${payload.institutionId ?? null}, ${payload.branchId ?? null}, ${accountNumber}, ${payload.accountName ?? null}, ${payload.provider ?? null}, ${payload.providerReference ?? null}, ${status}, ${status === 'ACTIVE' ? new Date() : null}, ${payload.failureReason ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT ("accountNumber") DO UPDATE SET
         "customerId" = EXCLUDED."customerId",
         "institutionId" = COALESCE(EXCLUDED."institutionId", "CustomerVirtualAccount"."institutionId"),
@@ -74,7 +74,6 @@ export class CustomerVirtualAccountWebhookService {
     secret?: string;
   }) {
     this.checkSecret(payload.secret);
-
     const accountNumber = String(payload.accountNumber ?? '').replace(/\D/g, '');
     const amount = Number(payload.amount);
     const providerReference = String(payload.providerReference ?? '').trim();
@@ -98,10 +97,7 @@ export class CustomerVirtualAccountWebhookService {
         WHERE "accountNumber" = ${accountNumber} AND "status" = 'ACTIVE'
         LIMIT 1
       `;
-
-      if (!virtualAccount.length) {
-        throw new BadRequestException('Active customer virtual account not found');
-      }
+      if (!virtualAccount.length) throw new BadRequestException('Active customer virtual account not found');
 
       const va = virtualAccount[0];
       const wallet = await tx.customerWallet.upsert({
@@ -109,10 +105,7 @@ export class CustomerVirtualAccountWebhookService {
         create: { customerId: va.customerId, balance: 0 },
         update: {},
       });
-
-      if (wallet.status !== 'ACTIVE') {
-        throw new BadRequestException('Customer wallet is not active');
-      }
+      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
 
       const newBalance = Math.round((wallet.balance + amount) * 100) / 100;
       const updatedWallet = await tx.customerWallet.update({
@@ -120,7 +113,6 @@ export class CustomerVirtualAccountWebhookService {
         data: { balance: newBalance },
       });
 
-      const reference = `VAD-${providerReference}`;
       const transaction = await tx.walletTransaction.create({
         data: {
           customerId: va.customerId,
@@ -128,7 +120,7 @@ export class CustomerVirtualAccountWebhookService {
           amount,
           previousBalance: wallet.balance,
           newBalance,
-          reference,
+          reference: `VAD-${providerReference}-${randomUUID().slice(0, 8)}`,
           description: payload.description ?? `Virtual account deposit ${accountNumber}`,
           branchId: va.branchId ?? undefined,
           status: 'COMPLETED',

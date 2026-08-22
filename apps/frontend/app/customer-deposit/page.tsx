@@ -53,20 +53,55 @@ export default function CustomerDepositPage() {
   const filteredBanks = institutions.filter((bank) => `${bank.name || ""} ${bank.code || ""}`.toLowerCase().includes(bankQuery.toLowerCase())).slice(0, 12);
 
   async function continueDeposit() {
-    setMessage(""); setSuccess(false);
+    setMessage("");
+    setSuccess(false);
+
     const numericAmount = Number(amount);
-    if (!bankId) { setMessage("Select the bank you will use to fund your PWFB wallet."); return; }
-    if (!/^\d{10}$/.test(accountNumber.trim())) { setMessage("Enter a valid 10-digit bank account number."); return; }
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) { setMessage("Enter a valid deposit amount greater than zero."); return; }
-    if (!customerId) { setMessage("Customer account is not available."); return; }
+
+    if (!bankId) {
+      setMessage("Select the bank you will use to fund your PWFB wallet.");
+      return;
+    }
+
+    if (!/^\\d{10}$/.test(accountNumber.trim())) {
+      setMessage("Enter a valid 10-digit bank account number.");
+      return;
+    }
+
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setMessage("Enter a valid deposit amount greater than zero.");
+      return;
+    }
+
+    if (!customerId) {
+      setMessage("Customer account is not available.");
+      return;
+    }
+
     setSubmitting(true);
+
     try {
+      const accounts =
+        await pwfbApi.banking.ensureCustomerVirtualAccount(
+          customerId,
+          bankId,
+        );
+
+      console.log("CUSTOMER VIRTUAL ACCOUNT:", accounts);
+
       setSuccess(true);
-      setMessage(`Transfer instructions are ready. Send ${money(numericAmount)} from your selected bank to the PWFB First Bank account below. Your wallet will be credited only after the payment provider confirms the incoming transfer.`);
-      setDescription("");
+      setMessage(
+        "Your PWFB funding account request has been prepared. The destination account will appear here once assigned by the payment provider.",
+      );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Deposit details could not be prepared.");
-    } finally { setSubmitting(false); }
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to prepare your PWFB funding account.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (authLoading || loading) return <main className="min-h-screen bg-[#f4faf6] flex items-center justify-center"><p className="font-medium text-emerald-700">Loading deposit...</p></main>;

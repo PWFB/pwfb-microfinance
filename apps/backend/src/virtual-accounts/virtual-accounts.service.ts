@@ -20,7 +20,7 @@ export class VirtualAccountsService {
       INSERT INTO "CustomerVirtualAccount"
         ("id", "customerId", "branchId", "provider", "status", "isPrimary", "createdAt", "updatedAt")
       VALUES
-        (gen_random_uuid()::text, ${input.customerId}, ${input.branchId}, 'PAYSTACK', 'PENDING', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        (${`cva-${input.customerId}`}, ${input.customerId}, ${input.branchId}, 'PAYSTACK', 'PENDING', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       ON CONFLICT ("customerId") DO UPDATE SET
         "branchId" = EXCLUDED."branchId",
         "updatedAt" = CURRENT_TIMESTAMP

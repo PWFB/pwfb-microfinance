@@ -64,6 +64,7 @@ export default function CustomerDepositPage() {
     }
 
     if (accountNumber.trim().length !== 10 || !/^\d+$/.test(accountNumber.trim())) {
+      console.log("DEPOSIT ACCOUNT DEBUG:", JSON.stringify(accountNumber), accountNumber.trim().length);
       setMessage("Enter a valid 10-digit bank account number.");
       return;
     }

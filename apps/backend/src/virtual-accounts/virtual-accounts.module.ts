@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { VirtualAccountsService } from './virtual-accounts.service';
 import { PaystackVirtualAccountProvider } from './paystack-virtual-account.provider';
+import { PaystackWebhookController } from './paystack-webhook.controller';
 import { VIRTUAL_ACCOUNT_PROVIDER } from './virtual-accounts.types';
 
 @Module({
   imports: [PrismaModule],
+  controllers: [PaystackWebhookController],
   providers: [
     VirtualAccountsService,
     PaystackVirtualAccountProvider,

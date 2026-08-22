@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
 import { CreateVirtualAccountInput, CreatedVirtualAccount, VirtualAccountProvider } from './virtual-accounts.types';
 
 interface PaystackResponse<T> {
@@ -45,13 +45,14 @@ export class PaystackVirtualAccountProvider implements VirtualAccountProvider {
     });
 
     const preferredBank = process.env.PAYSTACK_DVA_BANK_SLUG;
+    const idempotencyKey = `pwfb-dva-${createHash('sha256').update(input.customerId).digest('hex').slice(0, 32)}`;
     const account = await this.request<PaystackDedicatedAccount>('/dedicated_account', {
       method: 'POST',
       body: JSON.stringify({
         customer: customer.customer_code,
         ...(preferredBank ? { preferred_bank: preferredBank } : {}),
       }),
-      headers: { 'X-Idempotency-Key': `pwfb-dva-${input.customerId}-${randomUUID()}` },
+      headers: { 'X-Idempotency-Key': idempotencyKey },
     });
 
     if (!account.active || !account.assigned || !account.account_number) {

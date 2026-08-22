@@ -1,3 +1,5 @@
+export const VIRTUAL_ACCOUNT_PROVIDER = Symbol('VIRTUAL_ACCOUNT_PROVIDER');
+
 export type VirtualAccountStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'FAILED';
 
 export interface CreateVirtualAccountInput {

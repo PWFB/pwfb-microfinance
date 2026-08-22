@@ -1,11 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { CreateVirtualAccountInput, VirtualAccountProvider } from './virtual-accounts.types';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import { CreateVirtualAccountInput, VIRTUAL_ACCOUNT_PROVIDER, VirtualAccountProvider } from './virtual-accounts.types';
 
 @Injectable()
 export class VirtualAccountsService {
   private readonly logger = new Logger(VirtualAccountsService.name);
 
-  constructor(private readonly provider: VirtualAccountProvider) {}
+  constructor(
+    @Inject(VIRTUAL_ACCOUNT_PROVIDER)
+    private readonly provider: VirtualAccountProvider,
+  ) {}
 
   async provision(input: CreateVirtualAccountInput) {
     try {

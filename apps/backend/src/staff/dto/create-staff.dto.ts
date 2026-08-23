@@ -13,9 +13,9 @@ export enum EmploymentStatus {
 }
 
 export class CreateStaffDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  staffId: string;
+  staffId?: string;
 
   @IsNotEmpty()
   @IsString()
@@ -29,8 +29,9 @@ export class CreateStaffDto {
   @IsString()
   lastName: string;
 
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
   @IsNotEmpty()
   @IsString()

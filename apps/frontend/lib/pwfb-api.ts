@@ -40,14 +40,14 @@ export const pwfbApi = {
   },
   cashbook: {
     list: (params?: ApiListParams) => apiRequest(`/cashbook${query(params)}`),
-    summary: () => apiRequest("/cashbook/summary"),
+    summary: (params?: ApiListParams) => apiRequest(`/cashbook/summary${query(params)}`),
     get: (id: string) => apiRequest(`/cashbook/${id}`),
     create: (body: unknown) => apiRequest("/cashbook", { method: "POST", body: JSON.stringify(body) }),
     remove: (id: string) => apiRequest(`/cashbook/${id}`, { method: "DELETE" }),
   },
   collections: {
     list: (params?: ApiListParams) => apiRequest(`/collections${query(params)}`),
-    summary: () => apiRequest("/collections/summary"),
+    summary: (params?: ApiListParams) => apiRequest(`/collections/summary${query(params)}`),
     daily: (date: string) => apiRequest(`/collections/daily/${date}`),
     get: (id: string) => apiRequest(`/collections/${id}`),
     create: (body: unknown) => apiRequest("/collections", { method: "POST", body: JSON.stringify(body) }),

@@ -12,9 +12,13 @@ import {
 
 import { BankingService } from './banking.service';
 import { CustomerVirtualAccountService } from './customer-virtual-account.service';
+import { NibssService } from './nibss.service';
+import { ExternalBankTransferService } from './external-bank-transfer.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+
+const BANKING_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER'] as const;
 
 @Controller('banking')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -22,15 +26,23 @@ export class BankingController {
   constructor(
     private readonly bankingService: BankingService,
     private readonly customerVirtualAccountService: CustomerVirtualAccountService,
+    private readonly nibssService: NibssService,
+    private readonly externalBankTransferService: ExternalBankTransferService,
   ) {}
 
   @Get('institutions')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER')
+  @Roles(...BANKING_ROLES)
   listInstitutions() { return this.bankingService.listInstitutions(); }
 
   @Get('institutions/search')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER')
+  @Roles(...BANKING_ROLES)
   searchInstitutions(@Query('q') q?: string) { return this.bankingService.searchInstitutions(q); }
+
+  @Get('account-name')
+  @Roles(...BANKING_ROLES)
+  nameEnquiry(@Query('bankCode') bankCode: string, @Query('accountNumber') accountNumber: string) {
+    return this.nibssService.nameEnquiry(bankCode, accountNumber);
+  }
 
   private assertCustomerAccess(customerId: string, user: any) {
     if (user?.role === 'CUSTOMER' && (!user.customerId || user.customerId !== customerId)) {
@@ -39,7 +51,7 @@ export class BankingController {
   }
 
   @Get('customers/:customerId/accounts')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER')
+  @Roles(...BANKING_ROLES)
   getCustomerAccounts(@Param('customerId') customerId: string, @Req() req: any) {
     this.assertCustomerAccess(customerId, req.user);
     return this.bankingService.getCustomerAccounts(customerId);
@@ -53,7 +65,7 @@ export class BankingController {
   }
 
   @Get('customers/:customerId/virtual-accounts')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER')
+  @Roles(...BANKING_ROLES)
   getCustomerVirtualAccounts(@Param('customerId') customerId: string, @Req() req: any) {
     this.assertCustomerAccess(customerId, req.user);
     return this.customerVirtualAccountService.list(customerId);
@@ -67,14 +79,14 @@ export class BankingController {
   }
 
   @Get('customers/:customerId/wallet')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER')
+  @Roles(...BANKING_ROLES)
   getCustomerWallet(@Param('customerId') customerId: string, @Req() req: any) {
     this.assertCustomerAccess(customerId, req.user);
     return this.bankingService.getCustomerWallet(customerId);
   }
 
   @Get('customers/:customerId/transactions')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER')
+  @Roles(...BANKING_ROLES)
   getCustomerTransactions(@Param('customerId') customerId: string, @Req() req: any) {
     this.assertCustomerAccess(customerId, req.user);
     return this.bankingService.getCustomerTransactions(customerId);
@@ -92,6 +104,13 @@ export class BankingController {
   withdraw(@Param('customerId') customerId: string, @Body() body: { amount: number; description?: string; reference?: string; branchId?: string; staffId?: string }, @Req() req: any) {
     this.assertCustomerAccess(customerId, req.user);
     return this.bankingService.withdraw(customerId, body);
+  }
+
+  @Post('customers/:customerId/bank-transfer')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','CUSTOMER')
+  bankTransfer(@Param('customerId') customerId: string, @Body() body: { bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string }, @Req() req: any) {
+    this.assertCustomerAccess(customerId, req.user);
+    return this.externalBankTransferService.transfer({ customerId, ...body });
   }
 
   @Post('customers/:customerId/transfer')

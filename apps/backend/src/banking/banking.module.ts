@@ -7,6 +7,7 @@ import { CustomerVirtualAccountWebhookController } from './customer-virtual-acco
 import { WalletWithdrawalWebhookService } from './wallet-withdrawal-webhook.service';
 import { WalletWithdrawalWebhookController } from './wallet-withdrawal-webhook.controller';
 import { NibssService } from './nibss.service';
+import { FlutterwaveService } from './flutterwave.service';
 import { ExternalBankTransferService } from './external-bank-transfer.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
@@ -23,6 +24,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     CustomerVirtualAccountWebhookService,
     WalletWithdrawalWebhookService,
     NibssService,
+    FlutterwaveService,
     ExternalBankTransferService,
   ],
   exports: [
@@ -31,6 +33,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     CustomerVirtualAccountWebhookService,
     WalletWithdrawalWebhookService,
     NibssService,
+    FlutterwaveService,
     ExternalBankTransferService,
   ],
 })

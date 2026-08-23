@@ -6,9 +6,19 @@ import { useEffect, useState } from 'react';
 interface Transaction {
   id: string;
   customerId: string;
+  customer?: { firstName?: string; lastName?: string };
   type: string;
   amount: number;
   description?: string;
+  status?: string;
+  source?: string;
+  provider?: string;
+  providerReference?: string;
+  reference?: string;
+  processedAt?: string;
+  createdAt: string;
+  walletBalanceBefore?: number | null;
+  walletBalanceAfter?: number | null;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
@@ -39,7 +49,7 @@ export default function TransactionsPage() {
           <p className="pwfb-eyebrow">FINANCIAL OPERATIONS</p>
           <h1 className="pwfb-page-title">Transactions</h1>
           <p className="pwfb-page-description">
-            Monitor customer financial activity and transaction records.
+            Monitor customer financial activity, including wallet deposits.
           </p>
         </div>
 
@@ -52,16 +62,12 @@ export default function TransactionsPage() {
         <div className="pwfb-stat-card">
           <span>Total Transactions</span>
           <strong>{loading ? '—' : transactions.length}</strong>
-          <small>Recorded activities</small>
+          <small>Ledger and wallet activities</small>
         </div>
 
         <div className="pwfb-stat-card pwfb-stat-orange">
           <span>Total Value</span>
-          <strong>
-            {loading
-              ? '—'
-              : `₦${totalValue.toLocaleString('en-NG')}`}
-          </strong>
+          <strong>{loading ? '—' : `₦${totalValue.toLocaleString('en-NG')}`}</strong>
           <small>Transaction value</small>
         </div>
 
@@ -76,30 +82,21 @@ export default function TransactionsPage() {
         <div className="pwfb-panel-header">
           <div>
             <h2>Transaction Ledger</h2>
-            <p>Customer transactions currently available in the system.</p>
+            <p>Wallet deposits and normal financial transactions share this view.</p>
           </div>
-
           <span className="pwfb-record-count">
             {loading ? 'Loading...' : `${transactions.length} records`}
           </span>
         </div>
 
         {loading ? (
-          <div className="pwfb-empty-state">
-            <div className="pwfb-loading-dot" />
-            <p>Loading transactions...</p>
-          </div>
+          <div className="pwfb-empty-state"><div className="pwfb-loading-dot" /><p>Loading transactions...</p></div>
         ) : transactions.length === 0 ? (
           <div className="pwfb-empty-state">
             <div className="pwfb-empty-icon">₦</div>
             <h3>No transactions found</h3>
             <p>Start by recording your first financial transaction.</p>
-            <Link
-              href="/transactions/add"
-              className="pwfb-secondary-button"
-            >
-              Add Transaction
-            </Link>
+            <Link href="/transactions/add" className="pwfb-secondary-button">Add Transaction</Link>
           </div>
         ) : (
           <div className="pwfb-table-wrap">
@@ -109,64 +106,52 @@ export default function TransactionsPage() {
                   <th>Customer</th>
                   <th>Type</th>
                   <th>Amount</th>
-                  <th>Description</th>
                   <th>Status</th>
+                  <th>Provider / Reference</th>
+                  <th>Date &amp; Time</th>
+                  <th>Source</th>
                   <th>Actions</th>
                 </tr>
               </thead>
-
               <tbody>
-                {transactions.map((transaction) => (
-                  <tr key={transaction.id}>
-                    <td>
-                      <div className="pwfb-customer-cell">
-                        <div className="pwfb-avatar">₦</div>
-                        <div>
-                          <strong>Customer</strong>
-                          <small>{transaction.customerId}</small>
+                {transactions.map((transaction) => {
+                  const customerName = transaction.customer
+                    ? `${transaction.customer.firstName ?? ''} ${transaction.customer.lastName ?? ''}`.trim()
+                    : 'Customer';
+                  const date = new Date(transaction.processedAt || transaction.createdAt);
+                  const status = transaction.status || 'COMPLETED';
+
+                  return (
+                    <tr key={transaction.id}>
+                      <td>
+                        <div className="pwfb-customer-cell">
+                          <div className="pwfb-avatar">₦</div>
+                          <div>
+                            <strong>{customerName || 'Customer'}</strong>
+                            <small>{transaction.customerId}</small>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <span className="pwfb-type-badge">
-                        {transaction.type}
-                      </span>
-                    </td>
-
-                    <td>
-                      <strong>
-                        ₦{Number(transaction.amount || 0).toLocaleString(
-                          'en-NG',
-                        )}
-                      </strong>
-                    </td>
-
-                    <td>{transaction.description || '—'}</td>
-
-                    <td>
-                      <span className="pwfb-status-badge">Completed</span>
-                    </td>
-
-                    <td>
-                      <div className="pwfb-actions">
-                        <Link
-                          href={`/transactions/view/${transaction.id}`}
-                          className="pwfb-action-view"
-                        >
-                          View
-                        </Link>
-
-                        <Link
-                          href={`/transactions/edit/${transaction.id}`}
-                          className="pwfb-action-edit"
-                        >
-                          Edit
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td><span className="pwfb-type-badge">{transaction.type}</span></td>
+                      <td><strong>₦{Number(transaction.amount || 0).toLocaleString('en-NG', { minimumFractionDigits: 2 })}</strong></td>
+                      <td><span className="pwfb-status-badge">{status}</span></td>
+                      <td>
+                        <div>{transaction.provider || 'PWFB'}</div>
+                        <small>{transaction.providerReference || transaction.reference || '—'}</small>
+                      </td>
+                      <td>{date.toLocaleString('en-NG')}</td>
+                      <td><span className="pwfb-type-badge">{transaction.source || 'LEDGER'}</span></td>
+                      <td>
+                        <div className="pwfb-actions">
+                          <Link href={`/transactions/view/${transaction.id}`} className="pwfb-action-view">View</Link>
+                          {transaction.source !== 'WALLET' && (
+                            <Link href={`/transactions/edit/${transaction.id}`} className="pwfb-action-edit">Edit</Link>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

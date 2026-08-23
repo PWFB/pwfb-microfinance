@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -35,13 +35,20 @@ export class CustomerVirtualAccountWebhookService {
       throw new BadRequestException('Account number is required');
     }
 
-    const existing = await this.prisma.customerVirtualAccount.findFirst({
+    // A customer already has a PENDING request before the provider assigns
+    // the destination account. Reuse that request instead of creating a
+    // second virtual-account row. This also preserves the selected bank.
+    let existing = await this.prisma.customerVirtualAccount.findFirst({
       where: {
         OR: [
           { accountNumber },
           ...(providerReference ? [{ providerReference }] : []),
+          ...(payload.customerId
+            ? [{ customerId: payload.customerId, status: 'PENDING' }]
+            : []),
         ],
       },
+      orderBy: { createdAt: 'desc' },
     });
 
     const customerId = existing?.customerId ?? payload.customerId;
@@ -59,6 +66,17 @@ export class CustomerVirtualAccountWebhookService {
       throw new BadRequestException(`Customer ${customerId} was not found`);
     }
 
+    // If the provider reference belongs to another row, update that row
+    // rather than causing a unique-constraint failure.
+    if (providerReference && existing && existing.providerReference !== providerReference) {
+      const byProviderReference = await this.prisma.customerVirtualAccount.findUnique({
+        where: { providerReference },
+      });
+      if (byProviderReference && byProviderReference.id !== existing.id) {
+        throw new ConflictException('Provider reference is already assigned to another virtual account');
+      }
+    }
+
     const data = {
       customerId,
       institutionId: payload.institutionId ?? existing?.institutionId ?? null,
@@ -72,24 +90,41 @@ export class CustomerVirtualAccountWebhookService {
       failureReason: payload.failureReason ?? null,
     };
 
-    const virtualAccount = existing
-      ? await this.prisma.customerVirtualAccount.update({
-          where: { id: existing.id },
-          data,
-        })
-      : await this.prisma.customerVirtualAccount.create({
-          data: {
-            id: randomUUID(),
-            ...data,
-          },
-        });
+    try {
+      const virtualAccount = existing
+        ? await this.prisma.customerVirtualAccount.update({
+            where: { id: existing.id },
+            data,
+          })
+        : await this.prisma.customerVirtualAccount.create({
+            data: {
+              id: randomUUID(),
+              ...data,
+            },
+          });
 
-    return {
-      ok: true,
-      accountNumber: virtualAccount.accountNumber,
-      customerId: virtualAccount.customerId,
-      status: virtualAccount.status,
-    };
+      return {
+        ok: true,
+        accountNumber: virtualAccount.accountNumber,
+        accountName: virtualAccount.accountName,
+        provider: virtualAccount.provider,
+        providerReference: virtualAccount.providerReference,
+        customerId: virtualAccount.customerId,
+        status: virtualAccount.status,
+        assignedAt: virtualAccount.assignedAt,
+      };
+    } catch (error) {
+      // Keep provider webhook failures actionable instead of returning a
+      // generic 500 for common unique/foreign-key database conflicts.
+      const code = (error as { code?: string })?.code;
+      if (code === 'P2002') {
+        throw new ConflictException('Virtual account or provider reference is already assigned');
+      }
+      if (code === 'P2003') {
+        throw new BadRequestException('Virtual account references a missing bank, branch, or customer');
+      }
+      throw error;
+    }
   }
 
   async deposit(payload: {

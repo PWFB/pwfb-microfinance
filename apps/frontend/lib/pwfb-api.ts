@@ -19,6 +19,7 @@ export const pwfbApi = {
   },
   staff: {
     search: (q?: string) => apiRequest(`/staff${query(q ? { search: q } : undefined)}`),
+    create: (body: unknown) => apiRequest("/staff", { method: "POST", body: JSON.stringify(body) }),
   },
   reports: { summary: () => apiRequest("/reports/summary") },
   periods: {

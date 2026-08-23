@@ -26,43 +26,70 @@ export class CustomerVirtualAccountWebhookService {
     secret?: string;
   }) {
     this.checkSecret(payload.secret);
+
     const accountNumber = String(payload.accountNumber ?? '').replace(/\D/g, '');
-    if (!accountNumber) throw new BadRequestException('Account number is required');
+    const providerReference = String(payload.providerReference ?? '').trim() || undefined;
+    const status = payload.status ?? 'ACTIVE';
 
-    const existing = await this.prisma.$queryRaw<any[]>`
-      SELECT "id", "customerId", "status"
-      FROM "CustomerVirtualAccount"
-      WHERE "accountNumber" = ${accountNumber}
-         OR (${payload.providerReference ?? null} IS NOT NULL AND "providerReference" = ${payload.providerReference ?? null})
-      LIMIT 1
-    `;
+    if (!accountNumber) {
+      throw new BadRequestException('Account number is required');
+    }
 
-    if (existing.length === 0 && !payload.customerId) {
+    const existing = await this.prisma.customerVirtualAccount.findFirst({
+      where: {
+        OR: [
+          { accountNumber },
+          ...(providerReference ? [{ providerReference }] : []),
+        ],
+      },
+    });
+
+    const customerId = existing?.customerId ?? payload.customerId;
+    if (!customerId) {
       throw new BadRequestException('Customer ID is required when assigning a new virtual account');
     }
 
-    const customerId = existing[0]?.customerId ?? payload.customerId;
-    const status = payload.status ?? 'ACTIVE';
+    // Validate the customer before attempting the write so provider webhooks
+    // return a useful 4xx response instead of an opaque database 500.
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true },
+    });
+    if (!customer) {
+      throw new BadRequestException(`Customer ${customerId} was not found`);
+    }
 
-    await this.prisma.$executeRaw`
-      INSERT INTO "CustomerVirtualAccount"
-        ("id", "customerId", "institutionId", "branchId", "accountNumber", "accountName", "provider", "providerReference", "status", "assignedAt", "failureReason", "requestedAt", "createdAt", "updatedAt")
-      VALUES
-        (${randomUUID()}, ${customerId}, ${payload.institutionId ?? null}, ${payload.branchId ?? null}, ${accountNumber}, ${payload.accountName ?? null}, ${payload.provider ?? null}, ${payload.providerReference ?? null}, ${status}, ${status === 'ACTIVE' ? new Date() : null}, ${payload.failureReason ?? null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      ON CONFLICT ("accountNumber") DO UPDATE SET
-        "customerId" = EXCLUDED."customerId",
-        "institutionId" = COALESCE(EXCLUDED."institutionId", "CustomerVirtualAccount"."institutionId"),
-        "branchId" = COALESCE(EXCLUDED."branchId", "CustomerVirtualAccount"."branchId"),
-        "accountName" = COALESCE(EXCLUDED."accountName", "CustomerVirtualAccount"."accountName"),
-        "provider" = COALESCE(EXCLUDED."provider", "CustomerVirtualAccount"."provider"),
-        "providerReference" = COALESCE(EXCLUDED."providerReference", "CustomerVirtualAccount"."providerReference"),
-        "status" = EXCLUDED."status",
-        "assignedAt" = CASE WHEN EXCLUDED."status" = 'ACTIVE' THEN CURRENT_TIMESTAMP ELSE "CustomerVirtualAccount"."assignedAt" END,
-        "failureReason" = EXCLUDED."failureReason",
-        "updatedAt" = CURRENT_TIMESTAMP
-    `;
+    const data = {
+      customerId,
+      institutionId: payload.institutionId ?? existing?.institutionId ?? null,
+      branchId: payload.branchId ?? existing?.branchId ?? null,
+      accountNumber,
+      accountName: payload.accountName ?? existing?.accountName ?? null,
+      provider: payload.provider ?? existing?.provider ?? null,
+      providerReference: providerReference ?? existing?.providerReference ?? null,
+      status,
+      assignedAt: status === 'ACTIVE' ? new Date() : existing?.assignedAt ?? null,
+      failureReason: payload.failureReason ?? null,
+    };
 
-    return { ok: true, accountNumber, customerId, status };
+    const virtualAccount = existing
+      ? await this.prisma.customerVirtualAccount.update({
+          where: { id: existing.id },
+          data,
+        })
+      : await this.prisma.customerVirtualAccount.create({
+          data: {
+            id: randomUUID(),
+            ...data,
+          },
+        });
+
+    return {
+      ok: true,
+      accountNumber: virtualAccount.accountNumber,
+      customerId: virtualAccount.customerId,
+      status: virtualAccount.status,
+    };
   }
 
   async deposit(payload: {
@@ -83,29 +110,26 @@ export class CustomerVirtualAccountWebhookService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const duplicate = await tx.$queryRaw<any[]>`
-        SELECT "id", "customerId", "amount", "newBalance"
-        FROM "WalletTransaction"
-        WHERE "providerReference" = ${providerReference}
-        LIMIT 1
-      `;
-      if (duplicate.length) return { ok: true, duplicate: true, transaction: duplicate[0] };
+      const duplicate = await tx.walletTransaction.findUnique({
+        where: { providerReference },
+      });
+      if (duplicate) return { ok: true, duplicate: true, transaction: duplicate };
 
-      const virtualAccount = await tx.$queryRaw<any[]>`
-        SELECT "id", "customerId", "branchId", "status"
-        FROM "CustomerVirtualAccount"
-        WHERE "accountNumber" = ${accountNumber} AND "status" = 'ACTIVE'
-        LIMIT 1
-      `;
-      if (!virtualAccount.length) throw new BadRequestException('Active customer virtual account not found');
+      const virtualAccount = await tx.customerVirtualAccount.findFirst({
+        where: { accountNumber, status: 'ACTIVE' },
+      });
+      if (!virtualAccount) {
+        throw new BadRequestException('Active customer virtual account not found');
+      }
 
-      const va = virtualAccount[0];
       const wallet = await tx.customerWallet.upsert({
-        where: { customerId: va.customerId },
-        create: { customerId: va.customerId, balance: 0 },
+        where: { customerId: virtualAccount.customerId },
+        create: { customerId: virtualAccount.customerId, balance: 0 },
         update: {},
       });
-      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+      if (wallet.status !== 'ACTIVE') {
+        throw new BadRequestException('Customer wallet is not active');
+      }
 
       const newBalance = Math.round((wallet.balance + amount) * 100) / 100;
       const updatedWallet = await tx.customerWallet.update({
@@ -115,14 +139,14 @@ export class CustomerVirtualAccountWebhookService {
 
       const transaction = await tx.walletTransaction.create({
         data: {
-          customerId: va.customerId,
+          customerId: virtualAccount.customerId,
           type: 'DEPOSIT',
           amount,
           previousBalance: wallet.balance,
           newBalance,
           reference: `VAD-${providerReference}-${randomUUID().slice(0, 8)}`,
           description: payload.description ?? `Virtual account deposit ${accountNumber}`,
-          branchId: va.branchId ?? undefined,
+          branchId: virtualAccount.branchId ?? undefined,
           status: 'COMPLETED',
           provider: payload.provider ?? undefined,
           providerReference,

@@ -57,6 +57,7 @@ export const pwfbApi = {
   banking: {
     institutions: (params?: ApiListParams) => apiRequest(`/banking/institutions${query(params)}`),
     searchInstitutions: (q?: string) => apiRequest(`/banking/institutions/search${query({ q })}`),
+    accountName: (bankCode: string, accountNumber: string) => apiRequest(`/banking/account-name${query({ bankCode, accountNumber })}`),
     customerAccounts: (customerId: string) => apiRequest(`/banking/customers/${customerId}/accounts`),
     addCustomerAccount: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/accounts`, { method: "POST", body: JSON.stringify(body) }),
     customerVirtualAccounts: (customerId: string) => apiRequest(`/banking/customers/${customerId}/virtual-accounts`),
@@ -66,6 +67,7 @@ export const pwfbApi = {
     deposit: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/deposit`, { method: "POST", body: JSON.stringify(body) }),
     withdraw: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/withdraw`, { method: "POST", body: JSON.stringify(body) }),
     transfer: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/transfer`, { method: "POST", body: JSON.stringify(body) }),
+    bankTransfer: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/bank-transfer`, { method: "POST", body: JSON.stringify(body) }),
   },
   dashboards: {
     branch: (branchId: string) => apiRequest(`/dashboards/branch/${branchId}`),

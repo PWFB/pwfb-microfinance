@@ -6,6 +6,8 @@ import { CustomerVirtualAccountWebhookService } from './customer-virtual-account
 import { CustomerVirtualAccountWebhookController } from './customer-virtual-account-webhook.controller';
 import { WalletWithdrawalWebhookService } from './wallet-withdrawal-webhook.service';
 import { WalletWithdrawalWebhookController } from './wallet-withdrawal-webhook.controller';
+import { NibssService } from './nibss.service';
+import { ExternalBankTransferService } from './external-bank-transfer.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
@@ -20,12 +22,16 @@ import { PrismaModule } from '../prisma/prisma.module';
     CustomerVirtualAccountService,
     CustomerVirtualAccountWebhookService,
     WalletWithdrawalWebhookService,
+    NibssService,
+    ExternalBankTransferService,
   ],
   exports: [
     BankingService,
     CustomerVirtualAccountService,
     CustomerVirtualAccountWebhookService,
     WalletWithdrawalWebhookService,
+    NibssService,
+    ExternalBankTransferService,
   ],
 })
 export class BankingModule {}

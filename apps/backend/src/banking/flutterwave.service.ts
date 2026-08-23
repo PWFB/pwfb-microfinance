@@ -59,12 +59,11 @@ export class FlutterwaveService {
     if (!code) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(number)) throw new BadRequestException('Enter a valid 10-digit account number');
 
-    const payload = await this.request('/banks/account-resolve', {
+    const payload = await this.request('/accounts/resolve', {
       method: 'POST',
       body: JSON.stringify({
         account_bank: code,
         account_number: number,
-        currency: 'NGN',
       }),
     });
 
@@ -77,7 +76,7 @@ export class FlutterwaveService {
     return {
       accountNumber: String(data.account_number ?? data.accountNumber ?? number).replace(/\D/g, ''),
       accountName,
-      bankCode: String(data.bank_code ?? data.bankCode ?? code),
+      bankCode: String(data.account_bank ?? data.bank_code ?? data.bankCode ?? code),
     };
   }
 

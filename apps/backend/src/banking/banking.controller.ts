@@ -12,7 +12,6 @@ import {
 
 import { BankingService } from './banking.service';
 import { CustomerVirtualAccountService } from './customer-virtual-account.service';
-import { NibssService } from './nibss.service';
 import { ExternalBankTransferService } from './external-bank-transfer.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -26,7 +25,6 @@ export class BankingController {
   constructor(
     private readonly bankingService: BankingService,
     private readonly customerVirtualAccountService: CustomerVirtualAccountService,
-    private readonly nibssService: NibssService,
     private readonly externalBankTransferService: ExternalBankTransferService,
   ) {}
 
@@ -41,7 +39,7 @@ export class BankingController {
   @Get('account-name')
   @Roles(...BANKING_ROLES)
   nameEnquiry(@Query('bankCode') bankCode: string, @Query('accountNumber') accountNumber: string) {
-    return this.nibssService.nameEnquiry(bankCode, accountNumber);
+    return this.externalBankTransferService.nameEnquiry(bankCode, accountNumber);
   }
 
   private assertCustomerAccess(customerId: string, user: any) {

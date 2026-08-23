@@ -1,10 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NibssService } from './nibss.service';
+import { FlutterwaveService } from './flutterwave.service';
 
 @Injectable()
 export class ExternalBankTransferService {
-  constructor(private readonly prisma: PrismaService, private readonly nibssService: NibssService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly nibssService: NibssService,
+    private readonly flutterwaveService: FlutterwaveService,
+  ) {}
 
   private normalizeName(value: string) {
     return value.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
@@ -17,6 +22,14 @@ export class ExternalBankTransferService {
     if (customer === beneficiary) return true;
     const customerParts = customer.split(' ').filter(Boolean);
     return customerParts.length >= 2 && customerParts.every((part) => beneficiary.includes(part));
+  }
+
+  async nameEnquiry(bankCode: string, accountNumber: string) {
+    const provider = (process.env.BANK_TRANSFER_PROVIDER || 'NIBSS').trim().toUpperCase();
+    if (provider === 'FLUTTERWAVE') {
+      return this.flutterwaveService.nameEnquiry(bankCode, accountNumber);
+    }
+    return this.nibssService.nameEnquiry(bankCode, accountNumber);
   }
 
   async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string }) {
@@ -37,22 +50,38 @@ export class ExternalBankTransferService {
     if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
     if (wallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
 
-    const xref = `NIP-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    const providerResult = await this.nibssService.transfer({
-      bankCode: input.bankCode,
-      accountNumber,
-      amount,
-      narration: input.description || `PWFB transfer to ${accountName}`,
-      xref,
-    });
+    const provider = (process.env.BANK_TRANSFER_PROVIDER || 'NIBSS').trim().toUpperCase();
+    const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    const providerResult = provider === 'FLUTTERWAVE'
+      ? await this.flutterwaveService.transfer({
+          bankCode: input.bankCode,
+          accountNumber,
+          accountName,
+          amount,
+          narration: input.description || `PWFB transfer to ${accountName}`,
+          reference: xref,
+        })
+      : await this.nibssService.transfer({
+          bankCode: input.bankCode,
+          accountNumber,
+          amount,
+          narration: input.description || `PWFB transfer to ${accountName}`,
+          xref,
+        });
 
     return this.prisma.$transaction(async (tx) => {
       const currentWallet = await tx.customerWallet.findUnique({ where: { customerId: input.customerId } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
       if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance after provider acceptance');
       const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;
-      const updated = await tx.customerWallet.updateMany({ where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } }, data: { balance: newBalance } });
+      const updated = await tx.customerWallet.updateMany({
+        where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } },
+        data: { balance: newBalance },
+      });
       if (updated.count !== 1) throw new BadRequestException('Transfer could not be completed because the wallet balance changed');
+
+      const providerStatus = String((providerResult as any)?.status ?? '').toUpperCase();
+      const transactionStatus = provider === 'FLUTTERWAVE' && providerStatus !== 'SUCCESSFUL' ? 'PENDING' : 'COMPLETED';
       const transaction = await tx.walletTransaction.create({
         data: {
           customerId: input.customerId,
@@ -62,10 +91,10 @@ export class ExternalBankTransferService {
           newBalance,
           reference: xref,
           description: input.description || `Bank transfer to ${accountName}`,
-          provider: 'NIBSS',
+          provider,
           providerReference: String((providerResult as any)?.providerReference ?? (providerResult as any)?.transactionReference ?? xref),
-          status: 'COMPLETED',
-          processedAt: new Date(),
+          status: transactionStatus as any,
+          processedAt: transactionStatus === 'COMPLETED' ? new Date() : null,
         },
       });
       return { wallet: { ...currentWallet, balance: newBalance }, transaction, provider: providerResult };

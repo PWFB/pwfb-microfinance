@@ -40,14 +40,14 @@ export const pwfbApi = {
   },
   cashbook: {
     list: (params?: ApiListParams) => apiRequest(`/cashbook${query(params)}`),
-    summary: (params?: ApiListParams) => apiRequest(`/cashbook/summary${query(params)}`),
+    summary: () => apiRequest("/cashbook/summary"),
     get: (id: string) => apiRequest(`/cashbook/${id}`),
     create: (body: unknown) => apiRequest("/cashbook", { method: "POST", body: JSON.stringify(body) }),
     remove: (id: string) => apiRequest(`/cashbook/${id}`, { method: "DELETE" }),
   },
   collections: {
     list: (params?: ApiListParams) => apiRequest(`/collections${query(params)}`),
-    summary: (params?: ApiListParams) => apiRequest(`/collections/summary${query(params)}`),
+    summary: () => apiRequest("/collections/summary"),
     daily: (date: string) => apiRequest(`/collections/daily/${date}`),
     get: (id: string) => apiRequest(`/collections/${id}`),
     create: (body: unknown) => apiRequest("/collections", { method: "POST", body: JSON.stringify(body) }),
@@ -57,6 +57,7 @@ export const pwfbApi = {
   banking: {
     institutions: (params?: ApiListParams) => apiRequest(`/banking/institutions${query(params)}`),
     searchInstitutions: (q?: string) => apiRequest(`/banking/institutions/search${query({ q })}`),
+    accountName: (bankCode: string, accountNumber: string) => apiRequest(`/banking/account-name${query({ bankCode, accountNumber })}`),
     customerAccounts: (customerId: string) => apiRequest(`/banking/customers/${customerId}/accounts`),
     addCustomerAccount: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/accounts`, { method: "POST", body: JSON.stringify(body) }),
     customerVirtualAccounts: (customerId: string) => apiRequest(`/banking/customers/${customerId}/virtual-accounts`),
@@ -66,6 +67,7 @@ export const pwfbApi = {
     deposit: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/deposit`, { method: "POST", body: JSON.stringify(body) }),
     withdraw: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/withdraw`, { method: "POST", body: JSON.stringify(body) }),
     transfer: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/transfer`, { method: "POST", body: JSON.stringify(body) }),
+    bankTransfer: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/bank-transfer`, { method: "POST", body: JSON.stringify(body) }),
   },
   dashboards: {
     branch: (branchId: string) => apiRequest(`/dashboards/branch/${branchId}`),

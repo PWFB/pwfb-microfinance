@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post, Req } from '@nestjs/common';
 import { WalletWithdrawalWebhookService } from './wallet-withdrawal-webhook.service';
 
 @Controller('webhooks/wallet')
@@ -17,5 +17,18 @@ export class WalletWithdrawalWebhookController {
     },
   ) {
     return this.service.reconcile({ ...body, secret });
+  }
+
+  @Post('flutterwave')
+  reconcileFlutterwave(
+    @Headers('flutterwave-signature') signature: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    return this.service.reconcileFlutterwave({
+      body,
+      signature,
+      rawBody: req.rawBody,
+    });
   }
 }

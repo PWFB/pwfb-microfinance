@@ -13,6 +13,10 @@ export class ExternalBankTransferService {
     private readonly paystackService: PaystackService,
   ) {}
 
+  private provider() {
+    return (process.env.BANK_TRANSFER_PROVIDER || 'NIBSS').trim().toUpperCase();
+  }
+
   private normalizeName(value: string) {
     return value.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
   }
@@ -26,8 +30,45 @@ export class ExternalBankTransferService {
     return customerParts.length >= 2 && customerParts.every((part) => beneficiary.includes(part));
   }
 
+  async listInstitutions() {
+    const provider = this.provider();
+    if (provider === 'FLUTTERWAVE') {
+      return this.flutterwaveService.listBanks('NG');
+    }
+    return this.prisma.bankInstitution.findMany({
+      where: { active: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async searchInstitutions(search?: string) {
+    const provider = this.provider();
+    const query = String(search || '').trim().toLowerCase();
+    if (provider === 'FLUTTERWAVE') {
+      const banks = await this.flutterwaveService.listBanks('NG');
+      return query
+        ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query))
+        : banks;
+    }
+    return this.prisma.bankInstitution.findMany({
+      where: {
+        active: true,
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' } },
+                { shortName: { contains: search, mode: 'insensitive' } },
+                { code: { contains: search, mode: 'insensitive' } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
   async nameEnquiry(bankCode: string, accountNumber: string) {
-    const provider = (process.env.BANK_TRANSFER_PROVIDER || 'NIBSS').trim().toUpperCase();
+    const provider = this.provider();
     if (provider === 'PAYSTACK') {
       return this.paystackService.resolveBankAccount(bankCode, accountNumber);
     }
@@ -38,9 +79,11 @@ export class ExternalBankTransferService {
   }
 
   async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string }) {
+    const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
     const accountName = String(input.accountName || '').trim();
+    if (!bankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
     if (!accountName) throw new BadRequestException('Verified beneficiary account name is required');
@@ -55,11 +98,11 @@ export class ExternalBankTransferService {
     if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
     if (wallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
 
-    const provider = (process.env.BANK_TRANSFER_PROVIDER || 'NIBSS').trim().toUpperCase();
+    const provider = this.provider();
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const providerResult = provider === 'PAYSTACK'
       ? await this.paystackService.transferToBank({
-          bankCode: input.bankCode,
+          bankCode,
           accountNumber,
           accountName,
           amount,
@@ -68,7 +111,7 @@ export class ExternalBankTransferService {
         })
       : provider === 'FLUTTERWAVE'
         ? await this.flutterwaveService.transfer({
-            bankCode: input.bankCode,
+            bankCode,
             accountNumber,
             accountName,
             amount,
@@ -76,7 +119,7 @@ export class ExternalBankTransferService {
             reference: xref,
           })
         : await this.nibssService.transfer({
-            bankCode: input.bankCode,
+            bankCode,
             accountNumber,
             amount,
             narration: input.description || `PWFB transfer to ${accountName}`,

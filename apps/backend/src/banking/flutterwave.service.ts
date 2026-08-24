@@ -61,14 +61,8 @@ export class FlutterwaveService {
 
   async listBanks(country = 'NG'): Promise<FlutterwaveBank[]> {
     const normalizedCountry = String(country || 'NG').trim().toUpperCase();
-    if (!/^[A-Z]{2}$/.test(normalizedCountry)) {
-      throw new BadRequestException('Invalid country code');
-    }
-
-    const payload = await this.request(`/banks/${normalizedCountry}`, {
-      method: 'GET',
-    });
-
+    if (!/^[A-Z]{2}$/.test(normalizedCountry)) throw new BadRequestException('Invalid country code');
+    const payload = await this.request(`/banks/${normalizedCountry}`, { method: 'GET' });
     const banks = Array.isArray(payload?.data) ? payload.data : [];
     return banks
       .map((bank: any) => ({
@@ -89,15 +83,14 @@ export class FlutterwaveService {
       method: 'POST',
       body: JSON.stringify({
         account_bank: code,
+        bank_code: code,
         account_number: number,
       }),
     });
 
     const data = payload?.data ?? {};
     const accountName = String(data.account_name ?? data.accountName ?? '').trim();
-    if (!accountName) {
-      throw new BadRequestException(payload?.message || 'Account name could not be resolved');
-    }
+    if (!accountName) throw new BadRequestException(payload?.message || 'Account name could not be resolved');
 
     return {
       accountNumber: String(data.account_number ?? data.accountNumber ?? number).replace(/\D/g, ''),
@@ -130,6 +123,7 @@ export class FlutterwaveService {
       method: 'POST',
       body: JSON.stringify({
         account_bank: bankCode,
+        bank_code: bankCode,
         account_number: accountNumber,
         amount,
         currency: 'NGN',

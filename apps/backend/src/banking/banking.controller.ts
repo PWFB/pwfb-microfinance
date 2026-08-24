@@ -106,9 +106,29 @@ export class BankingController {
 
   @Post('customers/:customerId/bank-transfer')
   @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','CUSTOMER')
-  bankTransfer(@Param('customerId') customerId: string, @Body() body: { bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string; narration?: string }, @Req() req: any) {
+  bankTransfer(
+    @Param('customerId') customerId: string,
+    @Body() body: {
+      bankCode?: string;
+      bank_code?: string;
+      accountNumber: string;
+      accountName: string;
+      amount: number;
+      description?: string;
+      narration?: string;
+    },
+    @Req() req: any,
+  ) {
     this.assertCustomerAccess(customerId, req.user);
-    return this.externalBankTransferService.transfer({ customerId, ...body, description: body.description || body.narration });
+    const bankCode = String(body.bankCode || body.bank_code || '').trim();
+    return this.externalBankTransferService.transfer({
+      customerId,
+      bankCode,
+      accountNumber: body.accountNumber,
+      accountName: body.accountName,
+      amount: body.amount,
+      description: body.description || body.narration,
+    });
   }
 
   @Post('customers/:customerId/transfer')

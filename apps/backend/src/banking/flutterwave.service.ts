@@ -10,6 +10,12 @@ export type FlutterwaveAccountNameResult = {
   bankCode: string;
 };
 
+export type FlutterwaveBank = {
+  id?: string | number;
+  code: string;
+  name: string;
+};
+
 @Injectable()
 export class FlutterwaveService {
   private baseUrl() {
@@ -51,6 +57,26 @@ export class FlutterwaveService {
       if (error instanceof ServiceUnavailableException) throw error;
       throw new ServiceUnavailableException('Flutterwave service is unavailable');
     }
+  }
+
+  async listBanks(country = 'NG'): Promise<FlutterwaveBank[]> {
+    const normalizedCountry = String(country || 'NG').trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(normalizedCountry)) {
+      throw new BadRequestException('Invalid country code');
+    }
+
+    const payload = await this.request(`/banks/${normalizedCountry}`, {
+      method: 'GET',
+    });
+
+    const banks = Array.isArray(payload?.data) ? payload.data : [];
+    return banks
+      .map((bank: any) => ({
+        id: bank?.id,
+        code: String(bank?.code ?? bank?.bank_code ?? '').trim(),
+        name: String(bank?.name ?? bank?.bank_name ?? '').trim(),
+      }))
+      .filter((bank: FlutterwaveBank) => Boolean(bank.code && bank.name));
   }
 
   async nameEnquiry(bankCode: string, accountNumber: string): Promise<FlutterwaveAccountNameResult> {

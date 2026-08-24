@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { NibssService } from './nibss.service';
 import { FlutterwaveService } from './flutterwave.service';
+import { PaystackService } from './paystack.service';
 
 @Injectable()
 export class ExternalBankTransferService {
@@ -9,6 +10,7 @@ export class ExternalBankTransferService {
     private readonly prisma: PrismaService,
     private readonly nibssService: NibssService,
     private readonly flutterwaveService: FlutterwaveService,
+    private readonly paystackService: PaystackService,
   ) {}
 
   private normalizeName(value: string) {
@@ -26,6 +28,9 @@ export class ExternalBankTransferService {
 
   async nameEnquiry(bankCode: string, accountNumber: string) {
     const provider = (process.env.BANK_TRANSFER_PROVIDER || 'NIBSS').trim().toUpperCase();
+    if (provider === 'PAYSTACK') {
+      return this.paystackService.resolveBankAccount(bankCode, accountNumber);
+    }
     if (provider === 'FLUTTERWAVE') {
       return this.flutterwaveService.nameEnquiry(bankCode, accountNumber);
     }
@@ -51,9 +56,9 @@ export class ExternalBankTransferService {
     if (wallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
 
     const provider = (process.env.BANK_TRANSFER_PROVIDER || 'NIBSS').trim().toUpperCase();
-    const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    const providerResult = provider === 'FLUTTERWAVE'
-      ? await this.flutterwaveService.transfer({
+    const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    const providerResult = provider === 'PAYSTACK'
+      ? await this.paystackService.transferToBank({
           bankCode: input.bankCode,
           accountNumber,
           accountName,
@@ -61,13 +66,22 @@ export class ExternalBankTransferService {
           narration: input.description || `PWFB transfer to ${accountName}`,
           reference: xref,
         })
-      : await this.nibssService.transfer({
-          bankCode: input.bankCode,
-          accountNumber,
-          amount,
-          narration: input.description || `PWFB transfer to ${accountName}`,
-          xref,
-        });
+      : provider === 'FLUTTERWAVE'
+        ? await this.flutterwaveService.transfer({
+            bankCode: input.bankCode,
+            accountNumber,
+            accountName,
+            amount,
+            narration: input.description || `PWFB transfer to ${accountName}`,
+            reference: xref,
+          })
+        : await this.nibssService.transfer({
+            bankCode: input.bankCode,
+            accountNumber,
+            amount,
+            narration: input.description || `PWFB transfer to ${accountName}`,
+            xref,
+          });
 
     return this.prisma.$transaction(async (tx) => {
       const currentWallet = await tx.customerWallet.findUnique({ where: { customerId: input.customerId } });
@@ -81,7 +95,7 @@ export class ExternalBankTransferService {
       if (updated.count !== 1) throw new BadRequestException('Transfer could not be completed because the wallet balance changed');
 
       const providerStatus = String((providerResult as any)?.status ?? '').toUpperCase();
-      const transactionStatus = provider === 'FLUTTERWAVE' && providerStatus !== 'SUCCESSFUL' ? 'PENDING' : 'COMPLETED';
+      const transactionStatus = (provider === 'FLUTTERWAVE' || provider === 'PAYSTACK') && providerStatus !== 'SUCCESSFUL' && providerStatus !== 'SUCCESS' ? 'PENDING' : 'COMPLETED';
       const transaction = await tx.walletTransaction.create({
         data: {
           customerId: input.customerId,

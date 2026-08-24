@@ -2,8 +2,9 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -15,11 +16,9 @@ export class PaystackService {
 
   private getSecretKey() {
     const key = process.env.PAYSTACK_SECRET_KEY;
-
     if (!key) {
       throw new BadRequestException('Paystack integration is not configured');
     }
-
     return key;
   }
 
@@ -36,9 +35,7 @@ export class PaystackService {
     const data = await response.json().catch(() => null);
 
     if (!response.ok || !data?.status) {
-      throw new BadRequestException(
-        data?.message || 'Paystack request failed',
-      );
+      throw new BadRequestException(data?.message || 'Paystack request failed');
     }
 
     return data;
@@ -46,7 +43,6 @@ export class PaystackService {
 
   async testConnection() {
     const data = await this.request('/bank');
-
     return {
       ok: true,
       provider: 'PAYSTACK',
@@ -84,7 +80,6 @@ export class PaystackService {
     }
 
     const numericAmount = Number(amount);
-
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
       throw new BadRequestException('Amount must be greater than zero');
     }
@@ -114,5 +109,164 @@ export class PaystackService {
       authorizationUrl: data.data.authorization_url,
       accessCode: data.data.access_code,
     };
+  }
+
+  verifyWebhookSignature(rawBody: Buffer, signature?: string) {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret || !signature) return false;
+
+    const expected = createHmac('sha512', secret)
+      .update(rawBody)
+      .digest('hex');
+
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    const suppliedBuffer = Buffer.from(signature, 'utf8');
+
+    return (
+      expectedBuffer.length === suppliedBuffer.length &&
+      timingSafeEqual(expectedBuffer, suppliedBuffer)
+    );
+  }
+
+  async handleWebhook(event: any) {
+    if (event?.event !== 'charge.success') {
+      return { ok: true, processed: false, message: 'Event ignored' };
+    }
+
+    const payment = event?.data;
+    const reference = payment?.reference;
+    const metadata = payment?.metadata;
+    const customerId = metadata?.customerId;
+
+    if (!reference || !customerId) {
+      throw new BadRequestException(
+        'Paystack payment is missing reference or customer ID',
+      );
+    }
+
+    if (payment?.status !== 'success') {
+      return { ok: true, processed: false, message: 'Payment is not successful' };
+    }
+
+    const amount = Number(payment.amount) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Invalid Paystack payment amount');
+    }
+
+    const providerReference = String(payment.id ?? reference);
+
+    const existing = await this.prisma.walletTransaction.findFirst({
+      where: {
+        OR: [
+          { reference: `PAY-${reference}` },
+          { providerReference },
+        ],
+      },
+      select: { id: true, reference: true },
+    });
+
+    if (existing) {
+      return {
+        ok: true,
+        processed: false,
+        duplicate: true,
+        transactionId: existing.id,
+        reference: existing.reference,
+      };
+    }
+
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const duplicate = await tx.walletTransaction.findFirst({
+        where: {
+          OR: [
+            { reference: `PAY-${reference}` },
+            { providerReference },
+          ],
+        },
+        select: { id: true, reference: true },
+      });
+
+      if (duplicate) {
+        return {
+          ok: true,
+          processed: false,
+          duplicate: true,
+          transactionId: duplicate.id,
+          reference: duplicate.reference,
+        };
+      }
+
+      const wallet = await tx.customerWallet.upsert({
+        where: { customerId },
+        create: { customerId, balance: 0 },
+        update: {},
+      });
+
+      if (wallet.status !== 'ACTIVE') {
+        throw new BadRequestException('Customer wallet is not active');
+      }
+
+      const newBalance =
+        Math.round((wallet.balance + amount) * 100) / 100;
+
+      const updatedWallet = await tx.customerWallet.update({
+        where: { id: wallet.id },
+        data: { balance: newBalance },
+      });
+
+      const transaction = await tx.walletTransaction.create({
+        data: {
+          customerId,
+          type: 'DEPOSIT',
+          amount,
+          previousBalance: wallet.balance,
+          newBalance,
+          reference: `PAY-${reference}`,
+          description: 'Paystack wallet deposit',
+          status: 'COMPLETED',
+          provider: 'PAYSTACK',
+          providerReference,
+          processedAt: new Date(),
+        },
+      });
+
+      return {
+        ok: true,
+        processed: true,
+        transaction,
+        wallet: updatedWallet,
+      };
+    });
+  }
+
+  async verifyAndCredit(reference: string) {
+    const data = await this.request(
+      `/transaction/verify/${encodeURIComponent(reference)}`,
+    );
+
+    if (data.data?.status !== 'success') {
+      throw new BadRequestException('Paystack payment is not successful');
+    }
+
+    const metadata = data.data.metadata;
+    const customerId = metadata?.customerId;
+
+    if (!customerId) {
+      throw new BadRequestException('Paystack payment has no customer ID');
+    }
+
+    return this.handleWebhook({
+      event: 'charge.success',
+      data: data.data,
+    });
   }
 }

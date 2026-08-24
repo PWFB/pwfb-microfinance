@@ -269,4 +269,63 @@ export class PaystackService {
       data: data.data,
     });
   }
+
+  async resolveBankAccount(bankCode: string, accountNumber: string) {
+    if (!bankCode || !/^\d{10}$/.test(accountNumber)) {
+      throw new BadRequestException(
+        'Bank code and a valid 10-digit account number are required',
+      );
+    }
+
+    const data = await this.request(
+      `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&account_code=${encodeURIComponent(bankCode)}`,
+    );
+
+    return {
+      ok: true,
+      accountNumber,
+      accountName: data.data?.account_name,
+      bankCode,
+    };
+  }
+
+  async transferToBank(input: {
+    bankCode: string;
+    accountNumber: string;
+    accountName: string;
+    amount: number;
+    narration?: string;
+    reference: string;
+  }) {
+    const recipient = await this.request('/transferrecipient', {
+      method: 'POST',
+      body: JSON.stringify({
+        type: 'nuban',
+        name: input.accountName,
+        account_number: input.accountNumber,
+        bank_code: input.bankCode,
+        currency: 'NGN',
+      }),
+    });
+
+    const transfer = await this.request('/transfer', {
+      method: 'POST',
+      body: JSON.stringify({
+        source: 'balance',
+        amount: Math.round(input.amount * 100),
+        recipient: recipient.data.recipient_code,
+        reason: input.narration || 'PWFB wallet withdrawal',
+        reference: input.reference,
+      }),
+    });
+
+    return {
+      ok: true,
+      status: transfer.data?.status,
+      providerReference: String(
+        transfer.data?.id ?? input.reference,
+      ),
+      transfer: transfer.data,
+    };
+  }
 }

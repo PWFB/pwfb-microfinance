@@ -30,11 +30,11 @@ export class BankingController {
 
   @Get('institutions')
   @Roles(...BANKING_ROLES)
-  listInstitutions() { return this.bankingService.listInstitutions(); }
+  listInstitutions() { return this.externalBankTransferService.listInstitutions(); }
 
   @Get('institutions/search')
   @Roles(...BANKING_ROLES)
-  searchInstitutions(@Query('q') q?: string) { return this.bankingService.searchInstitutions(q); }
+  searchInstitutions(@Query('q') q?: string) { return this.externalBankTransferService.searchInstitutions(q); }
 
   @Get('account-name')
   @Roles(...BANKING_ROLES)
@@ -106,9 +106,9 @@ export class BankingController {
 
   @Post('customers/:customerId/bank-transfer')
   @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','CUSTOMER')
-  bankTransfer(@Param('customerId') customerId: string, @Body() body: { bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string }, @Req() req: any) {
+  bankTransfer(@Param('customerId') customerId: string, @Body() body: { bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string; narration?: string }, @Req() req: any) {
     this.assertCustomerAccess(customerId, req.user);
-    return this.externalBankTransferService.transfer({ customerId, ...body });
+    return this.externalBankTransferService.transfer({ customerId, ...body, description: body.description || body.narration });
   }
 
   @Post('customers/:customerId/transfer')

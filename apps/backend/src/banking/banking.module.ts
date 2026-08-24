@@ -9,6 +9,7 @@ import { WalletWithdrawalWebhookController } from './wallet-withdrawal-webhook.c
 import { NibssService } from './nibss.service';
 import { FlutterwaveService } from './flutterwave.service';
 import { PaystackService } from './paystack.service';
+import { PaystackController } from './paystack.controller';
 import { ExternalBankTransferService } from './external-bank-transfer.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
@@ -18,6 +19,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     BankingController,
     CustomerVirtualAccountWebhookController,
     WalletWithdrawalWebhookController,
+    PaystackController,
   ],
   providers: [
     BankingService,

@@ -11,7 +11,7 @@ export type FlutterwaveAccountNameResult = {
 };
 
 export type FlutterwaveBank = {
-  id?: string | number;
+  id: string;
   code: string;
   name: string;
 };
@@ -65,11 +65,12 @@ export class FlutterwaveService {
     const payload = await this.request(`/banks/${normalizedCountry}`, { method: 'GET' });
     const banks = Array.isArray(payload?.data) ? payload.data : [];
     return banks
-      .map((bank: any) => ({
-        id: bank?.id,
-        code: String(bank?.code ?? bank?.bank_code ?? '').trim(),
-        name: String(bank?.name ?? bank?.bank_name ?? '').trim(),
-      }))
+      .map((bank: any) => {
+        const code = String(bank?.code ?? bank?.bank_code ?? '').trim();
+        const name = String(bank?.name ?? bank?.bank_name ?? '').trim();
+        const providerId = String(bank?.id ?? code).trim();
+        return { id: providerId || code, code, name };
+      })
       .filter((bank: FlutterwaveBank) => Boolean(bank.code && bank.name));
   }
 

@@ -19,6 +19,7 @@ export default function CustomerWithdrawPage() {
   const [destination, setDestination] = useState<"BANK" | "ATM">("BANK");
   const [bankQuery, setBankQuery] = useState("");
   const [bankId, setBankId] = useState("");
+  const [bankOpen, setBankOpen] = useState(false);
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
   const [accountLookupLoading, setAccountLookupLoading] = useState(false);
@@ -42,33 +43,27 @@ export default function CustomerWithdrawPage() {
         setCustomerName(String(customer.name || customer.fullName || customer.accountName || "").trim());
         setWallet(await pwfbApi.banking.customerWallet(customer.id));
         setInstitutions(await pwfbApi.banking.institutions() || []);
-      } catch (error) {
-        setMessage(error instanceof Error ? error.message : "Unable to load withdrawal details.");
-      } finally { setLoading(false); }
+      } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to load withdrawal details."); }
+      finally { setLoading(false); }
     }
     load();
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (destination !== "BANK" || !bankId || !/^\d{10}$/.test(accountNumber)) {
-      setAccountName(""); setAccountLookupMessage(""); setAccountLookupLoading(false); return;
-    }
+    if (destination !== "BANK" || !bankId || !/^\d{10}$/.test(accountNumber)) { setAccountName(""); setAccountLookupMessage(""); setAccountLookupLoading(false); return; }
     const bank = institutions.find((item) => item.id === bankId);
     if (!bank?.code) { setAccountLookupMessage("This bank has no NIBSS institution code configured yet."); setAccountName(""); return; }
     let cancelled = false;
-    setAccountLookupLoading(true);
-    setAccountLookupMessage("Verifying account name…");
+    setAccountLookupLoading(true); setAccountLookupMessage("Verifying account name…");
     const timer = window.setTimeout(async () => {
       try {
         const result = await pwfbApi.banking.accountName(bank.code!, accountNumber);
         if (cancelled) return;
         const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
         if (!verifiedName) { setAccountName(""); setAccountLookupMessage("Account name could not be verified. Check the bank and account number."); return; }
-        setAccountName(verifiedName);
-        setAccountLookupMessage("Account name verified by bank name enquiry.");
-      } catch (error) {
-        if (!cancelled) { setAccountName(""); setAccountLookupMessage(error instanceof Error ? error.message : "Unable to verify this account."); }
-      } finally { if (!cancelled) setAccountLookupLoading(false); }
+        setAccountName(verifiedName); setAccountLookupMessage("Account name verified by bank name enquiry.");
+      } catch (error) { if (!cancelled) { setAccountName(""); setAccountLookupMessage(error instanceof Error ? error.message : "Unable to verify this account."); } }
+      finally { if (!cancelled) setAccountLookupLoading(false); }
     }, 450);
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [accountNumber, bankId, destination, institutions]);
@@ -77,6 +72,7 @@ export default function CustomerWithdrawPage() {
   const currency = wallet?.currency || "NGN";
   const money = (value: number) => `${currency === "NGN" ? "₦" : `${currency} `}${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const filteredBanks = institutions.filter((bank) => `${bank.name || ""} ${bank.code || ""}`.toLowerCase().includes(bankQuery.toLowerCase())).slice(0, 12);
+  const selectedBank = institutions.find((bank) => bank.id === bankId);
 
   async function submitWithdrawal() {
     setMessage(""); setSuccess(false);
@@ -96,8 +92,7 @@ export default function CustomerWithdrawPage() {
       const bank = institutions.find((item) => item.id === bankId);
       const destinationText = destination === "ATM" ? "ATM withdrawal" : `${bank?.name || "bank"} ${accountNumber}`;
       const result = await pwfbApi.banking.withdraw(customerId, { amount: numericAmount, description: description.trim() || `Automatic ${destinationText} withdrawal`, destination, bankId: destination === "BANK" ? bankId : undefined, accountNumber: destination === "BANK" ? accountNumber : undefined, accountName: destination === "BANK" ? accountName.trim() : undefined });
-      setWallet(result?.wallet || wallet); setAmount(""); setDescription(""); setSuccess(true);
-      setMessage("Withdrawal submitted successfully. The destination payment will be completed automatically after the payment provider confirms the transfer.");
+      setWallet(result?.wallet || wallet); setAmount(""); setDescription(""); setSuccess(true); setMessage("Withdrawal submitted successfully. The destination payment will be completed automatically after the payment provider confirms the transfer.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Withdrawal could not be completed."); }
     finally { setSubmitting(false); }
   }
@@ -111,7 +106,11 @@ export default function CustomerWithdrawPage() {
     <section className="mt-5 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-600">Withdrawal destination</p><h2 className="mt-1 text-xl font-bold text-slate-900">Where should we send it?</h2>
       <div className="mt-4 grid grid-cols-2 gap-3"><button type="button" onClick={() => setDestination("BANK")} className={`rounded-2xl border p-4 text-left ${destination === "BANK" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}`}><strong className="block">Bank account</strong><span className="mt-1 block text-xs">Send to your bank</span></button><button type="button" onClick={() => setDestination("ATM")} className={`rounded-2xl border p-4 text-left ${destination === "ATM" ? "border-orange-400 bg-orange-50 text-orange-700" : "border-slate-200 bg-white text-slate-600"}`}><strong className="block">ATM</strong><span className="mt-1 block text-xs">Cash withdrawal</span></button></div>
-      {destination === "BANK" && <><label className="mt-5 block text-sm font-semibold text-slate-700">Search bank</label><input value={bankQuery} onChange={(e) => setBankQuery(e.target.value)} placeholder="Search bank" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-50" /><div className="mt-2 max-h-44 overflow-y-auto rounded-2xl border border-slate-100">{filteredBanks.map((bank) => <button key={bank.id} type="button" onClick={() => { setBankId(bank.id); setBankQuery(bank.name || ""); setAccountNumber(""); setAccountName(""); setAccountLookupMessage(""); }} className={`block w-full border-b border-slate-100 px-4 py-3 text-left text-sm last:border-0 ${bank.id === bankId ? "bg-emerald-50 font-bold text-emerald-700" : "bg-white text-slate-700 hover:bg-slate-50"}`}>{bank.name || "Unnamed bank"}{bank.code ? <span className="ml-2 text-xs text-slate-400">{bank.code}</span> : null}</button>)}</div><label className="mt-4 block text-sm font-semibold text-slate-700">Account number</label><input value={accountNumber} onChange={(e) => { setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10)); setAccountName(""); setAccountLookupMessage(""); }} inputMode="numeric" placeholder="10-digit account number" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" /><label className="mt-4 block text-sm font-semibold text-slate-700">Verified account name</label><input value={accountLookupLoading ? "Verifying account name…" : accountName} readOnly placeholder="Enter account number to verify" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3.5 font-semibold text-slate-800 outline-none" />{accountLookupMessage && <p className={`mt-2 text-xs ${accountLookupMessage === "Account name verified by bank name enquiry." ? "text-emerald-700" : "text-slate-500"}`}>{accountLookupMessage}</p>}<div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">PWFB verifies the destination account name before an automatic withdrawal. The verified name must match the customer's PWFB name.</div></>}
+      {destination === "BANK" && <>
+        <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
+        <div className="relative mt-2"><button type="button" onClick={() => setBankOpen((open) => !open)} aria-expanded={bankOpen} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-left outline-none transition hover:bg-white focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-50"><span className={selectedBank ? "font-medium text-slate-900" : "text-slate-400"}>{selectedBank?.name || "Select bank"}</span><span className={`ml-3 text-slate-500 transition-transform ${bankOpen ? "rotate-180" : ""}`}>⌄</span></button>{bankOpen && <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"><div className="border-b border-slate-100 p-3"><input autoFocus value={bankQuery} onChange={(e) => setBankQuery(e.target.value)} placeholder="Search bank" className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white" /></div><div className="max-h-56 overflow-y-auto p-1">{filteredBanks.length ? filteredBanks.map((bank) => <button key={bank.id} type="button" onClick={() => { setBankId(bank.id); setBankQuery(""); setBankOpen(false); setAccountNumber(""); setAccountName(""); setAccountLookupMessage(""); }} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm ${bank.id === bankId ? "bg-emerald-50 font-bold text-emerald-700" : "text-slate-700 hover:bg-emerald-50"}`}><span>{bank.name || "Unnamed bank"}</span>{bank.id === bankId && <span>✓</span>}</button>) : <p className="px-3 py-4 text-center text-sm text-slate-500">No matching bank found.</p>}</div></div>}</div>
+        <label className="mt-4 block text-sm font-semibold text-slate-700">Account number</label><input value={accountNumber} onChange={(e) => { setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10)); setAccountName(""); setAccountLookupMessage(""); }} inputMode="numeric" placeholder="10-digit account number" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" /><label className="mt-4 block text-sm font-semibold text-slate-700">Verified account name</label><input value={accountLookupLoading ? "Verifying account name…" : accountName} readOnly placeholder="Enter account number to verify" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3.5 font-semibold text-slate-800 outline-none" />{accountLookupMessage && <p className={`mt-2 text-xs ${accountLookupMessage === "Account name verified by bank name enquiry." ? "text-emerald-700" : "text-slate-500"}`}>{accountLookupMessage}</p>}<div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm leading-6 text-emerald-800">PWFB verifies the destination account name before an automatic withdrawal. The verified name must match the customer's PWFB name.</div>
+      </>}
       {destination === "ATM" && <div className="mt-4 rounded-2xl bg-orange-50 p-4 text-sm leading-6 text-orange-800">ATM withdrawals require an enabled PWFB ATM/payment provider. The wallet will only be debited after the provider confirms the cash withdrawal.</div>}
       <label className="mt-5 block text-sm font-semibold text-slate-700">Amount</label><div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-500 focus-within:bg-white"><span className="text-lg font-bold text-emerald-600">₦</span><input type="number" min="1" max={balance} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full bg-transparent px-3 py-4 text-xl font-semibold outline-none" /></div><div className="mt-2 flex justify-between text-xs text-slate-500"><span>Available</span><span className="font-semibold text-emerald-700">{money(balance)}</span></div>
       <label className="mt-4 block text-sm font-semibold text-slate-700">Description <span className="font-normal text-slate-400">(optional)</span></label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Withdrawal description" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" />

@@ -21,6 +21,7 @@
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/mapped-types": "^2.1.1",
     "@nestjs/passport": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.1",
     "@prisma/adapter-pg": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "@simplewebauthn/server": "^13.3.2",
@@ -44,7 +45,6 @@
     "@types/node": "^26.1.1",
     "@types/passport-jwt": "^4.0.1",
     "jest": "^30.4.2",
-    "prisma": "^6.19.3",
     "ts-jest": "^29.4.12",
     "tsx": "^4.19.2",
     "typescript": "^5.9.3"

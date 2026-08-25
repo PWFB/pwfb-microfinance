@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { OrganizationService } from './organization.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -11,8 +11,8 @@ export class OrganizationController {
 
   @Get('hierarchy')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER')
-  hierarchy() {
-    return this.organizationService.list();
+  hierarchy(@Req() req: any) {
+    return this.organizationService.listForUser(req.user.sub);
   }
 
   @Post('regions')

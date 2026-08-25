@@ -21,100 +21,41 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @Controller('customers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomersController {
-  constructor(
-    private readonly customersService: CustomersService,
-  ) {}
+  constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN',
-    'BRANCH_MANAGER',
-    'LOAN_OFFICER',
-    'STAFF',
-  )
-  create(
-    @Body() createCustomerDto: CreateCustomerDto,
-    @Req() req: any,
-  ) {
-    return this.customersService.create(
-      createCustomerDto,
-      req.user,
-    );
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'STAFF')
+  create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: any) {
+    return this.customersService.create(createCustomerDto, req.user);
   }
 
   @Get('me')
   @Roles('CUSTOMER')
-  me(@Req() req: any) {
-    return this.customersService.findMe(req.user);
-  }
+  me(@Req() req: any) { return this.customersService.findMe(req.user); }
 
   @Get()
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN',
-    'BRANCH_MANAGER',
-    'CUSTOMER_SERVICE',
-    'LOAN_OFFICER',
-    'TELLER',
-    'AUDITOR',
-    'STAFF',
-  )
-  findAll(@Req() req: any) {
-    return this.customersService.findAll(
-      req.user,
-    );
-  }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  findAll(@Req() req: any) { return this.customersService.findAll(req.user); }
 
   @Get(':id')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN',
-    'BRANCH_MANAGER',
-    'CUSTOMER_SERVICE',
-    'LOAN_OFFICER',
-    'TELLER',
-    'AUDITOR',
-    'STAFF',
-  )
-  findOne(
-    @Param('id') id: string,
-    @Req() req: any,
-  ) {
-    return this.customersService.findOne(
-      id,
-      req.user,
-    );
-  }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  findOne(@Param('id') id: string, @Req() req: any) { return this.customersService.findOne(id, req.user); }
 
   @Patch(':id')
-  @Roles(
-    'SUPER_ADMIN',
-    'ADMIN',
-    'BRANCH_MANAGER',
-    'CUSTOMER_SERVICE',
-  )
-  update(
-    @Param('id') id: string,
-    @Body() updateCustomerDto: UpdateCustomerDto,
-  ) {
-    return this.customersService.update(
-      id,
-      updateCustomerDto,
-    );
-  }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE')
+  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) { return this.customersService.update(id, updateCustomerDto); }
 
   @Post(':id/reset-password')
   @Roles('SUPER_ADMIN')
-  resetPassword(@Param('id') id: string) {
-    return this.customersService.resetPassword(id);
+  resetPassword(@Param('id') id: string) { return this.customersService.resetPassword(id); }
+
+  @Post(':id/identity-override')
+  @Roles('SUPER_ADMIN')
+  overrideIdentity(@Param('id') id: string, @Body() body: { type: 'BVN' | 'NIN'; value: string; reason: string }, @Req() req: any) {
+    return this.customersService.overrideIdentity(id, body?.type, body?.value, body?.reason, req.user);
   }
 
   @Delete(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  remove(
-    @Param('id') id: string,
-  ) {
-    return this.customersService.remove(id);
-  }
+  remove(@Param('id') id: string) { return this.customersService.remove(id); }
 }

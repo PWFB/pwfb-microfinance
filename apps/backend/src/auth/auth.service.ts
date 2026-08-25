@@ -3,12 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
-import {
-  generateRegistrationOptions,
-  verifyRegistrationResponse,
-  generateAuthenticationOptions,
-  verifyAuthenticationResponse,
-} from '@simplewebauthn/server';
+import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -22,10 +17,7 @@ export class AuthService {
   private readonly googleClient = new OAuth2Client();
   private googleIdentityTableReady = false;
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly jwtService: JwtService,
-  ) {}
+  constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
 
   private issueToken(user: any) {
     return this.jwtService.signAsync({ sub: user.id, email: user.email, role: user.role });
@@ -35,9 +27,7 @@ export class AuthService {
     const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existingUser) throw new UnauthorizedException('User already exists');
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const user = await this.prisma.user.create({
-      data: { email: dto.email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, passportPhoto: dto.passportPhoto, role: 'CUSTOMER' },
-    });
+    const user = await this.prisma.user.create({ data: { email: dto.email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, passportPhoto: dto.passportPhoto, role: 'CUSTOMER' } });
     const accessToken = await this.issueToken(user);
     const { password, ...safeUser } = user;
     return { message: 'Registration successful', access_token: accessToken, user: safeUser };
@@ -55,93 +45,52 @@ export class AuthService {
 
   private async ensureGoogleIdentityTable() {
     if (this.googleIdentityTableReady) return;
-    await this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "GoogleIdentity" (
-        "userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE,
-        "googleSub" TEXT NOT NULL UNIQUE,
-        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "GoogleIdentity" ("userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE, "googleSub" TEXT NOT NULL UNIQUE, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
     this.googleIdentityTableReady = true;
   }
 
-  /**
-   * Verify a Google Identity Services ID token before issuing a PWFB JWT.
-   * Google recommends verifying signature, audience, issuer and expiry with
-   * Google's Auth Library, and using the immutable `sub` claim as the Google
-   * account identifier rather than email.
-   */
+  /** Verify Google GIS ID tokens before issuing a PWFB JWT. */
   async googleLogin(idToken?: string, requestOrigin?: string, requestClientId?: string, expectedNonce?: string) {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
     if (!clientId) throw new BadRequestException('Google login is not configured on the server');
     if (!idToken) throw new BadRequestException('Google credential is required');
 
-    const allowedOrigins = (process.env.GOOGLE_ALLOWED_ORIGINS || ORIGIN)
-      .split(',')
-      .map((value) => value.trim().replace(/\/$/, ''))
-      .filter(Boolean);
+    const allowedOrigins = (process.env.GOOGLE_ALLOWED_ORIGINS || ORIGIN).split(',').map((value) => value.trim().replace(/\/$/, '')).filter(Boolean);
     const normalizedOrigin = requestOrigin?.trim().replace(/\/$/, '');
-    if (!normalizedOrigin || !allowedOrigins.includes(normalizedOrigin)) {
-      throw new UnauthorizedException('Google login origin is not allowed');
-    }
-    if (requestClientId && requestClientId !== clientId) {
-      throw new UnauthorizedException('Google client ID mismatch');
-    }
+    if (!normalizedOrigin || !allowedOrigins.includes(normalizedOrigin)) throw new UnauthorizedException('Google login origin is not allowed');
+    if (requestClientId && requestClientId !== clientId) throw new UnauthorizedException('Google client ID mismatch');
 
     try {
       const ticket = await this.googleClient.verifyIdToken({ idToken, audience: clientId });
       const payload = ticket.getPayload();
       const issuer = payload?.iss;
-      if (issuer !== 'accounts.google.com' && issuer !== 'https://accounts.google.com') {
-        throw new UnauthorizedException('Invalid Google token issuer');
-      }
+      if (issuer !== 'accounts.google.com' && issuer !== 'https://accounts.google.com') throw new UnauthorizedException('Invalid Google token issuer');
       if (!payload?.sub) throw new UnauthorizedException('Google account identifier is missing');
-      if (!payload.email || payload.email_verified !== true) {
-        throw new UnauthorizedException('Google account email is not verified');
-      }
-      if (expectedNonce && payload.nonce !== expectedNonce) {
-        throw new UnauthorizedException('Google authentication nonce mismatch');
-      }
+      if (!payload.email || payload.email_verified !== true) throw new UnauthorizedException('Google account email is not verified');
+      if (!expectedNonce || payload.nonce !== expectedNonce) throw new UnauthorizedException('Google authentication nonce mismatch');
 
+      const email = payload.email.toLowerCase().trim();
+      const googleAuthoritative = email.endsWith('@gmail.com') || Boolean(payload.hd);
       await this.ensureGoogleIdentityTable();
       const googleSub = payload.sub;
-      const email = payload.email.toLowerCase().trim();
 
-      const linkedRows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
-        `SELECT "userId" FROM "GoogleIdentity" WHERE "googleSub" = $1 LIMIT 1`,
-        googleSub,
-      );
+      const linkedRows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT "userId" FROM "GoogleIdentity" WHERE "googleSub" = $1 LIMIT 1`, googleSub);
+      let user = linkedRows[0] ? await this.prisma.user.findUnique({ where: { id: linkedRows[0].userId } }) : null;
 
-      let user = linkedRows[0]
-        ? await this.prisma.user.findUnique({ where: { id: linkedRows[0].userId } })
-        : await this.prisma.user.findUnique({ where: { email } });
+      if (!user && !googleAuthoritative) {
+        throw new UnauthorizedException('Google does not control this email domain. Sign in with your PWFB password first to link this Google account.');
+      }
+
+      if (!user) user = await this.prisma.user.findUnique({ where: { email } });
 
       if (!user) {
         const randomPassword = await bcrypt.hash(randomBytes(32).toString('hex'), 12);
-        user = await this.prisma.user.create({
-          data: {
-            email,
-            password: randomPassword,
-            firstName: payload.given_name || payload.name?.split(' ')[0] || 'Google',
-            lastName: payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User',
-            passportPhoto: payload.picture || null,
-            role: 'CUSTOMER',
-          },
-        });
+        user = await this.prisma.user.create({ data: { email, password: randomPassword, firstName: payload.given_name || payload.name?.split(' ')[0] || 'Google', lastName: payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User', passportPhoto: payload.picture || null, role: 'CUSTOMER' } });
       }
 
-      const existingLink = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
-        `SELECT "userId" FROM "GoogleIdentity" WHERE "userId" = $1 OR "googleSub" = $2 LIMIT 1`,
-        user.id,
-        googleSub,
-      );
+      const existingLink = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT "userId" FROM "GoogleIdentity" WHERE "userId" = $1 OR "googleSub" = $2 LIMIT 1`, user.id, googleSub);
       if (!existingLink.length) {
-        await this.prisma.$executeRawUnsafe(
-          `INSERT INTO "GoogleIdentity" ("userId", "googleSub") VALUES ($1, $2)`,
-          user.id,
-          googleSub,
-        );
+        await this.prisma.$executeRawUnsafe(`INSERT INTO "GoogleIdentity" ("userId", "googleSub") VALUES ($1, $2)`, user.id, googleSub);
       } else if (existingLink[0].userId !== user.id) {
         throw new UnauthorizedException('Google account is already linked to another PWFB account');
       }
@@ -158,16 +107,7 @@ export class AuthService {
   async passkeyRegisterOptions(authUser: any) {
     const user = await this.prisma.user.findUnique({ where: { id: authUser.sub }, include: { passkeys: true } });
     if (!user) throw new UnauthorizedException('User not found');
-    const options = await generateRegistrationOptions({
-      rpName: RP_NAME,
-      rpID: RP_ID,
-      userName: user.email,
-      userDisplayName: `${user.firstName} ${user.lastName}`.trim() || user.email,
-      userID: new TextEncoder().encode(user.id),
-      attestationType: 'none',
-      excludeCredentials: user.passkeys.map((passkey) => ({ id: passkey.credentialId })),
-      authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', authenticatorAttachment: 'platform' },
-    });
+    const options = await generateRegistrationOptions({ rpName: RP_NAME, rpID: RP_ID, userName: user.email, userDisplayName: `${user.firstName} ${user.lastName}`.trim() || user.email, userID: new TextEncoder().encode(user.id), attestationType: 'none', excludeCredentials: user.passkeys.map((passkey) => ({ id: passkey.credentialId })), authenticatorSelection: { residentKey: 'preferred', userVerification: 'required', authenticatorAttachment: 'platform' } });
     await this.storeWebAuthnChallenge(user.id, options.challenge, 'REGISTRATION');
     return options;
   }
@@ -180,16 +120,7 @@ export class AuthService {
     const verification = await verifyRegistrationResponse({ response, expectedChallenge: challenge, expectedOrigin: ORIGIN, expectedRPID: RP_ID, requireUserVerification: true });
     if (!verification.verified || !verification.registrationInfo) throw new UnauthorizedException('Fingerprint/passkey registration failed');
     const credential = verification.registrationInfo.credential;
-    await this.prisma.passkey.create({
-      data: {
-        userId: user.id,
-        credentialId: credential.id,
-        publicKey: Buffer.from(credential.publicKey).toString('base64url'),
-        counter: Number(verification.registrationInfo.credential.counter),
-        deviceType: verification.registrationInfo.credentialDeviceType,
-        backedUp: verification.registrationInfo.credentialBackedUp,
-      },
-    });
+    await this.prisma.passkey.create({ data: { userId: user.id, credentialId: credential.id, publicKey: Buffer.from(credential.publicKey).toString('base64url'), counter: Number(verification.registrationInfo.credential.counter), deviceType: verification.registrationInfo.credentialDeviceType, backedUp: verification.registrationInfo.credentialBackedUp } });
     await this.deleteWebAuthnChallenge(user.id, 'REGISTRATION');
     return { verified: true, message: 'Fingerprint/passkey registered successfully' };
   }
@@ -212,14 +143,7 @@ export class AuthService {
     if (!passkey) throw new UnauthorizedException('Fingerprint/passkey not recognized');
     const challenge = await this.getWebAuthnChallenge(passkey.userId, 'AUTHENTICATION');
     if (!challenge) throw new BadRequestException('Fingerprint login session expired');
-    const verification = await verifyAuthenticationResponse({
-      response,
-      expectedChallenge: challenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
-      requireUserVerification: true,
-      credential: { id: passkey.credentialId, publicKey: Buffer.from(passkey.publicKey, 'base64url'), counter: passkey.counter },
-    });
+    const verification = await verifyAuthenticationResponse({ response, expectedChallenge: challenge, expectedOrigin: ORIGIN, expectedRPID: RP_ID, requireUserVerification: true, credential: { id: passkey.credentialId, publicKey: Buffer.from(passkey.publicKey, 'base64url'), counter: passkey.counter } });
     if (!verification.verified) throw new UnauthorizedException('Fingerprint authentication failed');
     await this.prisma.passkey.update({ where: { id: passkey.id }, data: { counter: verification.authenticationInfo.newCounter } });
     await this.deleteWebAuthnChallenge(passkey.userId, 'AUTHENTICATION');
@@ -230,15 +154,8 @@ export class AuthService {
 
   private webAuthnChallenges = new Map<string, { challenge: string; type: 'REGISTRATION' | 'AUTHENTICATION'; expiresAt: number }>();
   private challengeKey(userId: string, type: 'REGISTRATION' | 'AUTHENTICATION') { return `${type}:${userId}`; }
-  private async storeWebAuthnChallenge(userId: string, challenge: string, type: 'REGISTRATION' | 'AUTHENTICATION') {
-    this.webAuthnChallenges.set(this.challengeKey(userId, type), { challenge, type, expiresAt: Date.now() + 5 * 60 * 1000 });
-  }
-  private async getWebAuthnChallenge(userId: string, type: 'REGISTRATION' | 'AUTHENTICATION') {
-    const key = this.challengeKey(userId, type); const stored = this.webAuthnChallenges.get(key);
-    if (!stored) return null;
-    if (stored.expiresAt < Date.now()) { this.webAuthnChallenges.delete(key); return null; }
-    return stored.challenge;
-  }
+  private async storeWebAuthnChallenge(userId: string, challenge: string, type: 'REGISTRATION' | 'AUTHENTICATION') { this.webAuthnChallenges.set(this.challengeKey(userId, type), { challenge, type, expiresAt: Date.now() + 5 * 60 * 1000 }); }
+  private async getWebAuthnChallenge(userId: string, type: 'REGISTRATION' | 'AUTHENTICATION') { const key = this.challengeKey(userId, type); const stored = this.webAuthnChallenges.get(key); if (!stored) return null; if (stored.expiresAt < Date.now()) { this.webAuthnChallenges.delete(key); return null; } return stored.challenge; }
   private async deleteWebAuthnChallenge(userId: string, type: 'REGISTRATION' | 'AUTHENTICATION') { this.webAuthnChallenges.delete(this.challengeKey(userId, type)); }
   private extractCredentialId(response: any): string | null { return response?.id || response?.rawId || response?.credentialId || null; }
 }

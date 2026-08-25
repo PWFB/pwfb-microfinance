@@ -1,11 +1,11 @@
 import {
   Controller,
   Get,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
 import { ReportsService } from './reports.service';
-
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -13,9 +13,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ReportsController {
-  constructor(
-    private readonly reportsService: ReportsService,
-  ) {}
+  constructor(private readonly reportsService: ReportsService) {}
 
   @Get('summary')
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'AUDITOR')
@@ -25,7 +23,7 @@ export class ReportsController {
 
   @Get('operations')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  getOperations() {
-    return this.reportsService.getOperations();
+  getOperations(@Query() query: Record<string, string>) {
+    return this.reportsService.getOperations(query);
   }
 }

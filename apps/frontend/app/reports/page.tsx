@@ -40,6 +40,12 @@ export default function ReportsPage() {
       href: "/transactions",
       icon: "↔️",
     },
+    {
+      title: "Branch Hierarchy",
+      description: "View regions, divisions, areas, branches and assigned staff within your authorized scope.",
+      href: "/reports/hierarchy",
+      icon: "🏢",
+    },
   ];
 
   return (
@@ -49,7 +55,7 @@ export default function ReportsPage() {
           <p className="pwfb-eyebrow">REPORTS & ANALYTICS</p>
           <h1 className="pwfb-page-title">Reports</h1>
           <p className="pwfb-page-description">
-            Monitor PWFB operations and review financial activity.
+            Monitor PWFB operations and review financial activity according to your organizational access.
           </p>
         </div>
       </div>
@@ -62,9 +68,9 @@ export default function ReportsPage() {
         </div>
 
         <div className="pwfb-stat-card pwfb-stat-orange">
-          <span>Access Level</span>
-          <strong>Admin</strong>
-          <small>Reports & analytics</small>
+          <span>Access Model</span>
+          <strong>Hierarchy</strong>
+          <small>Visibility follows assignment</small>
         </div>
       </section>
 
@@ -84,12 +90,10 @@ export default function ReportsPage() {
               className="pwfb-department-card"
             >
               <div className="pwfb-department-icon">{report.icon}</div>
-
               <div>
                 <h3>{report.title}</h3>
                 <p>{report.description}</p>
               </div>
-
               <span className="pwfb-department-arrow">→</span>
             </Link>
           ))}

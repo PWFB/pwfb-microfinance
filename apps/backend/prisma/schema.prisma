@@ -39,6 +39,7 @@ model User {
 model Customer {
   id String @id @default(cuid())
   firstName String
+  middleName String?
   lastName String
   email String? @unique
   phone String?
@@ -63,91 +64,13 @@ model Customer {
   walletTransactions WalletTransaction[]
   virtualAccounts CustomerVirtualAccount[]
 }
-model Savings {
-  id String @id @default(cuid())
-  customerId String
-  amount Float
-  accountType String?
-  periodId String?
-  period FinancialPeriod? @relation(fields: [periodId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  @@index([customerId])
-  @@index([periodId])
-}
-model Loan {
-  id String @id @default(cuid())
-  customerId String
-  amount Float
-  interestRate Float?
-  status String?
-  periodId String?
-  period FinancialPeriod? @relation(fields: [periodId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  repayments Repayment[]
-  @@index([customerId])
-  @@index([periodId])
-}
-model Transaction {
-  id String @id @default(cuid())
-  customerId String
-  type String
-  amount Float
-  description String?
-  periodId String?
-  period FinancialPeriod? @relation(fields: [periodId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  @@index([customerId])
-  @@index([periodId])
-}
-model Repayment {
-  id String @id @default(cuid())
-  loanId String
-  amount Float
-  paymentDate DateTime @default(now())
-  method String?
-  notes String?
-  periodId String?
-  period FinancialPeriod? @relation(fields: [periodId], references: [id])
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
-  @@index([loanId])
-  @@index([periodId])
-}
+model Savings { id String @id @default(cuid()); customerId String; amount Float; accountType String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); @@index([customerId]); @@index([periodId]) }
+model Loan { id String @id @default(cuid()); customerId String; amount Float; interestRate Float?; status String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); repayments Repayment[]; @@index([customerId]); @@index([periodId]) }
+model Transaction { id String @id @default(cuid()); customerId String; type String; amount Float; description String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); @@index([customerId]); @@index([periodId]) }
+model Repayment { id String @id @default(cuid()); loanId String; amount Float; paymentDate DateTime @default(now()); method String?; notes String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade); @@index([loanId]); @@index([periodId]) }
 model Department { id String @id @default(cuid()); name String @unique; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; staff Staff[] }
 model Branch { id String @id @default(cuid()); name String @unique; address String?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; staff Staff[]; customers Customer[]; groups ClientGroup[]; cashbookEntries CashbookEntry[]; collections DailyCollection[]; payrolls Payroll[]; branchAccounts BranchVirtualAccount[]; virtualAccounts CustomerVirtualAccount[] }
-model Staff {
-  id String @id @default(cuid())
-  staffId String @unique
-  firstName String
-  middleName String?
-  lastName String
-  email String @unique
-  phone String
-  position String
-  departmentId String
-  branchId String
-  employmentStatus StaffStatus @default(ACTIVE)
-  bvn String? @unique
-  bvnVerified Boolean @default(false)
-  bvnVerifiedAt DateTime?
-  bvnVerifiedName String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId String? @unique
-  user User? @relation
-  department Department @relation(fields: [departmentId], references: [id])
-  branch Branch @relation(fields: [branchId], references: [id])
-  customers Customer[] @relation("StaffCustomers")
-  payrollItems PayrollItem[]
-  collections DailyCollection[]
-}
+model Staff { id String @id @default(cuid()); staffId String @unique; firstName String; middleName String?; lastName String; email String @unique; phone String; position String; departmentId String; branchId String; employmentStatus StaffStatus @default(ACTIVE); bvn String? @unique; bvnVerified Boolean @default(false); bvnVerifiedAt DateTime?; bvnVerifiedName String?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; userId String? @unique; user User? @relation; department Department @relation(fields: [departmentId], references: [id]); branch Branch @relation(fields: [branchId], references: [id]); customers Customer[] @relation("StaffCustomers"); payrollItems PayrollItem[]; collections DailyCollection[] }
 model FinancialPeriod { id String @id @default(cuid()); name String; startDate DateTime; endDate DateTime; status PeriodStatus @default(OPEN); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; savings Savings[]; loans Loan[]; repayments Repayment[]; transactions Transaction[]; payrolls Payroll[]; cashbook CashbookEntry[]; collections DailyCollection[]; @@index([status]); @@index([startDate, endDate]) }
 model Payroll { id String @id @default(cuid()); periodId String; branchId String?; status PayrollStatus @default(DRAFT); totalBasic Float @default(0); totalAllowances Float @default(0); totalDeductions Float @default(0); totalNet Float @default(0); paymentDate DateTime?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; period FinancialPeriod @relation(fields: [periodId], references: [id]); branch Branch? @relation(fields: [branchId], references: [id]); items PayrollItem[]; @@index([periodId]); @@index([branchId]) }
 model PayrollItem { id String @id @default(cuid()); payrollId String; staffId String; basicSalary Float @default(0); allowances Float @default(0); deductions Float @default(0); netSalary Float @default(0); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; payroll Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade); staff Staff @relation(fields: [staffId], references: [id]); @@unique([payrollId, staffId]); @@index([staffId]) }
@@ -157,7 +80,7 @@ model Passkey { id String @id @default(cuid()); userId String; credentialId Stri
 model BankInstitution { id String @id @default(cuid()); name String @unique; shortName String?; code String? @unique; type InstitutionType @default(BANK); active Boolean @default(true); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customerAccounts CustomerBankAccount[]; branchAccounts BranchVirtualAccount[]; virtualAccounts CustomerVirtualAccount[]; @@index([type]); @@index([active]) }
 model ClientGroup { id String @id @default(cuid()); name String; branchId String?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; branch Branch? @relation(fields: [branchId], references: [id]); members Customer[]; @@index([branchId]) }
 model CustomerBankAccount { id String @id @default(cuid()); customerId String; institutionId String; accountNumber String; accountName String?; status AccountStatus @default(ACTIVE); isPrimary Boolean @default(false); verifiedAt DateTime?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); institution BankInstitution @relation(fields: [institutionId], references: [id]); @@unique([institutionId, accountNumber]); @@index([customerId]); @@index([institutionId]) }
-model BranchVirtualAccount { id String @id @default(cuid()); branchId String; institutionId String; accountNumber String @unique; accountName String; status AccountStatus @default(ACTIVE); isGenerated Boolean @default(false); generatedAt DateTime?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade); institution BankInstitution @relation(fields: [institutionId], references: [id]); @@unique([branchId, institutionId]); @@index([branchId]); @@index([institutionId]) }
+model BranchVirtualAccount { id String @id @default(cuid()); branchId String; institutionId String; accountNumber String @unique; accountName String; status AccountStatus @default(ACTIVE); isGenerated Boolean @default(false); generatedAt DateTime?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; branch Branch @relation(fields: [branchId], references: [id]); institution BankInstitution @relation(fields: [institutionId], references: [id]); @@unique([branchId, institutionId]); @@index([branchId]); @@index([institutionId]) }
 model CustomerVirtualAccount { id String @id @default(cuid()); customerId String; institutionId String?; branchId String?; accountNumber String? @unique; accountName String?; provider String?; providerCustomerId String?; providerReference String? @unique; status String @default("PENDING"); requestedAt DateTime @default(now()); assignedAt DateTime?; failureReason String?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); institution BankInstitution? @relation(fields: [institutionId], references: [id], onDelete: SetNull); branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull); @@index([customerId]); @@index([institutionId]); @@index([branchId]); @@index([status]); @@index([providerCustomerId]) }
 model CustomerWallet { id String @id @default(cuid()); customerId String @unique; balance Float @default(0); currency String @default("NGN"); status AccountStatus @default(ACTIVE); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade) }
 model WalletTransaction { id String @id @default(cuid()); customerId String; type WalletTransactionType; amount Float; previousBalance Float; newBalance Float; reference String @unique; description String?; branchId String?; staffId String?; status WalletTransactionStatus @default(COMPLETED); provider String?; providerReference String?; failureReason String?; processedAt DateTime?; reversedAt DateTime?; createdAt DateTime @default(now()); customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); @@index([customerId]); @@index([type]); @@index([createdAt]); @@index([branchId]); @@index([staffId]); @@index([status]); @@index([providerReference]); @@unique([providerReference]) }

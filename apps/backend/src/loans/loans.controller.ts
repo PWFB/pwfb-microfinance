@@ -60,8 +60,12 @@ export class LoansController {
 
   @Post(':id/submit-disbursement')
   @Roles('CREDIT_OFFICER')
-  submitDisbursement(@Param('id') id: string, @Req() req: any) {
-    return this.loanDisbursementService.submitForBranchReview(id, req.user);
+  submitDisbursement(
+    @Param('id') id: string,
+    @Req() req: any,
+    @Body() body: { accountNumber?: string; accountName?: string; bankCode?: string; bankName?: string; amount?: number },
+  ) {
+    return this.loanDisbursementService.submitForBranchReview(id, req.user, body);
   }
 
   @Post(':id/approve-disbursement')

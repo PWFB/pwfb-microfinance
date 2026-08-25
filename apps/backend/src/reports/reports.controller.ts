@@ -22,4 +22,10 @@ export class ReportsController {
   getSummary() {
     return this.reportsService.getSummary();
   }
+
+  @Get('operations')
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  getOperations() {
+    return this.reportsService.getOperations();
+  }
 }

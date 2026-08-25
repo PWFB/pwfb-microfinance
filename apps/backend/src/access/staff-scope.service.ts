@@ -23,7 +23,7 @@ export class StaffScopeService {
 
     const staff = await this.prisma.staff.findUnique({
       where: { userId: authUser.id },
-      select: { id: true, role: undefined as never, branchId: true, regionId: true, divisionId: true, areaId: true },
+      select: { id: true, branchId: true, regionId: true, divisionId: true, areaId: true },
     });
 
     if (!staff) throw new ForbiddenException('Staff assignment not found');

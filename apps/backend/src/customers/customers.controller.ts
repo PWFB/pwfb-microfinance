@@ -104,6 +104,12 @@ export class CustomersController {
     );
   }
 
+  @Post(':id/reset-password')
+  @Roles('SUPER_ADMIN')
+  resetPassword(@Param('id') id: string) {
+    return this.customersService.resetPassword(id);
+  }
+
   @Delete(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
   remove(

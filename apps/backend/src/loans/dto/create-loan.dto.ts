@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -18,4 +19,28 @@ export class CreateLoanDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsNumber()
+  disbursementAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  disbursementAccountNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  disbursementAccountName?: string;
+
+  @IsOptional()
+  @IsString()
+  disbursementBankCode?: string;
+
+  @IsOptional()
+  @IsString()
+  disbursementBankName?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  disbursementUsesAlternativeAccount?: boolean;
 }

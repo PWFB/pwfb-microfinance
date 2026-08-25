@@ -37,14 +37,7 @@ export class StaffRepository {
           phone: data.phone,
           position: data.position,
           employmentStatus: data.employmentStatus ?? StaffStatus.ACTIVE,
-          ...(bvnVerification?.verified
-            ? {
-                bvn: bvnVerification.bvn,
-                bvnVerified: true,
-                bvnVerifiedAt: new Date(),
-                bvnVerifiedName: bvnVerification.fullName,
-              }
-            : {}),
+          ...(bvnVerification?.verified ? { bvn: bvnVerification.bvn, bvnVerified: true, bvnVerifiedAt: new Date(), bvnVerifiedName: bvnVerification.fullName } : {}),
           department: { connect: { id: data.department } },
           branch: { connect: { id: data.branch } },
           ...(data.regionId ? { region: { connect: { id: data.regionId } } } : {}),
@@ -105,41 +98,31 @@ export class StaffRepository {
     });
   }
 
+  private readonly staffInclude = {
+    department: true,
+    branch: true,
+    region: true,
+    division: true,
+    area: true,
+    user: true,
+    customers: true,
+    assignments: { orderBy: { startsAt: 'desc' as const }, include: { region: true, division: true, area: true, branch: true } },
+  };
+
   findAll() {
-    return this.prisma.staff.findMany({
-      include: {
-        department: true,
-        branch: true,
-        region: true,
-        division: true,
-        area: true,
-        user: true,
-        customers: true,
-        assignments: {
-          orderBy: { startsAt: 'desc' },
-          include: { region: true, division: true, area: true, branch: true },
-        },
-      },
-    });
+    return this.prisma.staff.findMany({ include: this.staffInclude });
+  }
+
+  findAllWhere(where: any) {
+    return this.prisma.staff.findMany({ where, include: this.staffInclude, orderBy: { createdAt: 'desc' } });
   }
 
   findOne(id: string) {
-    return this.prisma.staff.findUnique({
-      where: { id },
-      include: {
-        department: true,
-        branch: true,
-        region: true,
-        division: true,
-        area: true,
-        user: true,
-        customers: true,
-        assignments: {
-          orderBy: { startsAt: 'desc' },
-          include: { region: true, division: true, area: true, branch: true },
-        },
-      },
-    });
+    return this.prisma.staff.findUnique({ where: { id }, include: this.staffInclude });
+  }
+
+  findOneWhere(id: string, where: any) {
+    return this.prisma.staff.findFirst({ where: { id, ...where }, include: this.staffInclude });
   }
 
   async update(id: string, data: UpdateStaffDto) {
@@ -153,68 +136,26 @@ export class StaffRepository {
     return this.prisma.staff.update({
       where: { id },
       data: updateData,
-      include: {
-        department: true,
-        branch: true,
-        region: true,
-        division: true,
-        area: true,
-        user: true,
-        customers: true,
-        assignments: { orderBy: { startsAt: 'desc' } },
-      },
+      include: { department: true, branch: true, region: true, division: true, area: true, user: true, customers: true, assignments: { orderBy: { startsAt: 'desc' } } },
     });
   }
 
   remove(id: string) { return this.prisma.staff.delete({ where: { id } }); }
 
-  createAssignment(staffId: string, data: {
-    role: any;
-    regionId?: string;
-    divisionId?: string;
-    areaId?: string;
-    branchId?: string;
-    notes?: string;
-  }) {
+  createAssignment(staffId: string, data: { role: any; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.staffAssignment.updateMany({
-        where: { staffId, active: true },
-        data: { active: false, endsAt: new Date() },
-      });
-
+      await tx.staffAssignment.updateMany({ where: { staffId, active: true }, data: { active: false, endsAt: new Date() } });
       const assignment = await tx.staffAssignment.create({
-        data: {
-          staffId,
-          role: data.role,
-          regionId: data.regionId,
-          divisionId: data.divisionId,
-          areaId: data.areaId,
-          branchId: data.branchId,
-          notes: data.notes,
-        },
+        data: { staffId, role: data.role, regionId: data.regionId, divisionId: data.divisionId, areaId: data.areaId, branchId: data.branchId, notes: data.notes },
         include: { region: true, division: true, area: true, branch: true },
       });
-
-      await tx.staff.update({
-        where: { id: staffId },
-        data: {
-          regionId: data.regionId,
-          divisionId: data.divisionId,
-          areaId: data.areaId,
-          ...(data.branchId ? { branchId: data.branchId } : {}),
-        },
-      });
-
+      await tx.staff.update({ where: { id: staffId }, data: { regionId: data.regionId, divisionId: data.divisionId, areaId: data.areaId, ...(data.branchId ? { branchId: data.branchId } : {}) } });
       await tx.user.updateMany({ where: { staffId }, data: { role: data.role } });
       return assignment;
     });
   }
 
   assignmentHistory(staffId: string) {
-    return this.prisma.staffAssignment.findMany({
-      where: { staffId },
-      orderBy: { startsAt: 'desc' },
-      include: { region: true, division: true, area: true, branch: true },
-    });
+    return this.prisma.staffAssignment.findMany({ where: { staffId }, orderBy: { startsAt: 'desc' }, include: { region: true, division: true, area: true, branch: true } });
   }
 }

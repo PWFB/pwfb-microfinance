@@ -24,25 +24,25 @@ export class LoansController {
   constructor(private readonly loansService: LoansService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER')
+  @Roles('SUPER_ADMIN', 'ADMIN')
   create(@Body() createLoanDto: CreateLoanDto) {
     return this.loansService.create(createLoanDto);
   }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'AUDITOR')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER')
   findAll() {
     return this.loansService.findAll();
   }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'AUDITOR')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER')
   findOne(@Param('id') id: string) {
     return this.loansService.findOne(id);
   }
 
   @Patch(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER')
+  @Roles('SUPER_ADMIN', 'ADMIN')
   update(@Param('id') id: string, @Body() updateLoanDto: UpdateLoanDto) {
     return this.loansService.update(id, updateLoanDto);
   }
@@ -54,24 +54,20 @@ export class LoansController {
   }
 
   @Get(':id/guarantors')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'AUDITOR')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER')
   findGuarantors(@Param('id') id: string) {
     return this.loansService.findGuarantors(id);
   }
 
   @Post(':id/guarantors')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER')
+  @Roles('SUPER_ADMIN', 'ADMIN')
   addGuarantor(@Param('id') id: string, @Body() dto: CreateGuarantorDto) {
     return this.loansService.addGuarantor(id, dto);
   }
 
   @Patch(':id/guarantors/:guarantorId')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER')
-  updateGuarantor(
-    @Param('id') id: string,
-    @Param('guarantorId') guarantorId: string,
-    @Body() dto: Partial<CreateGuarantorDto>,
-  ) {
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  updateGuarantor(@Param('id') id: string, @Param('guarantorId') guarantorId: string, @Body() dto: Partial<CreateGuarantorDto>) {
     return this.loansService.updateGuarantor(id, guarantorId, dto);
   }
 

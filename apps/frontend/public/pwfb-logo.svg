@@ -1,0 +1,10 @@
+<svg width="320" height="96" viewBox="0 0 320 96" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">PWFB Microfinance</title>
+  <desc id="desc">PWFB Microfinance green and orange logo</desc>
+  <rect x="4" y="4" width="88" height="88" rx="22" fill="white"/>
+  <rect x="10" y="10" width="76" height="76" rx="19" stroke="#E6EFE9" stroke-width="2"/>
+  <path d="M35 66V30H51.5C62 30 68 35.2 68 43.5C68 51.8 62 57 51.5 57H44V66H35ZM44 49.5H51C56.1 49.5 58.8 47.4 58.8 43.5C58.8 39.6 56.1 37.5 51 37.5H44V49.5Z" fill="#0F7B35"/>
+  <path d="M64.5 27C72.2 31.3 77.5 39.5 77.5 49C77.5 58.5 72.2 66.7 64.5 71" stroke="#F28C18" stroke-width="7" stroke-linecap="round"/>
+  <text x="108" y="54" fill="white" font-family="Arial, Helvetica, sans-serif" font-size="38" font-weight="900" letter-spacing="-1">PWFB</text>
+  <text x="110" y="76" fill="#DFF3E6" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="800" letter-spacing="3">MICROFINANCE</text>
+</svg>

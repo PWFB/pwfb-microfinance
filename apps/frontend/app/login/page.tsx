@@ -2,22 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  browserSupportsWebAuthn,
-  startAuthentication,
-  startRegistration,
-} from "@simplewebauthn/browser";
+import { browserSupportsWebAuthn, startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { apiRequest } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+const GOOGLE_NONCE_KEY = "pwfb_google_oidc_nonce";
 
-declare global {
-  interface Window {
-    google?: any;
-  }
-}
+declare global { interface Window { google?: any; } }
 
 function UserIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.7-4 3.4-6 8-6s7.3 2 8 6"/></svg>; }
 function LockIcon() { return <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>; }
@@ -42,95 +35,79 @@ export default function LoginPage() {
   };
 
   const storeToken = (token: string) => {
-    if (remember) {
-      localStorage.setItem("token", token);
-      sessionStorage.removeItem("token");
-    } else {
-      sessionStorage.setItem("token", token);
-      localStorage.removeItem("token");
-    }
+    if (remember) { localStorage.setItem("token", token); sessionStorage.removeItem("token"); }
+    else { sessionStorage.setItem("token", token); localStorage.removeItem("token"); }
   };
 
   async function finishLogin(data: any) {
     if (!data?.access_token) throw new Error(data?.message || "Login failed");
-    storeToken(data.access_token);
-    await refreshProfile();
-    goToRoleDashboard(data.user?.role);
+    storeToken(data.access_token); await refreshProfile(); goToRoleDashboard(data.user?.role);
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault(); setMessage(""); setLoading(true);
-    try {
-      const data = await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) });
-      await finishLogin(data);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to the server"); }
+    try { await finishLogin(await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) })); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to the server"); }
     finally { setLoading(false); }
   }
 
   async function handleGoogleCredential(response: any) {
     setMessage(""); setLoading(true);
     try {
+      if (!response?.credential) throw new Error("Google did not return an ID token");
+      const nonce = sessionStorage.getItem(GOOGLE_NONCE_KEY);
+      if (!nonce) throw new Error("Google sign-in session expired. Please try again.");
       const data = await apiRequest("/auth/google", {
         method: "POST",
-        body: JSON.stringify({ credential: response.credential }),
+        body: JSON.stringify({ credential: response.credential, client_id: GOOGLE_CLIENT_ID, nonce }),
       });
+      sessionStorage.removeItem(GOOGLE_NONCE_KEY);
       await finishLogin(data);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Google sign-in failed");
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Google sign-in failed"); }
+    finally { setLoading(false); }
   }
 
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || !googleButtonRef.current) return;
 
+    const createNonce = () => {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    };
+
     const renderGoogleButton = () => {
       if (!window.google?.accounts?.id || !googleButtonRef.current) return;
+      const nonce = createNonce();
+      sessionStorage.setItem(GOOGLE_NONCE_KEY, nonce);
       googleButtonRef.current.innerHTML = "";
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleGoogleCredential,
+        nonce,
         auto_select: false,
         cancel_on_tap_outside: true,
       });
       window.google.accounts.id.renderButton(googleButtonRef.current, {
-        type: "standard",
-        theme: "outline",
-        size: "large",
-        text: "continue_with",
-        shape: "rectangular",
-        logo_alignment: "left",
-        width: 330,
+        type: "standard", theme: "outline", size: "large", text: "continue_with",
+        shape: "rectangular", logo_alignment: "left", width: 330,
       });
     };
 
-    if (window.google?.accounts?.id) {
-      renderGoogleButton();
-      return;
-    }
-
+    if (window.google?.accounts?.id) { renderGoogleButton(); return; }
     const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
     if (existing) {
       existing.addEventListener("load", renderGoogleButton, { once: true });
       return () => existing.removeEventListener("load", renderGoogleButton);
     }
-
     const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = renderGoogleButton;
+    script.src = "https://accounts.google.com/gsi/client"; script.async = true; script.defer = true; script.onload = renderGoogleButton;
     document.head.appendChild(script);
-
     return () => { script.onload = null; };
   }, []);
 
   async function fetchJson(endpoint: string, options: RequestInit = {}) {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    });
+    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers: { "Content-Type": "application/json", ...(options.headers || {}) } });
     const data = await response.json().catch(() => null);
     if (!response.ok) throw new Error(data?.message || "Request failed");
     return data;
@@ -141,61 +118,25 @@ export default function LoginPage() {
     try {
       if (!email.trim()) throw new Error("Enter your email first, then tap Login with Fingerprint.");
       if (!browserSupportsWebAuthn()) throw new Error("Fingerprint/passkey login is not supported by this browser.");
-
-      let optionsResponse: Response;
-      let optionsData: any;
-
-      try {
-        optionsResponse = await fetch(`${API_URL}/auth/passkey/login/options`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim().toLowerCase() }),
-        });
-        optionsData = await optionsResponse.json().catch(() => null);
-      } catch {
-        throw new Error("Unable to connect to the PWFB authentication server.");
-      }
-
+      const optionsResponse = await fetch(`${API_URL}/auth/passkey/login/options`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim().toLowerCase() }) });
+      const optionsData = await optionsResponse.json().catch(() => null);
       if (!optionsResponse.ok && String(optionsData?.message || "").toLowerCase().includes("no fingerprint/passkey")) {
         if (!password) throw new Error("This account has no fingerprint registered. Enter your password once and tap Login with Fingerprint again to register this device.");
-
-        const passwordLogin = await fetchJson("/auth/login", {
-          method: "POST",
-          body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
-        });
-        if (!passwordLogin.access_token) throw new Error("Password verification failed");
+        const passwordLogin = await fetchJson("/auth/login", { method: "POST", body: JSON.stringify({ email: email.trim().toLowerCase(), password }) });
         storeToken(passwordLogin.access_token);
-
-        const registrationOptions = await fetchJson("/auth/passkey/register/options", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${passwordLogin.access_token}` },
-        });
+        const registrationOptions = await fetchJson("/auth/passkey/register/options", { method: "POST", headers: { Authorization: `Bearer ${passwordLogin.access_token}` } });
         const registrationResponse = await startRegistration({ optionsJSON: registrationOptions });
-        const registered = await fetchJson("/auth/passkey/register/verify", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${passwordLogin.access_token}` },
-          body: JSON.stringify(registrationResponse),
-        });
+        const registered = await fetchJson("/auth/passkey/register/verify", { method: "POST", headers: { Authorization: `Bearer ${passwordLogin.access_token}` }, body: JSON.stringify(registrationResponse) });
         if (!registered?.verified) throw new Error("Fingerprint registration could not be completed.");
-        await refreshProfile();
-        goToRoleDashboard(passwordLogin.user?.role);
-        return;
+        await refreshProfile(); goToRoleDashboard(passwordLogin.user?.role); return;
       }
-
       if (!optionsResponse.ok) throw new Error(optionsData?.message || "Fingerprint login could not be started.");
-
       const authenticationResponse = await startAuthentication({ optionsJSON: optionsData });
-      const verified = await fetchJson("/auth/passkey/login/verify", {
-        method: "POST",
-        body: JSON.stringify(authenticationResponse),
-      });
-      await finishLogin(verified);
+      await finishLogin(await fetchJson("/auth/passkey/login/verify", { method: "POST", body: JSON.stringify(authenticationResponse) }));
     } catch (error: any) {
       if (error?.name === "NotAllowedError") setMessage("Fingerprint verification was cancelled or not completed.");
       else setMessage(error instanceof Error ? error.message : "Fingerprint login failed");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   return (

@@ -155,6 +155,90 @@ export class FlutterwaveService {
     }
   }
 
+  async createCustomer(input: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone?: string | null;
+  }) {
+    const email = String(input.email || '').trim();
+    const firstName = String(input.firstName || '').trim();
+    const lastName = String(input.lastName || '').trim();
+    if (!email) throw new BadRequestException('Customer email is required for Flutterwave');
+    if (!firstName || !lastName) throw new BadRequestException('Customer first and last names are required for Flutterwave');
+
+    const payload = await this.request('/customers', {
+      method: 'POST',
+      headers: { 'X-Idempotency-Key': this.uniqueId('customer') },
+      body: JSON.stringify({
+        email,
+        name: { first: firstName, last: lastName },
+        ...(input.phone
+          ? { phone: { country_code: '234', number: String(input.phone).replace(/\D/g, '').replace(/^234/, '') } }
+          : {}),
+      }),
+    });
+
+    const id = String(payload?.data?.id ?? '').trim();
+    if (!id) throw new ServiceUnavailableException('Flutterwave customer was created without a customer ID');
+    return { id, raw: payload };
+  }
+
+  async createStaticVirtualAccount(input: {
+    customerId: string;
+    reference: string;
+    narration: string;
+    bankCode?: string;
+    bvn?: string;
+    nin?: string;
+  }) {
+    const customerId = String(input.customerId || '').trim();
+    const reference = String(input.reference || '').trim();
+    if (!customerId) throw new BadRequestException('Flutterwave customer ID is required');
+    if (!reference) throw new BadRequestException('Virtual account reference is required');
+
+    const bankCode = String(
+      input.bankCode || process.env.FLUTTERWAVE_VIRTUAL_ACCOUNT_BANK_CODE || '090567',
+    ).trim();
+
+    const payload: Record<string, unknown> = {
+      reference,
+      customer_id: customerId,
+      amount: 0,
+      currency: 'NGN',
+      bank_code: bankCode,
+      account_type: 'static',
+      narration: String(input.narration || '').slice(0, 100),
+    };
+    if (input.bvn) payload.bvn = String(input.bvn).replace(/\D/g, '');
+    if (input.nin) payload.nin = String(input.nin).replace(/\D/g, '');
+
+    const response = await this.request('/virtual-accounts', {
+      method: 'POST',
+      headers: { 'X-Idempotency-Key': reference },
+      body: JSON.stringify(payload),
+    });
+
+    const data = response?.data ?? {};
+    const accountNumber = String(
+      data.account_number ?? data.accountNumber ?? '',
+    ).replace(/\D/g, '');
+    if (!accountNumber) {
+      throw new ServiceUnavailableException('Flutterwave did not return a virtual account number');
+    }
+
+    return {
+      accountNumber,
+      accountName: String(data.account_name ?? data.accountName ?? input.narration ?? '').trim() || null,
+      bankName: String(data.bank_name ?? data.bankName ?? '').trim() || null,
+      providerReference: String(
+        data.reference ?? data.id ?? response?.reference ?? reference,
+      ).trim(),
+      bankCode: String(data.bank_code ?? bankCode).trim(),
+      raw: response,
+    };
+  }
+
   async listBanks(country = 'NG'): Promise<FlutterwaveBank[]> {
     const normalizedCountry = String(country || 'NG').trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(normalizedCountry)) {

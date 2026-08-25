@@ -19,12 +19,12 @@ export default function Home() {
   return (
     <main className={styles.home}>
       <header className={styles.header}>
-        <Link href="/" className={styles.brand}>
-          <span className={styles.brandMark}>PWFB</span>
-          <span className={styles.brandCopy}>
-            <strong>PWFB Microfinance</strong>
-            <small>Perfect Wisdom For Better Limited</small>
-          </span>
+        <Link href="/" className={styles.brand} aria-label="PWFB Microfinance home">
+          <img
+            src="/pwfb-logo.svg"
+            alt="PWFB Microfinance"
+            className={styles.brandLogo}
+          />
         </Link>
 
         <nav className={styles.nav}>
@@ -38,6 +38,11 @@ export default function Home() {
 
       <section className={styles.hero}>
         <div className={styles.heroInner}>
+          <img
+            src="/pwfb-logo.svg"
+            alt="PWFB Microfinance"
+            className={styles.heroLogo}
+          />
           <p className={styles.eyebrow}>PWFB MICROFINANCE</p>
           <h1>Smart Finance. Better Future.</h1>
           <p className={styles.heroText}>

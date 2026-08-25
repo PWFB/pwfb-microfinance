@@ -65,7 +65,30 @@ model Customer {
   virtualAccounts CustomerVirtualAccount[]
 }
 model Savings { id String @id @default(cuid()); customerId String; amount Float; accountType String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); @@index([customerId]); @@index([periodId]) }
-model Loan { id String @id @default(cuid()); customerId String; amount Float; interestRate Float?; status String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); repayments Repayment[]; @@index([customerId]); @@index([periodId]) }
+model Loan { id String @id @default(cuid()); customerId String; amount Float; interestRate Float?; status String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); repayments Repayment[]; guarantors Guarantor[]; @@index([customerId]); @@index([periodId]) }
+model Guarantor {
+  id String @id @default(cuid())
+  loanId String
+  firstName String
+  middleName String?
+  lastName String
+  phone String
+  email String?
+  address String?
+  dateOfBirth DateTime?
+  relationship String?
+  idType String
+  idNumber String
+  idDocument String?
+  passportPhoto String?
+  temporaryVerified Boolean @default(false)
+  verificationNote String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  @@index([loanId])
+  @@index([idNumber])
+}
 model Transaction { id String @id @default(cuid()); customerId String; type String; amount Float; description String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade); @@index([customerId]); @@index([periodId]) }
 model Repayment { id String @id @default(cuid()); loanId String; amount Float; paymentDate DateTime @default(now()); method String?; notes String?; periodId String?; period FinancialPeriod? @relation(fields: [periodId], references: [id]); createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade); @@index([loanId]); @@index([periodId]) }
 model Department { id String @id @default(cuid()); name String @unique; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt; staff Staff[] }

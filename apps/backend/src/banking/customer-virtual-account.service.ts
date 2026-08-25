@@ -127,16 +127,24 @@ export class CustomerVirtualAccountService {
     const reference = `pwfb-va-${customer.id}-${local.id}`;
 
     try {
-      // Flutterwave's current API requires a Flutterwave customer before the
-      // virtual account can be attached to that customer.
-      const providerCustomer = existing?.providerCustomerId
-        ? { id: existing.providerCustomerId }
+      const providerCustomer = local.providerCustomerId
+        ? { id: local.providerCustomerId }
         : await this.flutterwave.createCustomer({
             email,
             firstName: customer.firstName,
             lastName: customer.lastName,
             phone: customer.phone,
           });
+
+      // Persist the provider customer ID immediately. If virtual-account
+      // creation needs a retry, PWFB reuses the same Flutterwave customer
+      // instead of creating duplicate provider customers.
+      if (!local.providerCustomerId) {
+        await this.prisma.customerVirtualAccount.update({
+          where: { id: local.id },
+          data: { provider: 'FLUTTERWAVE', providerCustomerId: providerCustomer.id },
+        });
+      }
 
       const virtualAccount = await this.flutterwave.createStaticVirtualAccount({
         customerId: providerCustomer.id,

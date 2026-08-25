@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 
 import * as bcrypt from 'bcryptjs';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
@@ -14,373 +14,84 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Injectable()
 export class CustomersService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  private normalizeName(value: string) {
-    return value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '.')
-      .replace(/^\.+|\.+$/g, '');
-  }
-
-  private async generateLoginEmail(
-    firstName: string,
-    lastName: string,
-  ) {
-    const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`;
-    let email = `${base}@pwfb.com`;
-    let counter = 1;
-
-    while (
-      await this.prisma.user.findUnique({
-        where: { email },
-      })
-    ) {
-      email = `${base}${counter}@pwfb.com`;
-      counter++;
-    }
-
-    return email;
-  }
-
-  private generateTemporaryPassword() {
-    return `PWFB-${Math.random()
-      .toString(36)
-      .slice(2, 8)
-      .toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-  }
-
-  private async generateCustomerId() {
-    const count = await this.prisma.customer.count();
-    let number = count + 1;
-    let customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`;
-
-    while (
-      await this.prisma.customer.findUnique({
-        where: { id: customerId },
-      })
-    ) {
-      number++;
-      customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`;
-    }
-
-    return customerId;
-  }
+  private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
+  private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.prisma.user.findUnique({ where: { email } })) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
+  private generateTemporaryPassword() { return `PWFB-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; }
+  private async generateCustomerId() { const count = await this.prisma.customer.count(); let number = count + 1; let customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; while (await this.prisma.customer.findUnique({ where: { id: customerId } })) { number++; customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; } return customerId; }
 
   async create(createCustomerDto: CreateCustomerDto, authUser: any) {
-    const staff = await this.prisma.staff.findUnique({
-      where: { userId: authUser.id },
-      include: { branch: true },
-    });
-
-    if (!staff) {
-      throw new UnauthorizedException(
-        'Staff account is not linked to a staff record',
-      );
-    }
-
-    const customerId = await this.generateCustomerId();
-    const email = await this.generateLoginEmail(
-      createCustomerDto.firstName,
-      createCustomerDto.lastName,
-    );
-    const temporaryPassword = this.generateTemporaryPassword();
-    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
-
+    const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id }, include: { branch: true } });
+    if (!staff) throw new UnauthorizedException('Staff account is not linked to a staff record');
+    const customerId = await this.generateCustomerId(); const email = await this.generateLoginEmail(createCustomerDto.firstName, createCustomerDto.lastName); const temporaryPassword = this.generateTemporaryPassword(); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
     try {
       const result = await this.prisma.$transaction(async (tx) => {
-        let group: {
-          id: string;
-          name: string;
-          branchId: string | null;
-          createdAt: Date;
-          updatedAt: Date;
-        } | null = null;
-
-        if (createCustomerDto.groupId) {
-          group = await tx.clientGroup.findUnique({
-            where: { id: createCustomerDto.groupId },
-          });
-
-          if (!group) {
-            throw new BadRequestException('Client group not found');
-          }
-
-          if (group.branchId && group.branchId !== staff.branchId) {
-            throw new BadRequestException(
-              'Client group belongs to another branch',
-            );
-          }
-        }
-
-        const customer = await tx.customer.create({
-          data: {
-            id: customerId,
-            firstName: createCustomerDto.firstName,
-            lastName: createCustomerDto.lastName,
-            email,
-            phone: createCustomerDto.phone,
-            address: createCustomerDto.address,
-            dateOfBirth: createCustomerDto.dateOfBirth
-              ? new Date(createCustomerDto.dateOfBirth)
-              : undefined,
-            branch: { connect: { id: staff.branchId } },
-            assignedStaff: { connect: { id: staff.id } },
-            ...(createCustomerDto.groupId
-              ? { clientGroup: { connect: { id: createCustomerDto.groupId } } }
-              : {}),
-          },
-        });
-
-        const user = await tx.user.create({
-          data: {
-            email,
-            password: hashedPassword,
-            firstName: createCustomerDto.firstName,
-            lastName: createCustomerDto.lastName,
-            phone: createCustomerDto.phone,
-            role: 'CUSTOMER',
-            customer: { connect: { id: customer.id } },
-          },
-        });
-
+        let group: { id: string; name: string; branchId: string | null; createdAt: Date; updatedAt: Date } | null = null;
+        if (createCustomerDto.groupId) { group = await tx.clientGroup.findUnique({ where: { id: createCustomerDto.groupId } }); if (!group) throw new BadRequestException('Client group not found'); if (group.branchId && group.branchId !== staff.branchId) throw new BadRequestException('Client group belongs to another branch'); }
+        const customer = await tx.customer.create({ data: { id: customerId, firstName: createCustomerDto.firstName, lastName: createCustomerDto.lastName, email, phone: createCustomerDto.phone, address: createCustomerDto.address, dateOfBirth: createCustomerDto.dateOfBirth ? new Date(createCustomerDto.dateOfBirth) : undefined, branch: { connect: { id: staff.branchId } }, assignedStaff: { connect: { id: staff.id } }, ...(createCustomerDto.groupId ? { clientGroup: { connect: { id: createCustomerDto.groupId } } } : {}) } });
+        const user = await tx.user.create({ data: { email, password: hashedPassword, firstName: createCustomerDto.firstName, lastName: createCustomerDto.lastName, phone: createCustomerDto.phone, role: 'CUSTOMER', customer: { connect: { id: customer.id } } } });
         return { customer, user };
       });
-
-      return {
-        message: 'Client created successfully',
-        client: {
-          id: result.customer.id,
-          customerId: result.customer.id,
-          firstName: result.customer.firstName,
-          lastName: result.customer.lastName,
-          email: result.customer.email,
-          branchId: result.customer.branchId,
-          assignedStaffId: result.customer.assignedStaffId,
-          groupId: result.customer.groupId,
-        },
-        login: { email, temporaryPassword },
-      };
-    } catch (error) {
-      if (error instanceof BadRequestException) throw error;
-      throw new BadRequestException(
-        error instanceof Error ? error.message : 'Unable to create client',
-      );
-    }
+      return { message: 'Client created successfully', client: { id: result.customer.id, customerId: result.customer.id, firstName: result.customer.firstName, lastName: result.customer.lastName, email: result.customer.email, branchId: result.customer.branchId, assignedStaffId: result.customer.assignedStaffId, groupId: result.customer.groupId }, login: { email, temporaryPassword } };
+    } catch (error) { if (error instanceof BadRequestException) throw error; throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create client'); }
   }
 
   async findMe(authUser: any) {
-    if (!authUser?.id) {
-      throw new UnauthorizedException('Authentication required');
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: authUser.id },
-      include: {
-        customer: {
-          include: {
-            savings: true,
-            loans: true,
-            transactions: true,
-            branch: true,
-            bankAccounts: { include: { institution: true } },
-            virtualAccounts: { include: { institution: true, branch: true } },
-            wallet: true,
-          },
-        },
-      },
-    });
-
-    if (!user?.customer) {
-      throw new NotFoundException('Customer profile not found');
-    }
-
-    return user.customer;
+    if (!authUser?.id) throw new UnauthorizedException('Authentication required');
+    const user = await this.prisma.user.findUnique({ where: { id: authUser.id }, include: { customer: { include: { savings: true, loans: true, transactions: true, branch: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } } } });
+    if (!user?.customer) throw new NotFoundException('Customer profile not found'); return user.customer;
   }
 
   async findAll(authUser?: any) {
-    const staff = authUser
-      ? await this.prisma.staff.findUnique({
-          where: { userId: authUser.id },
-        })
-      : null;
+    const staff = authUser ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } }) : null; const where = staff ? { assignedStaffId: staff.id } : undefined;
+    return this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } });
+  }
 
-    const where = staff ? { assignedStaffId: staff.id } : undefined;
+  private maskIdentity(value?: string | null) { if (!value) return null; return `${'•'.repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`; }
 
-    return this.prisma.customer.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        savings: true,
-        loans: true,
-        transactions: true,
-        branch: true,
-        assignedStaff: true,
-        clientGroup: true,
-        bankAccounts: { include: { institution: true } },
-        virtualAccounts: { include: { institution: true, branch: true } },
-        wallet: true,
-      },
-    });
+  private async getIdentityVerification(customerId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT id, bvn, bvn_status AS "bvnStatus", bvn_verified_at AS "bvnVerifiedAt", bvn_overridden_at AS "bvnOverriddenAt", bvn_override_by_email AS "bvnOverrideByEmail", bvn_override_reason AS "bvnOverrideReason", nin, nin_status AS "ninStatus", nin_verified_at AS "ninVerifiedAt", nin_overridden_at AS "ninOverriddenAt", nin_override_by_email AS "ninOverrideByEmail", nin_override_reason AS "ninOverrideReason", created_at AS "createdAt", updated_at AS "updatedAt" FROM customer_identity_verifications WHERE customer_id = $1`, customerId);
+    const row = rows[0]; if (!row) return null;
+    return { id: row.id, bvn: this.maskIdentity(row.bvn), bvnStatus: row.bvnStatus, bvnVerifiedAt: row.bvnVerifiedAt, bvnOverriddenAt: row.bvnOverriddenAt, bvnOverrideByEmail: row.bvnOverrideByEmail, bvnOverrideReason: row.bvnOverrideReason, nin: this.maskIdentity(row.nin), ninStatus: row.ninStatus, ninVerifiedAt: row.ninVerifiedAt, ninOverriddenAt: row.ninOverriddenAt, ninOverrideByEmail: row.ninOverrideByEmail, ninOverrideReason: row.ninOverrideReason, createdAt: row.createdAt, updatedAt: row.updatedAt };
   }
 
   async findOne(id: string, authUser?: any) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id },
-      include: {
-        savings: true,
-        loans: true,
-        transactions: true,
-        branch: true,
-        assignedStaff: true,
-        clientGroup: true,
-        bankAccounts: { include: { institution: true } },
-        virtualAccounts: { include: { institution: true, branch: true } },
-        wallet: true,
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            phone: true,
-            role: true,
-            createdAt: true,
-            updatedAt: true,
-          },
-        },
-      },
-    });
-
-    if (!customer) {
-      throw new NotFoundException('Customer not found');
-    }
-
-    if (authUser) {
-      const staff = await this.prisma.staff.findUnique({
-        where: { userId: authUser.id },
-      });
-
-      if (staff && customer.assignedStaffId !== staff.id) {
-        throw new UnauthorizedException(
-          'You can only access your assigned clients',
-        );
-      }
-    }
-
-    return customer;
+    const customer = await this.prisma.customer.findUnique({ where: { id }, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, createdAt: true, updatedAt: true } } } });
+    if (!customer) throw new NotFoundException('Customer not found');
+    if (authUser) { const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id } }); if (staff && customer.assignedStaffId !== staff.id) throw new UnauthorizedException('You can only access your assigned clients'); }
+    return { ...customer, identityVerification: await this.getIdentityVerification(customer.id) };
   }
 
   async update(id: string, updateCustomerDto: UpdateCustomerDto) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id },
-      include: { user: true },
-    });
-
-    if (!customer) {
-      throw new NotFoundException('Customer not found');
-    }
-
-    if (updateCustomerDto.branchId) {
-      const branch = await this.prisma.branch.findUnique({
-        where: { id: updateCustomerDto.branchId },
-      });
-      if (!branch) throw new BadRequestException('Branch not found');
-    }
-
-    if (updateCustomerDto.assignedStaffId) {
-      const staff = await this.prisma.staff.findUnique({
-        where: { id: updateCustomerDto.assignedStaffId },
-      });
-      if (!staff) throw new BadRequestException('Assigned staff not found');
-    }
-
-    if (updateCustomerDto.groupId) {
-      const group = await this.prisma.clientGroup.findUnique({
-        where: { id: updateCustomerDto.groupId },
-      });
-      if (!group) throw new BadRequestException('Client group not found');
-    }
-
-    const firstName = updateCustomerDto.firstName ?? customer.firstName;
-    const lastName = updateCustomerDto.lastName ?? customer.lastName;
-    const email = updateCustomerDto.email ?? customer.email;
-    const phone = updateCustomerDto.phone ?? customer.phone;
-
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const updatedCustomer = await tx.customer.update({
-        where: { id },
-        data: {
-          firstName,
-          lastName,
-          email,
-          phone,
-          address: updateCustomerDto.address,
-          dateOfBirth: updateCustomerDto.dateOfBirth
-            ? new Date(updateCustomerDto.dateOfBirth)
-            : undefined,
-          branchId: updateCustomerDto.branchId,
-          assignedStaffId: updateCustomerDto.assignedStaffId,
-          groupId: updateCustomerDto.groupId,
-        },
-      });
-
-      if (customer.userId) {
-        await tx.user.update({
-          where: { id: customer.userId },
-          data: {
-            ...(email ? { email } : {}),
-            firstName,
-            lastName,
-            phone,
-          },
-        });
-      }
-
-      return updatedCustomer;
-    });
-
-    return {
-      message: 'Customer profile updated successfully',
-      customer: updated,
-    };
+    const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } }); if (!customer) throw new NotFoundException('Customer not found');
+    if (updateCustomerDto.branchId && !(await this.prisma.branch.findUnique({ where: { id: updateCustomerDto.branchId } }))) throw new BadRequestException('Branch not found');
+    if (updateCustomerDto.assignedStaffId && !(await this.prisma.staff.findUnique({ where: { id: updateCustomerDto.assignedStaffId } }))) throw new BadRequestException('Assigned staff not found');
+    if (updateCustomerDto.groupId && !(await this.prisma.clientGroup.findUnique({ where: { id: updateCustomerDto.groupId } }))) throw new BadRequestException('Client group not found');
+    const firstName = updateCustomerDto.firstName ?? customer.firstName; const lastName = updateCustomerDto.lastName ?? customer.lastName; const email = updateCustomerDto.email ?? customer.email; const phone = updateCustomerDto.phone ?? customer.phone;
+    const updated = await this.prisma.$transaction(async (tx) => { const updatedCustomer = await tx.customer.update({ where: { id }, data: { firstName, lastName, email, phone, address: updateCustomerDto.address, dateOfBirth: updateCustomerDto.dateOfBirth ? new Date(updateCustomerDto.dateOfBirth) : undefined, branchId: updateCustomerDto.branchId, assignedStaffId: updateCustomerDto.assignedStaffId, groupId: updateCustomerDto.groupId } }); if (customer.userId) await tx.user.update({ where: { id: customer.userId }, data: { ...(email ? { email } : {}), firstName, lastName, phone } }); return updatedCustomer; });
+    return { message: 'Customer profile updated successfully', customer: updated };
   }
 
   async resetPassword(id: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id },
-      include: { user: true },
-    });
-
-    if (!customer?.user) {
-      throw new NotFoundException('Customer login account not found');
-    }
-
-    const temporaryPassword = `PWFB-${randomBytes(5)
-      .toString('hex')
-      .toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
-    const password = await bcrypt.hash(temporaryPassword, 10);
-
-    await this.prisma.user.update({
-      where: { id: customer.user.id },
-      data: { password },
-    });
-
-    return {
-      message: 'Customer password reset successfully',
-      customerId: customer.id,
-      loginEmail: customer.user.email,
-      temporaryPassword,
-      note: 'For security, PWFB never stores or displays the previous plaintext password. This temporary password should be delivered securely to the customer and changed after login.',
-    };
+    const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } }); if (!customer?.user) throw new NotFoundException('Customer login account not found');
+    const temporaryPassword = `PWFB-${randomBytes(5).toString('hex').toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; await this.prisma.user.update({ where: { id: customer.user.id }, data: { password: await bcrypt.hash(temporaryPassword, 10) } });
+    return { message: 'Customer password reset successfully', customerId: customer.id, loginEmail: customer.user.email, temporaryPassword, note: 'For security, PWFB never stores or displays the previous plaintext password.' };
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
-    return this.prisma.customer.delete({ where: { id } });
+  async overrideIdentity(customerId: string, type: string, value: string, reason: string, adminUser: any) {
+    const identityType = String(type || '').toUpperCase(); if (!['BVN', 'NIN'].includes(identityType)) throw new BadRequestException('Identity type must be BVN or NIN');
+    const digits = String(value || '').replace(/\D/g, ''); if (digits.length !== 11) throw new BadRequestException(`${identityType} must contain exactly 11 digits`);
+    if (!reason?.trim() || reason.trim().length < 5) throw new BadRequestException('A clear override reason is required'); if (!adminUser?.id) throw new UnauthorizedException('Authenticated Super Admin required');
+    if (!(await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } }))) throw new NotFoundException('Customer not found');
+    const existingRows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT id, bvn_status AS "bvnStatus", nin_status AS "ninStatus" FROM customer_identity_verifications WHERE customer_id = $1`, customerId); const existing = existingRows[0]; const verificationId = existing?.id || randomUUID();
+    const previousStatus = identityType === 'BVN' ? (existing?.bvnStatus || 'NOT_VERIFIED') : (existing?.ninStatus || 'NOT_VERIFIED');
+    const column = identityType === 'BVN' ? 'bvn' : 'nin'; const statusColumn = identityType === 'BVN' ? 'bvn_status' : 'nin_status'; const atColumn = identityType === 'BVN' ? 'bvn_overridden_at' : 'nin_overridden_at'; const byColumn = identityType === 'BVN' ? 'bvn_override_by_user_id' : 'nin_override_by_user_id'; const emailColumn = identityType === 'BVN' ? 'bvn_override_by_email' : 'nin_override_by_email'; const reasonColumn = identityType === 'BVN' ? 'bvn_override_reason' : 'nin_override_reason';
+    if (existing) await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET ${column} = $1, ${statusColumn} = 'OVERRIDDEN', ${atColumn} = NOW(), ${byColumn} = $2, ${emailColumn} = $3, ${reasonColumn} = $4, updated_at = NOW() WHERE customer_id = $5`, digits, adminUser.id, adminUser.email || null, reason.trim(), customerId);
+    else await this.prisma.$executeRawUnsafe(`INSERT INTO customer_identity_verifications (id, customer_id, ${column}, ${statusColumn}, ${atColumn}, ${byColumn}, ${emailColumn}, ${reasonColumn}) VALUES ($1, $2, $3, 'OVERRIDDEN', NOW(), $4, $5, $6)`, verificationId, customerId, digits, adminUser.id, adminUser.email || null, reason.trim());
+    await this.prisma.$executeRawUnsafe(`INSERT INTO customer_identity_override_audits (id, verification_id, identity_type, previous_status, new_status, reason, admin_user_id, admin_email) VALUES ($1, $2, $3, $4, 'OVERRIDDEN', $5, $6, $7)`, randomUUID(), verificationId, identityType, previousStatus, reason.trim(), adminUser.id, adminUser.email || null);
+    return { message: `${identityType} override recorded`, customerId, type: identityType, status: 'OVERRIDDEN', maskedValue: this.maskIdentity(digits), reason: reason.trim(), overriddenBy: adminUser.email || adminUser.id };
   }
+
+  async remove(id: string) { await this.findOne(id); return this.prisma.customer.delete({ where: { id } }); }
 }

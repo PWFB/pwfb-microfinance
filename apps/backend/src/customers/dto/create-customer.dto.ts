@@ -9,6 +9,10 @@ export class CreateCustomerDto {
   @IsString()
   firstName: string;
 
+  @IsOptional()
+  @IsString()
+  middleName?: string;
+
   @IsString()
   lastName: string;
 

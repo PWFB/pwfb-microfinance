@@ -18,26 +18,14 @@ export class ReportsService {
       repaymentsTotal,
     ] = await Promise.all([
       this.prisma.customer.count(),
-
       this.prisma.savings.count(),
-      this.prisma.savings.aggregate({
-        _sum: { amount: true },
-      }),
-
+      this.prisma.savings.aggregate({ _sum: { amount: true } }),
       this.prisma.loan.count(),
-      this.prisma.loan.aggregate({
-        _sum: { amount: true },
-      }),
-
+      this.prisma.loan.aggregate({ _sum: { amount: true } }),
       this.prisma.transaction.count(),
-      this.prisma.transaction.aggregate({
-        _sum: { amount: true },
-      }),
-
+      this.prisma.transaction.aggregate({ _sum: { amount: true } }),
       this.prisma.repayment.count(),
-      this.prisma.repayment.aggregate({
-        _sum: { amount: true },
-      }),
+      this.prisma.repayment.aggregate({ _sum: { amount: true } }),
     ]);
 
     const totalSavings = savingsTotal._sum.amount ?? 0;
@@ -46,33 +34,35 @@ export class ReportsService {
     const totalRepayments = repaymentsTotal._sum.amount ?? 0;
 
     return {
-      customers: {
-        count: totalCustomers,
-      },
+      customers: { count: totalCustomers },
+      savings: { count: savingsCount, amount: totalSavings },
+      loans: { count: loansCount, amount: totalLoans },
+      transactions: { count: transactionsCount, amount: totalTransactions },
+      repayments: { count: repaymentsCount, amount: totalRepayments },
+      portfolio: { amount: totalSavings + totalLoans },
+    };
+  }
 
-      savings: {
-        count: savingsCount,
-        amount: totalSavings,
-      },
+  async getOperations() {
+    const [customers, staff, loans, savings, walletTransactions] = await Promise.all([
+      this.prisma.customer.findMany({ orderBy: { createdAt: 'desc' } }),
+      this.prisma.staff.findMany({ orderBy: { createdAt: 'desc' } }),
+      this.prisma.loan.findMany({ include: { customer: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.savings.findMany({ include: { customer: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.walletTransaction.findMany({
+        include: { customer: true },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
-      loans: {
-        count: loansCount,
-        amount: totalLoans,
-      },
-
-      transactions: {
-        count: transactionsCount,
-        amount: totalTransactions,
-      },
-
-      repayments: {
-        count: repaymentsCount,
-        amount: totalRepayments,
-      },
-
-      portfolio: {
-        amount: totalSavings + totalLoans,
-      },
+    return {
+      customers,
+      staff,
+      loans,
+      savings,
+      deposits: walletTransactions.filter((x) => x.type === 'DEPOSIT'),
+      withdrawals: walletTransactions.filter((x) => x.type === 'WITHDRAWAL'),
+      transfers: walletTransactions.filter((x) => x.type === 'TRANSFER_OUT' || x.type === 'TRANSFER_IN'),
     };
   }
 }

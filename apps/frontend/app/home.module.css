@@ -15,37 +15,16 @@
 }
 
 .brand {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  min-width: 0;
 }
 
-.brandMark {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  border-radius: 13px;
-  background: #f28c18;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 900;
-}
-
-.brandCopy {
-  display: flex;
-  flex-direction: column;
-}
-
-.brandCopy strong {
-  font-size: 18px;
-}
-
-.brandCopy small {
-  margin-top: 3px;
-  color: rgba(255,255,255,.78);
-  font-size: 11px;
+.brandLogo {
+  display: block;
+  width: 210px;
+  height: auto;
+  max-width: 100%;
 }
 
 .nav {
@@ -71,7 +50,15 @@
 .heroInner {
   width: min(100%,980px);
   margin: 0 auto;
-  padding: 78px 24px 82px;
+  padding: 68px 24px 82px;
+}
+
+.heroLogo {
+  display: block;
+  width: min(320px, 78vw);
+  height: auto;
+  margin: 0 auto 26px;
+  filter: drop-shadow(0 10px 24px rgba(0,0,0,.12));
 }
 
 .eyebrow {
@@ -243,6 +230,10 @@
     padding: 14px 20px;
   }
 
+  .brandLogo {
+    width: 190px;
+  }
+
   .moduleGrid,
   .statsGrid {
     grid-template-columns: repeat(2,minmax(0,1fr));
@@ -255,6 +246,10 @@
     flex-direction: column;
   }
 
+  .brandLogo {
+    width: 205px;
+  }
+
   .nav {
     width: 100%;
     overflow-x: auto;
@@ -262,7 +257,12 @@
   }
 
   .heroInner {
-    padding: 56px 18px 62px;
+    padding: 50px 18px 62px;
+  }
+
+  .heroLogo {
+    width: min(290px, 86vw);
+    margin-bottom: 22px;
   }
 
   .hero h1 {

@@ -8,16 +8,71 @@ datasource db {
   url = env("DATABASE_URL")
 }
 
-enum Role { SUPER_ADMIN ADMIN BRANCH_MANAGER LOAN_OFFICER TELLER AUDITOR CUSTOMER STAFF }
-enum StaffStatus { ACTIVE INACTIVE SUSPENDED }
-enum PeriodStatus { OPEN CLOSED }
-enum PayrollStatus { DRAFT APPROVED PAID }
-enum CashbookType { CASH_IN CASH_OUT }
-enum CollectionType { SAVINGS LOAN_REPAYMENT OTHER }
-enum InstitutionType { BANK FINTECH PAYMENT_PROVIDER }
-enum AccountStatus { ACTIVE INACTIVE BLOCKED }
-enum WalletTransactionType { DEPOSIT WITHDRAWAL TRANSFER_IN TRANSFER_OUT }
-enum WalletTransactionStatus { PENDING PROCESSING COMPLETED FAILED REVERSED }
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  BRANCH_MANAGER
+  LOAN_OFFICER
+  TELLER
+  AUDITOR
+  CUSTOMER
+  STAFF
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum CashbookType {
+  CASH_IN
+  CASH_OUT
+}
+
+enum CollectionType {
+  SAVINGS
+  LOAN_REPAYMENT
+  OTHER
+}
+
+enum InstitutionType {
+  BANK
+  FINTECH
+  PAYMENT_PROVIDER
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum WalletTransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REVERSED
+}
 
 model User {
   id String @id @default(cuid())

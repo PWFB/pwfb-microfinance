@@ -27,6 +27,18 @@ export class StaffRepository {
     bvnVerification?: { verified: boolean; bvn: string; fullName: string },
   ) {
     return this.prisma.$transaction(async (tx) => {
+      const departmentValue = String(data.department || '').trim();
+      if (!departmentValue) throw new Error('Department is required');
+
+      const departmentById = await tx.department.findUnique({
+        where: { id: departmentValue },
+      });
+      const department = departmentById ?? await tx.department.upsert({
+        where: { name: departmentValue },
+        update: {},
+        create: { name: departmentValue },
+      });
+
       const staff = await tx.staff.create({
         data: {
           staffId: login.staffId,
@@ -45,7 +57,7 @@ export class StaffRepository {
                 bvnVerifiedName: bvnVerification.fullName,
               }
             : {}),
-          department: { connect: { id: data.department } },
+          department: { connect: { id: department.id } },
           branch: { connect: { id: data.branch } },
           ...(data.regionId ? { region: { connect: { id: data.regionId } } } : {}),
           ...(data.divisionId ? { division: { connect: { id: data.divisionId } } } : {}),

@@ -32,15 +32,19 @@ export class AccessController {
   @Roles(...VIEW_ROLES)
   async hierarchy(@Req() req: any) {
     const scope = await this.staffScopeService.get(req.user);
-    const regionWhere = scope.global
-      ? undefined
-      : scope.role === 'REGIONAL_MANAGER'
-        ? { id: scope.staff.regionId }
-        : scope.role === 'DIVISIONAL_MANAGER'
-          ? { id: scope.staff.regionId }
-          : scope.role === 'AREA_MANAGER'
-            ? { id: scope.staff.regionId }
-            : { id: scope.staff.regionId };
+    let regionWhere: any = undefined;
+
+    if (!scope.global) {
+      if (scope.role === 'REGIONAL_MANAGER') {
+        regionWhere = { id: scope.staff.regionId };
+      } else if (scope.role === 'DIVISIONAL_MANAGER') {
+        regionWhere = { divisions: { some: { id: scope.staff.divisionId } } };
+      } else if (scope.role === 'AREA_MANAGER') {
+        regionWhere = { areas: { some: { id: scope.staff.areaId } } };
+      } else {
+        regionWhere = { branches: { some: { id: scope.staff.branchId } } };
+      }
+    }
 
     const regions = await this.prisma.region.findMany({
       where: regionWhere,

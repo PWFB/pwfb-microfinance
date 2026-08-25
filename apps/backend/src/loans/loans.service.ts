@@ -13,14 +13,12 @@ export class LoansService {
     await this.scope.assertCustomerAccess(authUser, dto.customerId);
     const customer = await this.prisma.customer.findUnique({ where: { id: dto.customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
-    return this.prisma.loan.create({
-      data: { customerId: dto.customerId, amount: dto.amount, interestRate: dto.interestRate, status: dto.status ?? 'PENDING' },
-      include: { customer: true, repayments: true, guarantors: true },
-    });
+    return this.prisma.loan.create({ data: { customerId: dto.customerId, amount: dto.amount, interestRate: dto.interestRate, status: dto.status ?? 'PENDING' }, include: { customer: true, repayments: true, guarantors: true } });
   }
 
-  findAll(authUser: any) {
-    return this.prisma.loan.findMany({ where: this.scope.loanWhere(authUser) as any, orderBy: { createdAt: 'desc' }, include: { customer: true, repayments: true, guarantors: true } });
+  async findAll(authUser: any) {
+    const where = await this.scope.loanWhere(authUser);
+    return this.prisma.loan.findMany({ where: where as any, orderBy: { createdAt: 'desc' }, include: { customer: true, repayments: true, guarantors: true } });
   }
 
   async findOne(id: string, authUser: any) {

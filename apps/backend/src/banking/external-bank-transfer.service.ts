@@ -102,10 +102,19 @@ export class ExternalBankTransferService {
 
     const customer = await this.prisma.customer.findUnique({ where: { id: input.customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
-    const customerName = [customer.firstName, customer.middleName, customer.lastName]
+
+    // The current Customer model stores the person's name in firstName and
+    // lastName only. Do not reference a non-existent middleName Prisma field.
+    // If a middle name is entered in firstName by the existing customer flow,
+    // it remains part of the comparison; otherwise the stored first + last
+    // name is the complete name available to PWFB.
+    const customerName = [customer.firstName, customer.lastName]
       .filter(Boolean)
       .join(' ');
-    if (!this.namesMatch(customerName, accountName)) throw new BadRequestException('Beneficiary account name does not match the PWFB customer name');
+
+    if (!this.namesMatch(customerName, accountName)) {
+      throw new BadRequestException('Beneficiary account name does not match the PWFB customer name');
+    }
 
     const wallet = await this.prisma.customerWallet.findUnique({ where: { customerId: input.customerId } });
     if (!wallet) throw new NotFoundException('Customer wallet not found');

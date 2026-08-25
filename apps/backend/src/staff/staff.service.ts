@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { Role } from '@prisma/client';
 import { StaffRepository } from './staff.repository';
@@ -6,10 +6,16 @@ import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { StaffFilterDto } from './dto/staff-filter.dto';
 import { FlutterwaveService } from '../banking/flutterwave.service';
+import { StaffScopeService } from '../access/staff-scope.service';
 
 @Injectable()
 export class StaffService {
-  constructor(private readonly staffRepository: StaffRepository, private readonly flutterwaveService: FlutterwaveService) {}
+  constructor(
+    private readonly staffRepository: StaffRepository,
+    private readonly flutterwaveService: FlutterwaveService,
+    private readonly staffScopeService: StaffScopeService,
+  ) {}
+
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) {
     const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`;
@@ -24,6 +30,7 @@ export class StaffService {
     return staffId;
   }
   async verifyBvn(bvn: string) { return this.flutterwaveService.verifyBvn(bvn); }
+
   async create(createStaffDto: CreateStaffDto) {
     let bvnVerification: any = undefined;
     let registrationData = { ...createStaffDto };
@@ -44,22 +51,44 @@ export class StaffService {
       throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create staff');
     }
   }
-  async findAll(filter?: StaffFilterDto) {
-    const staff = await this.staffRepository.findAll();
+
+  async findAll(filter?: StaffFilterDto, authUser?: any) {
+    const staff = authUser
+      ? await this.findVisible(filter, authUser)
+      : await this.staffRepository.findAll();
+    return staff;
+  }
+
+  async findVisible(filter: StaffFilterDto | undefined, authUser: any) {
+    const where = await this.staffScopeService.staffWhere(authUser);
+    const staff = await this.staffRepository.findAllWhere(where);
     if (!filter) return staff;
     return staff.filter((member) => {
       const departmentMatch = !filter.department || member.department.name === filter.department;
       const branchMatch = !filter.branch || member.branch.name === filter.branch;
       const statusMatch = !filter.employmentStatus || member.employmentStatus === filter.employmentStatus;
-      const searchMatch = !filter.search || `${member.firstName} ${member.lastName}`.toLowerCase().includes(filter.search.toLowerCase());
+      const searchMatch = !filter.search || `${member.firstName} ${member.middleName ?? ''} ${member.lastName}`.toLowerCase().includes(filter.search.toLowerCase());
       return departmentMatch && branchMatch && statusMatch && searchMatch;
     });
   }
+
+  async findOneVisible(id: string, authUser: any) {
+    const where = await this.staffScopeService.staffWhere(authUser);
+    const staff = await this.staffRepository.findOneWhere(id, where);
+    if (!staff) throw new ForbiddenException('You do not have access to this staff member');
+    return staff;
+  }
+
   findOne(id: string) { return this.staffRepository.findOne(id); }
   update(id: string, updateStaffDto: UpdateStaffDto) { return this.staffRepository.update(id, updateStaffDto); }
   remove(id: string) { return this.staffRepository.remove(id); }
+
   assign(id: string, body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) {
     return this.staffRepository.createAssignment(id, body);
   }
-  assignmentHistory(id: string) { return this.staffRepository.assignmentHistory(id); }
+
+  async assignmentHistory(id: string, authUser?: any) {
+    if (authUser) await this.findOneVisible(id, authUser);
+    return this.staffRepository.assignmentHistory(id);
+  }
 }

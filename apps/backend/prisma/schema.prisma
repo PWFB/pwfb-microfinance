@@ -146,6 +146,12 @@ model Loan {
   amount Float
   interestRate Float?
   status String?
+  disbursementAmount Float?
+  disbursementAccountNumber String?
+  disbursementAccountName String?
+  disbursementBankCode String?
+  disbursementBankName String?
+  disbursementUsesAlternativeAccount Boolean @default(false)
   periodId String?
   period FinancialPeriod? @relation(fields: [periodId], references: [id])
   createdAt DateTime @default(now())

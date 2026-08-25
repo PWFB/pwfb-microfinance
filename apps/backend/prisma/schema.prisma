@@ -11,10 +11,15 @@ datasource db {
 enum Role {
   SUPER_ADMIN
   ADMIN
-  BRANCH_MANAGER
-  LOAN_OFFICER
-  TELLER
+  REGIONAL_MANAGER
+  DIVISIONAL_MANAGER
+  MONITORING_TEAM
   AUDITOR
+  AREA_MANAGER
+  BRANCH_MANAGER
+  CREDIT_OFFICER
+  TELLER
+  LOAN_OFFICER
   CUSTOMER
   STAFF
 }
@@ -215,12 +220,67 @@ model Department {
   staff Staff[]
 }
 
+model Region {
+  id String @id @default(cuid())
+  name String @unique
+  code String? @unique
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  divisions Division[]
+  areas Area[]
+  branches Branch[]
+  staff Staff[]
+  assignments StaffAssignment[]
+  @@index([active])
+}
+
+model Division {
+  id String @id @default(cuid())
+  name String
+  regionId String
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  region Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  areas Area[]
+  branches Branch[]
+  staff Staff[]
+  assignments StaffAssignment[]
+  @@unique([regionId, name])
+  @@index([regionId])
+}
+
+model Area {
+  id String @id @default(cuid())
+  name String
+  regionId String
+  divisionId String?
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  region Region @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  division Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  branches Branch[]
+  staff Staff[]
+  assignments StaffAssignment[]
+  @@unique([regionId, name])
+  @@index([regionId])
+  @@index([divisionId])
+}
+
 model Branch {
   id String @id @default(cuid())
   name String @unique
   address String?
+  regionId String?
+  divisionId String?
+  areaId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  region Region? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  division Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  area Area? @relation(fields: [areaId], references: [id], onDelete: SetNull)
   staff Staff[]
   customers Customer[]
   groups ClientGroup[]
@@ -229,6 +289,10 @@ model Branch {
   payrolls Payroll[]
   branchAccounts BranchVirtualAccount[]
   virtualAccounts CustomerVirtualAccount[]
+  assignments StaffAssignment[]
+  @@index([regionId])
+  @@index([divisionId])
+  @@index([areaId])
 }
 
 model Staff {
@@ -242,6 +306,9 @@ model Staff {
   position String
   departmentId String
   branchId String
+  regionId String?
+  divisionId String?
+  areaId String?
   employmentStatus StaffStatus @default(ACTIVE)
   bvn String? @unique
   bvnVerified Boolean @default(false)
@@ -253,9 +320,45 @@ model Staff {
   user User? @relation
   department Department @relation(fields: [departmentId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])
+  region Region? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  division Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  area Area? @relation(fields: [areaId], references: [id], onDelete: SetNull)
   customers Customer[] @relation("StaffCustomers")
   payrollItems PayrollItem[]
   collections DailyCollection[]
+  assignments StaffAssignment[]
+  @@index([branchId])
+  @@index([regionId])
+  @@index([divisionId])
+  @@index([areaId])
+}
+
+model StaffAssignment {
+  id String @id @default(cuid())
+  staffId String
+  role Role
+  regionId String?
+  divisionId String?
+  areaId String?
+  branchId String?
+  startsAt DateTime @default(now())
+  endsAt DateTime?
+  active Boolean @default(true)
+  notes String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  region Region? @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  division Division? @relation(fields: [divisionId], references: [id], onDelete: SetNull)
+  area Area? @relation(fields: [areaId], references: [id], onDelete: SetNull)
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  @@index([staffId])
+  @@index([role])
+  @@index([regionId])
+  @@index([divisionId])
+  @@index([areaId])
+  @@index([branchId])
+  @@index([active])
 }
 
 model FinancialPeriod {

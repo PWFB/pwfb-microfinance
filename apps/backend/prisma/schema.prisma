@@ -410,6 +410,7 @@ model CustomerVirtualAccount {
   accountNumber String? @unique
   accountName String?
   provider String?
+  providerCustomerId String?
   providerReference String? @unique
   status String @default("PENDING")
   requestedAt DateTime @default(now())
@@ -424,6 +425,7 @@ model CustomerVirtualAccount {
   @@index([institutionId])
   @@index([branchId])
   @@index([status])
+  @@index([providerCustomerId])
 }
 
 model CustomerWallet {

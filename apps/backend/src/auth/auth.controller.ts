@@ -28,6 +28,12 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  /** Verify a Google Identity Services ID token and issue a PWFB JWT. */
+  @Post('google')
+  googleLogin(@Body() body: { credential: string }) {
+    return this.authService.googleLogin(body?.credential);
+  }
+
   /**
    * Start passkey registration for the currently
    * authenticated user.
@@ -38,34 +44,20 @@ export class AuthController {
     return this.authService.passkeyRegisterOptions(req.user);
   }
 
-  /**
-   * Complete passkey registration.
-   */
+  /** Complete passkey registration. */
   @UseGuards(JwtAuthGuard)
   @Post('passkey/register/verify')
-  passkeyRegisterVerify(
-    @Req() req: any,
-    @Body() body: any,
-  ) {
-    return this.authService.passkeyRegisterVerify(
-      req.user,
-      body,
-    );
+  passkeyRegisterVerify(@Req() req: any, @Body() body: any) {
+    return this.authService.passkeyRegisterVerify(req.user, body);
   }
 
-  /**
-   * Start passwordless/passkey login.
-   */
+  /** Start passwordless/passkey login. */
   @Post('passkey/login/options')
   passkeyLoginOptions(@Body() body: { email: string }) {
-    return this.authService.passkeyLoginOptions(
-      body.email,
-    );
+    return this.authService.passkeyLoginOptions(body.email);
   }
 
-  /**
-   * Complete passwordless/passkey login.
-   */
+  /** Complete passwordless/passkey login. */
   @Post('passkey/login/verify')
   passkeyLoginVerify(@Body() body: any) {
     return this.authService.passkeyLoginVerify(body);

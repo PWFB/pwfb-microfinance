@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { FlutterwaveService } from './flutterwave.service';
 
 export type CustomerVirtualAccountView = {
   id: string;
@@ -12,6 +13,7 @@ export type CustomerVirtualAccountView = {
   accountNumber: string | null;
   accountName: string | null;
   provider: string | null;
+  providerCustomerId?: string | null;
   providerReference: string | null;
   status: 'PENDING' | 'ACTIVE' | 'FAILED' | 'INACTIVE';
   requestedAt: Date;
@@ -21,7 +23,10 @@ export type CustomerVirtualAccountView = {
 
 @Injectable()
 export class CustomerVirtualAccountService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly flutterwave: FlutterwaveService,
+  ) {}
 
   private async get(customerId: string): Promise<CustomerVirtualAccountView[]> {
     return this.prisma.$queryRaw<CustomerVirtualAccountView[]>`
@@ -35,6 +40,7 @@ export class CustomerVirtualAccountService {
         cva."accountNumber",
         cva."accountName",
         cva."provider",
+        cva."providerCustomerId",
         cva."providerReference",
         cva."status",
         cva."requestedAt",
@@ -60,7 +66,15 @@ export class CustomerVirtualAccountService {
   async ensure(customerId: string, institutionId?: string) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      select: { id: true, branchId: true, firstName: true, lastName: true },
+      select: {
+        id: true,
+        branchId: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        user: { select: { email: true } },
+      },
     });
 
     if (!customer) throw new NotFoundException('Customer not found');
@@ -74,24 +88,90 @@ export class CustomerVirtualAccountService {
       if (!institution.active) throw new BadRequestException('Bank or payment institution is inactive');
     }
 
-    const existing = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT "id"
-      FROM "CustomerVirtualAccount"
-      WHERE "customerId" = ${customerId}
-        AND "status" IN ('PENDING', 'ACTIVE')
-      ORDER BY "createdAt" DESC
-      LIMIT 1
-    `;
+    const existing = await this.prisma.customerVirtualAccount.findFirst({
+      where: {
+        customerId,
+        status: { in: ['PENDING', 'ACTIVE'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-    if (existing.length === 0) {
-      await this.prisma.$executeRaw`
-        INSERT INTO "CustomerVirtualAccount"
-          ("id", "customerId", "institutionId", "branchId", "accountName", "status", "requestedAt", "createdAt", "updatedAt")
-        VALUES
-          (${randomUUID()}, ${customerId}, ${institutionId ?? null}, ${customer.branchId ?? null}, ${`${customer.firstName} ${customer.lastName}`}, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `;
+    if (existing?.status === 'ACTIVE' && existing.accountNumber) {
+      return this.get(customerId);
     }
 
-    return this.get(customerId);
+    const local = existing
+      ? existing
+      : await this.prisma.customerVirtualAccount.create({
+          data: {
+            id: randomUUID(),
+            customerId,
+            institutionId: institutionId ?? null,
+            branchId: customer.branchId ?? null,
+            accountName: `${customer.firstName} ${customer.lastName}`.trim(),
+            status: 'PENDING',
+          },
+        });
+
+    const email = String(customer.email ?? customer.user?.email ?? '').trim();
+    if (!email) {
+      const reason = 'Customer email is required to create a Flutterwave virtual account';
+      await this.prisma.customerVirtualAccount.update({
+        where: { id: local.id },
+        data: { status: 'FAILED', failureReason: reason },
+      });
+      throw new BadRequestException(reason);
+    }
+
+    const narration = `${customer.firstName} ${customer.lastName}`.trim();
+    const reference = `pwfb-va-${customer.id}-${local.id}`;
+
+    try {
+      // Flutterwave's current API requires a Flutterwave customer before the
+      // virtual account can be attached to that customer.
+      const providerCustomer = existing?.providerCustomerId
+        ? { id: existing.providerCustomerId }
+        : await this.flutterwave.createCustomer({
+            email,
+            firstName: customer.firstName,
+            lastName: customer.lastName,
+            phone: customer.phone,
+          });
+
+      const virtualAccount = await this.flutterwave.createStaticVirtualAccount({
+        customerId: providerCustomer.id,
+        reference,
+        narration,
+      });
+
+      await this.prisma.customerVirtualAccount.update({
+        where: { id: local.id },
+        data: {
+          institutionId: institutionId ?? local.institutionId,
+          branchId: customer.branchId ?? local.branchId,
+          accountNumber: virtualAccount.accountNumber,
+          accountName: virtualAccount.accountName ?? narration,
+          provider: 'FLUTTERWAVE',
+          providerCustomerId: providerCustomer.id,
+          providerReference: virtualAccount.providerReference,
+          status: 'ACTIVE',
+          assignedAt: new Date(),
+          failureReason: null,
+        },
+      });
+
+      return this.get(customerId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Flutterwave virtual account creation failed';
+      await this.prisma.customerVirtualAccount.update({
+        where: { id: local.id },
+        data: {
+          provider: 'FLUTTERWAVE',
+          status: 'FAILED',
+          failureReason: reason.slice(0, 500),
+        },
+      });
+      throw error;
+    }
   }
 }

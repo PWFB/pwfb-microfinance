@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
 } from 'class-validator';
 import { Role } from '@prisma/client';
 
@@ -56,4 +57,9 @@ export class CreateStaffDto {
   @IsOptional()
   @IsEnum(EmploymentStatus)
   employmentStatus?: EmploymentStatus = EmploymentStatus.ACTIVE;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'BVN must be exactly 11 digits' })
+  bvn?: string;
 }

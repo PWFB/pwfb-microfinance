@@ -174,8 +174,8 @@ export default function AddStaffPage() {
   }
 
   return (
-    <main>
-      <div className="pwfb-page-header">
+    <main className="staff-registration-page">
+      <div className="pwfb-page-header staff-page-header">
         <div>
           <p className="pwfb-eyebrow">STAFF MANAGEMENT</p>
           <h1 className="pwfb-page-title">Staff Registration</h1>
@@ -183,28 +183,28 @@ export default function AddStaffPage() {
             Create a staff account and assign the exact role and organizational scope.
           </p>
         </div>
-        <Link href="/staff-dashboard" className="pwfb-secondary-button">Back</Link>
+        <Link href="/staff-dashboard" className="pwfb-secondary-button staff-back-button">Back</Link>
       </div>
 
-      <section className="pwfb-panel" style={{ maxWidth: 920 }}>
-        <div className="pwfb-panel-header">
+      <section className="pwfb-panel staff-registration-card">
+        <div className="pwfb-panel-header staff-section-header">
           <div>
             <h2>Role &amp; Organization Assignment</h2>
-            <p>Choose Role → Region → Division → Area → Branch. Each selection controls the next available level.</p>
+            <p>Choose Role → Region → Division → Area → Branch.</p>
           </div>
           <span className="pwfb-record-count">{regions.length} region{regions.length === 1 ? '' : 's'}</span>
         </div>
 
-        <form onSubmit={submit} style={{ display: 'grid', gap: 18 }}>
-          <div className="pwfb-form-grid">
-            <label>
+        <form onSubmit={submit} className="staff-form">
+          <div className="staff-field-grid">
+            <label className="staff-field">
               <span>Role</span>
               <select value={form.role} onChange={(e) => update('role', e.target.value)}>
                 {roles.map((role) => <option key={role} value={role}>{role.replaceAll('_', ' ')}</option>)}
               </select>
             </label>
 
-            <label>
+            <label className="staff-field">
               <span>Region</span>
               <select value={form.regionId} onChange={(e) => selectRegion(e.target.value)} required disabled={loadingOrg}>
                 <option value="">{loadingOrg ? 'Loading regions...' : 'Select Region'}</option>
@@ -212,7 +212,7 @@ export default function AddStaffPage() {
               </select>
             </label>
 
-            <label>
+            <label className="staff-field">
               <span>Division</span>
               <select value={form.divisionId} onChange={(e) => selectDivision(e.target.value)} disabled={!form.regionId || divisions.length === 0}>
                 <option value="">{divisions.length ? 'Select Division' : 'No divisions available'}</option>
@@ -220,7 +220,7 @@ export default function AddStaffPage() {
               </select>
             </label>
 
-            <label>
+            <label className="staff-field">
               <span>Area</span>
               <select value={form.areaId} onChange={(e) => selectArea(e.target.value)} disabled={!form.regionId || areas.length === 0}>
                 <option value="">{areas.length ? 'Select Area' : 'No areas available'}</option>
@@ -228,7 +228,7 @@ export default function AddStaffPage() {
               </select>
             </label>
 
-            <label>
+            <label className="staff-field">
               <span>Branch</span>
               <select value={form.branch} onChange={(e) => update('branch', e.target.value)} required disabled={!form.regionId || branches.length === 0}>
                 <option value="">{branches.length ? 'Select Branch' : 'No branches available'}</option>
@@ -236,17 +236,17 @@ export default function AddStaffPage() {
               </select>
             </label>
 
-            <label>
+            <label className="staff-field">
               <span>Department ID</span>
               <input value={form.department} onChange={(e) => update('department', e.target.value)} placeholder="Department ID" required />
             </label>
 
-            <label>
+            <label className="staff-field">
               <span>Position</span>
               <input value={form.position} onChange={(e) => update('position', e.target.value)} placeholder="e.g. Credit Officer" required />
             </label>
 
-            <label>
+            <label className="staff-field">
               <span>Employment status</span>
               <select value={form.employmentStatus} onChange={(e) => update('employmentStatus', e.target.value)}>
                 <option value="ACTIVE">ACTIVE</option>
@@ -256,7 +256,7 @@ export default function AddStaffPage() {
           </div>
 
           {form.regionId && (
-            <div className="pwfb-stat-card">
+            <div className="staff-assignment-summary">
               <span>Current assignment scope</span>
               <strong>
                 {selectedRegion?.name}
@@ -264,29 +264,37 @@ export default function AddStaffPage() {
                 {form.areaId ? ` → ${areas.find((item) => item.id === form.areaId)?.name ?? ''}` : ''}
                 {form.branch ? ` → ${branches.find((item) => item.id === form.branch)?.name ?? ''}` : ''}
               </strong>
-              <small>This scope becomes the staff member's initial active assignment.</small>
+              <small>This becomes the staff member's initial active assignment.</small>
             </div>
           )}
 
-          <div className="pwfb-panel" style={{ margin: 0, background: 'rgba(247, 148, 29, 0.04)' }}>
-            <div className="pwfb-panel-header">
+          <section className="staff-details-card">
+            <div className="staff-section-header">
               <div>
                 <h2>Personal &amp; BVN Details</h2>
                 <p>BVN verification can populate the staff member's legal name before registration.</p>
               </div>
             </div>
 
-            <div className="pwfb-form-grid">
-              <label>
+            <div className="staff-field-grid staff-personal-grid">
+              <label className="staff-field staff-bvn-field">
                 <span>BVN</span>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input value={form.bvn} onChange={(e) => update('bvn', e.target.value.replace(/\D/g, '').slice(0, 11))} inputMode="numeric" maxLength={11} placeholder="11-digit BVN" />
-                  <button type="button" className="pwfb-secondary-button" onClick={verifyBvn} disabled={verifyingBvn}>{verifyingBvn ? 'Checking...' : 'Verify BVN'}</button>
+                <div className="staff-bvn-row">
+                  <input
+                    value={form.bvn}
+                    onChange={(e) => update('bvn', e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    inputMode="numeric"
+                    maxLength={11}
+                    placeholder="11-digit BVN"
+                  />
+                  <button type="button" className="pwfb-secondary-button staff-verify-button" onClick={verifyBvn} disabled={verifyingBvn}>
+                    {verifyingBvn ? 'Checking...' : 'Verify BVN'}
+                  </button>
                 </div>
               </label>
 
               {bvnResult?.verified && (
-                <div className="pwfb-stat-card">
+                <div className="staff-verified-box">
                   <span>BVN verified name</span>
                   <strong>{bvnResult.fullName}</strong>
                 </div>
@@ -299,37 +307,98 @@ export default function AddStaffPage() {
                 ['email', 'Email (optional)', false],
                 ['phone', 'Phone', true],
               ].map(([name, label, required]) => (
-                <label key={name as string}>
+                <label key={name as string} className="staff-field">
                   <span>{label as string}</span>
-                  <input value={(form as any)[name as string]} onChange={(e) => update(name as string, e.target.value)} required={Boolean(required)} type={name === 'email' ? 'email' : 'text'} />
+                  <input
+                    value={(form as any)[name as string]}
+                    onChange={(e) => update(name as string, e.target.value)}
+                    required={Boolean(required)}
+                    type={name === 'email' ? 'email' : 'text'}
+                  />
                 </label>
               ))}
             </div>
-          </div>
+          </section>
 
-          {error && <div className="pwfb-empty-state"><strong>{error}</strong></div>}
+          {error && <div className="staff-error"><strong>{error}</strong></div>}
 
-          <button type="submit" className="pwfb-primary-button" disabled={saving || loadingOrg}>
+          <button type="submit" className="pwfb-primary-button staff-submit-button" disabled={saving || loadingOrg}>
             {saving ? 'Creating staff...' : 'Register Staff'}
           </button>
         </form>
       </section>
 
       {result?.login && (
-        <section className="pwfb-panel" style={{ maxWidth: 920, marginTop: 20 }}>
-          <div className="pwfb-panel-header">
+        <section className="pwfb-panel staff-created-card">
+          <div className="pwfb-panel-header staff-section-header">
             <div>
               <h2>Staff Created Successfully</h2>
               <p>Save the generated login details securely.</p>
             </div>
           </div>
-          <div className="pwfb-stat-grid">
-            <div className="pwfb-stat-card"><span>Login email</span><strong>{result.login.email}</strong></div>
-            <div className="pwfb-stat-card pwfb-stat-orange"><span>Temporary password</span><strong>{result.login.temporaryPassword}</strong></div>
-            <div className="pwfb-stat-card"><span>Staff ID</span><strong>{result.staff?.staffId}</strong></div>
+          <div className="staff-created-grid">
+            <div><span>Login email</span><strong>{result.login.email}</strong></div>
+            <div><span>Temporary password</span><strong>{result.login.temporaryPassword}</strong></div>
+            <div><span>Staff ID</span><strong>{result.staff?.staffId}</strong></div>
           </div>
         </section>
       )}
+
+      <style jsx>{`
+        .staff-registration-page { width: 100%; min-width: 0; }
+        .staff-page-header { align-items: flex-end; }
+        .staff-registration-card { width: 100%; max-width: 920px; overflow: hidden; }
+        .staff-section-header { min-width: 0; }
+        .staff-section-header > div { min-width: 0; }
+        .staff-section-header h2 { margin: 0; }
+        .staff-section-header p { margin: 6px 0 0; line-height: 1.45; }
+        .staff-form { display: grid; gap: 20px; width: 100%; min-width: 0; }
+        .staff-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; width: 100%; min-width: 0; }
+        .staff-field { display: grid; grid-template-columns: minmax(110px, 38%) minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; }
+        .staff-field > span { color: #35433b; font-size: 13px; font-weight: 750; line-height: 1.25; }
+        .staff-field input, .staff-field select { width: 100%; min-width: 0; height: 44px; padding: 9px 12px; border: 1px solid #cfdad3; border-radius: 10px; background: #fff; color: #17211b; outline: none; }
+        .staff-field input:focus, .staff-field select:focus { border-color: #0f7b35; box-shadow: 0 0 0 3px rgba(15,123,53,.11); }
+        .staff-assignment-summary { display: grid; gap: 5px; padding: 15px 16px; border: 1px solid #dceee2; border-radius: 14px; background: #f7fcf9; min-width: 0; }
+        .staff-assignment-summary span, .staff-assignment-summary small { color: #66736b; font-size: 12px; }
+        .staff-assignment-summary strong { color: #0a5c28; font-size: 14px; overflow-wrap: anywhere; }
+        .staff-details-card { display: grid; gap: 18px; margin: 0; padding: 20px; border: 1px solid #f0dfc9; border-radius: 16px; background: rgba(247,148,29,.045); min-width: 0; }
+        .staff-personal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .staff-bvn-field { grid-column: 1 / -1; }
+        .staff-bvn-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; min-width: 0; }
+        .staff-verify-button { min-height: 44px; white-space: nowrap; border: 0; }
+        .staff-verified-box { grid-column: 1 / -1; display: grid; gap: 4px; padding: 13px 14px; border: 1px solid #cce7d5; border-radius: 12px; background: #f4fbf6; min-width: 0; }
+        .staff-verified-box span { color: #66736b; font-size: 12px; font-weight: 700; }
+        .staff-verified-box strong { color: #0a5c28; overflow-wrap: anywhere; }
+        .staff-error { padding: 13px 15px; border: 1px solid #f0c9c9; border-radius: 10px; background: #fff6f6; color: #a51d1d; }
+        .staff-submit-button { width: 100%; min-height: 48px; }
+        .staff-created-card { width: 100%; max-width: 920px; margin-top: 20px; }
+        .staff-created-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+        .staff-created-grid > div { display: grid; gap: 6px; min-width: 0; padding: 15px; border: 1px solid #dceee2; border-radius: 12px; background: #fff; }
+        .staff-created-grid span { color: #66736b; font-size: 12px; font-weight: 700; }
+        .staff-created-grid strong { color: #17211b; overflow-wrap: anywhere; }
+
+        @media (max-width: 760px) {
+          .staff-registration-page { padding-bottom: 8px; }
+          .staff-page-header { align-items: flex-start; flex-direction: column; gap: 12px; }
+          .staff-back-button { width: 100%; }
+          .staff-registration-card { max-width: none; border-radius: 14px; }
+          .staff-section-header { align-items: flex-start; flex-direction: column; gap: 10px; }
+          .staff-field-grid, .staff-personal-grid { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+          .staff-field { grid-template-columns: 1fr; gap: 6px; align-items: stretch; }
+          .staff-field > span { font-size: 12px; }
+          .staff-field input, .staff-field select { height: 46px; }
+          .staff-bvn-field { grid-column: auto; }
+          .staff-bvn-row { grid-template-columns: minmax(0, 1fr); }
+          .staff-verify-button { width: 100%; }
+          .staff-verified-box { grid-column: auto; }
+          .staff-created-grid { grid-template-columns: minmax(0, 1fr); }
+          .staff-details-card { padding: 16px; }
+        }
+
+        @media (min-width: 761px) and (max-width: 980px) {
+          .staff-field { grid-template-columns: minmax(95px, 34%) minmax(0, 1fr); }
+        }
+      `}</style>
     </main>
   );
 }

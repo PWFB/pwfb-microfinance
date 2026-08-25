@@ -7,7 +7,7 @@ const ROLE_LEVELS: Record<string, string> = {
   DIVISIONAL_MANAGER: 'division',
   AREA_MANAGER: 'area',
   BRANCH_MANAGER: 'branch',
-  CREDIT_OFFICER: 'assigned',
+  CREDIT_OFFICER: 'branch',
   LOAN_OFFICER: 'branch',
   TELLER: 'branch',
   STAFF: 'branch',
@@ -18,11 +18,14 @@ export class StaffScopeService {
   constructor(private readonly prisma: PrismaService) {}
 
   async get(authUser: any) {
-    if (!authUser?.id) throw new UnauthorizedException('Authentication required');
-    if (GLOBAL_ROLES.has(authUser.role)) return { role: authUser.role, global: true, staff: null };
+    const userId = authUser?.id ?? authUser?.sub;
+    if (!userId) throw new UnauthorizedException('Authentication required');
+    if (GLOBAL_ROLES.has(authUser?.role)) {
+      return { role: authUser.role, global: true, staff: null };
+    }
 
-    const staff = await this.prisma.staff.findUnique({
-      where: { userId: authUser.id },
+    const staff = await this.prisma.staff.findFirst({
+      where: { userId },
       select: { id: true, branchId: true, regionId: true, divisionId: true, areaId: true },
     });
 
@@ -33,8 +36,8 @@ export class StaffScopeService {
   async customerWhere(authUser: any) {
     const scope = await this.get(authUser);
     if (scope.global) return {};
+
     const level = ROLE_LEVELS[scope.role];
-    if (level === 'assigned') return { assignedStaffId: scope.staff.id };
     if (level === 'region') return { branch: { regionId: scope.staff.regionId } };
     if (level === 'division') return { branch: { divisionId: scope.staff.divisionId } };
     if (level === 'area') return { branch: { areaId: scope.staff.areaId } };
@@ -44,6 +47,28 @@ export class StaffScopeService {
   async loanWhere(authUser: any) {
     const customer = await this.customerWhere(authUser);
     return Object.keys(customer).length ? { customer } : {};
+  }
+
+  /**
+   * Staff visibility follows the organizational hierarchy and includes
+   * historical assignments, so managers can see staff who previously
+   * worked within their region/division/area/branch.
+   */
+  async staffWhere(authUser: any) {
+    const scope = await this.get(authUser);
+    if (scope.global) return {};
+
+    const level = ROLE_LEVELS[scope.role];
+    if (level === 'region') {
+      return { OR: [{ regionId: scope.staff.regionId }, { assignments: { some: { regionId: scope.staff.regionId } } }] };
+    }
+    if (level === 'division') {
+      return { OR: [{ divisionId: scope.staff.divisionId }, { assignments: { some: { divisionId: scope.staff.divisionId } } }] };
+    }
+    if (level === 'area') {
+      return { OR: [{ areaId: scope.staff.areaId }, { assignments: { some: { areaId: scope.staff.areaId } } }] };
+    }
+    return { OR: [{ branchId: scope.staff.branchId }, { assignments: { some: { branchId: scope.staff.branchId } } }] };
   }
 
   async assertCustomerAccess(authUser: any, customerId: string) {

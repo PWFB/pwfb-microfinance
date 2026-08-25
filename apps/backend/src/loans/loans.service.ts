@@ -18,6 +18,12 @@ export class LoansService {
         amount: createLoanDto.amount,
         interestRate: createLoanDto.interestRate,
         status: createLoanDto.status ?? 'PENDING',
+        disbursementAmount: createLoanDto.disbursementAmount,
+        disbursementAccountNumber: createLoanDto.disbursementAccountNumber,
+        disbursementAccountName: createLoanDto.disbursementAccountName,
+        disbursementBankCode: createLoanDto.disbursementBankCode,
+        disbursementBankName: createLoanDto.disbursementBankName,
+        disbursementUsesAlternativeAccount: createLoanDto.disbursementUsesAlternativeAccount ?? false,
       },
       include: { customer: true, repayments: true, guarantors: true },
     });
@@ -26,14 +32,30 @@ export class LoansService {
   findAll() {
     return this.prisma.loan.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { customer: true, repayments: true, guarantors: true },
+      include: {
+        customer: {
+          include: {
+            bankAccounts: { where: { status: 'ACTIVE' }, include: { institution: true }, orderBy: { isPrimary: 'desc' } },
+          },
+        },
+        repayments: true,
+        guarantors: true,
+      },
     });
   }
 
   async findOne(id: string) {
     const loan = await this.prisma.loan.findUnique({
       where: { id },
-      include: { customer: true, repayments: true, guarantors: true },
+      include: {
+        customer: {
+          include: {
+            bankAccounts: { where: { status: 'ACTIVE' }, include: { institution: true }, orderBy: { isPrimary: 'desc' } },
+          },
+        },
+        repayments: true,
+        guarantors: true,
+      },
     });
     if (!loan) throw new NotFoundException('Loan not found');
     return loan;
@@ -52,6 +74,12 @@ export class LoansService {
         amount: updateLoanDto.amount,
         interestRate: updateLoanDto.interestRate,
         status: updateLoanDto.status,
+        disbursementAmount: updateLoanDto.disbursementAmount,
+        disbursementAccountNumber: updateLoanDto.disbursementAccountNumber,
+        disbursementAccountName: updateLoanDto.disbursementAccountName,
+        disbursementBankCode: updateLoanDto.disbursementBankCode,
+        disbursementBankName: updateLoanDto.disbursementBankName,
+        disbursementUsesAlternativeAccount: updateLoanDto.disbursementUsesAlternativeAccount,
       },
       include: { customer: true, repayments: true, guarantors: true },
     });

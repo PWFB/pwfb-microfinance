@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
-
 import { PrismaModule } from './prisma/prisma.module';
 import { StaffModule } from './staff/staff.module';
 import { ReportsModule } from './reports/reports.module';
@@ -24,6 +23,7 @@ import { CashbookModule } from './cashbook/cashbook.module';
 import { CollectionsModule } from './collections/collections.module';
 import { DashboardsModule } from './dashboards/dashboards.module';
 import { BankingModule } from './banking/banking.module';
+import { BalmzAiModule } from './balmz-ai/balmz-ai.module';
 
 @Module({
   imports: [
@@ -50,6 +50,7 @@ import { BankingModule } from './banking/banking.module';
     CashbookModule,
     CollectionsModule,
     DashboardsModule,
+    BalmzAiModule,
   ],
   controllers: [AppController],
 })

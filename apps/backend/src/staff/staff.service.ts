@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { Role } from '@prisma/client';
 import { StaffRepository } from './staff.repository';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -57,4 +58,8 @@ export class StaffService {
   findOne(id: string) { return this.staffRepository.findOne(id); }
   update(id: string, updateStaffDto: UpdateStaffDto) { return this.staffRepository.update(id, updateStaffDto); }
   remove(id: string) { return this.staffRepository.remove(id); }
+  assign(id: string, body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) {
+    return this.staffRepository.createAssignment(id, body);
+  }
+  assignmentHistory(id: string) { return this.staffRepository.assignmentHistory(id); }
 }

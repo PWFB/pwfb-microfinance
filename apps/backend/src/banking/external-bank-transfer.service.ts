@@ -18,7 +18,13 @@ export class ExternalBankTransferService {
   }
 
   private normalizeName(value: string) {
-    return value.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+    return String(value || '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
   }
 
   private namesMatch(customerName: string, accountName: string) {
@@ -26,8 +32,14 @@ export class ExternalBankTransferService {
     const beneficiary = this.normalizeName(accountName);
     if (!customer || !beneficiary) return false;
     if (customer === beneficiary) return true;
+
     const customerParts = customer.split(' ').filter(Boolean);
-    return customerParts.length >= 2 && customerParts.every((part) => beneficiary.includes(part));
+    const beneficiaryParts = beneficiary.split(' ').filter(Boolean);
+    if (customerParts.length < 2 || beneficiaryParts.length < 2) return false;
+
+    // Require every part of the complete PWFB customer name to be present in
+    // the bank-verified beneficiary name. This prevents a partial-name match.
+    return customerParts.every((part) => beneficiaryParts.includes(part));
   }
 
   async listInstitutions() {
@@ -90,7 +102,9 @@ export class ExternalBankTransferService {
 
     const customer = await this.prisma.customer.findUnique({ where: { id: input.customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
-    const customerName = `${customer.firstName} ${customer.lastName}`;
+    const customerName = [customer.firstName, customer.middleName, customer.lastName]
+      .filter(Boolean)
+      .join(' ');
     if (!this.namesMatch(customerName, accountName)) throw new BadRequestException('Beneficiary account name does not match the PWFB customer name');
 
     const wallet = await this.prisma.customerWallet.findUnique({ where: { customerId: input.customerId } });
@@ -101,40 +115,17 @@ export class ExternalBankTransferService {
     const provider = this.provider();
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const providerResult = provider === 'PAYSTACK'
-      ? await this.paystackService.transferToBank({
-          bankCode,
-          accountNumber,
-          accountName,
-          amount,
-          narration: input.description || `PWFB transfer to ${accountName}`,
-          reference: xref,
-        })
+      ? await this.paystackService.transferToBank({ bankCode, accountNumber, accountName, amount, narration: input.description || `PWFB transfer to ${accountName}`, reference: xref })
       : provider === 'FLUTTERWAVE'
-        ? await this.flutterwaveService.transfer({
-            bankCode,
-            accountNumber,
-            accountName,
-            amount,
-            narration: input.description || `PWFB transfer to ${accountName}`,
-            reference: xref,
-          })
-        : await this.nibssService.transfer({
-            bankCode,
-            accountNumber,
-            amount,
-            narration: input.description || `PWFB transfer to ${accountName}`,
-            xref,
-          });
+        ? await this.flutterwaveService.transfer({ bankCode, accountNumber, accountName, amount, narration: input.description || `PWFB transfer to ${accountName}`, reference: xref })
+        : await this.nibssService.transfer({ bankCode, accountNumber, amount, narration: input.description || `PWFB transfer to ${accountName}`, xref });
 
     return this.prisma.$transaction(async (tx) => {
       const currentWallet = await tx.customerWallet.findUnique({ where: { customerId: input.customerId } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
       if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance after provider acceptance');
       const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;
-      const updated = await tx.customerWallet.updateMany({
-        where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } },
-        data: { balance: newBalance },
-      });
+      const updated = await tx.customerWallet.updateMany({ where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } }, data: { balance: newBalance } });
       if (updated.count !== 1) throw new BadRequestException('Transfer could not be completed because the wallet balance changed');
 
       const providerStatus = String((providerResult as any)?.status ?? '').toUpperCase();

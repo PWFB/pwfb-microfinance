@@ -55,6 +55,18 @@ export class CreateStaffDto {
   branch: string;
 
   @IsOptional()
+  @IsString()
+  regionId?: string;
+
+  @IsOptional()
+  @IsString()
+  divisionId?: string;
+
+  @IsOptional()
+  @IsString()
+  areaId?: string;
+
+  @IsOptional()
   @IsEnum(EmploymentStatus)
   employmentStatus?: EmploymentStatus = EmploymentStatus.ACTIVE;
 

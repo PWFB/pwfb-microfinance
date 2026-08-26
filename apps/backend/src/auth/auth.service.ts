@@ -81,7 +81,7 @@ export class AuthService {
   }
 
   private authenticatorKey() {
-    const seed = process.env.JWT_SECRET || process.env.AUTHENTICATOR_ENCRYPTION_KEY;
+    const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET;
     if (!seed || seed === 'pwfb-secret-key') throw new BadRequestException('Authenticator encryption key is not configured on the server');
     return createHash('sha256').update(seed).digest();
   }

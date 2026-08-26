@@ -45,9 +45,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const profile = await apiRequest("/auth/profile");
+      let profile = await apiRequest("/auth/profile");
+
+      if (profile?.twoFactorRequired) {
+        const code = window.prompt(
+          "Google Authenticator is enabled. Enter your 6-digit code to continue."
+        );
+        if (!code?.trim()) {
+          throw new Error("Two-factor authentication is required to continue.");
+        }
+
+        await apiRequest("/auth/2fa/verify", {
+          method: "POST",
+          body: JSON.stringify({ token, code: code.trim() }),
+        });
+
+        profile = await apiRequest("/auth/profile");
+      }
+
       setUser(profile);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("Two-factor authentication is required")) {
+        throw error;
+      }
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       sessionStorage.removeItem("token");
@@ -68,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    refreshProfile();
+    refreshProfile().catch(() => undefined);
   }, []);
 
   return (

@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: pwfb-backend
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: npm install && npm run build --workspace=backend
+    startCommand: npm run start:prod --workspace=backend
+    healthCheckPath: /health
+    autoDeploy: true
+
+  - type: web
+    name: pwfb-frontend
+    runtime: node
+    plan: starter
+    rootDir: .
+    buildCommand: npm install && npm run build --workspace=frontend
+    startCommand: npm run start --workspace=frontend
+    autoDeploy: true

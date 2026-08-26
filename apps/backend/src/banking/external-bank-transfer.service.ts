@@ -32,25 +32,16 @@ export class ExternalBankTransferService {
     const beneficiary = this.normalizeName(accountName);
     if (!customer || !beneficiary) return false;
     if (customer === beneficiary) return true;
-
     const customerParts = customer.split(' ').filter(Boolean);
     const beneficiaryParts = beneficiary.split(' ').filter(Boolean);
     if (customerParts.length < 2 || beneficiaryParts.length < 2) return false;
-
-    // Require every part of the complete PWFB customer name to be present in
-    // the bank-verified beneficiary name. This prevents a partial-name match.
     return customerParts.every((part) => beneficiaryParts.includes(part));
   }
 
   async listInstitutions() {
     const provider = this.provider();
-    if (provider === 'FLUTTERWAVE') {
-      return this.flutterwaveService.listBanks('NG');
-    }
-    return this.prisma.bankInstitution.findMany({
-      where: { active: true },
-      orderBy: { name: 'asc' },
-    });
+    if (provider === 'FLUTTERWAVE') return this.flutterwaveService.listBanks('NG');
+    return this.prisma.bankInstitution.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
 
   async searchInstitutions(search?: string) {
@@ -58,61 +49,66 @@ export class ExternalBankTransferService {
     const query = String(search || '').trim().toLowerCase();
     if (provider === 'FLUTTERWAVE') {
       const banks = await this.flutterwaveService.listBanks('NG');
-      return query
-        ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query))
-        : banks;
+      return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
     }
     return this.prisma.bankInstitution.findMany({
       where: {
         active: true,
-        ...(search
-          ? {
-              OR: [
-                { name: { contains: search, mode: 'insensitive' } },
-                { shortName: { contains: search, mode: 'insensitive' } },
-                { code: { contains: search, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
+        ...(search ? { OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { shortName: { contains: search, mode: 'insensitive' } },
+          { code: { contains: search, mode: 'insensitive' } },
+        ] } : {}),
       },
       orderBy: { name: 'asc' },
     });
   }
 
+  /** Performs a live provider name enquiry. The returned name is never taken from the client. */
   async nameEnquiry(bankCode: string, accountNumber: string) {
     const provider = this.provider();
-    if (provider === 'PAYSTACK') {
-      return this.paystackService.resolveBankAccount(bankCode, accountNumber);
-    }
-    if (provider === 'FLUTTERWAVE') {
-      return this.flutterwaveService.nameEnquiry(bankCode, accountNumber);
-    }
-    return this.nibssService.nameEnquiry(bankCode, accountNumber);
+    const result = provider === 'PAYSTACK'
+      ? await this.paystackService.resolveBankAccount(bankCode, accountNumber)
+      : provider === 'FLUTTERWAVE'
+        ? await this.flutterwaveService.nameEnquiry(bankCode, accountNumber)
+        : await this.nibssService.nameEnquiry(bankCode, accountNumber);
+
+    const verifiedName = String(result?.accountName || '').trim();
+    if (!verifiedName) throw new BadRequestException('Bank provider did not return a verified account name');
+
+    return {
+      ...result,
+      accountName: verifiedName,
+      verified: true,
+      provider,
+    };
   }
 
   async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string }) {
     const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
-    const accountName = String(input.accountName || '').trim();
+    const suppliedAccountName = String(input.accountName || '').trim();
     if (!bankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
-    if (!accountName) throw new BadRequestException('Verified beneficiary account name is required');
+    if (!suppliedAccountName) throw new BadRequestException('Verify the beneficiary account before transferring');
 
     const customer = await this.prisma.customer.findUnique({ where: { id: input.customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    // The current Customer model stores the person's name in firstName and
-    // lastName only. Do not reference a non-existent middleName Prisma field.
-    // If a middle name is entered in firstName by the existing customer flow,
-    // it remains part of the comparison; otherwise the stored first + last
-    // name is the complete name available to PWFB.
-    const customerName = [customer.firstName, customer.lastName]
-      .filter(Boolean)
-      .join(' ');
+    // Always resolve the account again immediately before a transfer. This prevents
+    // a caller from submitting a forged/stale account name from the browser.
+    const verified = await this.nameEnquiry(bankCode, accountNumber);
+    const verifiedAccountName = String(verified.accountName || '').trim();
+    const verifiedAccountNumber = String(verified.accountNumber || accountNumber).replace(/\D/g, '');
+    if (verifiedAccountNumber !== accountNumber) throw new BadRequestException('Bank provider returned a different account number');
+    if (!this.namesMatch(suppliedAccountName, verifiedAccountName)) {
+      throw new BadRequestException(`Beneficiary account name could not be verified. Bank returned: ${verifiedAccountName}`);
+    }
 
-    if (!this.namesMatch(customerName, accountName)) {
+    const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ');
+    if (!this.namesMatch(customerName, verifiedAccountName)) {
       throw new BadRequestException('Beneficiary account name does not match the PWFB customer name');
     }
 
@@ -124,10 +120,10 @@ export class ExternalBankTransferService {
     const provider = this.provider();
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const providerResult = provider === 'PAYSTACK'
-      ? await this.paystackService.transferToBank({ bankCode, accountNumber, accountName, amount, narration: input.description || `PWFB transfer to ${accountName}`, reference: xref })
+      ? await this.paystackService.transferToBank({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB transfer to ${verifiedAccountName}`, reference: xref })
       : provider === 'FLUTTERWAVE'
-        ? await this.flutterwaveService.transfer({ bankCode, accountNumber, accountName, amount, narration: input.description || `PWFB transfer to ${accountName}`, reference: xref })
-        : await this.nibssService.transfer({ bankCode, accountNumber, amount, narration: input.description || `PWFB transfer to ${accountName}`, xref });
+        ? await this.flutterwaveService.transfer({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB transfer to ${verifiedAccountName}`, reference: xref })
+        : await this.nibssService.transfer({ bankCode, accountNumber, amount, narration: input.description || `PWFB transfer to ${verifiedAccountName}`, xref });
 
     return this.prisma.$transaction(async (tx) => {
       const currentWallet = await tx.customerWallet.findUnique({ where: { customerId: input.customerId } });
@@ -147,14 +143,14 @@ export class ExternalBankTransferService {
           previousBalance: currentWallet.balance,
           newBalance,
           reference: xref,
-          description: input.description || `Bank transfer to ${accountName}`,
+          description: input.description || `Bank transfer to ${verifiedAccountName}`,
           provider,
           providerReference: String((providerResult as any)?.providerReference ?? (providerResult as any)?.transactionReference ?? xref),
           status: transactionStatus as any,
           processedAt: transactionStatus === 'COMPLETED' ? new Date() : null,
         },
       });
-      return { wallet: { ...currentWallet, balance: newBalance }, transaction, provider: providerResult };
+      return { wallet: { ...currentWallet, balance: newBalance }, transaction, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, provider } };
     });
   }
 }

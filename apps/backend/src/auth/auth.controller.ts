@@ -9,22 +9,32 @@ import {
 } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
+import { TwoFactorService } from './two-factor.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly twoFactorService: TwoFactorService,
+  ) {}
 
   @Post('register')
   register(@Body() dto: RegisterDto) { return this.authService.register(dto); }
+
   @Post('login')
   login(@Body() dto: LoginDto) { return this.authService.login(dto); }
 
   @Post('google')
   googleLogin(@Body() body: { credential: string; client_id?: string; nonce?: string }, @Headers('origin') origin?: string) {
     return this.authService.googleLogin(body?.credential, origin, body?.client_id, body?.nonce);
+  }
+
+  @Post('2fa/verify')
+  verifyTwoFactor(@Body() body: { token: string; code?: string; recoveryCode?: string }) {
+    return this.twoFactorService.verify(body?.token, body?.code, body?.recoveryCode);
   }
 
   @UseGuards(JwtAuthGuard)

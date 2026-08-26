@@ -28,6 +28,30 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get('authenticator/status')
+  authenticatorStatus(@Req() req: any) {
+    return this.authService.authenticatorStatus(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('authenticator/setup')
+  authenticatorSetup(@Req() req: any) {
+    return this.authService.authenticatorSetup(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('authenticator/verify')
+  authenticatorVerify(@Req() req: any, @Body() body: { code: string }) {
+    return this.authService.authenticatorVerify(req.user, body?.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('authenticator/disable')
+  authenticatorDisable(@Req() req: any, @Body() body: { code: string }) {
+    return this.authService.authenticatorDisable(req.user, body?.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('passkey/register/options')
   passkeyRegisterOptions(@Req() req: any, @Headers('origin') origin?: string) {
     return this.authService.passkeyRegisterOptions(req.user, origin);

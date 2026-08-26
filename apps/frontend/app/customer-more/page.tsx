@@ -22,6 +22,7 @@ const sections = [
       { href: "/customer-profile", icon: "👤", title: "My Profile", description: "Personal information and security" },
       { href: "/customer-notifications", icon: "🔔", title: "Notifications", description: "View your account notifications" },
       { href: "/customer-settings", icon: "⚙", title: "Settings", description: "Manage your application preferences" },
+      { href: "/customer-authenticator", icon: "🔐", title: "Authenticator", description: "Protect your account with Google Authenticator" },
     ],
   },
 ];

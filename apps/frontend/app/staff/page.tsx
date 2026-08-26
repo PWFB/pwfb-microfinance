@@ -43,14 +43,9 @@ export default function StaffPage() {
             Staff register using the payroll register structure.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Link href="/customers/add" className="pwfb-secondary-button">
-            + Add Staff
-          </Link>
-          <Link href="/dashboard" className="pwfb-secondary-button">
-            ← Dashboard
-          </Link>
-        </div>
+        <Link href="/dashboard" className="pwfb-secondary-button">
+          ← Dashboard
+        </Link>
       </div>
 
       {error && <div className="pwfb-alert">{error}</div>}

@@ -29,11 +29,15 @@ export function assertAllowedWebAuthnOrigin(requestOrigin?: string | null): stri
     .map(normalizeOrigin)
     .filter(Boolean);
 
-  const allowed = configured.length
-    ? configured
-    : process.env.NODE_ENV === 'production'
-      ? [DEFAULT_PRODUCTION_ORIGIN]
-      : ['http://localhost:3000'];
+  // Always retain the known production Render frontend as an allowed origin.
+  // This prevents an incorrectly configured Render environment variable from
+  // locking the production passkey flow out.
+  const allowed = Array.from(new Set([
+    ...configured,
+    ...(process.env.NODE_ENV === 'production' ? [DEFAULT_PRODUCTION_ORIGIN] : []),
+  ]));
+
+  if (!allowed.length) allowed.push('http://localhost:3000');
 
   if (!allowed.includes(origin)) {
     throw new Error(`WebAuthn origin is not allowed: ${origin}`);

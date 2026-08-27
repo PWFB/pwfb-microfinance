@@ -1,44 +1,84 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateBranchDto } from './dto/create-branch.dto';
 import { UpdateBranchDto } from './dto/update-branch.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class BranchService {
-  private branches: any[] = [];
-  private nextId = 1;
+  constructor(private readonly prisma: PrismaService) {}
 
-  create(createBranchDto: CreateBranchDto) {
-    const branch = {
-      id: this.nextId++,
-      ...createBranchDto,
-      createdAt: new Date(),
-    };
-
-    this.branches.push(branch);
-    return branch;
+  private virtualAccountNumber(id: string) {
+    const digits = id.replace(/\D/g, '').slice(-8).padStart(8, '0');
+    return `PWFB${digits}`;
   }
 
-  findAll() {
-    return this.branches;
-  }
-
-  findOne(id: number) {
-    return this.branches.find(branch => branch.id === id);
-  }
-
-  update(id: number, updateBranchDto: UpdateBranchDto) {
-    const branch = this.findOne(id);
-
-    if (!branch) {
-      return { message: 'Branch not found' };
+  async create(dto: CreateBranchDto) {
+    const branch = await this.prisma.branch.create({ data: dto as any });
+    const existing = await this.prisma.branchVirtualAccount.findFirst({ where: { branchId: branch.id } });
+    if (!existing) {
+      await this.prisma.branchVirtualAccount.create({
+        data: {
+          branchId: branch.id,
+          accountNumber: this.virtualAccountNumber(branch.id),
+          accountName: branch.name,
+          provider: process.env.BANK_TRANSFER_PROVIDER || 'NIBSS',
+          status: 'ACTIVE',
+        },
+      });
     }
+    return this.findOne(branch.id);
+  }
 
-    Object.assign(branch, updateBranchDto);
+  async findAll() {
+    return this.prisma.branch.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: { branchAccounts: true },
+    });
+  }
+
+  async findOne(id: string) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id },
+      include: {
+        branchAccounts: true,
+        areas: true,
+        customers: { take: 50, orderBy: { createdAt: 'desc' } },
+        staff: { take: 50, orderBy: { createdAt: 'desc' } },
+      },
+    });
+    if (!branch) throw new NotFoundException('Branch not found');
     return branch;
   }
 
-  remove(id: number) {
-    this.branches = this.branches.filter(branch => branch.id !== id);
+  async update(id: string, dto: UpdateBranchDto) {
+    await this.findOne(id);
+    return this.prisma.branch.update({ where: { id }, data: dto as any, include: { branchAccounts: true } });
+  }
+
+  async remove(id: string) {
+    await this.findOne(id);
+    await this.prisma.branch.delete({ where: { id } });
     return { message: 'Branch deleted successfully' };
+  }
+
+  async provisionVirtualAccounts() {
+    const branches = await this.prisma.branch.findMany({ include: { branchAccounts: true } });
+    const results: any[] = [];
+    for (const branch of branches) {
+      let account = branch.branchAccounts[0];
+      if (!account) {
+        account = await this.prisma.branchVirtualAccount.create({
+          data: {
+            branchId: branch.id,
+            accountNumber: this.virtualAccountNumber(branch.id),
+            accountName: branch.name,
+            provider: process.env.BANK_TRANSFER_PROVIDER || 'NIBSS',
+            status: 'ACTIVE',
+          },
+        });
+      }
+      results.push({ branchId: branch.id, branchName: branch.name, virtualAccount: account });
+    }
+    return { totalBranches: branches.length, provisioned: results };
   }
 }

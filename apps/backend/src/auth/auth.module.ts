@@ -7,6 +7,7 @@ import { TwoFactorService } from './two-factor.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import './auth-passkey.extension';
+import './auth-customer-link.extension';
 
 @Module({
   imports: [

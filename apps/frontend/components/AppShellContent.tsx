@@ -9,70 +9,94 @@ import PWFBCompanyBrand from "./PWFBCompanyBrand";
 type NavItem = { label: string; href: string; roles: string[] };
 type NavGroup = { key: string; label: string; icon: string; href: string; roles: string[]; children: NavItem[] };
 
+const allStaff = ["SUPER_ADMIN", "ADMIN", "REGIONAL_MANAGER", "DIVISIONAL_MANAGER", "AREA_MANAGER", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER", "AUDITOR", "MONITORING_TEAM", "COLLECTOR", "CREDIT_OFFICER"];
+const management = ["SUPER_ADMIN", "ADMIN", "REGIONAL_MANAGER", "DIVISIONAL_MANAGER", "AREA_MANAGER", "BRANCH_MANAGER"];
+const finance = ["SUPER_ADMIN", "ADMIN", "REGIONAL_MANAGER", "DIVISIONAL_MANAGER", "AREA_MANAGER", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER", "AUDITOR", "COLLECTOR", "CREDIT_OFFICER"];
+const admin = ["SUPER_ADMIN", "ADMIN"];
+
 const groups: NavGroup[] = [
-  { key: "customers", label: "Customers", icon: "👥", href: "/customers", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"], children: [
-    { label: "Customer Overview", href: "/customers", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
-    { label: "Add Customer", href: "/customers/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
+  { key: "customers", label: "Customers", icon: "👥", href: "/customers", roles: finance, children: [
+    { label: "Customer Overview", href: "/customers", roles: finance },
+    { label: "Add Customer", href: "/customers/add", roles: finance },
+    { label: "Customer Dashboard", href: "/customer-dashboard", roles: ["CUSTOMER"] },
   ]},
-  { key: "savings", label: "Savings", icon: "💰", href: "/savings", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"], children: [
-    { label: "Savings Overview", href: "/savings", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Add Savings", href: "/savings/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
+  { key: "savings", label: "Savings", icon: "💰", href: "/savings", roles: finance, children: [
+    { label: "Savings Overview", href: "/savings", roles: finance },
+    { label: "Add Savings", href: "/savings/add", roles: finance },
+    { label: "Customer Savings", href: "/customer-savings", roles: ["CUSTOMER"] },
+    { label: "Customer Deposit", href: "/customer-deposit", roles: ["CUSTOMER"] },
   ]},
-  { key: "loans", label: "Loans", icon: "🏦", href: "/loans", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"], children: [
-    { label: "Loan Overview", href: "/loans", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
-    { label: "Add Loan", href: "/loans/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
+  { key: "loans", label: "Loans", icon: "🏦", href: "/loans", roles: finance, children: [
+    { label: "Loan Overview", href: "/loans", roles: finance },
+    { label: "Add Loan", href: "/loans/add", roles: finance },
+    { label: "Customer Loans", href: "/customer-loans", roles: ["CUSTOMER"] },
   ]},
-  { key: "repayments", label: "Repayments", icon: "↩", href: "/repayments", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"], children: [
-    { label: "Repayment Overview", href: "/repayments", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
-    { label: "Add Repayment", href: "/repayments/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER"] },
+  { key: "repayments", label: "Repayments", icon: "↩", href: "/repayments", roles: finance, children: [
+    { label: "Repayment Overview", href: "/repayments", roles: finance },
+    { label: "Add Repayment", href: "/repayments/add", roles: finance },
   ]},
-  { key: "transactions", label: "Transactions", icon: "↔", href: "/transactions", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"], children: [
-    { label: "Transaction Overview", href: "/transactions", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Add Transaction", href: "/transactions/add", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
+  { key: "transactions", label: "Transactions", icon: "↔", href: "/transactions", roles: finance, children: [
+    { label: "Transaction Overview", href: "/transactions", roles: finance },
+    { label: "Add Transaction", href: "/transactions/add", roles: finance },
+    { label: "Customer Transactions", href: "/customer-transactions", roles: ["CUSTOMER"] },
   ]},
-  { key: "staff", label: "Staff", icon: "👤", href: "/staff-dashboard", roles: ["SUPER_ADMIN", "ADMIN"], children: [
-    { label: "Staff Dashboard", href: "/staff-dashboard", roles: ["SUPER_ADMIN", "ADMIN"] },
-    { label: "Create Staff", href: "/staff/add", roles: ["SUPER_ADMIN"] },
+  { key: "banking", label: "Banking", icon: "🏧", href: "/banking", roles: finance, children: [
+    { label: "Banking Operations", href: "/banking", roles: finance },
+    { label: "Deposit", href: "/banking?operation=deposit", roles: finance },
+    { label: "Withdrawal", href: "/banking?operation=withdraw", roles: finance },
+    { label: "Transfer", href: "/banking?operation=transfer", roles: finance },
+    { label: "Virtual Account", href: "/virtual-account", roles: finance },
   ]},
-  { key: "reports", label: "Reports", icon: "📊", href: "/reports", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"], children: [
-    { label: "Reports & Analytics", href: "/reports", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"] },
+  { key: "finance", label: "Finance Operations", icon: "💼", href: "/cashbook", roles: finance, children: [
+    { label: "Cashbook", href: "/cashbook", roles: finance },
+    { label: "Daily Collections", href: "/collections", roles: finance },
+    { label: "Financial Periods", href: "/periods", roles: finance },
+    { label: "Payroll", href: "/payroll", roles: admin },
+    { label: "Reports", href: "/reports", roles: [...management, "AUDITOR"] },
   ]},
-  { key: "branches", label: "Branches", icon: "🏢", href: "/branches", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"], children: [
-    { label: "Branch Overview", href: "/branches", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER"] },
+  { key: "organization", label: "Organization", icon: "🏢", href: "/branches", roles: management, children: [
+    { label: "Branches", href: "/branches", roles: management },
+    { label: "Staff Dashboard", href: "/staff-dashboard", roles: admin },
+    { label: "Add Staff", href: "/staff/add", roles: ["SUPER_ADMIN", "ADMIN"] },
+  ]},
+  { key: "staff-wallet", label: "Staff Wallet", icon: "👛", href: "/staff-wallet", roles: allStaff, children: [
+    { label: "Wallet", href: "/staff-wallet", roles: allStaff },
+    { label: "Deposit", href: "/staff-wallet/deposit", roles: allStaff },
+    { label: "Withdrawal", href: "/staff-wallet/withdrawal", roles: allStaff },
+  ]},
+  { key: "daily-wallet", label: "Daily Wallet", icon: "📒", href: "/daily-wallet", roles: admin, children: [
+    { label: "Daily Wallet", href: "/daily-wallet", roles: admin },
+    { label: "Opening Balances", href: "/daily-wallet", roles: admin },
+    { label: "Daily Collection", href: "/collections", roles: admin },
+    { label: "Savings Summary", href: "/savings", roles: admin },
+    { label: "Loan Summary", href: "/loans", roles: admin },
+    { label: "Bank Transaction", href: "/transactions", roles: admin },
+    { label: "Cash Book", href: "/cashbook", roles: admin },
+  ]},
+  { key: "customer-wallet", label: "Customer Wallet", icon: "💳", href: "/customer-dashboard", roles: ["CUSTOMER"], children: [
+    { label: "Wallet", href: "/customer-dashboard", roles: ["CUSTOMER"] },
+    { label: "Deposit", href: "/customer-deposit", roles: ["CUSTOMER"] },
+    { label: "Loans", href: "/customer-loans", roles: ["CUSTOMER"] },
+    { label: "Savings", href: "/customer-savings", roles: ["CUSTOMER"] },
+    { label: "Transactions", href: "/customer-transactions", roles: ["CUSTOMER"] },
+    { label: "More", href: "/customer-more", roles: ["CUSTOMER"] },
   ]},
 ];
 
-const financeOperations: NavGroup = {
-  key: "finance-operations", label: "Finance Operations", icon: "💼", href: "/cashbook",
-  roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER", "AUDITOR"],
-  children: [
-    { label: "Banking Operations", href: "/banking", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Deposit", href: "/banking?operation=deposit", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Withdrawal", href: "/banking?operation=withdraw", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Transfer", href: "/banking?operation=transfer", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Financial Periods", href: "/periods", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "AUDITOR"] },
-    { label: "Payroll & Summary", href: "/payroll", roles: ["SUPER_ADMIN", "ADMIN"] },
-    { label: "Cashbook & Summary", href: "/cashbook", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "TELLER"] },
-    { label: "Daily Collections & Summary", href: "/collections", roles: ["SUPER_ADMIN", "ADMIN", "BRANCH_MANAGER", "LOAN_OFFICER", "TELLER"] },
-  ],
-};
-groups.push(financeOperations);
-
 const adminTools: NavGroup = {
-  key: "admin-tools", label: "PWFB Control Center", icon: "🛠️", href: "/api-workbench", roles: ["SUPER_ADMIN"],
+  key: "admin-tools", label: "PWFB Control Center", icon: "🛠️", href: "/admin-overview", roles: ["SUPER_ADMIN"],
   children: [
-    { label: "API Workbench", href: "/api-workbench", roles: ["SUPER_ADMIN"] },
+    { label: "Admin Overview", href: "/admin-overview", roles: ["SUPER_ADMIN"] },
     { label: "System Dashboard", href: "/dashboard", roles: ["SUPER_ADMIN"] },
-    { label: "Branch Management", href: "/branches", roles: ["SUPER_ADMIN"] },
-    { label: "Staff & Functions", href: "/staff-dashboard", roles: ["SUPER_ADMIN"] },
-    { label: "Create Staff", href: "/staff/add", roles: ["SUPER_ADMIN"] },
-    { label: "Reports & Analytics", href: "/reports", roles: ["SUPER_ADMIN"] },
+    { label: "API Workbench", href: "/api-workbench", roles: ["SUPER_ADMIN"] },
+    { label: "Permissions", href: "/permissions", roles: ["SUPER_ADMIN"] },
+    { label: "Reports", href: "/reports", roles: ["SUPER_ADMIN"] },
   ],
 };
 groups.push(adminTools);
 
 const publicRoutes = ["/", "/login", "/register"];
-function isInside(pathname: string, href: string) { return pathname === href || pathname.startsWith(`${href}/`); }
+function isInside(pathname: string, href: string) { const clean = href.split("?")[0]; return pathname === clean || pathname.startsWith(`${clean}/`); }
 
 export default function AppShellContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -88,24 +112,23 @@ export default function AppShellContent({ children }: { children: React.ReactNod
   if (isPublicRoute) return <>{children}</>;
   if (loading) return <main className="flex min-h-screen items-center justify-center bg-slate-50"><p className="text-emerald-700">Checking authentication...</p></main>;
   if (!user) return null;
-  if (user.role === "CUSTOMER") return <>{children}</>;
 
-  const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  const displayName = [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email || "PWFB User";
   const visibleGroups = groups.filter((group) => group.roles.includes(user.role));
 
   return (
     <div className="pwfb-shell">
       {mobileOpen && <button type="button" aria-label="Close navigation" className="pwfb-sidebar-overlay" onClick={() => setMobileOpen(false)} />}
       <aside className={`pwfb-sidebar ${mobileOpen ? "pwfb-sidebar-mobile-open" : ""}`}>
-        <div className="pwfb-sidebar-header" style={{ flexShrink: 0 }}><Link href="/dashboard" className="pwfb-brand"><PWFBCompanyBrand small /></Link><button type="button" className="pwfb-sidebar-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}>×</button></div>
+        <div className="pwfb-sidebar-header" style={{ flexShrink: 0 }}><Link href={user.role === "CUSTOMER" ? "/customer-dashboard" : "/dashboard"} className="pwfb-brand"><PWFBCompanyBrand small /></Link><button type="button" className="pwfb-sidebar-close" aria-label="Close navigation" onClick={() => setMobileOpen(false)}>×</button></div>
         <div className="pwfb-access" style={{ flexShrink: 0 }}><small>ACCESS LEVEL</small><strong>{user.role.replaceAll("_", " ")}</strong></div>
         <nav className="pwfb-nav" aria-label="Main navigation" style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", overflowX: "hidden", paddingBottom: 120, WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", scrollbarGutter: "stable" }}>
-          <Link href="/dashboard" className={`pwfb-nav-link ${pathname === "/dashboard" ? "pwfb-nav-link-active" : ""}`}><span className="pwfb-nav-icon">⌂</span><span>Dashboard</span></Link>
+          <Link href={user.role === "CUSTOMER" ? "/customer-dashboard" : "/dashboard"} className={`pwfb-nav-link ${pathname === "/dashboard" || pathname === "/customer-dashboard" ? "pwfb-nav-link-active" : ""}`}><span className="pwfb-nav-icon">⌂</span><span>Dashboard</span></Link>
           {visibleGroups.map((group) => {
             const active = isInside(pathname, group.href); const expanded = openGroup === group.key; const visibleChildren = group.children.filter((child) => child.roles.includes(user.role));
             return <div key={group.key} className="pwfb-nav-group">
               <button type="button" onClick={() => setOpenGroup(expanded ? null : group.key)} className={`pwfb-nav-link pwfb-nav-parent ${active ? "pwfb-nav-link-parent-active" : ""}`}><span className="pwfb-nav-icon">{group.icon}</span><span>{group.label}</span><span className="pwfb-nav-chevron">{expanded ? "⌃" : "⌄"}</span></button>
-              {expanded && <div className="pwfb-subnav">{visibleChildren.map((child) => { const childActive = isInside(pathname, child.href); return <Link key={child.href} href={child.href} className={`pwfb-subnav-link ${childActive ? "pwfb-subnav-link-active" : ""}`}><span className="pwfb-subnav-dot" /><span>{child.label}</span></Link>; })}</div>}
+              {expanded && <div className="pwfb-subnav">{visibleChildren.map((child) => { const childActive = isInside(pathname, child.href); return <Link key={`${child.href}-${child.label}`} href={child.href} className={`pwfb-subnav-link ${childActive ? "pwfb-subnav-link-active" : ""}`}><span className="pwfb-subnav-dot" /><span>{child.label}</span></Link>; })}</div>}
             </div>;
           })}
         </nav>

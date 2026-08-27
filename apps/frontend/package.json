@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test tests/staff-dashboard.test.mjs"
   },
   "dependencies": {
     "@simplewebauthn/browser": "^13.3.0",

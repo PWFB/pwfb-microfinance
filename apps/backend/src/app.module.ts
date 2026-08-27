@@ -25,6 +25,7 @@ import { DashboardsModule } from './dashboards/dashboards.module';
 import { BankingModule } from './banking/banking.module';
 import { BalmzAiModule } from './balmz-ai/balmz-ai.module';
 import { CustomerAiModule } from './customer-ai/customer-ai.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   imports: [
@@ -33,7 +34,7 @@ import { CustomerAiModule } from './customer-ai/customer-ai.module';
     SuperAdminModule, StaffModule, BranchModule, CustomersModule, SavingsModule,
     LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
     PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
-    BalmzAiModule, CustomerAiModule,
+    BalmzAiModule, CustomerAiModule, PermissionsModule,
   ],
   controllers: [AppController],
 })

@@ -27,15 +27,12 @@ export class ExternalBankTransferService {
       .replace(/\s+/g, ' ');
   }
 
-  private namesMatch(customerName: string, accountName: string) {
-    const customer = this.normalizeName(customerName);
-    const beneficiary = this.normalizeName(accountName);
-    if (!customer || !beneficiary) return false;
-    if (customer === beneficiary) return true;
-    const customerParts = customer.split(' ').filter(Boolean);
-    const beneficiaryParts = beneficiary.split(' ').filter(Boolean);
-    if (customerParts.length < 2 || beneficiaryParts.length < 2) return false;
-    return customerParts.every((part) => beneficiaryParts.includes(part));
+  /** A withdrawal is eligible only when at least two distinct name parts match. */
+  private namesMatchAtLeastTwo(customerName: string, accountName: string) {
+    const customerParts = [...new Set(this.normalizeName(customerName).split(' ').filter(Boolean))];
+    const accountParts = new Set(this.normalizeName(accountName).split(' ').filter(Boolean));
+    const matches = customerParts.filter((part) => accountParts.has(part));
+    return matches.length >= 2;
   }
 
   async listInstitutions() {
@@ -64,52 +61,55 @@ export class ExternalBankTransferService {
     });
   }
 
-  /** Performs a live provider name enquiry. The returned name is never taken from the client. */
+  /** Live provider lookup. This works for any valid Nigerian bank account, including non-PWFB accounts. */
   async nameEnquiry(bankCode: string, accountNumber: string) {
+    const normalizedBankCode = String(bankCode || '').trim();
+    const normalizedAccountNumber = String(accountNumber || '').replace(/\D/g, '');
+    if (!normalizedBankCode) throw new BadRequestException('Bank code is required');
+    if (!/^\d{10}$/.test(normalizedAccountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
+
     const provider = this.provider();
     const result = provider === 'PAYSTACK'
-      ? await this.paystackService.resolveBankAccount(bankCode, accountNumber)
+      ? await this.paystackService.resolveBankAccount(normalizedBankCode, normalizedAccountNumber)
       : provider === 'FLUTTERWAVE'
-        ? await this.flutterwaveService.nameEnquiry(bankCode, accountNumber)
-        : await this.nibssService.nameEnquiry(bankCode, accountNumber);
+        ? await this.flutterwaveService.nameEnquiry(normalizedBankCode, normalizedAccountNumber)
+        : await this.nibssService.nameEnquiry(normalizedBankCode, normalizedAccountNumber);
 
     const verifiedName = String(result?.accountName || '').trim();
     if (!verifiedName) throw new BadRequestException('Bank provider did not return a verified account name');
 
     return {
       ...result,
+      accountNumber: normalizedAccountNumber,
       accountName: verifiedName,
       verified: true,
       provider,
     };
   }
 
-  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName: string; amount: number; description?: string }) {
+  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string }) {
     const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
-    const suppliedAccountName = String(input.accountName || '').trim();
     if (!bankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
-    if (!suppliedAccountName) throw new BadRequestException('Verify the beneficiary account before transferring');
 
-    const customer = await this.prisma.customer.findUnique({ where: { id: input.customerId } });
-    if (!customer) throw new NotFoundException('Customer not found');
-
-    // Always resolve the account again immediately before a transfer. This prevents
-    // a caller from submitting a forged/stale account name from the browser.
+    // Never trust the account name supplied by the browser. Resolve the live account again.
     const verified = await this.nameEnquiry(bankCode, accountNumber);
     const verifiedAccountName = String(verified.accountName || '').trim();
     const verifiedAccountNumber = String(verified.accountNumber || accountNumber).replace(/\D/g, '');
     if (verifiedAccountNumber !== accountNumber) throw new BadRequestException('Bank provider returned a different account number');
-    if (!this.namesMatch(suppliedAccountName, verifiedAccountName)) {
-      throw new BadRequestException(`Beneficiary account name could not be verified. Bank returned: ${verifiedAccountName}`);
-    }
 
-    const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ');
-    if (!this.namesMatch(customerName, verifiedAccountName)) {
-      throw new BadRequestException('Beneficiary account name does not match the PWFB customer name');
+    const customer = await this.prisma.customer.findUnique({ where: { id: input.customerId } });
+    if (!customer) throw new NotFoundException('PWFB customer not found');
+
+    const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    if (!customerName) throw new BadRequestException('PWFB customer name is not available for withdrawal verification');
+
+    // The beneficiary must match at least two distinct names from the registered PWFB customer.
+    if (!this.namesMatchAtLeastTwo(customerName, verifiedAccountName)) {
+      throw new BadRequestException(`Withdrawal declined: bank account name does not match at least two names on the PWFB customer account. Verified account name: ${verifiedAccountName}`);
     }
 
     const wallet = await this.prisma.customerWallet.findUnique({ where: { customerId: input.customerId } });
@@ -120,10 +120,10 @@ export class ExternalBankTransferService {
     const provider = this.provider();
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const providerResult = provider === 'PAYSTACK'
-      ? await this.paystackService.transferToBank({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB transfer to ${verifiedAccountName}`, reference: xref })
+      ? await this.paystackService.transferToBank({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, reference: xref })
       : provider === 'FLUTTERWAVE'
-        ? await this.flutterwaveService.transfer({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB transfer to ${verifiedAccountName}`, reference: xref })
-        : await this.nibssService.transfer({ bankCode, accountNumber, amount, narration: input.description || `PWFB transfer to ${verifiedAccountName}`, xref });
+        ? await this.flutterwaveService.transfer({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, reference: xref })
+        : await this.nibssService.transfer({ bankCode, accountNumber, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, xref });
 
     return this.prisma.$transaction(async (tx) => {
       const currentWallet = await tx.customerWallet.findUnique({ where: { customerId: input.customerId } });
@@ -131,7 +131,7 @@ export class ExternalBankTransferService {
       if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance after provider acceptance');
       const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;
       const updated = await tx.customerWallet.updateMany({ where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } }, data: { balance: newBalance } });
-      if (updated.count !== 1) throw new BadRequestException('Transfer could not be completed because the wallet balance changed');
+      if (updated.count !== 1) throw new BadRequestException('Withdrawal could not be completed because the wallet balance changed');
 
       const providerStatus = String((providerResult as any)?.status ?? '').toUpperCase();
       const transactionStatus = (provider === 'FLUTTERWAVE' || provider === 'PAYSTACK') && providerStatus !== 'SUCCESSFUL' && providerStatus !== 'SUCCESS' ? 'PENDING' : 'COMPLETED';
@@ -143,14 +143,14 @@ export class ExternalBankTransferService {
           previousBalance: currentWallet.balance,
           newBalance,
           reference: xref,
-          description: input.description || `Bank transfer to ${verifiedAccountName}`,
+          description: input.description || `Bank withdrawal to ${verifiedAccountName}`,
           provider,
           providerReference: String((providerResult as any)?.providerReference ?? (providerResult as any)?.transactionReference ?? xref),
           status: transactionStatus as any,
           processedAt: transactionStatus === 'COMPLETED' ? new Date() : null,
         },
       });
-      return { wallet: { ...currentWallet, balance: newBalance }, transaction, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, provider } };
+      return { wallet: { ...currentWallet, balance: newBalance }, transaction, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, nameMatch: true, provider } };
     });
   }
 }

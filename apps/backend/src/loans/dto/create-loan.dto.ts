@@ -1,9 +1,4 @@
-import {
-  IsBoolean,
-  IsNumber,
-  IsOptional,
-  IsString,
-} from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, IsIn } from 'class-validator';
 
 export class CreateLoanDto {
   @IsString() customerId: string;
@@ -24,4 +19,7 @@ export class CreateLoanDto {
   @IsOptional() @IsString() disbursementBankCode?: string;
   @IsOptional() @IsString() disbursementBankName?: string;
   @IsOptional() @IsBoolean() disbursementUsesAlternativeAccount?: boolean;
+  @IsOptional() @IsIn(['WALLET', 'BANK']) disbursementDestination?: 'WALLET' | 'BANK';
+  @IsOptional() @IsNumber() verifiedNameMatchCount?: number;
+  @IsOptional() @IsBoolean() disbursementAccountVerified?: boolean;
 }

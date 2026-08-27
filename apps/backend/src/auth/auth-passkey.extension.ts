@@ -1,9 +1,8 @@
+import { UnauthorizedException } from '@nestjs/common';
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { AuthService } from './auth.service';
 import { assertAllowedWebAuthnOrigin, getWebAuthnRpId } from './webauthn-config';
 
-// Type augmentation keeps the controller API on AuthService while the implementation
-// lives separately so the existing authentication code stays isolated.
 declare module './auth.service' {
   interface AuthService {
     passkeyRegisterOptions(authUser: any, origin?: string): Promise<any>;
@@ -28,7 +27,7 @@ async function saveChallenge(service: any, challenge: string, userId: string | n
 }
 
 async function takeChallenge(service: any, challenge: string, userId: string | null, kind: string) {
-  const rows = await service.prisma.$queryRawUnsafe<Array<{ challenge: string }>>(`SELECT "challenge" FROM "PasskeyChallenge" WHERE "challenge" = $1 AND "kind" = $2 AND "expiresAt" > CURRENT_TIMESTAMP AND ("userId" = $3 OR "userId" IS NULL) LIMIT 1`, challenge, kind, userId);
+  const rows = await service.prisma.$queryRawUnsafe(`SELECT "challenge" FROM "PasskeyChallenge" WHERE "challenge" = $1 AND "kind" = $2 AND "expiresAt" > CURRENT_TIMESTAMP AND ("userId" = $3 OR "userId" IS NULL) LIMIT 1`, challenge, kind, userId) as Array<{ challenge: string }>;
   if (!rows.length) throw new Error('Passkey challenge is missing or expired');
   await service.prisma.$executeRawUnsafe(`DELETE FROM "PasskeyChallenge" WHERE "challenge" = $1`, challenge);
   return rows[0].challenge;
@@ -43,16 +42,8 @@ AuthService.prototype.passkeyRegisterOptions = async function(this: any, authUse
     await ensureTables(this);
     const user = await this.prisma.user.findUnique({ where: { id: authUser.sub } });
     if (!user) throw new Error('User not found');
-    const credentials = await this.prisma.$queryRawUnsafe<Array<{ credentialId: string }>>(`SELECT "credentialId" FROM "PasskeyCredential" WHERE "userId" = $1`, user.id);
-    const options = await generateRegistrationOptions({
-      rpName: process.env.WEBAUTHN_RP_NAME || 'PWFB Microfinance',
-      rpID: getWebAuthnRpId(expectedOrigin),
-      userName: user.email,
-      userID: user.id,
-      attestationType: 'none',
-      excludeCredentials: credentials.map((c) => ({ id: c.credentialId })),
-      authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' },
-    } as any);
+    const credentials = await this.prisma.$queryRawUnsafe(`SELECT "credentialId" FROM "PasskeyCredential" WHERE "userId" = $1`, user.id) as Array<{ credentialId: string }>;
+    const options = await generateRegistrationOptions({ rpName: process.env.WEBAUTHN_RP_NAME || 'PWFB Microfinance', rpID: getWebAuthnRpId(expectedOrigin), userName: user.email, userID: user.id, attestationType: 'none', excludeCredentials: credentials.map((c) => ({ id: c.credentialId })), authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred' } } as any);
     await saveChallenge(this, options.challenge, user.id, 'register');
     return options;
   } catch (error) { throw new UnauthorizedException(error instanceof Error ? error.message : 'Unable to create passkey registration options'); }
@@ -85,13 +76,9 @@ AuthService.prototype.passkeyLoginOptions = async function(this: any, email: str
     await ensureTables(this);
     const user = await this.prisma.user.findUnique({ where: { email: String(email || '').toLowerCase().trim() } });
     if (!user) throw new Error('Invalid email or passkey');
-    const credentials = await this.prisma.$queryRawUnsafe<Array<{ credentialId: string; transports: string | null }>>(`SELECT "credentialId", "transports" FROM "PasskeyCredential" WHERE "userId" = $1`, user.id);
+    const credentials = await this.prisma.$queryRawUnsafe(`SELECT "credentialId", "transports" FROM "PasskeyCredential" WHERE "userId" = $1`, user.id) as Array<{ credentialId: string; transports: string | null }>;
     if (!credentials.length) throw new Error('No passkey is registered for this account');
-    const options = await generateAuthenticationOptions({
-      rpID: getWebAuthnRpId(expectedOrigin),
-      userVerification: 'preferred',
-      allowCredentials: credentials.map((c) => ({ id: c.credentialId, transports: c.transports ? JSON.parse(c.transports) : undefined })),
-    } as any);
+    const options = await generateAuthenticationOptions({ rpID: getWebAuthnRpId(expectedOrigin), userVerification: 'preferred', allowCredentials: credentials.map((c) => ({ id: c.credentialId, transports: c.transports ? JSON.parse(c.transports) : undefined })) } as any);
     await saveChallenge(this, options.challenge, user.id, 'login');
     return options;
   } catch (error) { throw new UnauthorizedException(error instanceof Error ? error.message : 'Unable to create passkey login options'); }
@@ -104,13 +91,13 @@ AuthService.prototype.passkeyLoginVerify = async function(this: any, body: any, 
     const response = responseOf(body);
     const credentialId = credentialIdOf(body?.credential || response);
     if (!credentialId) throw new Error('Passkey credential ID is missing');
-    const credentials = await this.prisma.$queryRawUnsafe<Array<{ credentialId: string; userId: string; publicKey: string; counter: string }>>(`SELECT "credentialId", "userId", "publicKey", "counter" FROM "PasskeyCredential" WHERE "credentialId" = $1 LIMIT 1`, credentialId);
+    const credentials = await this.prisma.$queryRawUnsafe(`SELECT "credentialId", "userId", "publicKey", "counter" FROM "PasskeyCredential" WHERE "credentialId" = $1 LIMIT 1`, credentialId) as Array<{ credentialId: string; userId: string; publicKey: string; counter: string }>;
     if (!credentials.length) throw new Error('Passkey is not registered');
     const credential = credentials[0];
     const challenge = await takeChallenge(this, body?.challenge || response?.challenge, credential.userId, 'login');
     const verification = await verifyAuthenticationResponse({ response, expectedChallenge: challenge, expectedOrigin, expectedRPID: getWebAuthnRpId(expectedOrigin), credential: { id: credential.credentialId, publicKey: Buffer.from(credential.publicKey, 'base64url'), counter: Number(credential.counter) }, requireUserVerification: false } as any);
     if (!verification.verified) throw new Error('Passkey authentication failed');
-    const newCounter = Number(verification.authenticationInfo?.newCounter ?? verification.authenticationInfo?.counter ?? credential.counter);
+    const newCounter = Number(verification.authenticationInfo?.newCounter ?? credential.counter);
     await this.prisma.$executeRawUnsafe(`UPDATE "PasskeyCredential" SET "counter" = $2, "updatedAt" = CURRENT_TIMESTAMP WHERE "credentialId" = $1`, credential.credentialId, newCounter);
     const user = await this.prisma.user.findUnique({ where: { id: credential.userId } });
     if (!user) throw new Error('User not found');

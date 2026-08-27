@@ -112,7 +112,7 @@ export class BankingController {
       bankCode?: string;
       bank_code?: string;
       accountNumber: string;
-      accountName: string;
+      accountName?: string;
       amount: number;
       description?: string;
       narration?: string;

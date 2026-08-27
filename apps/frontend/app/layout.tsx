@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./desktop-ui.css";
 import type { Metadata } from "next";
 import AppShell from "../components/AppShell";
 

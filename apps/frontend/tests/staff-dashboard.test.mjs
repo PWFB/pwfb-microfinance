@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 
-const pagePath = path.resolve(process.cwd(), "apps/frontend/app/staff-dashboard/page.tsx");
+// npm workspace tests run with apps/frontend as the working directory.
+const pagePath = path.resolve(process.cwd(), "app/staff-dashboard/page.tsx");
 const source = fs.readFileSync(pagePath, "utf8");
 
 test("staff dashboard page exists and is a client component", () => {
@@ -12,14 +13,7 @@ test("staff dashboard page exists and is a client component", () => {
 });
 
 test("staff dashboard contains core operational modules", () => {
-  for (const moduleName of [
-    "Customers",
-    "Loans",
-    "Savings",
-    "Transactions",
-    "Collections",
-    "Reports",
-  ]) {
+  for (const moduleName of ["Customers", "Loans", "Savings", "Transactions", "Collections", "Reports"]) {
     assert.ok(source.includes(`title: "${moduleName}"`), `Missing ${moduleName} module`);
   }
 });

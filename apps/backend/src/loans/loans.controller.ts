@@ -15,7 +15,26 @@ export class LoansController {
   constructor(private readonly loansService: LoansService, private readonly loanDisbursementService: LoanDisbursementService, private readonly externalBankTransferService: ExternalBankTransferService) {}
   @Get('rates') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') getRates(){return this.loansService.getLoanRates();}
   @Patch('rates/:loanType') @Roles('SUPER_ADMIN','ADMIN') setRate(@Param('loanType') loanType:string,@Body() body:{interestRate:number}){return this.loansService.setLoanRate(decodeURIComponent(loanType),Number(body.interestRate));}
-  @Get('verify-bank-account') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') async verifyBankAccount(@Query('customerId') customerId:string,@Query('bankCode') bankCode:string,@Query('accountNumber') accountNumber:string){const customerName=await this.loansService.getCustomerName(customerId);const result=await this.externalBankTransferService.nameEnquiry(bankCode,accountNumber);const normalize=(v:string)=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().split(/\s+/).filter(Boolean);const customerParts=[...new Set(normalize(customerName))];const accountParts=new Set(normalize(result.accountName));const matchCount=customerParts.filter(p=>accountParts.has(p)).length;return {...result,registeredCustomerName:customerName,nameMatchCount:matchCount,eligible:matchCount>=2,verification:matchCount>=2?'VERIFIED':'FAILED'};}
+  @Get('verify-bank-account') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') async verifyBankAccount(@Query('customerId') customerId:string,@Query('bankCode') bankCode:string,@Query('accountNumber') accountNumber:string){
+    const result=await this.externalBankTransferService.nameEnquiry(bankCode,accountNumber);
+    let registeredCustomerName:string|null=null;
+    let matchCount=0;
+    if(customerId?.trim()){
+      try{
+        registeredCustomerName=await this.loansService.getCustomerName(customerId);
+        const normalize=(v:string)=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim().split(/\s+/).filter(Boolean);
+        const customerParts=[...new Set(normalize(registeredCustomerName))];
+        const accountParts=new Set(normalize(result.accountName));
+        matchCount=customerParts.filter(p=>accountParts.has(p)).length;
+      }catch{
+        // The beneficiary may be an external bank customer and not a PWFB customer.
+        registeredCustomerName=null;
+      }
+    }
+    const customerKnown=Boolean(registeredCustomerName);
+    const eligible=customerKnown ? matchCount>=2 : true;
+    return {...result,registeredCustomerName,nameMatchCount:matchCount,customerKnown,eligible,verification:'VERIFIED',beneficiaryType:customerKnown?'PWFB_CUSTOMER':'EXTERNAL_BANK_CUSTOMER'};
+  }
   @Post() @Roles('CREDIT_OFFICER','SUPER_ADMIN','ADMIN') create(@Body() dto:CreateLoanDto){return this.loansService.create(dto);}
   @Get() @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') findAll(){return this.loansService.findAll();}
   @Get(':id') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') findOne(@Param('id') id:string){return this.loansService.findOne(id);}

@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { CashbookService, CashbookDailyInput } from './cashbook.service';
+import { CashbookService } from './cashbook.service';
+import type { CashbookDailyInput } from './cashbook.service';
 
 @Controller('cashbook')
 export class CashbookController {
@@ -19,22 +20,12 @@ export class CashbookController {
   }
 
   @Get('daily/summary')
-  dailySummary(
-    @Query('periodId') periodId?: string,
-    @Query('branchId') branchId?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
+  dailySummary(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('from') from?: string, @Query('to') to?: string) {
     return this.cashbookService.dailySummary(periodId, branchId, from, to);
   }
 
   @Get('daily')
-  findDaily(
-    @Query('periodId') periodId?: string,
-    @Query('branchId') branchId?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
+  findDaily(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('from') from?: string, @Query('to') to?: string) {
     return this.cashbookService.findDaily(periodId, branchId, from, to);
   }
 

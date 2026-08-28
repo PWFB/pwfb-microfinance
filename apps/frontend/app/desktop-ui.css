@@ -21,3 +21,15 @@
   .pwfb-shell-sidebar-collapsed .pwfb-company-brand{justify-content:center!important;margin-bottom:10px!important}.pwfb-shell-sidebar-collapsed .pwfb-nav-link{justify-content:center!important;padding-left:8px!important;padding-right:8px!important}.pwfb-shell-sidebar-collapsed .pwfb-nav-icon{margin:0!important}.pwfb-shell-sidebar-collapsed .pwfb-sidebar-status{left:10px!important;right:10px!important;justify-content:center!important;padding:10px 0!important}.pwfb-shell-sidebar-collapsed .pwfb-sidebar-status .pwfb-status-dot{margin:0!important}.pwfb-shell-sidebar-collapsed .pwfb-sidebar-collapse-button{right:-14px}
 }
 @media (max-width:1023px){.pwfb-sidebar-collapse-button{display:none!important}}
+
+/* Desktop sidebar participates in layout so it can never cover dashboard content. */
+@media (min-width:1024px) {
+  .pwfb-shell{display:grid!important;grid-template-columns:270px minmax(0,1fr)!important;width:100%!important;min-width:0!important;}
+  .pwfb-sidebar{position:sticky!important;top:0!important;left:auto!important;inset:auto!important;grid-column:1!important;grid-row:1!important;width:270px!important;height:100dvh!important;max-height:100dvh!important;min-width:0!important;align-self:start!important;z-index:40!important;}
+  .pwfb-main{grid-column:2!important;grid-row:1!important;width:auto!important;min-width:0!important;margin-left:0!important;}
+  .pwfb-shell-sidebar-collapsed{grid-template-columns:76px minmax(0,1fr)!important;}
+  .pwfb-shell-sidebar-collapsed .pwfb-sidebar{width:76px!important;grid-column:1!important;}
+  .pwfb-shell-sidebar-collapsed .pwfb-main{width:auto!important;margin-left:0!important;grid-column:2!important;}
+  .pwfb-shell-sidebar-collapsed .pwfb-sidebar-collapse-button{right:-14px!important;}
+  .pwfb-sidebar-collapse-button{z-index:70!important;}
+}

@@ -1,0 +1,96 @@
+.pwfb-reference-login {
+  background: #087534 !important;
+  min-height: 100dvh !important;
+}
+
+.pwfb-login-phone {
+  border-color: rgba(255,255,255,.28) !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,.28) !important;
+}
+
+.pwfb-logo-art {
+  width: 340px !important;
+  max-width: 100% !important;
+}
+
+.pwfb-reference-welcome h1 {
+  font-size: 23px !important;
+}
+
+.pwfb-reference-welcome p {
+  font-size: 12px !important;
+}
+
+.pwfb-google-secondary {
+  position: relative !important;
+  overflow: hidden !important;
+  min-height: 43px !important;
+  padding: 0 !important;
+}
+
+/* Keep Google's real authentication control active, but never expose the
+   previously selected Gmail/account name on the PWFB login screen. */
+.pwfb-google-secondary .pwfb-google-button {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 3 !important;
+  width: 100% !important;
+  min-height: 43px !important;
+  opacity: 0 !important;
+  cursor: pointer !important;
+}
+
+.pwfb-google-secondary::before {
+  content: 'G';
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  transform: translate(-92px,-50%);
+  font-size: 19px;
+  font-weight: 900;
+  color: #4285f4;
+}
+
+.pwfb-google-secondary::after {
+  content: 'Connect with Google';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 22px;
+  color: #29312d;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  background: #fff;
+  border: 1px solid #d6ddd9;
+  border-radius: 6px;
+}
+
+.pwfb-google-fallback {
+  font-size: 0 !important;
+}
+
+.pwfb-google-fallback::after {
+  content: 'Connect with Google';
+  font-size: 11px;
+  font-weight: 700;
+  color: #29312d;
+}
+
+@media (min-width: 900px) {
+  .pwfb-reference-login {
+    padding: 32px !important;
+  }
+
+  .pwfb-login-phone {
+    width: min(460px, 50vw) !important;
+  }
+
+  .pwfb-logo-art {
+    width: 380px !important;
+  }
+}

@@ -24,17 +24,10 @@ const groups:NavGroup[]=[
  {key:"staff-wallet",label:"Staff Wallet",icon:"👛",href:"/staff-wallet",roles:allStaff,children:[{label:"Wallet",href:"/staff-wallet",roles:allStaff},{label:"Deposit",href:"/staff-wallet/deposit",roles:allStaff},{label:"Withdrawal",href:"/staff-wallet/withdrawal",roles:allStaff}]},
  {key:"daily-wallet",label:"Daily Wallet",icon:"📒",href:"/daily-wallet",roles:admin,children:[{label:"Daily Wallet",href:"/daily-wallet",roles:admin},{label:"Opening Balances",href:"/daily-wallet",roles:admin},{label:"Daily Collection",href:"/collections",roles:admin},{label:"Savings Summary",href:"/savings",roles:admin},{label:"Loan Summary",href:"/loans",roles:admin},{label:"Bank Transaction",href:"/transactions",roles:admin},{label:"Cash Book",href:"/cashbook",roles:admin}]},
  {key:"customer-wallet",label:"Customer Wallet",icon:"💳",href:"/customer-dashboard",roles:["CUSTOMER"],children:[{label:"Wallet",href:"/customer-dashboard",roles:["CUSTOMER"]},{label:"Deposit",href:"/customer-deposit",roles:["CUSTOMER"]},{label:"Loans",href:"/customer-loans",roles:["CUSTOMER"]},{label:"Savings",href:"/customer-savings",roles:["CUSTOMER"]},{label:"Transactions",href:"/customer-transactions",roles:["CUSTOMER"]},{label:"More",href:"/customer-more",roles:["CUSTOMER"]}]},
- {key:"admin-tools",label:"PWFB Control Center",icon:"🛠️",href:"/admin-overview",roles:["SUPER_ADMIN"],children:[{label:"Admin Overview",href:"/admin-overview",roles:["SUPER_ADMIN"]},{label:"System Dashboard",href:"/dashboard",roles:["SUPER_ADMIN"]},{label:"API Workbench",href:"/api-workbench",roles:["SUPER_ADMIN"]},{label:"Permissions",href:"/permissions",roles:["SUPER_ADMIN"]},{label:"Reports",href:"/reports",roles:["SUPER_ADMIN"]}]}
+ {key:"admin-tools",label:"PWFB Control Center",icon:"🛠️",href:"/admin-overview",roles:["SUPER_ADMIN"],children:[{label:"Admin Overview",href:"/admin-overview",roles:["SUPER_ADMIN"]},{label:"System Dashboard",href:"/dashboard",roles:["SUPER_ADMIN"]},{label:"API Workbench",href:"/api-workbench/search",roles:["SUPER_ADMIN"]},{label:"API Directory",href:"/api-workbench/search",roles:["SUPER_ADMIN"]},{label:"BALMZ AI Control",href:"/api-workbench/search#balmz",roles:["SUPER_ADMIN"]},{label:"Permissions",href:"/permissions",roles:["SUPER_ADMIN"]},{label:"Reports",href:"/reports",roles:["SUPER_ADMIN"]}]}
 ];
 const publicRoutes=["/","/login","/register"];
-function isInside(pathname:string,href:string){const clean=href.split("?")[0];return pathname===clean||pathname.startsWith(`${clean}/`);}
-
-/**
- * Dashboard pages that own their complete navigation shell must not be wrapped
- * in the generic application sidebar. Otherwise two fixed sidebars render on
- * top of one another. Authentication is still handled here before the page is
- * released, so this is a layout decision only, not an access-control bypass.
- */
+function isInside(pathname:string,href:string){const clean=href.split("?")[0].split("#")[0];return pathname===clean||pathname.startsWith(`${clean}/`);}
 const standaloneDashboardRoutes=["/customer-dashboard","/admin-overview","/dashboard"];
 
 export default function AppShellContent({children}:{children:React.ReactNode}){
@@ -44,7 +37,6 @@ export default function AppShellContent({children}:{children:React.ReactNode}){
  useEffect(()=>{const active=groups.find(g=>isInside(pathname,g.href));if(active)setOpenGroup(active.key);setMobileOpen(false);},[pathname]);
  useEffect(()=>{try{setDesktopCollapsed(localStorage.getItem("pwfb_desktop_sidebar_collapsed")==="1");}catch{}},[]);
  if(isPublicRoute)return <>{children}</>;if(loading)return <main className="flex min-h-screen items-center justify-center bg-slate-50"><p className="text-emerald-700">Checking authentication...</p></main>;if(!user)return null;
- // Customer and Super Admin dashboard pages already provide their own shell/sidebar.
  if(isStandaloneDashboard)return <>{children}</>;
  const displayName=[user.firstName,user.lastName].filter(Boolean).join(" ")||user.email||"PWFB User";const visibleGroups=groups.filter(g=>g.roles.includes(user.role));
  const toggleDesktopSidebar=()=>setDesktopCollapsed(v=>{const next=!v;try{localStorage.setItem("pwfb_desktop_sidebar_collapsed",next?"1":"0");}catch{}return next;});

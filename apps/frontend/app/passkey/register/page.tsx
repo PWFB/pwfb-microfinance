@@ -16,6 +16,15 @@ async function request(endpoint: string, token: string, options: RequestInit = {
   return data;
 }
 
+async function registerPasskey(token: string) {
+  const options = await request("/auth/passkey/register/options", token, { method: "POST" });
+  const credential = await startRegistration({ optionsJSON: options });
+  return request("/auth/passkey/register/verify", token, {
+    method: "POST",
+    body: JSON.stringify({ credential, challenge: options.challenge }),
+  });
+}
+
 export default function RegisterPasskeyPage() {
   const router = useRouter();
   const [status, setStatus] = useState("Preparing passkey registration…");
@@ -30,13 +39,7 @@ export default function RegisterPasskeyPage() {
         const token = localStorage.getItem("token") || sessionStorage.getItem("token");
         if (!token) throw new Error("Your PWFB session has expired. Please sign in with Google first.");
         setStatus("Opening your device passkey prompt…");
-        const options = await request("/auth/passkey/register/options", token, { method: "POST" });
-        const credential = await startRegistration({ optionsJSON: options });
-        setStatus("Saving your passkey securely…");
-        const result = await request("/auth/passkey/register/verify", token, {
-          method: "POST",
-          body: JSON.stringify(credential),
-        });
+        const result = await registerPasskey(token);
         if (!result?.verified) throw new Error("Passkey registration could not be verified.");
         if (!cancelled) { setDone(true); setStatus("Passkey registered successfully."); }
       } catch (e: any) {
@@ -56,10 +59,7 @@ export default function RegisterPasskeyPage() {
       if (!browserSupportsWebAuthn()) throw new Error("This browser does not support passkeys.");
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) throw new Error("Please sign in first.");
-      const options = await request("/auth/passkey/register/options", token, { method: "POST" });
-      const credential = await startRegistration({ optionsJSON: options });
-      setStatus("Saving your passkey securely…");
-      const result = await request("/auth/passkey/register/verify", token, { method: "POST", body: JSON.stringify(credential) });
+      const result = await registerPasskey(token);
       if (!result?.verified) throw new Error("Passkey registration could not be verified.");
       setDone(true); setStatus("Passkey registered successfully.");
     } catch (e: any) {

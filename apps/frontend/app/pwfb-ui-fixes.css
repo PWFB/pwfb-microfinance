@@ -20,6 +20,17 @@
 .pwfb-reports-page .pwfb-department-card p { margin: 5px 0 0; color: #66736b; font-size: 11px; line-height: 1.5; }
 .pwfb-reports-page .pwfb-department-arrow { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #f5f7f6; color: #0f7b35; font-size: 14px; font-weight: 900; }
 
+/* Hide the Google iframe visually so it cannot leak account/email UI or rendering artifacts. */
+.login-page .google { overflow: hidden !important; }
+.login-page .google > div { opacity: 0 !important; pointer-events: auto !important; }
+.login-page .google::after { content: "Connect to Google" !important; display: flex !important; position: absolute !important; inset: 0 !important; align-items: center !important; justify-content: center !important; color: #29312d !important; background: #fff !important; font-size: 13px !important; font-weight: 800 !important; letter-spacing: .1px !important; pointer-events: none !important; z-index: 5 !important; }
+
+/* Prevent any inherited/generated pseudo-element inside the login card from becoming a large black shape. */
+.login-page .login-card *::before,
+.login-page .login-card *::after { box-sizing: border-box; }
+.login-page .login-card .or::before,
+.login-page .login-card .or::after { content: "" !important; position: static !important; display: block !important; height: 1px !important; background: #e4e9e6 !important; flex: 1 !important; }
+
 @media (max-width:760px) {
   .login-page .login-shell::after { height: 150px; }
   .login-page .login-shell::before { bottom: 50px; height: 46px; }

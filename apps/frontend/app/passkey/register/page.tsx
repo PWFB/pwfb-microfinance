@@ -16,71 +16,51 @@ async function request(endpoint: string, token: string, options: RequestInit = {
   return data;
 }
 
-async function registerPasskey(token: string) {
-  const options = await request("/auth/passkey/register/options", token, { method: "POST" });
-  const credential = await startRegistration({ optionsJSON: options });
-  return request("/auth/passkey/register/verify", token, {
-    method: "POST",
-    body: JSON.stringify({ credential, challenge: options.challenge }),
-  });
-}
-
 export default function RegisterPasskeyPage() {
   const router = useRouter();
-  const [status, setStatus] = useState("Preparing passkey registration…");
+  const [status, setStatus] = useState("Ready to secure your PWFB account.");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function register() {
-      try {
-        if (!browserSupportsWebAuthn()) throw new Error("This browser does not support passkeys.");
-        const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-        if (!token) throw new Error("Your PWFB session has expired. Please sign in with Google first.");
-        setStatus("Opening your device passkey prompt…");
-        const result = await registerPasskey(token);
-        if (!result?.verified) throw new Error("Passkey registration could not be verified.");
-        if (!cancelled) { setDone(true); setStatus("Passkey registered successfully."); }
-      } catch (e: any) {
-        if (!cancelled) {
-          if (e?.name === "NotAllowedError") setError("Passkey registration was cancelled. Tap Register Passkey to try again.");
-          else setError(e instanceof Error ? e.message : "Passkey registration failed.");
-        }
-      }
-    }
-    register();
-    return () => { cancelled = true; };
-  }, []);
-
-  async function retry() {
-    setError(""); setDone(false); setStatus("Preparing passkey registration…");
+  async function register() {
+    setLoading(true); setError(""); setStatus("Preparing secure passkey registration…");
     try {
-      if (!browserSupportsWebAuthn()) throw new Error("This browser does not support passkeys.");
+      if (!browserSupportsWebAuthn()) throw new Error("Passkeys are not supported on this browser. Please use a supported phone or browser.");
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-      if (!token) throw new Error("Please sign in first.");
-      const result = await registerPasskey(token);
-      if (!result?.verified) throw new Error("Passkey registration could not be verified.");
-      setDone(true); setStatus("Passkey registered successfully.");
+      if (!token) throw new Error("Please connect to Google and sign in to PWFB first.");
+      setStatus("Follow the prompt on your phone to save your fingerprint/passkey.");
+      const options = await request("/auth/passkey/register/options", token, { method: "POST" });
+      const credential = await startRegistration({ optionsJSON: options });
+      const result = await request("/auth/passkey/register/verify", token, {
+        method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }),
+      });
+      if (!result?.verified) throw new Error("PWFB could not verify the new passkey.");
+      setDone(true); setStatus("Your new PWFB passkey is registered and ready to use.");
     } catch (e: any) {
-      if (e?.name === "NotAllowedError") setError("Passkey registration was cancelled.");
+      if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap the button below to try again.");
       else setError(e instanceof Error ? e.message : "Passkey registration failed.");
-    }
+      setStatus("We could not finish passkey setup.");
+    } finally { setLoading(false); }
   }
 
+  useEffect(() => { /* Registration starts only after the user taps the button. */ }, []);
+
   return (
-    <main style={{ minHeight: "100dvh", display: "grid", placeItems: "center", padding: 24, background: "#eef3ef" }}>
-      <section style={{ width: "min(100%, 420px)", padding: 28, borderRadius: 24, background: "#fff", boxShadow: "0 20px 55px rgba(12,63,34,.16)", textAlign: "center" }}>
-        <div style={{ fontSize: 44, marginBottom: 12 }}>🔐</div>
-        <h1 style={{ margin: 0, color: "#087534", fontSize: 24 }}>PWFB Passkey</h1>
-        <p style={{ color: "#59635d", fontSize: 14, lineHeight: 1.5 }}>{status}</p>
-        {error && <div role="alert" style={{ margin: "16px 0", padding: 12, borderRadius: 10, background: "#fff4e5", color: "#a94d00", fontSize: 13 }}>{error}</div>}
-        {done ? (
-          <button onClick={() => router.back()} style={{ width: "100%", padding: 13, border: 0, borderRadius: 9, background: "#087534", color: "#fff", fontWeight: 800 }}>Continue to PWFB</button>
-        ) : (
-          <button onClick={retry} disabled={!error} style={{ width: "100%", padding: 13, border: 0, borderRadius: 9, background: "#087534", color: "#fff", fontWeight: 800, opacity: error ? 1 : .6 }}>Register Passkey</button>
-        )}
+    <main className="pk-page">
+      <section className="pk-card">
+        <div className="pk-logo"><img src="/pwfb-login-logo.svg" alt="PWFB" /></div>
+        <div className="pk-icon">⌁</div>
+        <p className="pk-label">PWFB SECURITY</p>
+        <h1>Set up your new passkey</h1>
+        <p className="pk-copy">Use your phone fingerprint, face unlock, or device screen lock for a faster and more secure PWFB login.</p>
+        <div className="pk-steps"><div><b>1</b><span>Tap <strong>Register Passkey</strong></span></div><div><b>2</b><span>Approve your device security prompt</span></div><div><b>3</b><span>Use your passkey next time you log in</span></div></div>
+        <div className={`pk-status ${error ? "error" : done ? "success" : ""}`}>{status}</div>
+        {error && <div className="pk-error" role="alert">{error}</div>}
+        {done ? <button className="pk-button" onClick={() => router.replace("/login")}>Back to Login</button> : <button className="pk-button" disabled={loading} onClick={register}>{loading ? "Setting up…" : "Register Passkey"}</button>}
+        <button className="pk-back" onClick={() => router.back()}>Cancel</button>
       </section>
+      <style jsx>{`*{box-sizing:border-box}.pk-page{min-height:100dvh;padding:24px;display:grid;place-items:center;background:linear-gradient(145deg,#075d2a,#087534);font-family:Inter,ui-sans-serif,system-ui,sans-serif}.pk-card{width:min(100%,450px);padding:30px;border-radius:24px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.25);text-align:center}.pk-logo img{width:min(250px,80%);height:auto;margin-bottom:20px}.pk-icon{width:72px;height:72px;margin:0 auto 12px;display:grid;place-items:center;border-radius:50%;background:#eaf7ef;color:#087534;font-size:42px;font-weight:900;transform:rotate(180deg)}.pk-label{margin:0;color:#f47712;font-size:10px;font-weight:900;letter-spacing:2px}.pk-card h1{margin:8px 0;color:#087534;font-size:25px}.pk-copy{margin:0 auto 20px;max-width:360px;color:#66736b;font-size:13px;line-height:1.6}.pk-steps{display:grid;gap:9px;text-align:left;margin:20px 0}.pk-steps div{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:#f5f8f6;color:#435048;font-size:12px}.pk-steps b{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:#087534;color:#fff;font-size:11px}.pk-status{margin:14px 0;padding:11px;border-radius:9px;background:#f5f8f6;color:#59635d;font-size:11px;line-height:1.5}.pk-status.success{background:#eaf7ef;color:#087534}.pk-status.error{background:#fff4e5;color:#9b4800}.pk-error{margin:10px 0;padding:10px;border-radius:9px;background:#fff4e5;color:#9b4800;font-size:11px}.pk-button{width:100%;height:48px;border:0;border-radius:9px;background:#087534;color:#fff;font-weight:900;font-size:13px}.pk-button:disabled{opacity:.6}.pk-back{margin-top:12px;border:0;background:none;color:#68736d;font-size:11px}@media(max-width:520px){.pk-page{padding:14px}.pk-card{padding:24px 19px;border-radius:20px}.pk-card h1{font-size:22px}.pk-logo img{width:min(235px,88%)}}`}</style>
     </main>
   );
 }

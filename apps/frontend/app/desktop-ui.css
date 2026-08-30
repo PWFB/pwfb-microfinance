@@ -33,3 +33,43 @@
   .pwfb-shell-sidebar-collapsed .pwfb-sidebar-collapse-button{right:-14px!important;}
   .pwfb-sidebar-collapse-button{z-index:70!important;}
 }
+
+/* Final PWFB workspace retouch */
+@media (min-width:1024px){
+  .pwfb-shell{grid-template-columns:220px minmax(0,1fr)!important}
+  .pwfb-sidebar{width:220px!important;padding:14px 10px!important}
+  .pwfb-content{padding:22px 24px!important}
+  .pwfb-topbar{height:62px!important;padding:0 22px!important}
+  .pwfb-brand{padding:6px 6px 14px!important;gap:9px!important}
+  .pwfb-company-brand{gap:9px!important;margin-bottom:14px!important}
+  .pwfb-company-logo{width:36px!important;height:36px!important;border-radius:9px!important}
+  .pwfb-company-name{font-size:14px!important}
+  .pwfb-access{margin:2px 3px 10px!important;padding:8px 10px!important}
+  .pwfb-nav{gap:2px!important;padding-bottom:100px!important}
+  .pwfb-nav-link{min-height:38px!important;padding:8px 9px!important;gap:8px!important;font-size:12px!important}
+  .pwfb-nav-icon{width:22px!important;min-width:22px!important;font-size:15px!important}
+  .pwfb-subnav{margin-left:22px!important;padding-left:9px!important}
+  .pwfb-subnav-link{min-height:30px!important;padding:6px 7px!important;font-size:10px!important}
+  .pwfb-sidebar-status{left:10px!important;right:10px!important;bottom:10px!important;padding:9px 10px!important}
+  .pwfb-page{padding:20px!important}
+  .pwfb-page-header{margin-bottom:18px!important;gap:14px!important}
+  .pwfb-page-title{font-size:28px!important}
+  .pwfb-page-description{font-size:13px!important}
+  .pwfb-stat-card{padding:16px!important}
+  .pwfb-card{border-radius:13px!important}
+  .pwfb-table th,.pwfb-table td{padding:11px!important}
+  .pwfb-shell-sidebar-collapsed{grid-template-columns:68px minmax(0,1fr)!important}
+  .pwfb-shell-sidebar-collapsed .pwfb-sidebar{width:68px!important;padding-left:8px!important;padding-right:8px!important}
+  .pwfb-shell-sidebar-collapsed .pwfb-main{width:auto!important;margin-left:0!important}
+  .pwfb-shell-sidebar-collapsed .pwfb-sidebar-status{left:8px!important;right:8px!important}
+}
+@media (max-width:1023px){
+  .pwfb-content{padding:16px!important}
+  .pwfb-topbar{padding:0 16px!important}
+  .pwfb-page{padding:16px!important}
+  .pwfb-page-header{align-items:flex-start!important;flex-direction:column!important;margin-bottom:16px!important}
+  .pwfb-page-title{font-size:24px!important}
+  .pwfb-stat-grid{grid-template-columns:1fr!important;gap:12px!important}
+  .pwfb-table-wrap{border-radius:12px!important}
+  .pwfb-table th,.pwfb-table td{padding:10px!important;font-size:12px!important}
+}

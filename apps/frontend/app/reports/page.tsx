@@ -4,53 +4,21 @@ import Link from "next/link";
 
 export default function ReportsPage() {
   const reports = [
-    {
-      title: "Portfolio Report",
-      description: "Overview of savings, loans and portfolio value.",
-      href: "/dashboard",
-      icon: "📊",
-    },
-    {
-      title: "Customer Report",
-      description: "Customer registration and account activity.",
-      href: "/customers",
-      icon: "👥",
-    },
-    {
-      title: "Loan Report",
-      description: "Loan balances, disbursements and status.",
-      href: "/loans",
-      icon: "🏦",
-    },
-    {
-      title: "Repayment Report",
-      description: "Repayment activity and collections.",
-      href: "/repayments",
-      icon: "↩️",
-    },
-    {
-      title: "Savings Report",
-      description: "Savings accounts and deposit activity.",
-      href: "/savings",
-      icon: "💰",
-    },
-    {
-      title: "Transaction Report",
-      description: "Customer transaction activity and values.",
-      href: "/transactions",
-      icon: "↔️",
-    },
+    { title: "Portfolio Report", description: "Overview of savings, loans and portfolio value.", href: "/dashboard", icon: "📊" },
+    { title: "Customer Report", description: "Customer registration and account activity.", href: "/customers", icon: "👥" },
+    { title: "Loan Report", description: "Loan balances, disbursements and status.", href: "/loans", icon: "🏦" },
+    { title: "Repayment Report", description: "Repayment activity and collections.", href: "/repayments", icon: "↩️" },
+    { title: "Savings Report", description: "Savings accounts and deposit activity.", href: "/savings", icon: "💰" },
+    { title: "Transaction Report", description: "Customer transaction activity and values.", href: "/transactions", icon: "↔️" },
   ];
 
   return (
-    <main>
+    <main className="pwfb-reports-page">
       <div className="pwfb-page-header">
         <div>
-          <p className="pwfb-eyebrow">REPORTS & ANALYTICS</p>
+          <p className="pwfb-eyebrow">REPORTS &amp; ANALYTICS</p>
           <h1 className="pwfb-page-title">Reports</h1>
-          <p className="pwfb-page-description">
-            Monitor PWFB operations and review financial activity.
-          </p>
+          <p className="pwfb-page-description">Monitor PWFB operations and review financial activity.</p>
         </div>
       </div>
 
@@ -60,11 +28,10 @@ export default function ReportsPage() {
           <strong>{reports.length}</strong>
           <small>Operational reports</small>
         </div>
-
         <div className="pwfb-stat-card pwfb-stat-orange">
           <span>Access Level</span>
           <strong>Admin</strong>
-          <small>Reports & analytics</small>
+          <small>Reports &amp; analytics</small>
         </div>
       </section>
 
@@ -75,22 +42,15 @@ export default function ReportsPage() {
             <p>Select an operational area to review.</p>
           </div>
         </div>
-
         <div className="pwfb-department-grid">
           {reports.map((report) => (
-            <Link
-              key={report.title}
-              href={report.href}
-              className="pwfb-department-card"
-            >
-              <div className="pwfb-department-icon">{report.icon}</div>
-
+            <Link key={report.title} href={report.href} className="pwfb-department-card">
+              <div className="pwfb-department-icon" aria-hidden="true">{report.icon}</div>
               <div>
                 <h3>{report.title}</h3>
                 <p>{report.description}</p>
               </div>
-
-              <span className="pwfb-department-arrow">→</span>
+              <span className="pwfb-department-arrow" aria-hidden="true">→</span>
             </Link>
           ))}
         </div>

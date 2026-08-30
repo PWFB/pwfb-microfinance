@@ -1,51 +1,53 @@
-/* PWFB mobile UI fixes: keep third-party auth UI isolated and make reports cards responsive. */
-
-.login-page { isolation: isolate; }
-.login-page .login-card { position: relative; isolation: isolate; overflow: hidden; }
-.login-page .login-shell { position: relative; isolation: isolate; overflow: hidden; }
-.login-page .login-shell::after { content: "" !important; position: absolute; left: -5%; right: -5%; bottom: -2px; height: 125px; z-index: 0; pointer-events: none; background: #0b7b38; clip-path: polygon(0 48%,10% 56%,20% 68%,32% 78%,46% 82%,60% 78%,74% 67%,88% 58%,100% 62%,100% 100%,0 100%); }
-.login-page .login-shell::before { content: "" !important; position: absolute; left: -5%; right: -5%; bottom: 43px; height: 42px; z-index: 0; pointer-events: none; background: #f47712; clip-path: polygon(0 66%,12% 76%,25% 91%,40% 100%,55% 94%,70% 76%,84% 55%,100% 61%,100% 72%,84% 66%,70% 88%,55% 100%,40% 100%,25% 96%,12% 84%,0 75%); }
-.login-page .login-card, .login-page .brand-panel { z-index: 1; }
-.login-page .google, .login-page .finger, .login-page footer { position: relative; isolation: isolate; z-index: 10; }
-.login-page .google::before, .login-page .google::after, .login-page .finger::before, .login-page .finger::after { content: none !important; display: none !important; }
-.login-page .google > div { position: relative; z-index: 2; width: 100% !important; max-width: 100% !important; height: 48px !important; overflow: hidden !important; display: flex !important; align-items: center !important; justify-content: center !important; }
-.login-page .google iframe { display: block !important; position: relative !important; z-index: 3 !important; max-width: 100% !important; height: 48px !important; border: 0 !important; }
-.login-page .finger { width: 100%; flex-shrink: 0; background: #fff !important; }
-
-.pwfb-reports-page .pwfb-department-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; padding: 18px; }
-.pwfb-reports-page .pwfb-department-card { position: relative; min-width: 0; min-height: 118px; display: grid; grid-template-columns: 42px minmax(0,1fr) 24px; align-items: center; gap: 13px; padding: 18px; border: 1px solid #e4ebe6; border-radius: 14px; background: #fff; transition: transform .15s ease,border-color .15s ease,box-shadow .15s ease; }
-.pwfb-reports-page .pwfb-department-card:hover { border-color: #b9dcc5; box-shadow: 0 5px 16px rgba(15,123,53,.08); transform: translateY(-1px); }
-.pwfb-reports-page .pwfb-department-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 11px; background: #eaf7ef; font-size: 22px; line-height: 1; }
-.pwfb-reports-page .pwfb-department-card h3 { margin: 0; color: #172033; font-size: 15px; font-weight: 900; }
-.pwfb-reports-page .pwfb-department-card p { margin: 5px 0 0; color: #66736b; font-size: 11px; line-height: 1.5; }
-.pwfb-reports-page .pwfb-department-arrow { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: #f5f7f6; color: #0f7b35; font-size: 14px; font-weight: 900; }
-
-/* Hide the Google iframe visually so it cannot leak account/email UI or rendering artifacts. */
-.login-page .google { overflow: hidden !important; }
-.login-page .google > div { opacity: 0 !important; pointer-events: auto !important; }
-.login-page .google::after { content: "Connect to Google" !important; display: flex !important; position: absolute !important; inset: 0 !important; align-items: center !important; justify-content: center !important; color: #29312d !important; background: #fff !important; font-size: 13px !important; font-weight: 800 !important; letter-spacing: .1px !important; pointer-events: none !important; z-index: 5 !important; }
-
-/* Prevent any inherited/generated pseudo-element inside the login card from becoming a large black shape. */
+/* PWFB login cleanup: remove the old overlay that caused the fuzzy/black artifact. */
+.login-page .login-shell::before,
+.login-page .login-shell::after { content: none !important; display: none !important; }
+.login-page .login-card,
+.login-page .brand-panel { position: relative; z-index: 1; }
 .login-page .login-card *::before,
 .login-page .login-card *::after { box-sizing: border-box; }
+
+/* Keep Google visually clean while preserving its click target. */
+.login-page .google { position: relative; overflow: hidden !important; }
+.login-page .google > div { opacity: 0 !important; pointer-events: auto !important; }
+.login-page .google::after {
+  content: "Connect to Google" !important;
+  display: flex !important;
+  position: absolute !important;
+  inset: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #29312d !important;
+  background: #fff !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  pointer-events: none !important;
+  z-index: 5 !important;
+}
+
+/* The OR separator is the only intentional pseudo-element in the login card. */
 .login-page .login-card .or::before,
-.login-page .login-card .or::after { content: "" !important; position: static !important; display: block !important; height: 1px !important; background: #e4e9e6 !important; flex: 1 !important; }
+.login-page .login-card .or::after {
+  content: "" !important;
+  position: static !important;
+  display: block !important;
+  width: auto !important;
+  height: 1px !important;
+  background: #e4e9e6 !important;
+  flex: 1 !important;
+}
+
+/* Keep the actual PWFB logo crisp and free of filters/overlays. */
+.login-page .brand-mark img,
+.login-page .mobile-logo img {
+  filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+  transform: none !important;
+  backface-visibility: visible !important;
+}
+.login-page .brand-mark,
+.login-page .mobile-logo { filter: none !important; opacity: 1 !important; }
 
 @media (max-width:760px) {
-  .login-page .login-shell::after { height: 150px; }
-  .login-page .login-shell::before { bottom: 50px; height: 46px; }
-  .login-page .login-card { padding-bottom: 145px; }
-  .pwfb-reports-page { padding: 16px !important; }
-  .pwfb-reports-page .pwfb-page-header { margin-bottom: 16px; }
-  .pwfb-reports-page .pwfb-page-title { font-size: 27px; }
-  .pwfb-reports-page .pwfb-page-description { font-size: 12px; }
-  .pwfb-reports-page .pwfb-stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
-  .pwfb-reports-page .pwfb-stat-card { padding: 14px; }
-  .pwfb-reports-page .pwfb-stat-card strong { font-size: 22px; }
-  .pwfb-reports-page .pwfb-panel-header { padding: 16px; }
-  .pwfb-reports-page .pwfb-department-grid { grid-template-columns: 1fr; gap: 10px; padding: 12px; }
-  .pwfb-reports-page .pwfb-department-card { min-height: 86px; grid-template-columns: 38px minmax(0,1fr) 24px; gap: 11px; padding: 13px; }
-  .pwfb-reports-page .pwfb-department-icon { width: 38px; height: 38px; font-size: 19px; }
-  .pwfb-reports-page .pwfb-department-card h3 { font-size: 14px; }
-  .pwfb-reports-page .pwfb-department-card p { font-size: 10px; }
+  .login-page .login-card { padding-bottom: 24px !important; }
 }

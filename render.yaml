@@ -14,6 +14,7 @@ services:
     runtime: node
     plan: starter
     rootDir: apps/frontend
-    buildCommand: npm install && npm run build
+    # Ensure devDependencies are installed during build (Tailwind/PostCSS needed by Next build)
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm install && npm run build
     startCommand: npm run start
     autoDeploy: true

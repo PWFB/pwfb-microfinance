@@ -1,176 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../lib/api";
 
-interface Savings {
-  id: string;
-  customerId: string;
-  amount: number;
-  accountType?: string;
-}
+interface Savings { id:string; customerId:string; amount:number; accountType?:string; status?:string; createdAt?:string; }
 
-export default function SavingsPage() {
-  const [savings, setSavings] = useState<Savings[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function loadSavings() {
-      try {
-        const data = await apiRequest("/savings");
-        setSavings(Array.isArray(data) ? data : []);
-      } catch (error) {
-        console.error("Failed to load savings:", error);
-        setSavings([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadSavings();
-  }, []);
-
-  const totalSavings = savings.reduce(
-    (sum, item) => sum + Number(item.amount || 0),
-    0,
-  );
-
-  return (
-    <main>
-      <div className="pwfb-page-header">
-        <div>
-          <p className="pwfb-eyebrow">SAVINGS OPERATIONS</p>
-          <h1 className="pwfb-page-title">Savings</h1>
-          <p className="pwfb-page-description">
-            Manage customer savings accounts, balances and deposit activity.
-          </p>
-        </div>
-
-        <Link href="/savings/add" className="pwfb-primary-button">
-          + Add Savings
-        </Link>
-      </div>
-
-      <section className="pwfb-stat-grid">
-        <div className="pwfb-stat-card">
-          <span>Total Accounts</span>
-          <strong>{loading ? "—" : savings.length}</strong>
-          <small>Registered savings records</small>
-        </div>
-
-        <div className="pwfb-stat-card pwfb-stat-orange">
-          <span>Total Savings</span>
-          <strong>
-            {loading
-              ? "—"
-              : `₦${totalSavings.toLocaleString("en-NG")}`}
-          </strong>
-          <small>Recorded savings value</small>
-        </div>
-
-        <div className="pwfb-stat-card">
-          <span>Account Status</span>
-          <strong>Active</strong>
-          <small>Savings operations</small>
-        </div>
-      </section>
-
-      <section className="pwfb-panel">
-        <div className="pwfb-panel-header">
-          <div>
-            <h2>Savings Accounts</h2>
-            <p>
-              Customer savings records currently available in the system.
-            </p>
-          </div>
-
-          <span className="pwfb-record-count">
-            {loading ? "Loading..." : `${savings.length} records`}
-          </span>
-        </div>
-
-        {loading ? (
-          <div className="pwfb-empty-state">
-            <div className="pwfb-loading-dot" />
-            <p>Loading savings...</p>
-          </div>
-        ) : savings.length === 0 ? (
-          <div className="pwfb-empty-state">
-            <div className="pwfb-empty-icon">₦</div>
-            <h3>No savings records found</h3>
-            <p>Start by adding the first customer savings record.</p>
-            <Link
-              href="/savings/add"
-              className="pwfb-secondary-button"
-            >
-              Add Savings
-            </Link>
-          </div>
-        ) : (
-          <div className="pwfb-table-wrap">
-            <table className="pwfb-table">
-              <thead>
-                <tr>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Account Type</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {savings.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <div className="pwfb-customer-cell">
-                        <div className="pwfb-avatar">₦</div>
-                        <div>
-                          <strong>Customer</strong>
-                          <small>{item.customerId}</small>
-                        </div>
-                      </div>
-                    </td>
-
-                    <td>
-                      <strong>
-                        ₦{Number(item.amount || 0).toLocaleString("en-NG")}
-                      </strong>
-                    </td>
-
-                    <td>{item.accountType || "—"}</td>
-
-                    <td>
-                      <span className="pwfb-status-badge">
-                        Active
-                      </span>
-                    </td>
-
-                    <td>
-                      <div className="pwfb-actions">
-                        <Link
-                          href={`/savings/view/${item.id}`}
-                          className="pwfb-action-view"
-                        >
-                          View
-                        </Link>
-
-                        <Link
-                          href={`/savings/edit/${item.id}`}
-                          className="pwfb-action-edit"
-                        >
-                          Edit
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </main>
-  );
+export default function SavingsPage(){
+ const[savings,setSavings]=useState<Savings[]>([]),[loading,setLoading]=useState(true),[search,setSearch]=useState(""),[type,setType]=useState("all");
+ useEffect(()=>{apiRequest("/savings").then(data=>setSavings(Array.isArray(data)?data:data?.data??[])).catch(()=>setSavings([])).finally(()=>setLoading(false))},[]);
+ const totalSavings=savings.reduce((sum,item)=>sum+Number(item.amount||0),0);const active=savings.filter(x=>(x.status||"ACTIVE").toUpperCase()==="ACTIVE").length;
+ const filtered=useMemo(()=>savings.filter(x=>{const q=search.toLowerCase().trim();return(!q||`${x.customerId} ${x.id} ${x.accountType||""}`.toLowerCase().includes(q))&&(type==="all"||String(x.accountType||"").toLowerCase()===type)}),[savings,search,type]);
+ return <main className="pwfb-savings-page"><div className="pwfb-page-header pwfb-savings-header"><div><p className="pwfb-eyebrow">SAVINGS OPERATIONS</p><h1 className="pwfb-page-title">Savings</h1><p className="pwfb-page-description">Manage customer savings accounts, balances and deposit activity.</p></div><Link href="/savings/add" className="pwfb-primary-button">+ Add Savings</Link></div>
+ <section className="pwfb-savings-hero"><div><span className="pwfb-savings-kicker">PWFB SAVINGS</span><h2>Customer Savings</h2><p>Securely manage savings records and monitor customer balances from one workspace.</p></div><div className="pwfb-savings-hero-value"><small>TOTAL SAVINGS VALUE</small><strong>₦{loading?"—":totalSavings.toLocaleString("en-NG")}</strong><span>{active} active account{active===1?"":"s"}</span></div></section>
+ <section className="pwfb-savings-stats"><div className="pwfb-stat-card pwfb-stat-green"><span>Total Accounts</span><strong>{loading?"—":savings.length}</strong><small>Registered savings records</small></div><div className="pwfb-stat-card pwfb-stat-orange"><span>Total Savings</span><strong>{loading?"—":`₦${totalSavings.toLocaleString("en-NG")}`}</strong><small>Recorded savings value</small></div><div className="pwfb-stat-card pwfb-stat-green"><span>Account Status</span><strong>Active</strong><small>Savings operations</small></div></section>
+ <section className="pwfb-panel pwfb-savings-workspace"><div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">SAVINGS WORKSPACE</p><h2>Savings Accounts</h2><p>Customer savings records currently available in the system.</p></div><span className="pwfb-record-count">{loading?"Loading...":`${filtered.length} records`}</span></div><div className="pwfb-savings-toolbar"><label className="pwfb-savings-search"><span>⌕</span><div><small>Search savings</small><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Customer ID, account ID or account type"/></div></label><label className="pwfb-savings-filter"><small>Account Type</small><select className="pwfb-input" value={type} onChange={e=>setType(e.target.value)}><option value="all">All account types</option>{Array.from(new Set(savings.map(x=>x.accountType).filter(Boolean))).map(x=><option key={x} value={String(x).toLowerCase()}>{x}</option>)}</select></label><Link href="/savings/add" className="pwfb-secondary-button">+ New Savings</Link></div></section>
+ <section className="pwfb-panel pwfb-savings-list">{loading?<div className="pwfb-empty-state"><div className="pwfb-loading-dot"/><p>Loading savings...</p></div>:filtered.length===0?<div className="pwfb-empty-state"><div className="pwfb-savings-empty-icon">₦</div><h3>No savings records found</h3><p>{savings.length?"Try changing your search or account type filter.":"Start by adding the first customer savings record."}</p><Link href="/savings/add" className="pwfb-primary-button">Add Savings</Link></div>:<div className="pwfb-table-wrap"><table className="pwfb-table"><thead><tr><th>Customer</th><th>Amount</th><th>Account Type</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filtered.map(item=><tr key={item.id}><td><div className="pwfb-customer-cell"><div className="pwfb-avatar pwfb-savings-avatar">₦</div><div><strong>Customer</strong><small>{item.customerId}</small></div></div></td><td><strong className="pwfb-savings-amount">₦{Number(item.amount||0).toLocaleString("en-NG")}</strong></td><td>{item.accountType||"—"}</td><td><span className="pwfb-status-badge"><i/> {item.status||"Active"}</span></td><td><div className="pwfb-actions"><Link href={`/savings/view/${item.id}`} className="pwfb-action-view">View</Link><Link href={`/savings/edit/${item.id}`} className="pwfb-action-edit">Edit</Link></div></td></tr>)}</tbody></table></div>}</section></main>
 }

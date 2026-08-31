@@ -12,9 +12,21 @@ android {
         versionName '1.0.0'
     }
 
+    signingConfigs {
+        release {
+            if (project.hasProperty('PWFB_KEYSTORE_FILE')) {
+                storeFile file(project.property('PWFB_KEYSTORE_FILE'))
+                storePassword project.property('PWFB_KEYSTORE_PASSWORD')
+                keyAlias project.property('PWFB_KEY_ALIAS')
+                keyPassword project.property('PWFB_KEY_PASSWORD')
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }

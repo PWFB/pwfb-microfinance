@@ -1,34 +1,17 @@
 "use client";
+import Link from "next/link";
 import { apiRequest } from "../../../lib/api";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export default function AddCustomerPage() {
-  const router = useRouter();
-  const [form, setForm] = useState({ firstName: "", middleName: "", lastName: "", email: "", phone: "", address: "", dateOfBirth: "" });
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  function handleChange(e: React.ChangeEvent<HTMLInputElement>) { setForm({ ...form, [e.target.name]: e.target.value }); }
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault(); setLoading(true); setMessage("");
-    try { await apiRequest("/customers", { method: "POST", body: JSON.stringify(form) }); setMessage("Customer created successfully."); setTimeout(() => router.push("/customers"), 800); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create customer."); }
-    finally { setLoading(false); }
-  }
-  return <main className="pwfb-panel" style={{ maxWidth: 760 }}>
-    <div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">CUSTOMER REGISTRATION</p><h1 className="pwfb-page-title">Add Customer</h1><p className="pwfb-page-description">Register the customer using their complete legal name.</p></div></div>
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
-        <input name="firstName" placeholder="First Name" value={form.firstName} onChange={handleChange} required />
-        <input name="middleName" placeholder="Middle Name" value={form.middleName} onChange={handleChange} />
-        <input name="lastName" placeholder="Last Name" value={form.lastName} onChange={handleChange} required />
-      </div>
-      <input name="email" type="email" placeholder="Email (optional)" value={form.email} onChange={handleChange} />
-      <input name="phone" placeholder="Phone" value={form.phone} onChange={handleChange} />
-      <input name="address" placeholder="Address" value={form.address} onChange={handleChange} />
-      <label>Date of Birth<input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={handleChange} /></label>
-      <button className="pwfb-primary-button" type="submit" disabled={loading}>{loading ? "Saving..." : "Create Customer"}</button>
-      {message && <p>{message}</p>}
-    </form>
-  </main>;
+const initialForm={firstName:"",middleName:"",lastName:"",email:"",phone:"",address:"",dateOfBirth:""};
+export default function AddCustomerPage(){
+ const router=useRouter(); const [form,setForm]=useState(initialForm); const [loading,setLoading]=useState(false); const [message,setMessage]=useState("");
+ const change=(e:React.ChangeEvent<HTMLInputElement>)=>setForm({...form,[e.target.name]:e.target.value});
+ async function submit(e:React.FormEvent){e.preventDefault();setLoading(true);setMessage("");try{await apiRequest("/customers",{method:"POST",body:JSON.stringify(form)});setMessage("Customer created successfully.");setTimeout(()=>router.push("/customers"),700)}catch(err){setMessage(err instanceof Error?err.message:"Unable to create customer.")}finally{setLoading(false)}}
+ return <main className="pwfb-customer-form-page"><div className="pwfb-page-header"><div><p className="pwfb-eyebrow">CUSTOMER MANAGEMENT / REGISTRATION</p><h1 className="pwfb-page-title">Add Customer</h1><p className="pwfb-page-description">Create a complete customer profile for deposits, savings, loans and banking services.</p></div><Link href="/customers" className="pwfb-secondary-button">← Customer Overview</Link></div>
+ <div className="pwfb-form-layout"><form onSubmit={submit} className="pwfb-panel pwfb-form-card"><div className="pwfb-form-section"><div className="pwfb-form-section-heading"><span>01</span><div><h2>Personal Information</h2><p>Enter the customer's legal name exactly as provided.</p></div></div><div className="pwfb-form-grid pwfb-form-grid-3">{[["firstName","First Name",true],["middleName","Middle Name",false],["lastName","Last Name",true]].map(([n,l,r])=><label key={String(n)} className="pwfb-field">{String(l)} {r&&<em>*</em>}<input name={String(n)} value={(form as any)[n as any]} onChange={change} required={Boolean(r)} placeholder={`Enter ${String(l).toLowerCase()}`}/></label>)}</div></div>
+ <div className="pwfb-form-section"><div className="pwfb-form-section-heading"><span>02</span><div><h2>Contact Information</h2><p>Use current contact details for account communication.</p></div></div><div className="pwfb-form-grid pwfb-form-grid-2"><label className="pwfb-field">Phone Number <em>*</em><input name="phone" value={form.phone} onChange={change} required placeholder="0800 000 0000" inputMode="tel"/></label><label className="pwfb-field">Email Address <small>Optional</small><input name="email" type="email" value={form.email} onChange={change} placeholder="customer@example.com"/></label><label className="pwfb-field pwfb-field-full">Residential Address<input name="address" value={form.address} onChange={change} placeholder="Enter full residential address"/></label></div></div>
+ <div className="pwfb-form-section"><div className="pwfb-form-section-heading"><span>03</span><div><h2>Customer Details</h2><p>Basic identification information for the customer profile.</p></div></div><div className="pwfb-form-grid"><label className="pwfb-field">Date of Birth<input name="dateOfBirth" type="date" value={form.dateOfBirth} onChange={change}/></label></div></div>
+ <div className="pwfb-form-footer"><span>Fields marked <b>*</b> are required.</span><div><Link href="/customers" className="pwfb-secondary-button">Cancel</Link><button className="pwfb-primary-button" type="submit" disabled={loading}>{loading?"Creating Customer…":"Create Customer"}</button></div></div>{message&&<div className={`pwfb-alert ${message.includes("successfully")?"pwfb-alert-success":"pwfb-alert-error"}`}>{message}</div>}</form><aside className="pwfb-panel pwfb-form-side"><div className="pwfb-side-icon">👤</div><h2>New Customer</h2><p>A customer profile becomes the central record for their PWFB financial activity.</p><ul><li>Deposits & withdrawals</li><li>Savings accounts</li><li>Loan applications</li><li>Transaction history</li></ul><div className="pwfb-side-note"><strong>Before you save</strong><span>Confirm the customer's name and phone number are correct.</span></div></aside></div></main>
 }

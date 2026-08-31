@@ -13,7 +13,7 @@ services:
     name: pwfb-frontend
     runtime: node
     plan: starter
-    rootDir: .
-    buildCommand: npm install && npm run build --workspace=frontend
-    startCommand: npm run start --workspace=frontend
+    rootDir: apps/frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
     autoDeploy: true

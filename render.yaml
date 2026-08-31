@@ -15,5 +15,5 @@ services:
     plan: starter
     rootDir: apps/frontend
     buildCommand: npm install && npm run build
-    startCommand: npm start
+    startCommand: npm run start
     autoDeploy: true

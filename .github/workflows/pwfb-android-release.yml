@@ -12,6 +12,7 @@ permissions:
 
 env:
   JAVA_VERSION: '17'
+  GRADLE_VERSION: '8.13'
 
 jobs:
   build-aab:
@@ -29,16 +30,17 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
-      - name: Generate Gradle wrapper
-        working-directory: android-twa
-        run: gradle wrapper --gradle-version 8.13
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
 
       - name: Build unsigned release AAB
         working-directory: android-twa
-        run: ./gradlew bundleRelease
+        run: gradle --no-daemon bundleRelease
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v4

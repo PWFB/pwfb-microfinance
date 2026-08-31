@@ -10,16 +10,6 @@ type Summary = { customers: { count: number }; savings: { count: number; amount:
 const initialSummary: Summary = { customers: { count: 0 }, savings: { count: 0, amount: 0 }, loans: { count: 0, amount: 0 }, transactions: { count: 0, amount: 0 }, repayments: { count: 0, amount: 0 }, portfolio: { amount: 0 } };
 function money(value: number) { return new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN", maximumFractionDigits: 0 }).format(Number(value) || 0); }
 
-const operations = [
-  { label: "Customer", description: "Profiles & onboarding", href: "/customers", icon: "👥" },
-  { label: "Loan", description: "Loans & repayments", href: "/loans", icon: "▣" },
-  { label: "Staff", description: "Staff & access", href: "/staff", icon: "♙" },
-  { label: "Savings", description: "Savings accounts", href: "/savings", icon: "₦" },
-  { label: "Daily Deposits", description: "Deposit activity", href: "/banking?operation=deposit", icon: "↓" },
-  { label: "Daily Withdrawals", description: "Withdrawal activity", href: "/banking?operation=withdraw", icon: "↑" },
-  { label: "Transfer", description: "Customer transfers", href: "/banking?operation=transfer", icon: "⇄" },
-];
-
 export default function DashboardPage() {
   const [summary, setSummary] = useState<Summary>(initialSummary);
   const [loading, setLoading] = useState(true);
@@ -36,13 +26,6 @@ export default function DashboardPage() {
         <div className={styles.heading}><p className={styles.eyebrow}>PWFB MICROFINANCE MANAGEMENT SYSTEM</p><h1>Dashboard</h1><p>Manage deposits. Issue loans. Track repayments. Grow responsibly.</p></div>
         <div className={styles.headerActions}><button type="button" className={styles.headerButton} aria-label="Daily summary">▣</button><button type="button" className={styles.headerButton} aria-label="Refresh dashboard">↻</button><div className={styles.adminChip}><div className={styles.avatar}>SA</div><div><strong>Super Admin</strong><small>Administrator</small></div></div></div>
       </header>
-
-      <section className={styles.controlCenter} aria-label="Operational Control Center">
-        <div className={styles.controlHeader}><div><small>OPERATIONAL CONTROL CENTER</small><h2>Daily Operations</h2><p>Quick access to the core PWFB operating cycle.</p></div></div>
-        <div className={styles.operationGrid}>
-          {operations.map((item) => <Link key={item.label} href={item.href} className={styles.operationCard}><span>{item.icon}</span><strong>{item.label}</strong><small>{item.description}</small></Link>)}
-        </div>
-      </section>
 
       <section className={styles.stats}>
         <Link href="/savings" className={styles.stat}><div className={`${styles.statIcon} ${styles.green}`}>▣</div><div className={styles.statText}><small>Total Deposits</small><strong>{loading ? "—" : money(summary.savings.amount)}</strong><span>{summary.savings.count} savings records</span></div></Link>

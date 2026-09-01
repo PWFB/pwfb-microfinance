@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls", "delegate_permission/common.get_login_creds"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.pwfb.microfinance",
+      "sha256_cert_fingerprints": [
+        "13:27:5B:63:A3:76:D4:B6:97:D0:B2:EF:C7:84:24:B3:9F:37:CC:85:B9:F8:06:99:3F:9F:FC:BE:C3:72:ED:35"
+      ]
+    }
+  }
+]

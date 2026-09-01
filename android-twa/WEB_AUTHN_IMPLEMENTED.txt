@@ -1,1 +1,0 @@
-Native WebAuthn support is being enabled through AndroidX WebKit and the PWFB Android shell.

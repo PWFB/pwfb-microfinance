@@ -16,7 +16,8 @@ async function request(endpoint: string, token: string, options: RequestInit = {
 function openChrome() {
   const url = window.location.href;
   try {
-    window.location.href = `intent://${url.replace(/^https?:\\/\\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
+    const chromeUrl = `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
+    window.location.href = chromeUrl;
   } catch {
     window.open(url, "_blank", "noopener,noreferrer");
   }

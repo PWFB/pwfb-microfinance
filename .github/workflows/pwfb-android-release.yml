@@ -63,19 +63,19 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.0-signed-apk
+          name: pwfb-microfinance-v1.0.1-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.0
-          name: PWFB Microfinance v1.0.0
+          tag_name: v1.0.1
+          name: PWFB Microfinance v1.0.1
           body: |
-            PWFB Microfinance Android application v1.0.0.
+            PWFB Microfinance Android application v1.0.1.
 
-            Download the signed Android APK below and install it on an Android device.
+            Google login now runs through the Chrome/Trusted Web Activity browser context instead of the embedded Android WebView, so Google authentication and passkeys can use the device browser capabilities.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true

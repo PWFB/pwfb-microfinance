@@ -15,7 +15,7 @@ env:
   GRADLE_VERSION: '8.13'
 
 jobs:
-  build-and-sign-aab:
+  build-and-sign-apk:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -44,27 +44,27 @@ jobs:
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android-twa/pwfb-upload-key.jks
           chmod 600 android-twa/pwfb-upload-key.jks
 
-      - name: Build signed AAB
+      - name: Build signed APK
         working-directory: android-twa
         run: |
           set -euo pipefail
-          gradle --no-daemon bundleRelease \
+          gradle --no-daemon assembleRelease \
             -PPWFB_KEYSTORE_FILE="$PWD/pwfb-upload-key.jks" \
             -PPWFB_KEYSTORE_PASSWORD="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             -PPWFB_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
             -PPWFB_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD }}"
 
-      - name: Verify signed AAB
+      - name: Verify signed APK
         run: |
           set -euo pipefail
-          test -s android-twa/app/build/outputs/bundle/release/app-release.aab
-          echo "Signed AAB created successfully."
+          test -s android-twa/app/build/outputs/apk/release/app-release.apk
+          echo "Signed APK created successfully."
 
-      - name: Upload signed AAB
+      - name: Upload signed APK
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.0-signed
-          path: android-twa/app/build/outputs/bundle/release/app-release.aab
+          name: pwfb-microfinance-v1.0.0-signed-apk
+          path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Delete temporary keystore

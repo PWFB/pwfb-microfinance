@@ -13,8 +13,12 @@ declare global { interface Window { google?: any } }
 
 function openChromeForPasskey() {
   const url = window.location.href;
-  try { window.location.href = `intent://${url.replace(/^https?:\\/\\//, "")}#Intent;scheme=https;package=com.android.chrome;end`; }
-  catch { window.open(url, "_blank", "noopener,noreferrer"); }
+  try {
+    const chromeUrl = `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
+    window.location.href = chromeUrl;
+  } catch {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
 }
 
 export default function LoginPage() {

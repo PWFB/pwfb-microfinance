@@ -2,6 +2,7 @@ package com.pwfb.microfinance;
 
 import android.app.Activity;
 import android.content.ComponentName;
+import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
@@ -15,6 +16,7 @@ import androidx.browser.trusted.TrustedWebActivityIntentBuilder;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://pwfb-frontend.onrender.com/";
+    private static final String OPEN_CHROME_SCHEME = "pwfb";
 
     private CustomTabsServiceConnection connection;
     private CustomTabsClient client;
@@ -22,7 +24,39 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (handleOpenChromeIntent(getIntent())) {
+            return;
+        }
         launchPwfb();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleOpenChromeIntent(intent);
+    }
+
+    private boolean handleOpenChromeIntent(Intent intent) {
+        Uri data = intent == null ? null : intent.getData();
+        if (data == null || !OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme()) || !"open-chrome".equalsIgnoreCase(data.getHost())) {
+            return false;
+        }
+
+        String target = data.getQueryParameter("url");
+        if (target == null || target.trim().isEmpty()) {
+            target = START_URL + "login";
+        }
+
+        Intent chromeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(target));
+        chromeIntent.setPackage("com.android.chrome");
+        try {
+            startActivity(chromeIntent);
+        } catch (Exception ignored) {
+            Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(target));
+            startActivity(browserIntent);
+        }
+        return true;
     }
 
     private void launchPwfb() {

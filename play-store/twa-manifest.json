@@ -23,8 +23,8 @@
     "path": "./android.keystore",
     "alias": "pwfb"
   },
-  "appVersionCode": 1,
-  "appVersion": "1.0.0",
+  "appVersionCode": 2,
+  "appVersion": "1.0.1",
   "generatorApp": "PWFB Microfinance",
   "minSdkVersion": 21,
   "orientation": "portrait-primary",

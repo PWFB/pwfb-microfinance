@@ -14,8 +14,9 @@ declare global { interface Window { google?: any } }
 function openChromeForPasskey() {
   const url = window.location.href;
   try {
-    const chromeUrl = `intent://${url.replace(/^https?:\/\//, "")}#Intent;scheme=https;package=com.android.chrome;end`;
-    window.location.href = chromeUrl;
+    // The PWFB Android TWA handles this custom scheme and launches Chrome natively.
+    // Using intent:// directly from a TWA can produce ERR_UNKNOWN_URL_SCHEME.
+    window.location.href = `pwfb://open-chrome?url=${encodeURIComponent(url)}`;
   } catch {
     window.open(url, "_blank", "noopener,noreferrer");
   }

@@ -19,9 +19,10 @@ public class MainActivity extends Activity {
     private void launchWebApp() {
         Uri uri = Uri.parse(START_URL);
         try {
-            new TrustedWebActivityIntentBuilder(uri)
-                    .build()
-                    .launchTrustedWebActivity(this);
+            TrustedWebActivityIntentBuilder builder =
+                    new TrustedWebActivityIntentBuilder(uri);
+            Intent intent = builder.build(this);
+            intent.launchTrustedWebActivity(this);
         } catch (Exception ignored) {
             startActivity(new Intent(Intent.ACTION_VIEW, uri));
         }

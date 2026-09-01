@@ -8,7 +8,7 @@ on:
       - '.github/workflows/pwfb-android-release.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   JAVA_VERSION: '17'
@@ -60,12 +60,25 @@ jobs:
           test -s android-twa/app/build/outputs/apk/release/app-release.apk
           echo "Signed APK created successfully."
 
-      - name: Upload signed APK
+      - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: pwfb-microfinance-v1.0.0-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+
+      - name: Publish APK download release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: PWFB Microfinance v1.0.0
+          body: |
+            PWFB Microfinance Android application v1.0.0.
+
+            Download the signed Android APK below and install it on an Android device.
+          files: android-twa/app/build/outputs/apk/release/app-release.apk
+          overwrite_files: true
+          make_latest: true
 
       - name: Delete temporary keystore
         if: always()

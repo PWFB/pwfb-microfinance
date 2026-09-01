@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">PWFB Microfinance</string>
+    <string name="asset_statements" translatable="false">[{&quot;include&quot;:&quot;https://pwfb-frontend.onrender.com/.well-known/assetlinks.json&quot;}]</string>
+</resources>

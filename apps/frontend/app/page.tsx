@@ -1,6 +1,9 @@
 import Link from "next/link";
 import styles from "./home.module.css";
 
+const androidDownloadUrl =
+  "https://github.com/PWFB/pwfb-microfinance/releases/download/v1.0.0/app-release.apk";
+
 const modules = [
   ["👥", "Customers", "Manage customer profiles and KYC.", "/customers"],
   ["💰", "Savings", "Create and manage savings accounts.", "/savings"],
@@ -56,6 +59,13 @@ export default function Home() {
             <Link href="/register" className={styles.registerButton}>
               Register
             </Link>
+            <a
+              href={androidDownloadUrl}
+              className={styles.downloadButton}
+              download="PWFB-Microfinance-v1.0.0.apk"
+            >
+              Download App
+            </a>
           </div>
         </div>
       </section>

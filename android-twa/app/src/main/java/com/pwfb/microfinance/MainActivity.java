@@ -13,17 +13,12 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        launchWebApp();
-    }
-
-    private void launchWebApp() {
         Uri uri = Uri.parse(START_URL);
+        Intent intent = new TrustedWebActivityIntentBuilder(uri).build();
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         try {
-            TrustedWebActivityIntentBuilder builder =
-                    new TrustedWebActivityIntentBuilder(uri);
-            Intent intent = builder.build(this);
-            intent.launchTrustedWebActivity(this);
-        } catch (Exception ignored) {
+            startActivity(intent);
+        } catch (Exception e) {
             startActivity(new Intent(Intent.ACTION_VIEW, uri));
         }
     }

@@ -37,7 +37,7 @@ public class MainActivity extends Activity {
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
             WebSettingsCompat.setWebAuthenticationSupport(
                     settings,
-                    WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_APP
+                    WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP
             );
         }
 

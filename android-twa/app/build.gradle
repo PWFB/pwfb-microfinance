@@ -32,9 +32,6 @@ android {
     }
 }
 
-// AndroidX/browser can bring Kotlin's legacy jdk7/jdk8 split modules through
-// transitive dependencies. Keep a single Kotlin stdlib on the runtime classpath
-// to prevent duplicate classes during the release build.
 configurations.configureEach {
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
@@ -45,5 +42,6 @@ configurations.configureEach {
 
 dependencies {
     implementation 'androidx.browser:browser:1.9.0'
+    implementation 'androidx.webkit:webkit:1.14.0'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
 }

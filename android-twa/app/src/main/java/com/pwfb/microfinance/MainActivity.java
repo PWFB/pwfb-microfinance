@@ -1,72 +1,55 @@
 package com.pwfb.microfinance;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
-import android.view.ViewGroup;
-import android.webkit.CookieManager;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
 
-import androidx.webkit.WebSettingsCompat;
-import androidx.webkit.WebViewFeature;
+import androidx.browser.customtabs.CustomTabsIntent;
+import androidx.browser.customtabs.TrustedWebUtils;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://pwfb-frontend.onrender.com/";
-    private WebView webView;
+    private static final String OPEN_CHROME_SCHEME = "pwfb";
+    private static final String OPEN_CHROME_HOST = "open-chrome";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-        ));
-
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setSupportZoom(false);
-        settings.setBuiltInZoomControls(false);
-        settings.setDisplayZoomControls(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setSupportMultipleWindows(false);
-
-        CookieManager cookies = CookieManager.getInstance();
-        cookies.setAcceptCookie(true);
-        cookies.setAcceptThirdPartyCookies(webView, true);
-
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
-            WebSettingsCompat.setWebAuthenticationSupport(
-                    settings,
-                    WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP
-            );
-        }
-
-        webView.setWebViewClient(new WebViewClient());
-        webView.loadUrl(START_URL);
-        setContentView(webView);
+        launchBrowser(resolveLaunchUri(getIntent()));
     }
 
     @Override
-    public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
-        }
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        launchBrowser(resolveLaunchUri(intent));
     }
 
-    @Override
-    protected void onDestroy() {
-        if (webView != null) {
-            webView.stopLoading();
-            webView.destroy();
-            webView = null;
+    private Uri resolveLaunchUri(Intent intent) {
+        Uri data = intent == null ? null : intent.getData();
+        if (data != null
+                && OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())
+                && OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
+            String target = data.getQueryParameter("url");
+            if (target != null && !target.trim().isEmpty()) {
+                try {
+                    Uri uri = Uri.parse(target);
+                    if ("https".equalsIgnoreCase(uri.getScheme())) return uri;
+                } catch (Exception ignored) { }
+            }
         }
-        super.onDestroy();
+        return Uri.parse(START_URL);
+    }
+
+    private void launchBrowser(Uri uri) {
+        CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder().build();
+        customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        customTabsIntent.intent.setData(uri);
+        try {
+            TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent.intent);
+        } catch (Exception ignored) {
+            customTabsIntent.launchUrl(this, uri);
+        }
     }
 }

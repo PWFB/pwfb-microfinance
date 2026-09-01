@@ -6,7 +6,6 @@ RUN apk add --no-cache wget
 
 COPY package.json ./
 COPY apps/backend/package.json ./apps/backend/package.json
-COPY packages ./packages
 COPY apps/backend ./apps/backend
 
 RUN npm install

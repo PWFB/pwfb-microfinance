@@ -63,19 +63,19 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.4-signed-apk
+          name: pwfb-microfinance-v1.0.5-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.4
-          name: PWFB Microfinance v1.0.4
+          tag_name: v1.0.5
+          name: PWFB Microfinance v1.0.5
           body: |
-            PWFB Microfinance Android application v1.0.4.
+            PWFB Microfinance Android application v1.0.5.
 
-            Removes the Custom Tabs browser fallback, adds a verified HTTPS App Link for the PWFB origin, and keeps the app in Trusted Web Activity mode so the browser address bar is not exposed.
+            Version upgrade from v1.0.4. Retains the verified Trusted Web Activity configuration, HTTPS App Link, and native startup splash.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true
@@ -84,4 +84,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.4: verified TWA only; no browser address-bar fallback
+# PWFB v1.0.5 release build

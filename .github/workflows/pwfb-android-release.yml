@@ -63,19 +63,19 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.8-signed-apk
+          name: pwfb-microfinance-v1.0.9-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.8
-          name: PWFB Microfinance v1.0.8
+          tag_name: v1.0.9
+          name: PWFB Microfinance v1.0.9
           body: |
-            PWFB Microfinance Android application v1.0.8.
+            PWFB Microfinance Android application v1.0.9.
 
-            Adds a reliable Chrome handoff for Google sign-in and Android passkeys/fingerprint, while retaining the verified TWA path and preventing a blank app screen.
+            Fixes authentication by keeping the verified TWA active for Google GIS and Android passkeys/fingerprint. WebView fallback now only activates when the TWA actually fails, and WebView users are handed to Chrome for authentication.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true
@@ -84,4 +84,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.8 release build
+# PWFB v1.0.9 release build

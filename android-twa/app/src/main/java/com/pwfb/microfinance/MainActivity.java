@@ -22,14 +22,14 @@ public class MainActivity extends Activity {
         splashScreen.setKeepOnScreenCondition(() -> System.currentTimeMillis() < splashUntil);
 
         super.onCreate(savedInstanceState);
-        launchBrowser(resolveLaunchUri(getIntent()));
+        launchTrustedWebActivity(resolveLaunchUri(getIntent()));
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        launchBrowser(resolveLaunchUri(intent));
+        launchTrustedWebActivity(resolveLaunchUri(intent));
     }
 
     private Uri resolveLaunchUri(Intent intent) {
@@ -48,13 +48,19 @@ public class MainActivity extends Activity {
         return Uri.parse(START_URL);
     }
 
-    private void launchBrowser(Uri uri) {
+    /**
+     * Launch only as a Trusted Web Activity. We intentionally do not fall back
+     * to Custom Tabs because that fallback displays the browser address bar.
+     * A verified Digital Asset Link relationship is therefore required.
+     */
+    private void launchTrustedWebActivity(Uri uri) {
         CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder().build();
         customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         try {
             TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
-        } catch (Exception ignored) {
-            customTabsIntent.launchUrl(this, uri);
+        } catch (Exception error) {
+            // Never open a normal browser/custom tab from the PWFB app.
+            // Keeping the native activity alive avoids exposing the browser UI.
         }
     }
 }

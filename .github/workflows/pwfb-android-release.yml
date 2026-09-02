@@ -84,4 +84,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# Trigger Android v1.0.1 release build
+# Trigger Android v1.0.1 release build after MainActivity TWA signature fix

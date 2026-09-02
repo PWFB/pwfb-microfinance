@@ -45,9 +45,8 @@ public class MainActivity extends Activity {
     private void launchBrowser(Uri uri) {
         CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder().build();
         customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        customTabsIntent.intent.setData(uri);
         try {
-            TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent.intent);
+            TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
         } catch (Exception ignored) {
             customTabsIntent.launchUrl(this, uri);
         }

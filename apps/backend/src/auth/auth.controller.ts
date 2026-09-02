@@ -27,6 +27,9 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) { return this.authService.login(dto); }
 
+  @Get('google/config')
+  googleConfig() { return this.authService.googleConfig(); }
+
   @Post('google')
   googleLogin(@Body() body: { credential: string; client_id?: string; nonce?: string }, @Headers('origin') origin?: string) {
     return this.authService.googleLogin(body?.credential, origin, body?.client_id, body?.nonce);

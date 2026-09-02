@@ -51,7 +51,10 @@ public class MainActivity extends Activity {
         if (data == null || !OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())
                 || !OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) return false;
 
-        String target = data.getQueryParameter("url");
+        return launchChromeForUri(data.getQueryParameter("url"));
+    }
+
+    private boolean launchChromeForUri(String target) {
         if (target == null || target.trim().isEmpty()) return false;
         try {
             Uri uri = Uri.parse(target);
@@ -73,8 +76,6 @@ public class MainActivity extends Activity {
         try {
             TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
             handler.postDelayed(() -> {
-                // A real TWA moves focus away from this Activity. Only fall back to
-                // WebView when this Activity is still focused after the timeout.
                 if (!isFinishing() && !fallbackShown && hasWindowFocus()) {
                     showInAppWebView(uri);
                 }
@@ -102,10 +103,29 @@ public class MainActivity extends Activity {
         settings.setLoadsImagesAutomatically(true);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-        webView.setWebViewClient(new WebViewClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleWebViewUrl(url);
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) {
+                return handleWebViewUrl(request.getUrl().toString());
+            }
+        });
         webView.setWebChromeClient(new WebChromeClient());
         setContentView(webView);
         webView.loadUrl(uri.toString());
+    }
+
+    private boolean handleWebViewUrl(String url) {
+        if (url == null) return false;
+        Uri data = Uri.parse(url);
+        if (!OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())
+                || !OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) return false;
+        String target = data.getQueryParameter("url");
+        return launchChromeForUri(target);
     }
 
     @Override

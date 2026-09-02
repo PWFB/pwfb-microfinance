@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:theme="@style/AppTheme" android:label="PWFB Microfinance" android:icon="@drawable/pwfb_icon" android:allowBackup="false" android:supportsRtl="true">
+    <application android:theme="@style/AppTheme.Splash" android:label="PWFB Microfinance" android:icon="@drawable/pwfb_icon" android:allowBackup="false" android:supportsRtl="true">
         <meta-data
             android:name="asset_statements"
             android:resource="@string/asset_statements" />

@@ -4,17 +4,26 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.browser.customtabs.TrustedWebUtils;
+import androidx.core.splashscreen.SplashScreen;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://pwfb-frontend.onrender.com/";
     private static final String OPEN_CHROME_SCHEME = "pwfb";
     private static final String OPEN_CHROME_HOST = "open-chrome";
+    private static final long STARTUP_SPLASH_MS = 1800L;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
+        final long splashUntil = System.currentTimeMillis() + STARTUP_SPLASH_MS;
+        splashScreen.setKeepOnScreenCondition(() -> System.currentTimeMillis() < splashUntil);
+
         super.onCreate(savedInstanceState);
         launchBrowser(resolveLaunchUri(getIntent()));
     }

@@ -6,4 +6,10 @@
         <item name="android:statusBarColor">#064a22</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>
+
+    <style name="AppTheme.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#075D2A</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/pwfb_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme</item>
+    </style>
 </resources>

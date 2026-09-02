@@ -31,7 +31,6 @@ public class MainActivity extends Activity {
         SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
         final long splashUntil = System.currentTimeMillis() + STARTUP_SPLASH_MS;
         splashScreen.setKeepOnScreenCondition(() -> System.currentTimeMillis() < splashUntil);
-
         super.onCreate(savedInstanceState);
         launchTrustedWebActivity(resolveLaunchUri(getIntent()));
     }
@@ -46,8 +45,7 @@ public class MainActivity extends Activity {
 
     private Uri resolveLaunchUri(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
-        if (data != null
-                && OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())
+        if (data != null && OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())
                 && OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
             String target = data.getQueryParameter("url");
             if (target != null && !target.trim().isEmpty()) {
@@ -65,11 +63,9 @@ public class MainActivity extends Activity {
         customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         try {
             TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
-            // If Android cannot establish the trusted relationship, the native
-            // activity can otherwise remain blank. Use an in-app WebView as a
-            // visual fallback so PWFB never leaves the user on a white screen.
+            // Give the verified TWA a short opportunity to take over. If it
+            // does not, always provide an in-app WebView instead of a white page.
             handler.postDelayed(() -> {
-                if (!isFinishing() && !hasWindowFocus() && !fallbackShown) return;
                 if (!isFinishing() && !fallbackShown) showInAppWebView(uri);
             }, TWA_FALLBACK_MS);
         } catch (Exception error) {
@@ -80,7 +76,6 @@ public class MainActivity extends Activity {
     private void showInAppWebView(Uri uri) {
         if (fallbackShown || isFinishing()) return;
         fallbackShown = true;
-
         WebView webView = new WebView(this);
         webView.setLayoutParams(new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,

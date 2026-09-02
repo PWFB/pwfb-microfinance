@@ -52,18 +52,18 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.11-signed-apk
+          name: pwfb-microfinance-v1.0.12-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.11
-          name: PWFB Microfinance v1.0.11
+          tag_name: v1.0.12
+          name: PWFB Microfinance v1.0.12
           body: |
-            PWFB Microfinance Android application v1.0.11.
+            PWFB Microfinance Android application v1.0.12.
 
-            New-device passkey registration: sign in with the existing password, then PWFB opens a dedicated registration screen to add this phone's fingerprint/passkey. Existing phone passkeys remain untouched.
+            Passkey registration now hands off to Chrome on the same phone when the in-app browser cannot expose Android passkey registration. Existing phone passkeys remain untouched.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true
@@ -71,4 +71,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.11 release build
+# PWFB v1.0.12 release build

@@ -20,30 +20,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
-
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-
       - name: Install Android SDK packages
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: ${{ env.GRADLE_VERSION }}
-
       - name: Restore signing keystore
         run: |
           set -euo pipefail
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android-twa/pwfb-upload-key.jks
           chmod 600 android-twa/pwfb-upload-key.jks
-
       - name: Build signed APK
         working-directory: android-twa
         run: |
@@ -53,35 +47,28 @@ jobs:
             -PPWFB_KEYSTORE_PASSWORD="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             -PPWFB_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
             -PPWFB_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD }}"
-
       - name: Verify signed APK
-        run: |
-          set -euo pipefail
-          test -s android-twa/app/build/outputs/apk/release/app-release.apk
-          echo "Signed APK created successfully."
-
+        run: test -s android-twa/app/build/outputs/apk/release/app-release.apk
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.10-signed-apk
+          name: pwfb-microfinance-v1.0.11-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.10
-          name: PWFB Microfinance v1.0.10
+          tag_name: v1.0.11
+          name: PWFB Microfinance v1.0.11
           body: |
-            PWFB Microfinance Android application v1.0.10.
+            PWFB Microfinance Android application v1.0.11.
 
-            Fixes the WebView-to-Chrome authentication handoff. The pwfb://open-chrome URL is now intercepted natively by the Android WebView instead of being displayed as ERR_UNKNOWN_URL_SCHEME. TWA remains preferred for Google GIS and Android passkeys/fingerprint.
+            New-device passkey registration: sign in with the existing password, then PWFB opens a dedicated registration screen to add this phone's fingerprint/passkey. Existing phone passkeys remain untouched.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true
-
       - name: Delete temporary keystore
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.10 release build
+# PWFB v1.0.11 release build

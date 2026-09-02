@@ -22,7 +22,7 @@ public class MainActivity extends Activity {
     private static final String OPEN_CHROME_SCHEME = "pwfb";
     private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final long STARTUP_SPLASH_MS = 1800L;
-    private static final long TWA_FALLBACK_MS = 2200L;
+    private static final long TWA_FALLBACK_MS = 3000L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean fallbackShown = false;
 
@@ -73,7 +73,11 @@ public class MainActivity extends Activity {
         try {
             TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
             handler.postDelayed(() -> {
-                if (!isFinishing() && !fallbackShown) showInAppWebView(uri);
+                // A real TWA moves focus away from this Activity. Only fall back to
+                // WebView when this Activity is still focused after the timeout.
+                if (!isFinishing() && !fallbackShown && hasWindowFocus()) {
+                    showInAppWebView(uri);
+                }
             }, TWA_FALLBACK_MS);
         } catch (Exception error) {
             showInAppWebView(uri);

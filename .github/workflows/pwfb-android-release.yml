@@ -63,19 +63,19 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.2-signed-apk
+          name: pwfb-microfinance-v1.0.3-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.2
-          name: PWFB Microfinance v1.0.2
+          tag_name: v1.0.3
+          name: PWFB Microfinance v1.0.3
           body: |
-            PWFB Microfinance Android application v1.0.2.
+            PWFB Microfinance Android application v1.0.3.
 
-            Google login is presented as a direct Connect to Google action. The Android TWA signing fingerprint is included so the production frontend can verify the app and launch without the Chrome Custom Tab address bar.
+            Includes the native startup splash and corrected Digital Asset Links configuration for Trusted Web Activity verification.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true
@@ -84,4 +84,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# Trigger Android v1.0.2 release build with verified TWA configuration
+# Trigger Android v1.0.3 release build with corrected TWA verification

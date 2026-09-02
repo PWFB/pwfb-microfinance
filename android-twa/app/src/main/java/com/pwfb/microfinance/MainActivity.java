@@ -4,6 +4,14 @@ import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.webkit.CookieManager;
+import android.webkit.WebChromeClient;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.view.ViewGroup;
 
 import androidx.browser.customtabs.CustomTabsIntent;
 import androidx.browser.customtabs.TrustedWebUtils;
@@ -14,6 +22,9 @@ public class MainActivity extends Activity {
     private static final String OPEN_CHROME_SCHEME = "pwfb";
     private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final long STARTUP_SPLASH_MS = 1800L;
+    private static final long TWA_FALLBACK_MS = 2200L;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private boolean fallbackShown = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -29,6 +40,7 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        fallbackShown = false;
         launchTrustedWebActivity(resolveLaunchUri(intent));
     }
 
@@ -48,19 +60,65 @@ public class MainActivity extends Activity {
         return Uri.parse(START_URL);
     }
 
-    /**
-     * Launch only as a Trusted Web Activity. We intentionally do not fall back
-     * to Custom Tabs because that fallback displays the browser address bar.
-     * A verified Digital Asset Link relationship is therefore required.
-     */
     private void launchTrustedWebActivity(Uri uri) {
         CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder().build();
         customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         try {
             TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
+            // If Android cannot establish the trusted relationship, the native
+            // activity can otherwise remain blank. Use an in-app WebView as a
+            // visual fallback so PWFB never leaves the user on a white screen.
+            handler.postDelayed(() -> {
+                if (!isFinishing() && !hasWindowFocus() && !fallbackShown) return;
+                if (!isFinishing() && !fallbackShown) showInAppWebView(uri);
+            }, TWA_FALLBACK_MS);
         } catch (Exception error) {
-            // Never open a normal browser/custom tab from the PWFB app.
-            // Keeping the native activity alive avoids exposing the browser UI.
+            showInAppWebView(uri);
         }
+    }
+
+    private void showInAppWebView(Uri uri) {
+        if (fallbackShown || isFinishing()) return;
+        fallbackShown = true;
+
+        WebView webView = new WebView(this);
+        webView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setJavaScriptCanOpenWindowsAutomatically(true);
+        settings.setSupportMultipleWindows(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
+        settings.setLoadsImagesAutomatically(true);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
+        webView.setWebViewClient(new WebViewClient());
+        webView.setWebChromeClient(new WebChromeClient());
+        setContentView(webView);
+        webView.loadUrl(uri.toString());
+    }
+
+    @Override
+    public void onBackPressed() {
+        ViewGroup root = findViewById(android.R.id.content);
+        if (fallbackShown && root != null && root.getChildCount() > 0
+                && root.getChildAt(0) instanceof WebView) {
+            WebView webView = (WebView) root.getChildAt(0);
+            if (webView.canGoBack()) {
+                webView.goBack();
+                return;
+            }
+        }
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
+        handler.removeCallbacksAndMessages(null);
+        super.onDestroy();
     }
 }

@@ -38,6 +38,12 @@ export class AuthService {
     return { message: 'Login successful', access_token: accessToken, user: safeUser };
   }
 
+  googleConfig() {
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    if (!clientId) throw new BadRequestException('Google login is not configured on the server');
+    return { client_id: clientId };
+  }
+
   private async ensureGoogleIdentityTable() {
     if (this.googleIdentityTableReady) return;
     await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "GoogleIdentity" ("userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE, "googleSub" TEXT NOT NULL UNIQUE, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);

@@ -32,30 +32,39 @@ public class MainActivity extends Activity {
         final long splashUntil = System.currentTimeMillis() + STARTUP_SPLASH_MS;
         splashScreen.setKeepOnScreenCondition(() -> System.currentTimeMillis() < splashUntil);
         super.onCreate(savedInstanceState);
-        launchTrustedWebActivity(resolveLaunchUri(getIntent()));
+
+        if (handleChromeIntent(getIntent())) return;
+        launchTrustedWebActivity(Uri.parse(START_URL));
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        if (handleChromeIntent(intent)) return;
         fallbackShown = false;
-        launchTrustedWebActivity(resolveLaunchUri(intent));
+        launchTrustedWebActivity(Uri.parse(START_URL));
     }
 
-    private Uri resolveLaunchUri(Intent intent) {
+    private boolean handleChromeIntent(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
-        if (data != null && OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())
-                && OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
-            String target = data.getQueryParameter("url");
-            if (target != null && !target.trim().isEmpty()) {
-                try {
-                    Uri uri = Uri.parse(target);
-                    if ("https".equalsIgnoreCase(uri.getScheme())) return uri;
-                } catch (Exception ignored) { }
-            }
+        if (data == null || !OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())
+                || !OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) return false;
+
+        String target = data.getQueryParameter("url");
+        if (target == null || target.trim().isEmpty()) return false;
+        try {
+            Uri uri = Uri.parse(target);
+            if (!"https".equalsIgnoreCase(uri.getScheme())) return false;
+            Intent chrome = new Intent(Intent.ACTION_VIEW, uri);
+            chrome.setPackage("com.android.chrome");
+            chrome.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(chrome);
+            finish();
+            return true;
+        } catch (Exception ignored) {
+            return false;
         }
-        return Uri.parse(START_URL);
     }
 
     private void launchTrustedWebActivity(Uri uri) {
@@ -63,8 +72,6 @@ public class MainActivity extends Activity {
         customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         try {
             TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
-            // Give the verified TWA a short opportunity to take over. If it
-            // does not, always provide an in-app WebView instead of a white page.
             handler.postDelayed(() -> {
                 if (!isFinishing() && !fallbackShown) showInAppWebView(uri);
             }, TWA_FALLBACK_MS);

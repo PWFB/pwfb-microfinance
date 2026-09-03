@@ -10,11 +10,11 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.Nullable;
 import androidx.biometric.BiometricPrompt;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.FragmentActivity;
 
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
@@ -33,7 +33,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Executor;
 
-public class NativeAuthActivity extends android.app.Activity {
+public class NativeAuthActivity extends FragmentActivity {
     private static final String API = "https://pwfb-backend.onrender.com";
     private static final String PREFS = "pwfb_app_auth";
     private static final String TOKEN = "access_token";
@@ -80,7 +80,7 @@ public class NativeAuthActivity extends android.app.Activity {
         root.addView(title, new LinearLayout.LayoutParams(-1, -2));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("This is the PWFB Android app authentication.\nIt does not redirect to the PWFB web login.");
+        subtitle.setText("PWFB Android app authentication\nPassword, fingerprint and Google stay inside this app.");
         subtitle.setTextColor(Color.DKGRAY);
         subtitle.setTextSize(14);
         subtitle.setGravity(Gravity.CENTER);
@@ -153,7 +153,7 @@ public class NativeAuthActivity extends android.app.Activity {
                 JSONObject body = new JSONObject(); body.put("email", e); body.put("password", p);
                 JSONObject result = post("/auth/login", body);
                 finishNativeLogin(result.getString("access_token"));
-            } catch (Exception ex) { runOnUiThread(() -> { setBusy(false, ex.getMessage() == null ? "Login failed" : ex.getMessage()); }); }
+            } catch (Exception ex) { runOnUiThread(() -> setBusy(false, ex.getMessage() == null ? "Login failed" : ex.getMessage())); }
         }).start();
     }
 

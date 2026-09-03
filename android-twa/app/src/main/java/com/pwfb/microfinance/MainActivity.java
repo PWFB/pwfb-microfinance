@@ -122,7 +122,10 @@ public class MainActivity extends Activity {
         nativeLoginRedirected = true;
         String token = JSONObjectEscape(pendingNativeToken);
         String script = "window.localStorage.setItem('token', '" + token + "');" +
-                "window.location.replace('" + DASHBOARD_URL + "');";
+                "fetch('https://pwfb-backend.onrender.com/auth/profile',{headers:{Authorization:'Bearer ' + encodeURIComponent('" + token + "')}})" +
+                ".then(function(r){if(!r.ok)throw new Error('profile');return r.json();})" +
+                ".then(function(profile){var destination=profile&&profile.role==='CUSTOMER'?'/customer-dashboard':profile&&profile.role==='SUPER_ADMIN'?'/dashboard':'/staff-dashboard';window.location.replace(destination);})" +
+                ".catch(function(){window.location.replace('https://pwfb-frontend.onrender.com/login');});";
         view.evaluateJavascript(script, null);
     }
 

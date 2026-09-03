@@ -52,18 +52,18 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.13-signed-apk
+          name: pwfb-microfinance-v1.0.14-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.13
-          name: PWFB Microfinance v1.0.13
+          tag_name: v1.0.14
+          name: PWFB Microfinance v1.0.14
           body: |
-            PWFB Microfinance Android application v1.0.13.
+            PWFB Microfinance Android application v1.0.14.
 
-            Fixes Chrome fingerprint authentication returning to the PWFB app after successful authentication.
+            Native Android app authentication: password, fingerprint/biometric unlock and native Google sign-in stay inside the PWFB app instead of redirecting to the PWFB web login.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true
@@ -71,4 +71,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.13 release build
+# PWFB v1.0.14 native authentication release build

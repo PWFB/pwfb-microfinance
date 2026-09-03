@@ -54,24 +54,24 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.22-native-auth-signed-apk
+          name: pwfb-microfinance-v1.0.23-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.22-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.23-play-store-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.22
-          name: PWFB Microfinance v1.0.22
+          tag_name: v1.0.23
+          name: PWFB Microfinance v1.0.23
           body: |
-            PWFB Microfinance Android application v1.0.22.
+            PWFB Microfinance Android application v1.0.23.
 
-            Includes the native fingerprint and Google authentication return-to-app fix, plus the corrected open-chrome handoff for PWFB passkey registration.
+            Includes the corrected browser-to-app authentication handoff so fingerprint/passkey and Google authentication return the verified access token to the PWFB app.
             Includes the signed APK and signed Play Store AAB.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
@@ -82,4 +82,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.22 signed APK + Play Store AAB release build
+# PWFB v1.0.23 signed APK + Play Store AAB release build

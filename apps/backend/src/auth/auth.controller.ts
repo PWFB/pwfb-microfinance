@@ -35,6 +35,11 @@ export class AuthController {
     return this.authService.googleLogin(body?.credential, origin, body?.client_id, body?.nonce);
   }
 
+  @Post('google/android')
+  googleAndroidLogin(@Body() body: { credential: string }) {
+    return this.authService.googleLogin(body?.credential, 'android-app', undefined, undefined);
+  }
+
   @Post('2fa/verify')
   verifyTwoFactor(@Body() body: { token: string; code?: string; recoveryCode?: string }) {
     return this.twoFactorService.verify(body?.token, body?.code, body?.recoveryCode);

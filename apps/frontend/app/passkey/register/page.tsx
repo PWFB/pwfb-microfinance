@@ -24,20 +24,26 @@ export default function RegisterPasskeyPage() {
     const target = `${window.location.origin}/passkey/register?newDevice=1&chrome=1`;
     window.location.href = `${CHROME_HANDOFF}${encodeURIComponent(target)}`;
   }
-
-  function browserSupportsPasskeys() {
-    return "credentials" in navigator && "PublicKeyCredential" in window;
+  function returnToApp() {
+    const target = `${window.location.origin}/passkey/register?newDevice=1&registered=1`;
+    window.location.href = `pwfb://open-app?url=${encodeURIComponent(target)}`;
   }
+  function browserSupportsPasskeys() { return "credentials" in navigator && "PublicKeyCredential" in window; }
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     if (!token || browserSupportsPasskeys()) return;
-
     setChromeNeeded(true);
     setStatus("PWFB needs Chrome on this phone to register the fingerprint/passkey.");
     const timer = window.setTimeout(() => openChromeForPasskey(), 500);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("registered") === "1") {
+      setDone(true); setStatus("This phone's PWFB fingerprint/passkey is now registered.");
+    }
   }, []);
 
   async function register() {
@@ -45,10 +51,7 @@ export default function RegisterPasskeyPage() {
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) throw new Error("Please sign in with your email and password first.");
-      if (!browserSupportsPasskeys()) {
-        setChromeNeeded(true);
-        throw new Error("PWFB is opening Chrome on this phone so Android can register the fingerprint/passkey.");
-      }
+      if (!browserSupportsPasskeys()) { setChromeNeeded(true); openChromeForPasskey(); return; }
       setStatus("Preparing a new passkey for this phone…");
       const options = await apiRequest("/auth/passkey/register/options", { method: "POST" });
       setStatus("Follow the Android security prompt and approve this phone's fingerprint/passkey.");
@@ -56,6 +59,7 @@ export default function RegisterPasskeyPage() {
       const result = await apiRequest("/auth/passkey/register/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) });
       if (!result?.verified) throw new Error(result?.message || "PWFB could not verify this passkey.");
       setDone(true); setStatus("This phone's PWFB fingerprint/passkey is now registered.");
+      if (new URLSearchParams(window.location.search).get("chrome") === "1") setTimeout(returnToApp, 500);
     } catch (e: any) {
       setStatus("We could not finish passkey setup.");
       if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap Register Passkey and try again.");

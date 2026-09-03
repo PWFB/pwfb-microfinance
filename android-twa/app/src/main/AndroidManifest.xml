@@ -2,6 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application android:theme="@style/AppTheme.Splash" android:label="PWFB Microfinance" android:icon="@drawable/pwfb_icon" android:allowBackup="false" android:supportsRtl="true">
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
+        <activity android:name=".NativeAuthActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
             <intent-filter android:autoVerify="true"><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.DEFAULT" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="https" android:host="pwfb-frontend.onrender.com" /></intent-filter>

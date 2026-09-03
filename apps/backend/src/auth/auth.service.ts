@@ -57,7 +57,7 @@ export class AuthService {
     const googleOrigin = requestOrigin?.trim().replace(/\/$/, '');
     const configuredOrigins = [process.env.GOOGLE_ALLOWED_ORIGINS, process.env.WEBAUTHN_ORIGIN]
       .filter(Boolean).flatMap((value) => String(value).split(','));
-    const googleAllowed = [...configuredOrigins, 'https://pwfb-frontend.onrender.com']
+    const googleAllowed = [...configuredOrigins, 'https://pwfb-frontend.onrender.com', 'android-app']
       .map((value) => value.trim().replace(/\/$/, '')).filter(Boolean);
     if (!googleOrigin || !googleAllowed.includes(googleOrigin)) throw new UnauthorizedException('Google login origin is not allowed');
     if (requestClientId && requestClientId !== clientId) throw new UnauthorizedException('Google client ID mismatch');
@@ -67,7 +67,7 @@ export class AuthService {
       if (payload?.iss !== 'accounts.google.com' && payload?.iss !== 'https://accounts.google.com') throw new UnauthorizedException('Invalid Google token issuer');
       if (!payload?.sub) throw new UnauthorizedException('Google account identifier is missing');
       if (!payload.email || payload.email_verified !== true) throw new UnauthorizedException('Google account email is not verified');
-      if (!expectedNonce || payload.nonce !== expectedNonce) throw new UnauthorizedException('Google authentication nonce mismatch');
+      if (googleOrigin !== 'android-app' && (!expectedNonce || payload.nonce !== expectedNonce)) throw new UnauthorizedException('Google authentication nonce mismatch');
       const email = payload.email.toLowerCase().trim(); const googleAuthoritative = email.endsWith('@gmail.com') || Boolean(payload.hd);
       await this.ensureGoogleIdentityTable(); const googleSub = payload.sub;
       const linkedRows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT "userId" FROM "GoogleIdentity" WHERE "googleSub" = $1 LIMIT 1`, googleSub);

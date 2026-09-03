@@ -62,7 +62,10 @@ export default function RegisterPasskeyPage() {
       if (new URLSearchParams(window.location.search).get("chrome") === "1") setTimeout(returnToApp, 500);
     } catch (e: any) {
       setStatus("We could not finish passkey setup.");
-      if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap Register Passkey and try again.");
+      const detail = String(e?.message || "");
+      if (e?.name === "InvalidStateError" || /previously registered|already registered|credential already exists|authenticator was previously registered/i.test(detail)) {
+        setError("This phone's authenticator is already registered with PWFB. You do not need to register it again. Return to login and use 'Use fingerprint on this device'.");
+      } else if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap Register Passkey and try again.");
       else setError(e instanceof Error ? e.message : "Passkey registration failed.");
     } finally { setLoading(false); }
   }

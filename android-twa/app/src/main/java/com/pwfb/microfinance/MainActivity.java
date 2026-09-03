@@ -20,7 +20,6 @@ public class MainActivity extends Activity {
     private static final String SCHEME = "pwfb";
     private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final String OPEN_APP_HOST = "open-app";
-    private static final String REGISTER_PASSKEY_HOST = "register-passkey";
     private SwipeRefreshLayout swipeRefresh;
     private WebView webView;
 
@@ -72,7 +71,6 @@ public class MainActivity extends Activity {
     private boolean handleAppIntent(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
         if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-        if (REGISTER_PASSKEY_HOST.equalsIgnoreCase(data.getHost())) { startActivity(new Intent(this, NativePasskeyActivity.class)); return true; }
         if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
             String target = data.getQueryParameter("url");
             if (target != null && !target.isEmpty()) try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(target))); } catch (Exception ignored) { }

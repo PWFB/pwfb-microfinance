@@ -40,12 +40,11 @@ public class MainActivity extends Activity {
 
         Intent launchIntent = getIntent();
         pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
-
-        // Only a normal fresh launch clears the WebView session. Native password,
-        // Google and fingerprint authentication pass their verified token here.
-        if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) {
-            resetWebSession();
+        if ((pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) && launchIntent != null) {
+            pendingNativeToken = extractTokenFromAppIntent(launchIntent);
         }
+
+        if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) resetWebSession();
         buildWebApp();
     }
 
@@ -53,6 +52,7 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         String token = intent == null ? null : intent.getStringExtra("app_token");
+        if (token == null || token.trim().isEmpty()) token = extractTokenFromAppIntent(intent);
         if (token != null && !token.trim().isEmpty()) {
             pendingNativeToken = token;
             nativeLoginRedirected = false;
@@ -96,12 +96,8 @@ public class MainActivity extends Activity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
 
         webView.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleWebViewUrl(request.getUrl().toString());
-            }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleWebViewUrl(url);
-            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return handleWebViewUrl(request.getUrl().toString()); }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleWebViewUrl(url); }
             @Override public void onPageFinished(WebView view, String url) {
                 if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
                 continueNativeLogin(view, url);
@@ -111,12 +107,8 @@ public class MainActivity extends Activity {
             }
         });
         webView.setWebChromeClient(new WebChromeClient());
-
         swipeRefresh.addView(webView);
-        swipeRefresh.setOnRefreshListener(() -> {
-            if (webView != null) webView.reload();
-            else swipeRefresh.setRefreshing(false);
-        });
+        swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); });
         swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.getScrollY() > 0);
         setContentView(swipeRefresh);
         webView.loadUrl(START_URL);
@@ -127,7 +119,6 @@ public class MainActivity extends Activity {
         Uri current = Uri.parse(url == null ? "" : url);
         if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return;
         if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
-
         nativeLoginRedirected = true;
         String token = JSONObjectEscape(pendingNativeToken);
         String script = "window.localStorage.setItem('token', '" + token + "');" +
@@ -136,10 +127,22 @@ public class MainActivity extends Activity {
     }
 
     private String JSONObjectEscape(String value) {
-        return value.replace("\\", "\\\\")
-                .replace("'", "\\'")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r");
+        return value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    private String extractTokenFromAppIntent(Intent intent) {
+        try {
+            Uri data = intent == null ? null : intent.getData();
+            if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme()) || !OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) return null;
+            String direct = data.getQueryParameter("app_token");
+            if (direct != null && !direct.trim().isEmpty()) return direct;
+            String target = data.getQueryParameter("url");
+            if (target == null || target.trim().isEmpty()) return null;
+            Uri targetUri = Uri.parse(target);
+            String fragment = targetUri.getFragment();
+            if (fragment == null || fragment.isEmpty()) return null;
+            return new android.net.UrlQuerySanitizer(fragment).getValue("app_token");
+        } catch (Exception ignored) { return null; }
     }
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
@@ -147,12 +150,24 @@ public class MainActivity extends Activity {
     private boolean handleAppIntent(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
         if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-
         if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
-            if (webView != null) webView.loadUrl(START_URL);
+            String target = data.getQueryParameter("url");
+            if (target == null || target.trim().isEmpty()) target = START_URL;
+            try {
+                Uri targetUri = Uri.parse(target);
+                if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {
+                    if ("pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
+                        String token = extractTokenFromAppIntent(intent);
+                        if (token != null && !token.trim().isEmpty()) {
+                            pendingNativeToken = token;
+                            nativeLoginRedirected = false;
+                        }
+                        if (webView != null) webView.loadUrl(targetUri.toString());
+                    } else if (webView != null) webView.loadUrl(START_URL);
+                }
+            } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); }
             return true;
         }
-
         if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
             String target = data.getQueryParameter("url");
             if (target == null || target.trim().isEmpty()) target = START_URL;
@@ -161,18 +176,11 @@ public class MainActivity extends Activity {
                 if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {
                     Intent chromeIntent = new Intent(Intent.ACTION_VIEW, targetUri);
                     chromeIntent.setPackage("com.android.chrome");
-                    try {
-                        startActivity(chromeIntent);
-                    } catch (Exception chromeUnavailable) {
-                        startActivity(new Intent(Intent.ACTION_VIEW, targetUri));
-                    }
+                    try { startActivity(chromeIntent); } catch (Exception chromeUnavailable) { startActivity(new Intent(Intent.ACTION_VIEW, targetUri)); }
                 }
-            } catch (Exception ignored) {
-                // Ignore malformed handoff URLs rather than sending them back into WebView.
-            }
+            } catch (Exception ignored) { }
             return true;
         }
-
         return true;
     }
 
@@ -183,22 +191,10 @@ public class MainActivity extends Activity {
         return handleAppIntent(new Intent(Intent.ACTION_VIEW, data));
     }
 
-    @Override public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-            return;
-        }
-        super.onBackPressed();
-    }
+    @Override public void onBackPressed() { if (webView != null && webView.canGoBack()) { webView.goBack(); return; } super.onBackPressed(); }
 
     @Override protected void onDestroy() {
-        if (webView != null) {
-            webView.stopLoading();
-            webView.setWebChromeClient(null);
-            webView.setWebViewClient(null);
-            webView.destroy();
-            webView = null;
-        }
+        if (webView != null) { webView.stopLoading(); webView.setWebChromeClient(null); webView.setWebViewClient(null); webView.destroy(); webView = null; }
         super.onDestroy();
     }
 }

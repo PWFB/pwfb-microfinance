@@ -52,18 +52,19 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.15-native-auth-signed-apk
+          name: pwfb-microfinance-v1.0.16-polished-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Publish APK download release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.15
-          name: PWFB Microfinance v1.0.15
+          tag_name: v1.0.16
+          name: PWFB Microfinance v1.0.16
           body: |
-            PWFB Microfinance Android application v1.0.15.
+            PWFB Microfinance Android application v1.0.16.
 
-            Native Android app authentication: password, fingerprint/biometric unlock and native Google sign-in stay inside the PWFB app instead of redirecting to the PWFB web login.
+            Polished PWFB native app authentication UI using the established deep-green and orange brand design.
+            Password, fingerprint/biometric unlock and native Google sign-in remain inside the PWFB Android app instead of redirecting authentication to the web login.
           files: android-twa/app/build/outputs/apk/release/app-release.apk
           overwrite_files: true
           make_latest: true
@@ -71,4 +72,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.15 native authentication release build
+# PWFB v1.0.16 polished native authentication release build

@@ -21,6 +21,7 @@ public class MainActivity extends Activity {
     private static final String START_URL = "https://pwfb-frontend.onrender.com/";
     private static final String SCHEME = "pwfb";
     private static final String OPEN_APP_HOST = "open-app";
+    private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private static final int GREEN = Color.rgb(8, 117, 52);
     private static final int ORANGE = Color.rgb(244, 119, 18);
@@ -110,11 +111,33 @@ public class MainActivity extends Activity {
     private boolean handleAppIntent(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
         if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
+
         if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
             if (webView != null) webView.loadUrl(START_URL);
             return true;
         }
-        return false;
+
+        if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
+            String target = data.getQueryParameter("url");
+            if (target == null || target.trim().isEmpty()) target = START_URL;
+            try {
+                Uri targetUri = Uri.parse(target);
+                if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {
+                    Intent chromeIntent = new Intent(Intent.ACTION_VIEW, targetUri);
+                    chromeIntent.setPackage("com.android.chrome");
+                    try {
+                        startActivity(chromeIntent);
+                    } catch (Exception chromeUnavailable) {
+                        startActivity(new Intent(Intent.ACTION_VIEW, targetUri));
+                    }
+                }
+            } catch (Exception ignored) {
+                // Ignore malformed handoff URLs rather than sending them back into WebView.
+            }
+            return true;
+        }
+
+        return true;
     }
 
     private boolean handleWebViewUrl(String url) {

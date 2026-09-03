@@ -19,6 +19,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://pwfb-frontend.onrender.com/";
+    private static final String DASHBOARD_URL = "https://pwfb-frontend.onrender.com/dashboard";
     private static final String SCHEME = "pwfb";
     private static final String OPEN_APP_HOST = "open-app";
     private static final String OPEN_CHROME_HOST = "open-chrome";
@@ -27,6 +28,8 @@ public class MainActivity extends Activity {
     private static final int ORANGE = Color.rgb(244, 119, 18);
     private SwipeRefreshLayout swipeRefresh;
     private WebView webView;
+    private String pendingNativeToken;
+    private boolean nativeLoginRedirected;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
@@ -35,15 +38,27 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(DEEP_GREEN);
         getWindow().getDecorView().setSystemUiVisibility(0);
 
-        // Start every fresh app launch at PWFB's public landing/login flow.
-        // This clears only the WebView session; native biometric credentials remain untouched.
-        resetWebSession();
+        Intent launchIntent = getIntent();
+        pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
+
+        // Only a normal fresh launch clears the WebView session. Native password,
+        // Google and fingerprint authentication pass their verified token here.
+        if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) {
+            resetWebSession();
+        }
         buildWebApp();
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        String token = intent == null ? null : intent.getStringExtra("app_token");
+        if (token != null && !token.trim().isEmpty()) {
+            pendingNativeToken = token;
+            nativeLoginRedirected = false;
+            if (webView != null) webView.loadUrl(START_URL);
+            return;
+        }
         if (handleAppIntent(intent)) return;
         if (webView != null) webView.loadUrl(START_URL);
     }
@@ -89,6 +104,7 @@ public class MainActivity extends Activity {
             }
             @Override public void onPageFinished(WebView view, String url) {
                 if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
+                continueNativeLogin(view, url);
             }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
                 if (request.isForMainFrame() && swipeRefresh != null) swipeRefresh.setRefreshing(false);
@@ -104,6 +120,26 @@ public class MainActivity extends Activity {
         swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.getScrollY() > 0);
         setContentView(swipeRefresh);
         webView.loadUrl(START_URL);
+    }
+
+    private void continueNativeLogin(WebView view, String url) {
+        if (nativeLoginRedirected || pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) return;
+        Uri current = Uri.parse(url == null ? "" : url);
+        if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return;
+        if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
+
+        nativeLoginRedirected = true;
+        String token = JSONObjectEscape(pendingNativeToken);
+        String script = "window.localStorage.setItem('token', '" + token + "');" +
+                "window.location.replace('" + DASHBOARD_URL + "');";
+        view.evaluateJavascript(script, null);
+    }
+
+    private String JSONObjectEscape(String value) {
+        return value.replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }

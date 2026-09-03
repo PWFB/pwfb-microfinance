@@ -8,7 +8,6 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -86,7 +85,33 @@ public class NativeAuthActivity extends FragmentActivity {
 
     private void passwordLogin(){ String e=email.getText().toString().trim(), p=password.getText().toString(); if(e.isEmpty()||p.isEmpty()){message.setText("Enter your email and password.");return;} setBusy(true,"Signing in securely…"); new Thread(()->{try{JSONObject b=new JSONObject();b.put("email",e);b.put("password",p);JSONObject r=post("/auth/login",b);finishNativeLogin(r.getString("access_token"));}catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Login failed":ex.getMessage()));}}).start(); }
 
-    private void googleLogin(){ setBusy(true,"Opening secure Google sign-in…"); new Thread(()->{try{JSONObject config=get("/auth/google/config"); String clientId=config.optString("android_client_id","").trim(); if(clientId.isEmpty()) clientId=config.optString("client_id","").trim(); final String googleClientId=clientId; if(googleClientId.isEmpty())throw new Exception("Google sign-in is not configured on the server."); runOnUiThread(()->{try{GoogleSignInOptions options=new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestIdToken(googleClientId).requestEmail().build(); GoogleSignInClient client=GoogleSignIn.getClient(this,options); client.signOut().addOnCompleteListener(task->{try{startActivityForResult(client.getSignInIntent(),GOOGLE_REQUEST);}catch(Exception ex){setBusy(false,"Google sign-in could not start.");}});}catch(Exception ex){setBusy(false,"Google sign-in could not start.");}});}catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Google sign-in failed":ex.getMessage()));}}).start(); }
+    private void googleLogin(){
+        setBusy(true,"Opening secure Google sign-in…");
+        new Thread(()->{
+            try{
+                JSONObject config=get("/auth/google/config");
+                // requestIdToken() MUST receive the OAuth client ID of the server/backend
+                // that verifies the ID token, not the Android OAuth client ID. The Android
+                // client is selected by Google Play services from this app's package + SHA-1.
+                String serverClientId=config.optString("client_id","").trim();
+                if(serverClientId.isEmpty()) throw new Exception("Google server client is not configured on PWFB.");
+                final String googleServerClientId=serverClientId;
+                runOnUiThread(()->{
+                    try{
+                        GoogleSignInOptions options=new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestIdToken(googleServerClientId)
+                                .requestEmail()
+                                .build();
+                        GoogleSignInClient client=GoogleSignIn.getClient(this,options);
+                        client.signOut().addOnCompleteListener(task->{
+                            try{ startActivityForResult(client.getSignInIntent(),GOOGLE_REQUEST); }
+                            catch(Exception ex){ setBusy(false,"Google sign-in could not start."); }
+                        });
+                    }catch(Exception ex){ setBusy(false,"Google sign-in could not start."); }
+                });
+            }catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Google sign-in failed":ex.getMessage()));}
+        }).start();
+    }
 
     @Override protected void onActivityResult(int requestCode,int resultCode,@Nullable Intent data){ super.onActivityResult(requestCode,resultCode,data); if(requestCode!=GOOGLE_REQUEST)return; try{Task<GoogleSignInAccount> task=GoogleSignIn.getSignedInAccountFromIntent(data); GoogleSignInAccount account=task.getResult(ApiException.class); if(account==null||account.getIdToken()==null)throw new Exception("Google did not return an ID token."); String idToken=account.getIdToken(); new Thread(()->{try{JSONObject b=new JSONObject();b.put("credential",idToken);JSONObject r=post("/auth/google/android",b);finishNativeLogin(r.getString("access_token"));}catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Google authentication failed":ex.getMessage()));}}).start();}catch(ApiException ex){setBusy(false,"Google sign-in error (code "+ex.getStatusCode()+"). Please check the PWFB Google app configuration.");}catch(Exception ex){setBusy(false,"Google sign-in failed. Please try again.");} }
 

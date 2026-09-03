@@ -11,6 +11,7 @@ import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import androidx.core.splashscreen.SplashScreen;
@@ -32,6 +33,10 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(DEEP_GREEN);
         getWindow().setNavigationBarColor(DEEP_GREEN);
         getWindow().getDecorView().setSystemUiVisibility(0);
+
+        // Start every fresh app launch at PWFB's public landing/login flow.
+        // This clears only the WebView session; native biometric credentials remain untouched.
+        resetWebSession();
         buildWebApp();
     }
 
@@ -40,6 +45,13 @@ public class MainActivity extends Activity {
         setIntent(intent);
         if (handleAppIntent(intent)) return;
         if (webView != null) webView.loadUrl(START_URL);
+    }
+
+    private void resetWebSession() {
+        CookieManager cookies = CookieManager.getInstance();
+        cookies.removeAllCookies(null);
+        cookies.flush();
+        WebStorage.getInstance().deleteAllData();
     }
 
     private void buildWebApp() {

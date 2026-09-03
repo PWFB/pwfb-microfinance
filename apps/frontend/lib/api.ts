@@ -2,7 +2,22 @@ const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
 const PRODUCTION_API_URL = "https://pwfb-backend.onrender.com";
 const API_URL = (CONFIGURED_API_URL || PRODUCTION_API_URL).replace(/\/$/, "");
 
+function absorbNativeAppToken() {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+    const params = new URLSearchParams(raw);
+    const appToken = params.get("app_token");
+    if (!appToken) return;
+    localStorage.setItem("token", appToken);
+    params.delete("app_token");
+    const cleanHash = params.toString();
+    window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}${cleanHash ? `#${cleanHash}` : ""}`);
+  } catch { /* ignore malformed native handoff */ }
+}
+
 async function request(endpoint: string, options: RequestInit = {}) {
+  absorbNativeAppToken();
   const token =
     typeof window !== "undefined"
       ? localStorage.getItem("token") || sessionStorage.getItem("token")

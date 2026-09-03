@@ -17,7 +17,7 @@ import androidx.browser.customtabs.TrustedWebUtils;
 import androidx.core.splashscreen.SplashScreen;
 
 public class MainActivity extends Activity {
-    private static final String START_URL = "https://pwfb-frontend.onrender.com/";
+    private static final String START_URL = "https://pwfb-frontend.onrender.com/dashboard";
     private static final String OPEN_CHROME_SCHEME = "pwfb";
     private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final String OPEN_APP_HOST = "open-app";
@@ -31,14 +31,28 @@ public class MainActivity extends Activity {
         final long splashUntil = System.currentTimeMillis() + STARTUP_SPLASH_MS;
         splashScreen.setKeepOnScreenCondition(() -> System.currentTimeMillis() < splashUntil);
         super.onCreate(savedInstanceState);
-        if (handleAppIntent(getIntent())) return;
-        launchTrustedWebActivity(Uri.parse(START_URL));
+
+        String appToken = getIntent() == null ? null : getIntent().getStringExtra("app_token");
+        if (appToken == null || appToken.trim().isEmpty()) {
+            Intent auth = new Intent(this, NativeAuthActivity.class);
+            startActivity(auth);
+            finish();
+            return;
+        }
+        launchTrustedWebActivity(Uri.parse(START_URL + "#app_token=" + Uri.encode(appToken)));
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent); setIntent(intent);
+        String appToken = intent == null ? null : intent.getStringExtra("app_token");
+        if (appToken != null && !appToken.trim().isEmpty()) {
+            fallbackShown = false;
+            launchTrustedWebActivity(Uri.parse(START_URL + "#app_token=" + Uri.encode(appToken)));
+            return;
+        }
         if (handleAppIntent(intent)) return;
-        fallbackShown = false; launchTrustedWebActivity(Uri.parse(START_URL));
+        Intent auth = new Intent(this, NativeAuthActivity.class);
+        startActivity(auth); finish();
     }
 
     private boolean handleAppIntent(Intent intent) {
@@ -63,7 +77,9 @@ public class MainActivity extends Activity {
     private boolean returnToApp(String target) {
         Uri uri = Uri.parse(target == null || target.trim().isEmpty() ? START_URL : target);
         if (!"https".equalsIgnoreCase(uri.getScheme())) uri = Uri.parse(START_URL);
-        launchTrustedWebActivity(uri);
+        String token = getSharedPreferences("pwfb_app_auth", MODE_PRIVATE).getString("access_token", null);
+        if (token == null || token.isEmpty()) return false;
+        launchTrustedWebActivity(Uri.parse(START_URL + "#app_token=" + Uri.encode(token)));
         return true;
     }
 

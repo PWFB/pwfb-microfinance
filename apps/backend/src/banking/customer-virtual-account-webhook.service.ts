@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -10,6 +10,20 @@ export class CustomerVirtualAccountWebhookService {
     const expected = process.env.PWFB_VIRTUAL_ACCOUNT_WEBHOOK_SECRET;
     if (!expected || !secret || secret !== expected) {
       throw new UnauthorizedException('Invalid virtual account webhook secret');
+    }
+  }
+
+  private checkFlutterwaveSignature(rawBody: string, signature?: string) {
+    const secret = process.env.FLUTTERWAVE_WEBHOOK_SECRET_HASH?.trim();
+    if (!secret || !signature) {
+      throw new UnauthorizedException('Invalid Flutterwave webhook signature');
+    }
+
+    const expected = createHmac('sha256', secret).update(rawBody).digest('base64');
+    const a = Buffer.from(expected);
+    const b = Buffer.from(signature.trim());
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new UnauthorizedException('Invalid Flutterwave webhook signature');
     }
   }
 
@@ -35,9 +49,6 @@ export class CustomerVirtualAccountWebhookService {
       throw new BadRequestException('Account number is required');
     }
 
-    // A customer already has a PENDING request before the provider assigns
-    // the destination account. Reuse that request instead of creating a
-    // second virtual-account row. This also preserves the selected bank.
     let existing = await this.prisma.customerVirtualAccount.findFirst({
       where: {
         OR: [
@@ -56,8 +67,6 @@ export class CustomerVirtualAccountWebhookService {
       throw new BadRequestException('Customer ID is required when assigning a new virtual account');
     }
 
-    // Validate the customer before attempting the write so provider webhooks
-    // return a useful 4xx response instead of an opaque database 500.
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
       select: { id: true },
@@ -66,8 +75,6 @@ export class CustomerVirtualAccountWebhookService {
       throw new BadRequestException(`Customer ${customerId} was not found`);
     }
 
-    // If the provider reference belongs to another row, update that row
-    // rather than causing a unique-constraint failure.
     if (providerReference && existing && existing.providerReference !== providerReference) {
       const byProviderReference = await this.prisma.customerVirtualAccount.findUnique({
         where: { providerReference },
@@ -97,10 +104,7 @@ export class CustomerVirtualAccountWebhookService {
             data,
           })
         : await this.prisma.customerVirtualAccount.create({
-            data: {
-              id: randomUUID(),
-              ...data,
-            },
+            data: { id: randomUUID(), ...data },
           });
 
       return {
@@ -114,8 +118,6 @@ export class CustomerVirtualAccountWebhookService {
         assignedAt: virtualAccount.assignedAt,
       };
     } catch (error) {
-      // Keep provider webhook failures actionable instead of returning a
-      // generic 500 for common unique/foreign-key database conflicts.
       const code = (error as { code?: string })?.code;
       if (code === 'P2002') {
         throw new ConflictException('Virtual account or provider reference is already assigned');
@@ -127,6 +129,9 @@ export class CustomerVirtualAccountWebhookService {
     }
   }
 
+  /**
+   * Legacy/provider-neutral deposit contract retained for internal integrations.
+   */
   async deposit(payload: {
     accountNumber: string;
     amount: number;
@@ -136,8 +141,113 @@ export class CustomerVirtualAccountWebhookService {
     secret?: string;
   }) {
     this.checkSecret(payload.secret);
+    return this.applyDeposit({
+      accountNumber: payload.accountNumber,
+      amount: payload.amount,
+      provider: payload.provider,
+      providerReference: payload.providerReference,
+      description: payload.description,
+    });
+  }
+
+  /**
+   * Handles Flutterwave DVA/static-account credit notifications.
+   *
+   * We verify the exact raw body first, then normalize the several field names
+   * Flutterwave can use for account number/reference/status. Credits are only
+   * accepted for successful NGN transactions and are idempotent by the
+   * provider reference.
+   */
+  async depositFlutterwave(input: {
+    body: any;
+    signature?: string;
+    rawBody?: Buffer;
+  }) {
+    const rawBody = input.rawBody?.toString('utf8') ?? JSON.stringify(input.body ?? {});
+    this.checkFlutterwaveSignature(rawBody, input.signature);
+
+    const body = input.body ?? {};
+    const data = body?.data ?? body?.result ?? {};
+    const event = String(body?.event ?? body?.event_type ?? body?.type ?? '').toLowerCase();
+
+    const status = String(
+      data?.status ?? data?.payment_status ?? data?.transaction_status ?? body?.status ?? '',
+    ).toUpperCase();
+
+    if (status && !['SUCCESSFUL', 'SUCCESS', 'COMPLETED', 'SETTLED'].includes(status)) {
+      return { ok: true, ignored: true, reason: 'non-successful-event', status };
+    }
+
+    // Do not let an arbitrary signed provider event credit a wallet unless it
+    // actually identifies a successful transaction.
+    if (!status) {
+      return { ok: true, ignored: true, reason: 'missing-success-status', event };
+    }
+
+    const accountNumber = String(
+      data?.account_number ??
+      data?.accountNumber ??
+      data?.virtual_account_number ??
+      data?.destination_account_number ??
+      data?.beneficiary_account_number ??
+      '',
+    ).replace(/\D/g, '');
+
+    const amount = Number(
+      data?.amount ??
+      data?.charged_amount ??
+      data?.settled_amount ??
+      data?.transaction_amount ??
+      0,
+    );
+
+    const providerReference = String(
+      data?.tx_ref ??
+      data?.reference ??
+      data?.flw_ref ??
+      data?.transaction_reference ??
+      data?.id ??
+      body?.tx_ref ??
+      body?.reference ??
+      '',
+    ).trim();
+
+    const currency = String(data?.currency ?? data?.currency_code ?? 'NGN').toUpperCase();
+    const description = String(
+      data?.narration ?? data?.description ?? data?.meta?.description ?? `Flutterwave virtual account credit ${accountNumber}`,
+    ).trim();
+
+    if (!accountNumber) {
+      throw new BadRequestException('Flutterwave virtual account number is required');
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Flutterwave virtual account deposit amount must be greater than zero');
+    }
+    if (currency !== 'NGN') {
+      return { ok: true, ignored: true, reason: 'unsupported-currency', currency };
+    }
+    if (!providerReference) {
+      throw new BadRequestException('Flutterwave provider reference is required');
+    }
+
+    return this.applyDeposit({
+      accountNumber,
+      amount,
+      provider: 'FLUTTERWAVE',
+      providerReference,
+      description,
+    });
+  }
+
+  private async applyDeposit(payload: {
+    accountNumber: string;
+    amount: number;
+    provider?: string;
+    providerReference: string;
+    description?: string;
+  }) {
     const accountNumber = String(payload.accountNumber ?? '').replace(/\D/g, '');
-    const amount = Number(payload.amount);
+    const amount = Math.round(Number(payload.amount) * 100) / 100;
     const providerReference = String(payload.providerReference ?? '').trim();
 
     if (!accountNumber || !Number.isFinite(amount) || amount <= 0 || !providerReference) {
@@ -148,7 +258,9 @@ export class CustomerVirtualAccountWebhookService {
       const duplicate = await tx.walletTransaction.findUnique({
         where: { providerReference },
       });
-      if (duplicate) return { ok: true, duplicate: true, transaction: duplicate };
+      if (duplicate) {
+        return { ok: true, duplicate: true, transaction: duplicate };
+      }
 
       const virtualAccount = await tx.customerVirtualAccount.findFirst({
         where: { accountNumber, status: 'ACTIVE' },
@@ -166,7 +278,9 @@ export class CustomerVirtualAccountWebhookService {
         throw new BadRequestException('Customer wallet is not active');
       }
 
-      const newBalance = Math.round((wallet.balance + amount) * 100) / 100;
+      const previousBalance = Number(wallet.balance);
+      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+
       const updatedWallet = await tx.customerWallet.update({
         where: { id: wallet.id },
         data: { balance: newBalance },
@@ -177,7 +291,7 @@ export class CustomerVirtualAccountWebhookService {
           customerId: virtualAccount.customerId,
           type: 'DEPOSIT',
           amount,
-          previousBalance: wallet.balance,
+          previousBalance,
           newBalance,
           reference: `VAD-${providerReference}-${randomUUID().slice(0, 8)}`,
           description: payload.description ?? `Virtual account deposit ${accountNumber}`,
@@ -189,7 +303,12 @@ export class CustomerVirtualAccountWebhookService {
         },
       });
 
-      return { ok: true, duplicate: false, wallet: updatedWallet, transaction };
+      return {
+        ok: true,
+        duplicate: false,
+        wallet: updatedWallet,
+        transaction,
+      };
     });
   }
 }

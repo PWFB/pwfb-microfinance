@@ -54,26 +54,24 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.26-native-auth-signed-apk
+          name: pwfb-microfinance-v1.0.27-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.26-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.27-play-store-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.26
-          name: PWFB Microfinance v1.0.26
+          tag_name: v1.0.27
+          name: PWFB Microfinance v1.0.27
           body: |
-            PWFB Microfinance Android application v1.0.26.
+            PWFB Microfinance Android application v1.0.27.
 
-            This release is built from the current main branch so the native authentication screen and Gmail account chooser are included. Gmail account selection is performed in the Android app, and successful native authentication hands the authenticated token directly to the in-app dashboard WebView.
-
-            The previous v1.0.25 release was created from a stale release tag and did not contain the latest native authentication changes. v1.0.26 corrects that release mismatch.
+            This release contains the native authentication handoff fix. Successful Gmail or fingerprint authentication passes the current authenticated token into the current PWFB dashboard and stores both token and access_token for the dashboard session.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
@@ -83,4 +81,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.26 signed APK + Play Store AAB release build
+# PWFB v1.0.27 signed APK + Play Store AAB release build

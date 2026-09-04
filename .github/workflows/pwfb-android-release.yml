@@ -54,24 +54,24 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.27-native-auth-signed-apk
+          name: pwfb-microfinance-v1.0.28-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.27-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.28-play-store-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.27
-          name: PWFB Microfinance v1.0.27
+          tag_name: v1.0.28
+          name: PWFB Microfinance v1.0.28
           body: |
-            PWFB Microfinance Android application v1.0.27.
+            PWFB Microfinance Android application v1.0.28.
 
-            This release contains the native authentication handoff fix. Successful Gmail or fingerprint authentication passes the current authenticated token into the current PWFB dashboard and stores both token and access_token for the dashboard session.
+            This release restores the first stable PWFB Android application flow, including the original native authentication screen, fingerprint unlock, Google sign-in, and the stable TWA/WebView handoff.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
@@ -81,4 +81,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.27 signed APK + Play Store AAB release build
+# PWFB v1.0.28 restored first stable Android application build

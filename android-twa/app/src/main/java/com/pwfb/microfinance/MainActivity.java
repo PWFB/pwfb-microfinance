@@ -18,9 +18,10 @@ import androidx.core.splashscreen.SplashScreen;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends Activity {
-    private static final String START_URL = "https://pwfb-frontend.onrender.com/login";
     private static final String LOGIN_URL = "https://pwfb-frontend.onrender.com/login";
     private static final String DASHBOARD_URL = "https://pwfb-frontend.onrender.com/dashboard";
+    private static final String CUSTOMER_DASHBOARD_URL = "https://pwfb-frontend.onrender.com/customer-dashboard";
+    private static final String STAFF_DASHBOARD_URL = "https://pwfb-frontend.onrender.com/staff-dashboard";
     private static final String BACKEND_PROFILE_URL = "https://pwfb-backend.onrender.com/auth/profile";
     private static final String FRONTEND_HOST = "pwfb-frontend.onrender.com";
     private static final String SCHEME = "pwfb";
@@ -32,7 +33,7 @@ public class MainActivity extends Activity {
     private SwipeRefreshLayout swipeRefresh;
     private WebView webView;
     private String pendingNativeToken;
-    private boolean nativeLoginRedirected;
+    private boolean nativeLoginStarted;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this);
@@ -44,8 +45,6 @@ public class MainActivity extends Activity {
         Intent launchIntent = getIntent();
         pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
         if (isBlank(pendingNativeToken) && launchIntent != null) pendingNativeToken = extractTokenFromAppIntent(launchIntent);
-
-        // Do not wipe a valid native session. A fresh install/session without a token starts at the login page.
         if (isBlank(pendingNativeToken)) resetWebSession();
         buildWebApp();
     }
@@ -57,12 +56,15 @@ public class MainActivity extends Activity {
         if (isBlank(token)) token = extractTokenFromAppIntent(intent);
         if (!isBlank(token)) {
             pendingNativeToken = token;
-            nativeLoginRedirected = false;
-            if (webView != null) webView.loadUrl(DASHBOARD_URL);
+            nativeLoginStarted = false;
+            if (webView != null) {
+                webView.stopLoading();
+                webView.loadUrl(DASHBOARD_URL);
+            }
             return;
         }
         if (handleAppIntent(intent)) return;
-        if (webView != null) webView.loadUrl(START_URL);
+        if (webView != null) webView.loadUrl(LOGIN_URL);
     }
 
     private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
@@ -79,26 +81,18 @@ public class MainActivity extends Activity {
         swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
         swipeRefresh.setColorSchemeColors(GREEN, ORANGE);
         swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE);
-        swipeRefresh.setDistanceToTriggerSync(dp(72));
-        swipeRefresh.setSlingshotDistance(dp(96));
-
         webView = new WebView(this);
         webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
-        webView.setBackgroundColor(Color.WHITE);
-        webView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setLoadsImagesAutomatically(true);
-        s.setBuiltInZoomControls(false);
-        s.setDisplayZoomControls(false);
         s.setSupportMultipleWindows(false);
         s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
-
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return handleWebViewUrl(request.getUrl().toString()); }
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleWebViewUrl(url); }
@@ -106,43 +100,42 @@ public class MainActivity extends Activity {
                 if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
                 continueNativeLogin(view, url);
             }
-            @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
-                if (request.isForMainFrame() && swipeRefresh != null) swipeRefresh.setRefreshing(false);
-            }
         });
         webView.setWebChromeClient(new WebChromeClient());
         swipeRefresh.addView(webView);
-        swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); });
-        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.getScrollY() > 0);
+        swipeRefresh.setOnRefreshListener(() -> webView.reload());
+        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView.getScrollY() > 0);
         setContentView(swipeRefresh);
-        webView.loadUrl(isBlank(pendingNativeToken) ? START_URL : DASHBOARD_URL);
+        // A native token is authoritative. Never begin at the old login page after successful native auth.
+        webView.loadUrl(isBlank(pendingNativeToken) ? LOGIN_URL : DASHBOARD_URL);
     }
 
     private void continueNativeLogin(WebView view, String url) {
-        if (nativeLoginRedirected || isBlank(pendingNativeToken)) return;
-        Uri current;
-        try { current = Uri.parse(url == null ? "" : url); } catch (Exception ignored) { return; }
-        if (!FRONTEND_HOST.equalsIgnoreCase(current.getHost())) return;
+        if (nativeLoginStarted || isBlank(pendingNativeToken)) return;
+        try {
+            Uri current = Uri.parse(url == null ? "" : url);
+            if (!FRONTEND_HOST.equalsIgnoreCase(current.getHost())) return;
+        } catch (Exception ignored) { return; }
 
-        String token = JSONObjectEscape(pendingNativeToken);
-        nativeLoginRedirected = true;
+        nativeLoginStarted = true;
+        String token = escapeJs(pendingNativeToken);
         String script = "(function(){" +
                 "var token='" + token + "';" +
-                "window.localStorage.setItem('token',token);" +
-                "window.localStorage.removeItem('app_token');" +
+                "try{window.localStorage.setItem('token',token);window.localStorage.setItem('access_token',token);" +
+                "window.sessionStorage.setItem('token',token);window.sessionStorage.setItem('access_token',token);}catch(e){}" +
                 "fetch('" + BACKEND_PROFILE_URL + "',{headers:{Authorization:'Bearer '+token}})" +
                 ".then(function(r){if(!r.ok)throw new Error('profile');return r.json();})" +
                 ".then(function(profile){" +
-                "var role=profile&&(profile.role||(profile.user&&profile.user.role));" +
-                "var destination=role==='CUSTOMER'?'/customer-dashboard':role==='SUPER_ADMIN'?'/dashboard':'/staff-dashboard';" +
-                "window.location.replace(destination);" +
+                "var role=String((profile&&profile.role)||((profile&&profile.user)&&profile.user.role)||'').toUpperCase();" +
+                "var destination=role==='CUSTOMER'?'" + CUSTOMER_DASHBOARD_URL + "':(role==='SUPER_ADMIN'?'" + DASHBOARD_URL + "':'" + STAFF_DASHBOARD_URL + "');" +
+                "window.location.replace(destination+'?nativeApp=1');" +
                 "})" +
-                ".catch(function(){window.localStorage.removeItem('token');window.location.replace('" + LOGIN_URL + "');});" +
+                ".catch(function(){window.localStorage.removeItem('token');window.sessionStorage.removeItem('token');window.location.replace('" + LOGIN_URL + "');});" +
                 "})();";
         view.evaluateJavascript(script, null);
     }
 
-    private String JSONObjectEscape(String value) {
+    private String escapeJs(String value) {
         return value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r");
     }
 
@@ -161,38 +154,24 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) { return null; }
     }
 
-    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
-
     private boolean handleAppIntent(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
         if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
         if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
-            String target = data.getQueryParameter("url");
-            if (isBlank(target)) target = START_URL;
-            try {
-                Uri targetUri = Uri.parse(target);
-                if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {
-                    if (FRONTEND_HOST.equalsIgnoreCase(targetUri.getHost())) {
-                        String token = extractTokenFromAppIntent(intent);
-                        if (!isBlank(token)) {
-                            pendingNativeToken = token;
-                            nativeLoginRedirected = false;
-                        }
-                        if (webView != null) webView.loadUrl(isBlank(pendingNativeToken) ? targetUri.toString() : DASHBOARD_URL);
-                    } else if (webView != null) webView.loadUrl(START_URL);
-                }
-            } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); }
+            String token = extractTokenFromAppIntent(intent);
+            if (!isBlank(token)) {
+                pendingNativeToken = token;
+                nativeLoginStarted = false;
+                if (webView != null) webView.loadUrl(DASHBOARD_URL);
+            }
             return true;
         }
         if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
             String target = data.getQueryParameter("url");
-            if (isBlank(target)) target = START_URL;
+            if (isBlank(target)) target = LOGIN_URL;
             try {
                 Uri targetUri = Uri.parse(target);
-                if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) && FRONTEND_HOST.equalsIgnoreCase(targetUri.getHost())) {
-                    // Keep PWFB navigation inside the app instead of sending the user to Chrome.
-                    if (webView != null) webView.loadUrl(targetUri.toString());
-                }
+                if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) && FRONTEND_HOST.equalsIgnoreCase(targetUri.getHost()) && webView != null) webView.loadUrl(targetUri.toString());
             } catch (Exception ignored) { }
             return true;
         }
@@ -201,10 +180,11 @@ public class MainActivity extends Activity {
 
     private boolean handleWebViewUrl(String url) {
         if (url == null) return false;
-        Uri data;
-        try { data = Uri.parse(url); } catch (Exception ignored) { return true; }
-        if (!SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-        return handleAppIntent(new Intent(Intent.ACTION_VIEW, data));
+        try {
+            Uri data = Uri.parse(url);
+            if (!SCHEME.equalsIgnoreCase(data.getScheme())) return false;
+            return handleAppIntent(new Intent(Intent.ACTION_VIEW, data));
+        } catch (Exception ignored) { return true; }
     }
 
     @Override public void onBackPressed() { if (webView != null && webView.canGoBack()) { webView.goBack(); return; } super.onBackPressed(); }

@@ -84,3 +84,4 @@ jobs:
         run: rm -f android-twa/pwfb-upload-key.jks
 
 # PWFB v1.0.25 signed APK + Play Store AAB release build
+# Build trigger: explicitly refreshed to ensure the v1.0.25 release workflow is picked up by GitHub Actions.

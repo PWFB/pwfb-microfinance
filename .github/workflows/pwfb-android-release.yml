@@ -54,25 +54,26 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.24-native-auth-signed-apk
+          name: pwfb-microfinance-v1.0.25-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.24-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.25-play-store-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.24
-          name: PWFB Microfinance v1.0.24
+          tag_name: v1.0.25
+          name: PWFB Microfinance v1.0.25
           body: |
-            PWFB Microfinance Android application v1.0.24.
+            PWFB Microfinance Android application v1.0.25.
 
-            Includes the corrected browser-to-app authentication handoff so fingerprint/passkey and Google authentication return the verified access token to the PWFB app without the landing-page/Continue loop.
-            Includes the signed APK and signed Play Store AAB.
+            The PWFB app now opens directly into the dedicated account replacement login flow. After email/password authentication, the authenticated account can explicitly remove its existing server-side passkey and register a fresh platform passkey for this phone. The Android fingerprint/security prompt is then used to save the new credential.
+
+            The old web passkey is not automatically removed by merely visiting the registration page; removal occurs only in the explicit fresh-passkey replacement flow.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
@@ -82,4 +83,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.24 signed APK + Play Store AAB release build
+# PWFB v1.0.25 signed APK + Play Store AAB release build

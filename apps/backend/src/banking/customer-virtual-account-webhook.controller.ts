@@ -1,13 +1,11 @@
-import { Body, Controller, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Post, Req } from '@nestjs/common';
 import { CustomerVirtualAccountWebhookService } from './customer-virtual-account-webhook.service';
 
 /**
- * Provider-neutral webhook boundary.
+ * Provider-neutral webhook boundary plus the real Flutterwave webhook entrypoint.
  *
- * A real DVA provider should map its webhook payload into these two contracts.
- * The endpoint is intentionally outside JWT auth because bank/provider webhooks
- * cannot authenticate as a PWFB customer. Every request must carry the shared
- * PWFB_VIRTUAL_ACCOUNT_WEBHOOK_SECRET header.
+ * Provider webhooks are not JWT-authenticated. Flutterwave requests are verified
+ * with FLUTTERWAVE_WEBHOOK_SECRET_HASH against the exact raw request body.
  */
 @Controller('webhooks/virtual-accounts')
 export class CustomerVirtualAccountWebhookController {
@@ -43,5 +41,25 @@ export class CustomerVirtualAccountWebhookController {
     },
   ) {
     return this.service.deposit({ ...body, secret });
+  }
+
+  /**
+   * Flutterwave DVA/static-account credit notification.
+   *
+   * Flutterwave signs the raw request body. The service validates the signature,
+   * accepts only successful NGN credits, resolves the destination virtual
+   * account, and credits the customer's wallet exactly once.
+   */
+  @Post('flutterwave')
+  flutterwave(
+    @Headers('flutterwave-signature') signature: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    return this.service.depositFlutterwave({
+      body,
+      signature,
+      rawBody: req.rawBody,
+    });
   }
 }

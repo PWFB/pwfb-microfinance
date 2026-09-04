@@ -19,7 +19,9 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://pwfb-frontend.onrender.com/";
+    private static final String LOGIN_URL = "https://pwfb-frontend.onrender.com/login";
     private static final String DASHBOARD_URL = "https://pwfb-frontend.onrender.com/dashboard";
+    private static final String BACKEND_PROFILE_URL = "https://pwfb-backend.onrender.com/auth/profile";
     private static final String SCHEME = "pwfb";
     private static final String OPEN_APP_HOST = "open-app";
     private static final String OPEN_CHROME_HOST = "open-chrome";
@@ -40,11 +42,9 @@ public class MainActivity extends Activity {
 
         Intent launchIntent = getIntent();
         pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
-        if ((pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) && launchIntent != null) {
-            pendingNativeToken = extractTokenFromAppIntent(launchIntent);
-        }
+        if (isBlank(pendingNativeToken) && launchIntent != null) pendingNativeToken = extractTokenFromAppIntent(launchIntent);
 
-        if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) resetWebSession();
+        if (isBlank(pendingNativeToken)) resetWebSession();
         buildWebApp();
     }
 
@@ -52,16 +52,18 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         String token = intent == null ? null : intent.getStringExtra("app_token");
-        if (token == null || token.trim().isEmpty()) token = extractTokenFromAppIntent(intent);
-        if (token != null && !token.trim().isEmpty()) {
+        if (isBlank(token)) token = extractTokenFromAppIntent(intent);
+        if (!isBlank(token)) {
             pendingNativeToken = token;
             nativeLoginRedirected = false;
-            if (webView != null) webView.loadUrl(START_URL);
+            if (webView != null) webView.loadUrl(LOGIN_URL);
             return;
         }
         if (handleAppIntent(intent)) return;
         if (webView != null) webView.loadUrl(START_URL);
     }
+
+    private boolean isBlank(String value) { return value == null || value.trim().isEmpty(); }
 
     private void resetWebSession() {
         CookieManager cookies = CookieManager.getInstance();
@@ -111,21 +113,30 @@ public class MainActivity extends Activity {
         swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); });
         swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.getScrollY() > 0);
         setContentView(swipeRefresh);
-        webView.loadUrl(START_URL);
+        webView.loadUrl(isBlank(pendingNativeToken) ? START_URL : LOGIN_URL);
     }
 
     private void continueNativeLogin(WebView view, String url) {
-        if (nativeLoginRedirected || pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) return;
-        Uri current = Uri.parse(url == null ? "" : url);
+        if (nativeLoginRedirected || isBlank(pendingNativeToken)) return;
+        Uri current;
+        try { current = Uri.parse(url == null ? "" : url); } catch (Exception ignored) { return; }
         if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return;
         if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
+
         nativeLoginRedirected = true;
         String token = JSONObjectEscape(pendingNativeToken);
-        String script = "window.localStorage.setItem('token', '" + token + "');" +
-                "fetch('https://pwfb-backend.onrender.com/auth/profile',{headers:{Authorization:'Bearer ' + encodeURIComponent('" + token + "')}})" +
+        String script = "(function(){" +
+                "var token='" + token + "';" +
+                "window.localStorage.setItem('token',token);" +
+                "fetch('" + BACKEND_PROFILE_URL + "',{headers:{Authorization:'Bearer '+token}})" +
                 ".then(function(r){if(!r.ok)throw new Error('profile');return r.json();})" +
-                ".then(function(profile){var destination=profile&&profile.role==='CUSTOMER'?'/customer-dashboard':profile&&profile.role==='SUPER_ADMIN'?'/dashboard':'/staff-dashboard';window.location.replace(destination);})" +
-                ".catch(function(){window.location.replace('https://pwfb-frontend.onrender.com/login');});";
+                ".then(function(profile){" +
+                "var role=profile&&(profile.role||(profile.user&&profile.user.role));" +
+                "var destination=role==='CUSTOMER'?'/customer-dashboard':role==='SUPER_ADMIN'?'/dashboard':'/staff-dashboard';" +
+                "window.location.replace(destination);" +
+                "})" +
+                ".catch(function(){window.localStorage.removeItem('token');window.location.replace('" + LOGIN_URL + "');});" +
+                "})();";
         view.evaluateJavascript(script, null);
     }
 
@@ -138,12 +149,12 @@ public class MainActivity extends Activity {
             Uri data = intent == null ? null : intent.getData();
             if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme()) || !OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) return null;
             String direct = data.getQueryParameter("app_token");
-            if (direct != null && !direct.trim().isEmpty()) return direct;
+            if (!isBlank(direct)) return direct;
             String target = data.getQueryParameter("url");
-            if (target == null || target.trim().isEmpty()) return null;
+            if (isBlank(target)) return null;
             Uri targetUri = Uri.parse(target);
             String fragment = targetUri.getFragment();
-            if (fragment == null || fragment.isEmpty()) return null;
+            if (isBlank(fragment)) return null;
             return new android.net.UrlQuerySanitizer(fragment).getValue("app_token");
         } catch (Exception ignored) { return null; }
     }
@@ -155,17 +166,17 @@ public class MainActivity extends Activity {
         if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
         if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
             String target = data.getQueryParameter("url");
-            if (target == null || target.trim().isEmpty()) target = START_URL;
+            if (isBlank(target)) target = START_URL;
             try {
                 Uri targetUri = Uri.parse(target);
                 if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {
                     if ("pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
                         String token = extractTokenFromAppIntent(intent);
-                        if (token != null && !token.trim().isEmpty()) {
+                        if (!isBlank(token)) {
                             pendingNativeToken = token;
                             nativeLoginRedirected = false;
                         }
-                        if (webView != null) webView.loadUrl(targetUri.toString());
+                        if (webView != null) webView.loadUrl(isBlank(pendingNativeToken) ? targetUri.toString() : LOGIN_URL);
                     } else if (webView != null) webView.loadUrl(START_URL);
                 }
             } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); }
@@ -173,7 +184,7 @@ public class MainActivity extends Activity {
         }
         if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
             String target = data.getQueryParameter("url");
-            if (target == null || target.trim().isEmpty()) target = START_URL;
+            if (isBlank(target)) target = START_URL;
             try {
                 Uri targetUri = Uri.parse(target);
                 if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {

@@ -18,7 +18,7 @@ import androidx.core.splashscreen.SplashScreen;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends Activity {
-    private static final String START_URL = "https://pwfb-frontend.onrender.com/";
+    private static final String START_URL = "https://pwfb-frontend.onrender.com/login?registerPasskey=1&replacePasskey=1";
     private static final String LOGIN_URL = "https://pwfb-frontend.onrender.com/login";
     private static final String DASHBOARD_URL = "https://pwfb-frontend.onrender.com/dashboard";
     private static final String BACKEND_PROFILE_URL = "https://pwfb-backend.onrender.com/auth/profile";

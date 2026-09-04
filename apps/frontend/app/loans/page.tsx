@@ -1,153 +1,17 @@
 "use client";
-
-import Link from "next/link";
-import { useEffect, useState } from "react";
-
-interface BankAccount { accountNumber: string; accountName?: string; isPrimary?: boolean; institution?: { name?: string; code?: string }; }
-interface Guarantor { id: string; firstName: string; middleName?: string; lastName: string; }
-interface Loan {
-  id: string;
-  customerId: string;
-  amount: number;
-  interestRate?: number;
-  status?: string;
-  disbursementAmount?: number;
-  disbursementAccountNumber?: string;
-  disbursementAccountName?: string;
-  disbursementBankCode?: string;
-  disbursementBankName?: string;
-  disbursementUsesAlternativeAccount?: boolean;
-  guarantors?: Guarantor[];
-  customer?: { firstName: string; middleName?: string; lastName: string; bankAccounts?: BankAccount[] };
-}
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
-
-function currentRole() {
-  try {
-    const token = localStorage.getItem("token");
-    if (!token) return "";
-    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    return String(payload.role || "");
-  } catch { return ""; }
-}
-
-export default function LoansPage() {
-  const [loans, setLoans] = useState<Loan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState("");
-  const [message, setMessage] = useState("");
-  const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
-  const [alternative, setAlternative] = useState(false);
-  const [accountNumber, setAccountNumber] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [bankCode, setBankCode] = useState("");
-  const [bankName, setBankName] = useState("");
-  const [disbursementAmount, setDisbursementAmount] = useState("");
-  const role = typeof window !== "undefined" ? currentRole() : "";
-
-  async function loadLoans() {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/loans`, { headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` } });
-      const data = await res.json();
-      setLoans(Array.isArray(data) ? data : []);
-    } catch { setLoans([]); }
-    finally { setLoading(false); }
-  }
-
-  useEffect(() => { loadLoans(); }, []);
-
-  function openDisbursement(loan: Loan) {
-    setSelectedLoan(loan);
-    setAlternative(Boolean(loan.disbursementUsesAlternativeAccount));
-    setAccountNumber(loan.disbursementAccountNumber ?? "");
-    setAccountName(loan.disbursementAccountName ?? "");
-    setBankCode(loan.disbursementBankCode ?? "");
-    setBankName(loan.disbursementBankName ?? "");
-    setDisbursementAmount(String(loan.disbursementAmount ?? loan.amount));
-  }
-
-  async function submitDisbursement() {
-    if (!selectedLoan) return;
-    setBusyId(selectedLoan.id); setMessage("");
-    try {
-      const body = alternative ? {
-        accountNumber,
-        accountName,
-        bankCode,
-        bankName,
-        amount: Number(disbursementAmount),
-      } : { amount: Number(disbursementAmount) };
-      const res = await fetch(`${API_URL}/loans/${selectedLoan.id}/submit-disbursement`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Could not submit loan");
-      setSelectedLoan(null);
-      setMessage("Loan sent to the Branch Manager for confirmation.");
-      await loadLoans();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not submit loan"); }
-    finally { setBusyId(""); }
-  }
-
-  async function approveDisbursement(id: string) {
-    if (!window.confirm("Confirm that this loan is proper and disburse it to the selected beneficiary account?")) return;
-    setBusyId(id); setMessage("");
-    try {
-      const res = await fetch(`${API_URL}/loans/${id}/approve-disbursement`, { method: "POST", headers: { Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Disbursement failed");
-      setMessage(data.status === "DISBURSED" ? "Loan disbursed successfully." : "Loan approved and sent to the payment provider for processing.");
-      await loadLoans();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Disbursement failed"); }
-    finally { setBusyId(""); }
-  }
-
-  async function rejectDisbursement(id: string) {
-    const reason = window.prompt("Reason for cancelling/rejecting this loan disbursement:", "Loan documentation or approval requirements not satisfied");
-    if (reason === null) return;
-    setBusyId(id); setMessage("");
-    try {
-      const res = await fetch(`${API_URL}/loans/${id}/reject-disbursement`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") ?? ""}` }, body: JSON.stringify({ reason }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Could not reject loan");
-      setMessage("Loan disbursement cancelled/rejected.");
-      await loadLoans();
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Could not reject loan"); }
-    finally { setBusyId(""); }
-  }
-
-  async function copyAccounts(loan: Loan) {
-    const accounts = (loan.customer?.bankAccounts ?? []).map((a) => `${a.institution?.name ?? "Bank"} | ${a.accountName ?? ""} | ${a.accountNumber} | ${a.institution?.code ?? ""}`).join("\n");
-    const alternativeLine = loan.disbursementAccountNumber ? `\nDisbursement account: ${loan.disbursementBankName ?? ""} | ${loan.disbursementAccountName ?? ""} | ${loan.disbursementAccountNumber} | ${loan.disbursementBankCode ?? ""}` : "";
-    await navigator.clipboard.writeText(`${accounts || "No registered account"}${alternativeLine}`);
-    setMessage("All available customer account details copied.");
-  }
-
-  function downloadAccounts(loan: Loan) {
-    const rows = [["Type", "Bank", "Bank Code", "Account Name", "Account Number"], ...(loan.customer?.bankAccounts ?? []).map((a) => ["Registered", a.institution?.name ?? "", a.institution?.code ?? "", a.accountName ?? "", a.accountNumber])];
-    if (loan.disbursementAccountNumber) rows.push(["Disbursement", loan.disbursementBankName ?? "", loan.disbursementBankCode ?? "", loan.disbursementAccountName ?? "", loan.disbursementAccountNumber]);
-    const csv = rows.map((row) => row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const a = document.createElement("a"); a.href = url; a.download = `pwfb-loan-${loan.id}-accounts.csv`; a.click(); URL.revokeObjectURL(url);
-  }
-
-  const activeLoans = loans.filter((loan) => (loan.status ?? "Pending").toLowerCase() === "active").length;
-  const totalAmount = loans.reduce((sum, loan) => sum + Number(loan.amount || 0), 0);
-  const formatAmount = (amount: number) => `₦${amount.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  return (
-    <main>
-      <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">LOAN MANAGEMENT</p><h1 className="pwfb-page-title">Loans</h1><p className="pwfb-page-description">Manage loan applications, guarantors, approvals, beneficiary accounts and disbursement.</p></div><div className="pwfb-actions"><Link href="/loans/guarantor/add" className="pwfb-secondary-button">+ Add Guarantor</Link>{(role === "ADMIN" || role === "SUPER_ADMIN") && <Link href="/loans/add" className="pwfb-primary-button">+ Add Loan</Link>}</div></div>
-      {message && <div className="pwfb-panel" style={{ marginBottom: 16 }}><strong>{message}</strong></div>}
-      <section className="pwfb-stat-grid"><div className="pwfb-stat-card"><span>Total Loans</span><strong>{loading ? "—" : loans.length}</strong><small>Loan accounts</small></div><div className="pwfb-stat-card pwfb-stat-orange"><span>Total Loan Value</span><strong>{loading ? "—" : formatAmount(totalAmount)}</strong><small>Principal issued</small></div><div className="pwfb-stat-card"><span>Active Loans</span><strong>{loading ? "—" : activeLoans}</strong><small>Currently active</small></div></section>
-      <section className="pwfb-panel"><div className="pwfb-panel-header"><div><h2>Loan Directory</h2><p>All roles can view account and loan history. Only Admin and Super Admin can edit loan records.</p></div><span className="pwfb-record-count">{loading ? "Loading..." : `${loans.length} records`}</span></div>
-        {loading ? <div className="pwfb-empty-state"><div className="pwfb-loading-dot" /><p>Loading loans...</p></div> : loans.length === 0 ? <div className="pwfb-empty-state"><div className="pwfb-empty-icon">💰</div><h3>No loans found</h3><p>Start by adding your first loan.</p></div> : <div className="pwfb-table-wrap"><table className="pwfb-table"><thead><tr><th>Customer</th><th>Loan</th><th>Beneficiary Account</th><th>Status</th><th>Actions</th></tr></thead><tbody>{loans.map((loan) => { const status = loan.status ?? "Pending"; const waiting = status === "DISBURSEMENT_PENDING_BRANCH_REVIEW"; const account = loan.disbursementAccountNumber ? `${loan.disbursementBankName ?? "Bank"} · ${loan.disbursementAccountNumber}` : loan.customer?.bankAccounts?.[0] ? `${loan.customer.bankAccounts[0].institution?.name ?? "Bank"} · ${loan.customer.bankAccounts[0].accountNumber}` : "No account"; return <tr key={loan.id}><td><div className="pwfb-customer-cell"><div className="pwfb-avatar">₦</div><div><strong>{loan.customer ? `${loan.customer.firstName} ${loan.customer.middleName ? loan.customer.middleName + " " : ""}${loan.customer.lastName}` : "Customer"}</strong><small>{loan.customerId}</small></div></div></td><td><strong>{formatAmount(Number(loan.disbursementAmount ?? loan.amount))}</strong><small>{loan.interestRate != null ? `${loan.interestRate}% interest` : ""}</small></td><td><strong>{account}</strong><small>{loan.disbursementAccountName ?? loan.customer?.bankAccounts?.[0]?.accountName ?? ""}</small></td><td><span className="pwfb-status-badge">{status}</span></td><td><div className="pwfb-actions"><Link href={`/loans/view/${loan.id}`} className="pwfb-action-view">View</Link><button onClick={() => copyAccounts(loan)} className="pwfb-action-edit">Copy accounts</button><button onClick={() => downloadAccounts(loan)} className="pwfb-action-edit">Download</button>{role === "CREDIT_OFFICER" && (status === "PENDING" || status === "APPROVED") && <button disabled={busyId === loan.id} onClick={() => openDisbursement(loan)} className="pwfb-action-edit">Confirm & Send</button>}{(role === "BRANCH_MANAGER" || role === "ADMIN" || role === "SUPER_ADMIN") && waiting && <><button disabled={busyId === loan.id} onClick={() => approveDisbursement(loan.id)} className="pwfb-primary-button">{busyId === loan.id ? "Processing…" : "Check & Disburse"}</button><button disabled={busyId === loan.id} onClick={() => rejectDisbursement(loan.id)} className="pwfb-action-edit">Cancel</button></>}{(role === "ADMIN" || role === "SUPER_ADMIN") && <Link href={`/loans/edit/${loan.id}`} className="pwfb-action-edit">Edit</Link>}</div></td></tr>; })}</tbody></table></div>}
-      </section>
-
-      {selectedLoan && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", display: "grid", placeItems: "center", zIndex: 50, padding: 20 }}><div className="pwfb-panel" style={{ width: "min(680px, 100%)", maxHeight: "90vh", overflowY: "auto" }}><div className="pwfb-panel-header"><div><h2>Confirm Loan Disbursement</h2><p>Enter an alternative beneficiary only when the Credit Officer has the customer's approved alternative account details.</p></div><button onClick={() => setSelectedLoan(null)} className="pwfb-action-edit">Close</button></div><div className="pwfb-stat-grid"><div className="pwfb-stat-card"><span>Client</span><strong>{selectedLoan.customer ? `${selectedLoan.customer.firstName} ${selectedLoan.customer.lastName}` : selectedLoan.customerId}</strong></div><div className="pwfb-stat-card"><span>Approved Loan</span><strong>{formatAmount(selectedLoan.amount)}</strong></div></div><label style={{ display: "block", marginBottom: 12 }}><input type="checkbox" checked={alternative} onChange={(e) => setAlternative(e.target.checked)} /> Use alternative disbursement account</label>{alternative ? <div style={{ display: "grid", gap: 12 }}><input placeholder="Alternative account number" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /><input placeholder="Alternative account name" value={accountName} onChange={(e) => setAccountName(e.target.value)} /><input placeholder="Bank code" value={bankCode} onChange={(e) => setBankCode(e.target.value)} /><input placeholder="Bank name" value={bankName} onChange={(e) => setBankName(e.target.value)} /></div> : <div className="pwfb-panel" style={{ marginBottom: 12 }}><strong>Registered client account</strong><p>{selectedLoan.customer?.bankAccounts?.[0]?.accountName ?? "No account name"} · {selectedLoan.customer?.bankAccounts?.[0]?.accountNumber ?? "No account number"} · {selectedLoan.customer?.bankAccounts?.[0]?.institution?.name ?? "No bank"}</p></div>}<input type="number" min="1" max={selectedLoan.amount} step="0.01" placeholder="Loan amount to disburse" value={disbursementAmount} onChange={(e) => setDisbursementAmount(e.target.value)} style={{ marginTop: 12 }} /><button disabled={busyId === selectedLoan.id} onClick={submitDisbursement} className="pwfb-primary-button" style={{ marginTop: 16 }}>{busyId === selectedLoan.id ? "Sending…" : "Confirm & Send to Branch Manager"}</button></div></div>}
-    </main>
-  );
-}
+import Link from "next/link";import{useEffect,useMemo,useState}from"react";
+type Bank={accountNumber:string;accountName?:string;institution?:{name?:string;code?:string}};type Loan={id:string;customerId:string;amount:number;interestRate?:number;status?:string;disbursementAmount?:number;disbursementAccountNumber?:string;disbursementAccountName?:string;disbursementBankCode?:string;disbursementBankName?:string;disbursementUsesAlternativeAccount?:boolean;customer?:{firstName:string;middleName?:string;lastName:string;bankAccounts?:Bank[]}};
+const API_URL=process.env.NEXT_PUBLIC_API_URL!;const money=(n:number)=>`₦${Number(n||0).toLocaleString("en-NG",{minimumFractionDigits:2,maximumFractionDigits:2})}`;const role=()=>{try{return String(JSON.parse(atob((localStorage.getItem("token")||"").split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).role||"")}catch{return""}};
+export default function LoansPage(){const[loans,setLoans]=useState<Loan[]>([]),[loading,setLoading]=useState(true),[search,setSearch]=useState(""),[status,setStatus]=useState("all"),[busy,setBusy]=useState(""),[message,setMessage]=useState(""),[selected,setSelected]=useState<Loan|null>(null),[alternative,setAlternative]=useState(false),[accountNumber,setAccountNumber]=useState(""),[accountName,setAccountName]=useState(""),[bankCode,setBankCode]=useState(""),[bankName,setBankName]=useState(""),[amount,setAmount]=useState("");const r=typeof window!=="undefined"?role():"";
+ const load=async()=>{setLoading(true);try{const x=await fetch(`${API_URL}/loans`,{headers:{Authorization:`Bearer ${localStorage.getItem("token")||""}`}});const d=await x.json();setLoans(Array.isArray(d)?d:[])}catch{setLoans([])}finally{setLoading(false)}};useEffect(()=>{load()},[]);
+ const filtered=useMemo(()=>loans.filter(x=>{const q=search.toLowerCase();return(!q||`${x.customerId} ${x.id} ${x.customer?.firstName||""} ${x.customer?.lastName||""}`.toLowerCase().includes(q))&&(status==="all"||(x.status||"pending").toLowerCase()===status)}),[loans,search,status]);const total=loans.reduce((s,x)=>s+Number(x.amount||0),0),active=loans.filter(x=>(x.status||"").toLowerCase()==="active").length,pending=loans.filter(x=>String(x.status||"").includes("PENDING")).length;
+ const open=(x:Loan)=>{setSelected(x);setAlternative(Boolean(x.disbursementUsesAlternativeAccount));setAccountNumber(x.disbursementAccountNumber||"");setAccountName(x.disbursementAccountName||"");setBankCode(x.disbursementBankCode||"");setBankName(x.disbursementBankName||"");setAmount(String(x.disbursementAmount??x.amount))};
+ const submit=async()=>{if(!selected)return;setBusy(selected.id);try{const body=alternative?{accountNumber,accountName,bankCode,bankName,amount:Number(amount)}:{amount:Number(amount)};const x=await fetch(`${API_URL}/loans/${selected.id}/submit-disbursement`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${localStorage.getItem("token")||""}`},body:JSON.stringify(body)});const d=await x.json();if(!x.ok)throw Error(d.message||"Could not submit loan");setSelected(null);setMessage("Loan sent to the Branch Manager for confirmation.");load()}catch(e){setMessage(e instanceof Error?e.message:"Could not submit loan")}finally{setBusy("")}};
+ const approve=async(id:string)=>{if(!confirm("Confirm this loan and disburse to the approved beneficiary account?"))return;setBusy(id);try{const x=await fetch(`${API_URL}/loans/${id}/approve-disbursement`,{method:"POST",headers:{Authorization:`Bearer ${localStorage.getItem("token")||""}`}});const d=await x.json();if(!x.ok)throw Error(d.message||"Disbursement failed");setMessage(d.status==="DISBURSED"?"Loan disbursed successfully.":"Loan approved and sent for processing.");load()}catch(e){setMessage(e instanceof Error?e.message:"Disbursement failed")}finally{setBusy("")}};
+ return <main className="pwfb-loan-module"><style>{`.pwfb-loan-module{max-width:1280px;margin:auto;padding:8px 0 48px}.loan-hero{background:linear-gradient(135deg,#075b2a,#13813d);color:#fff;border-radius:24px;padding:28px;display:flex;justify-content:space-between;gap:25px;margin-bottom:20px}.loan-hero h1{margin:5px 0;font-size:32px}.loan-hero p{margin:0;color:#d9eee0}.loan-hero .eyebrow{color:#ffb14b}.loan-total strong{display:block;font-size:30px}.loan-total small{font-size:10px;letter-spacing:.12em;color:#cce6d4}.loan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}.loan-card{background:#fff;border:1px solid #e1e9e4;border-radius:18px;padding:19px}.loan-card.orange{background:#fffaf4}.loan-card span{font-size:10px;text-transform:uppercase;font-weight:900;color:#718078}.loan-card strong{display:block;font-size:24px;color:#143b24;margin:7px 0}.loan-card small{color:#7c8881}.loan-panel{background:#fff;border:1px solid #e1e9e4;border-radius:20px;overflow:hidden}.loan-head{padding:20px 22px;border-bottom:1px solid #e7eee9;display:flex;justify-content:space-between}.loan-head h2{margin:2px 0 4px;color:#103c22}.loan-head p{margin:0;font-size:12px;color:#77847c}.loan-tools{padding:15px 22px;background:#f8fbf9;display:grid;grid-template-columns:1fr 190px auto;gap:10px}.loan-tools input,.loan-tools select{height:44px;border:1px solid #d3dfd7;border-radius:10px;padding:0 12px;background:#fff}.loan-btn{height:44px;padding:0 15px;border:0;border-radius:10px;font-weight:850;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.loan-btn.primary{background:#0b7136;color:#fff}.loan-btn.secondary{background:#fff;border:1px solid #cfe0d5;color:#0b7136}.loan-table{overflow:auto}.loan-table table{width:100%;min-width:900px;border-collapse:collapse}.loan-table th{padding:12px 17px;text-align:left;background:#fbfcfb;color:#7a877f;font-size:10px;text-transform:uppercase}.loan-table td{padding:14px 17px;border-top:1px solid #edf1ee;font-size:12px}.loan-customer{display:flex;gap:10px;align-items:center}.loan-avatar{width:38px;height:38px;border-radius:12px;background:#eaf7ef;color:#0b7136;display:grid;place-items:center;font-weight:900}.loan-customer strong,.loan-customer small{display:block}.loan-customer small{font-size:10px;color:#8a958e;margin-top:3px}.loan-status{display:inline-flex;padding:6px 9px;border-radius:999px;background:#eef8f1;color:#176b3b;font-size:10px;font-weight:850}.loan-actions{display:flex;gap:6px;flex-wrap:wrap}.loan-link{border:0;padding:7px 9px;border-radius:8px;text-decoration:none;background:#edf8f1;color:#176b3b;font-size:10px;font-weight:850;cursor:pointer}.loan-link.warn{background:#fff1df;color:#a85b08}.loan-message{margin:0 0 14px;padding:12px 15px;border-radius:11px;background:#edf8f1;color:#176b3b;font-size:12px;font-weight:750}.loan-modal{position:fixed;inset:0;background:rgba(8,31,17,.55);display:grid;place-items:center;padding:18px;z-index:80}.loan-modal-card{width:min(680px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:20px;padding:22px}.loan-modal-card h2{margin:0;color:#103c22}.loan-form{display:grid;gap:12px;margin-top:18px}.loan-form input{height:46px;border:1px solid #d3dfd7;border-radius:10px;padding:0 12px}.loan-form label{font-size:11px;font-weight:800;color:#425249}.loan-form .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:760px){.loan-hero{flex-direction:column;padding:21px}.loan-grid{grid-template-columns:1fr}.loan-tools{grid-template-columns:1fr;padding:14px 18px}.loan-head{flex-direction:column;gap:8px}.loan-form .row{grid-template-columns:1fr}}`}</style>
+ <section className="loan-hero"><div><p className="eyebrow">LOAN OPERATIONS</p><h1>Loans & Disbursement</h1><p>Manage applications, guarantors, approvals, beneficiary accounts and controlled disbursement.</p></div><div className="loan-total"><small>TOTAL LOAN VALUE</small><strong>{loading?"—":money(total)}</strong><span>{active} active · {pending} pending review</span></div></section>
+ <section className="loan-grid"><div className="loan-card"><span>Total Loans</span><strong>{loading?"—":loans.length}</strong><small>Loan accounts registered</small></div><div className="loan-card orange"><span>Portfolio Value</span><strong>{loading?"—":money(total)}</strong><small>Total principal value</small></div><div className="loan-card"><span>Active Loans</span><strong>{loading?"—":active}</strong><small>Currently active accounts</small></div></section>
+ {message&&<div className="loan-message">{message}</div>}
+ <section className="loan-panel"><div className="loan-head"><div><p className="pwfb-eyebrow">CREDIT CONTROL CENTER</p><h2>Loan Directory</h2><p>Track each loan from registration through guarantor review, approval and disbursement.</p></div><span>{filtered.length} records</span></div><div className="loan-tools"><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search customer, ID or loan reference"/><select value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All statuses</option><option value="pending">Pending</option><option value="approved">Approved</option><option value="active">Active</option><option value="disbursed">Disbursed</option></select>{(r==="ADMIN"||r==="SUPER_ADMIN")&&<Link href="/loans/add" className="loan-btn primary">+ Add Loan</Link>}</div>{loading?<div className="pwfb-empty-state">Loading loans…</div>:!filtered.length?<div className="pwfb-empty-state"><h3>No loans found</h3><p>There are no loan records matching this view.</p></div>:<div className="loan-table"><table><thead><tr><th>Customer</th><th>Loan / Reference</th><th>Beneficiary</th><th>Status</th><th>Actions</th></tr></thead><tbody>{filtered.map(x=>{const s=x.status||"Pending";const a=x.disbursementAccountNumber?`${x.disbursementBankName||"Bank"} · ${x.disbursementAccountNumber}`:x.customer?.bankAccounts?.[0]?`${x.customer.bankAccounts[0].institution?.name||"Bank"} · ${x.customer.bankAccounts[0].accountNumber}`:"No account";return <tr key={x.id}><td><div className="loan-customer"><div className="loan-avatar">₦</div><div><strong>{x.customer?[x.customer.firstName,x.customer.middleName,x.customer.lastName].filter(Boolean).join(" "):"Customer"}</strong><small>{x.customerId}</small></div></div></td><td><strong>{money(Number(x.disbursementAmount??x.amount))}</strong><small style={{display:"block",color:"#8a958e",marginTop:3}}>{x.id}</small></td><td><strong>{a}</strong><small style={{display:"block",color:"#8a958e",marginTop:3}}>{x.disbursementAccountName||x.customer?.bankAccounts?.[0]?.accountName||""}</small></td><td><span className="loan-status">{s.replaceAll("_"," ")}</span></td><td><div className="loan-actions"><Link href={`/loans/view/${x.id}`} className="loan-link">View</Link>{(r==="ADMIN"||r==="SUPER_ADMIN")&&<Link href={`/loans/edit/${x.id}`} className="loan-link warn">Edit</Link>}{r==="CREDIT_OFFICER"&&(s==="PENDING"||s==="APPROVED")&&<button className="loan-link" onClick={()=>open(x)}>Confirm & Send</button>}{(r==="BRANCH_MANAGER"||r==="ADMIN"||r==="SUPER_ADMIN")&&s==="DISBURSEMENT_PENDING_BRANCH_REVIEW"&&<button className="loan-link" disabled={busy===x.id} onClick={()=>approve(x.id)}>{busy===x.id?"Processing…":"Check & Disburse"}</button>}</div></td></tr>})}</tbody></table></div>}</section>
+ {selected&&<div className="loan-modal"><div className="loan-modal-card"><div style={{display:"flex",justifyContent:"space-between",gap:12}}><div><p className="pwfb-eyebrow">DISBURSEMENT CONTROL</p><h2>Confirm Loan Disbursement</h2><p style={{color:"#77847c",fontSize:12}}>Review the beneficiary before sending the loan to the Branch Manager.</p></div><button className="loan-link warn" onClick={()=>setSelected(null)}>Close</button></div><div className="loan-form"><div className="row"><label>Customer<input value={selected.customer?[selected.customer.firstName,selected.customer.lastName].join(" "):selected.customerId} readOnly/></label><label>Amount<input value={money(selected.amount)} readOnly/></label></div><label><input type="checkbox" checked={alternative} onChange={e=>setAlternative(e.target.checked)}/> Use alternative beneficiary account</label>{alternative&&<div className="row"><input placeholder="Account number" value={accountNumber} onChange={e=>setAccountNumber(e.target.value)}/><input placeholder="Account name" value={accountName} onChange={e=>setAccountName(e.target.value)}/></div>}<input type="number" min="1" max={selected.amount} value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount to disburse"/><button className="loan-btn primary" disabled={busy===selected.id} onClick={submit}>{busy===selected.id?"Sending…":"Confirm & Send to Branch Manager"}</button></div></div></div>}
+ </main>}

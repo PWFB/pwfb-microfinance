@@ -70,6 +70,12 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('passkey/unregister-all')
+  passkeyUnregisterAll(@Req() req: any) {
+    return this.authService.passkeyUnregisterAll(req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('passkey/register/options')
   passkeyRegisterOptions(@Req() req: any, @Headers('origin') origin?: string) {
     return this.authService.passkeyRegisterOptions(req.user, origin);

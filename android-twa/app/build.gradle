@@ -8,8 +8,8 @@ android {
         applicationId 'com.pwfb.microfinance'
         minSdk 23
         targetSdk 36
-        versionCode 27
-        versionName '1.0.27'
+        versionCode 28
+        versionName '1.0.28'
     }
 
     signingConfigs {
@@ -43,7 +43,6 @@ dependencies {
     implementation 'androidx.webkit:webkit:1.14.0'
     implementation 'androidx.core:core-splashscreen:1.0.1'
     implementation 'androidx.biometric:biometric:1.1.0'
-    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.2.0-alpha01'
     implementation 'com.google.android.gms:play-services-auth:21.4.0'
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.8.22'
 }

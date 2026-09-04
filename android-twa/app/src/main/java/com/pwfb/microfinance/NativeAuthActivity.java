@@ -76,10 +76,10 @@ public class NativeAuthActivity extends FragmentActivity {
         addView(card,email,54,22); addView(card,password,54,12);
         login=actionButton("Login",GREEN,Color.WHITE); addView(card,login,52,16); login.setOnClickListener(v->passwordLogin());
         add(card,text("OR",Color.rgb(145,154,149),11,Typeface.BOLD,Gravity.CENTER),8);
-        google=actionButton("Continue with Google",ORANGE,Color.WHITE); addView(card,google,52,4); google.setOnClickListener(v->googleLogin());
+        google=actionButton("Continue with Gmail",ORANGE,Color.WHITE); addView(card,google,52,4); google.setOnClickListener(v->googleLogin());
         fingerprint=actionButton("Use fingerprint",Color.WHITE,GREEN); fingerprint.setVisibility(View.GONE); fingerprint.setBackground(borderSolid(Color.WHITE,GREEN,14)); addView(card,fingerprint,52,12); fingerprint.setOnClickListener(v->authenticateWithFingerprint());
         message=text("",Color.rgb(75,94,82),12,Typeface.NORMAL,Gravity.CENTER); message.setPadding(dp(8),dp(14),dp(8),0); card.addView(message,new LinearLayout.LayoutParams(-1,-2));
-        add(card,text("Secure app authentication",Color.rgb(122,136,128),11,Typeface.NORMAL,Gravity.CENTER),18);
+        add(card,text("Choose your Gmail account on this phone",Color.rgb(122,136,128),11,Typeface.NORMAL,Gravity.CENTER),18);
         root.addView(card,cp);
         add(root,text("Secure  •  Reliable  •  Always With You",Color.rgb(120,136,126),10,Typeface.BOLD,Gravity.CENTER),0);
         scroll.addView(root); setContentView(scroll);
@@ -95,10 +95,57 @@ public class NativeAuthActivity extends FragmentActivity {
     private int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+.5f);}
 
     private void passwordLogin(){String e=email.getText().toString().trim(),p=password.getText().toString();if(e.isEmpty()||p.isEmpty()){message.setText("Enter your email and password.");return;}setBusy(true,"Signing in securely…");new Thread(()->{try{JSONObject b=new JSONObject();b.put("email",e);b.put("password",p);JSONObject r=post("/auth/login",b);finishNativeLogin(r.getString("access_token"));}catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Login failed":ex.getMessage()));}}).start();}
-    private void googleLogin(){setBusy(true,"Opening secure Google sign-in…");new Thread(()->{try{JSONObject config=get("/auth/google/config");String serverClientId=config.optString("client_id","").trim();if(serverClientId.isEmpty())throw new Exception("Google server client is not configured on PWFB.");runOnUiThread(()->{try{GoogleSignInOptions options=new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestIdToken(serverClientId).requestEmail().build();GoogleSignInClient client=GoogleSignIn.getClient(this,options);client.signOut().addOnCompleteListener(task->{try{startActivityForResult(client.getSignInIntent(),GOOGLE_REQUEST);}catch(Exception ex){setBusy(false,"Google sign-in could not start.");}});}catch(Exception ex){setBusy(false,"Google sign-in could not start.");}});}catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Google sign-in failed":ex.getMessage()));}}).start();}
-    @Override protected void onActivityResult(int requestCode,int resultCode,@Nullable Intent data){super.onActivityResult(requestCode,resultCode,data);if(requestCode!=GOOGLE_REQUEST)return;try{Task<GoogleSignInAccount> task=GoogleSignIn.getSignedInAccountFromIntent(data);GoogleSignInAccount account=task.getResult(ApiException.class);if(account==null||account.getIdToken()==null)throw new Exception("Google did not return an ID token.");String idToken=account.getIdToken();new Thread(()->{try{JSONObject b=new JSONObject();b.put("credential",idToken);JSONObject r=post("/auth/google/android",b);finishNativeLogin(r.getString("access_token"));}catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Google authentication failed":ex.getMessage()));}}).start();}catch(ApiException ex){setBusy(false,"Google sign-in error (code "+ex.getStatusCode()+"). Check the PWFB Google configuration.");}catch(Exception ex){setBusy(false,"Google sign-in failed. Please try again.");}}
+
+    private void googleLogin(){
+        setBusy(true,"Choose a Gmail account on this phone…");
+        new Thread(()->{
+            try{
+                JSONObject config=get("/auth/google/config");
+                String serverClientId=config.optString("client_id","").trim();
+                if(serverClientId.isEmpty())throw new Exception("Google server client is not configured on PWFB.");
+                runOnUiThread(()->{
+                    try{
+                        GoogleSignInOptions options=new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                                .requestIdToken(serverClientId)
+                                .requestEmail()
+                                .build();
+                        GoogleSignInClient client=GoogleSignIn.getClient(this,options);
+                        // Sign out of the previous Google session first so the Google account chooser
+                        // is shown and the user can select any Gmail account already registered on this phone.
+                        client.signOut().addOnCompleteListener(task->{
+                            try{
+                                startActivityForResult(client.getSignInIntent(),GOOGLE_REQUEST);
+                            }catch(Exception ex){
+                                setBusy(false,"Google account selection could not start.");
+                            }
+                        });
+                    }catch(Exception ex){setBusy(false,"Google account selection could not start.");}
+                });
+            }catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Google sign-in failed":ex.getMessage()));}
+        }).start();
+    }
+
+    @Override protected void onActivityResult(int requestCode,int resultCode,@Nullable Intent data){
+        super.onActivityResult(requestCode,resultCode,data);
+        if(requestCode!=GOOGLE_REQUEST)return;
+        try{
+            Task<GoogleSignInAccount> task=GoogleSignIn.getSignedInAccountFromIntent(data);
+            GoogleSignInAccount account=task.getResult(ApiException.class);
+            if(account==null||account.getIdToken()==null)throw new Exception("Google did not return an ID token.");
+            String idToken=account.getIdToken();
+            new Thread(()->{
+                try{
+                    JSONObject b=new JSONObject();b.put("credential",idToken);
+                    JSONObject r=post("/auth/google/android",b);
+                    finishNativeLogin(r.getString("access_token"));
+                }catch(Exception ex){runOnUiThread(()->setBusy(false,ex.getMessage()==null?"Google authentication failed":ex.getMessage()));}
+            }).start();
+        }catch(ApiException ex){setBusy(false,"Google account selection cancelled or failed (code "+ex.getStatusCode()+").");}
+        catch(Exception ex){setBusy(false,"Google sign-in failed. Please choose a Gmail account again.");}
+    }
+
     private void authenticateWithFingerprint(){String token=getSharedPreferences(PREFS,MODE_PRIVATE).getString(TOKEN,null);if(token==null||token.isEmpty()){message.setText("Sign in with your PWFB password first to enable fingerprint.");return;}Executor executor=ContextCompat.getMainExecutor(this);BiometricPrompt prompt=new BiometricPrompt(this,executor,new BiometricPrompt.AuthenticationCallback(){@Override public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult r){super.onAuthenticationSucceeded(r);launchMain(token);}@Override public void onAuthenticationError(int code,CharSequence err){super.onAuthenticationError(code,err);message.setText("Fingerprint cancelled. You can use your password.");}});BiometricPrompt.PromptInfo info=new BiometricPrompt.PromptInfo.Builder().setTitle("PWFB App Authentication").setSubtitle("Use your fingerprint to unlock this app").setNegativeButtonText("Use password").build();prompt.authenticate(info);}
-    private void finishNativeLogin(String token){getSharedPreferences(PREFS,MODE_PRIVATE).edit().putString(TOKEN,token).apply();runOnUiThread(()->{setBusy(false,"Authentication successful.");launchMain(token);});}
+    private void finishNativeLogin(String token){getSharedPreferences(PREFS,MODE_PRIVATE).edit().putString(TOKEN,token).apply();runOnUiThread(()->{setBusy(false,"Authentication successful. Opening your dashboard…");launchMain(token);});}
     private void launchMain(String token){Intent i=new Intent(this,MainActivity.class);i.putExtra("app_token",token);i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_NEW_TASK);startActivity(i);finish();}
     private void setBusy(boolean busy,String t){login.setEnabled(!busy);google.setEnabled(!busy);password.setEnabled(!busy);email.setEnabled(!busy);message.setText(t);}
     private JSONObject get(String path)throws Exception{HttpURLConnection c=(HttpURLConnection)new URL(API+path).openConnection();c.setRequestMethod("GET");c.setConnectTimeout(15000);c.setReadTimeout(20000);return read(c);}

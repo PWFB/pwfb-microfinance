@@ -2,123 +2,36 @@ package com.pwfb.microfinance;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
+import android.view.View;
+import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.view.ViewGroup;
-import androidx.browser.customtabs.CustomTabsIntent;
-import androidx.browser.customtabs.TrustedWebUtils;
 import androidx.core.splashscreen.SplashScreen;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 public class MainActivity extends Activity {
-    private static final String START_URL = "https://pwfb-frontend.onrender.com/dashboard";
-    private static final String OPEN_CHROME_SCHEME = "pwfb";
-    private static final String OPEN_CHROME_HOST = "open-chrome";
-    private static final String OPEN_APP_HOST = "open-app";
-    private static final long STARTUP_SPLASH_MS = 1800L;
-    private static final long TWA_FALLBACK_MS = 3000L;
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private boolean fallbackShown = false;
-
-    @Override protected void onCreate(Bundle savedInstanceState) {
-        SplashScreen splashScreen = SplashScreen.installSplashScreen(this);
-        final long splashUntil = System.currentTimeMillis() + STARTUP_SPLASH_MS;
-        splashScreen.setKeepOnScreenCondition(() -> System.currentTimeMillis() < splashUntil);
-        super.onCreate(savedInstanceState);
-
-        String appToken = getIntent() == null ? null : getIntent().getStringExtra("app_token");
-        if (appToken == null || appToken.trim().isEmpty()) {
-            Intent auth = new Intent(this, NativeAuthActivity.class);
-            startActivity(auth);
-            finish();
-            return;
-        }
-        launchTrustedWebActivity(Uri.parse(START_URL + "#app_token=" + Uri.encode(appToken)));
-    }
-
-    @Override protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent); setIntent(intent);
-        String appToken = intent == null ? null : intent.getStringExtra("app_token");
-        if (appToken != null && !appToken.trim().isEmpty()) {
-            fallbackShown = false;
-            launchTrustedWebActivity(Uri.parse(START_URL + "#app_token=" + Uri.encode(appToken)));
-            return;
-        }
-        if (handleAppIntent(intent)) return;
-        Intent auth = new Intent(this, NativeAuthActivity.class);
-        startActivity(auth); finish();
-    }
-
-    private boolean handleAppIntent(Intent intent) {
-        Uri data = intent == null ? null : intent.getData();
-        if (data == null || !OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-        if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) return launchChromeForUri(data.getQueryParameter("url"));
-        if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) return returnToApp(data.getQueryParameter("url"));
-        return false;
-    }
-
-    private boolean launchChromeForUri(String target) {
-        if (target == null || target.trim().isEmpty()) return false;
-        try {
-            Uri uri = Uri.parse(target);
-            if (!"https".equalsIgnoreCase(uri.getScheme())) return false;
-            Intent chrome = new Intent(Intent.ACTION_VIEW, uri);
-            chrome.setPackage("com.android.chrome"); chrome.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(chrome); finish(); return true;
-        } catch (Exception ignored) { return false; }
-    }
-
-    private boolean returnToApp(String target) {
-        Uri uri = Uri.parse(target == null || target.trim().isEmpty() ? START_URL : target);
-        if (!"https".equalsIgnoreCase(uri.getScheme())) uri = Uri.parse(START_URL);
-        String token = getSharedPreferences("pwfb_app_auth", MODE_PRIVATE).getString("access_token", null);
-        if (token == null || token.isEmpty()) return false;
-        launchTrustedWebActivity(Uri.parse(START_URL + "#app_token=" + Uri.encode(token)));
-        return true;
-    }
-
-    private void launchTrustedWebActivity(Uri uri) {
-        CustomTabsIntent customTabsIntent = new CustomTabsIntent.Builder().build();
-        customTabsIntent.intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        try {
-            TrustedWebUtils.launchAsTrustedWebActivity(this, customTabsIntent, uri);
-            handler.postDelayed(() -> { if (!isFinishing() && !fallbackShown && hasWindowFocus()) showInAppWebView(uri); }, TWA_FALLBACK_MS);
-        } catch (Exception error) { showInAppWebView(uri); }
-    }
-
-    private void showInAppWebView(Uri uri) {
-        if (fallbackShown || isFinishing()) return; fallbackShown = true;
-        WebView webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
-        WebSettings settings = webView.getSettings(); settings.setJavaScriptEnabled(true); settings.setDomStorageEnabled(true); settings.setDatabaseEnabled(true); settings.setJavaScriptCanOpenWindowsAutomatically(true); settings.setSupportMultipleWindows(false); settings.setBuiltInZoomControls(false); settings.setDisplayZoomControls(false); settings.setLoadsImagesAutomatically(true);
-        CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
-        webView.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleWebViewUrl(url); }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, android.webkit.WebResourceRequest request) { return handleWebViewUrl(request.getUrl().toString()); }
-        });
-        webView.setWebChromeClient(new WebChromeClient()); setContentView(webView); webView.loadUrl(uri.toString());
-    }
-
-    private boolean handleWebViewUrl(String url) {
-        if (url == null) return false; Uri data = Uri.parse(url);
-        if (!OPEN_CHROME_SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-        if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) return launchChromeForUri(data.getQueryParameter("url"));
-        if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) return returnToApp(data.getQueryParameter("url"));
-        return false;
-    }
-
-    @Override public void onBackPressed() {
-        ViewGroup root = findViewById(android.R.id.content);
-        if (fallbackShown && root != null && root.getChildCount() > 0 && root.getChildAt(0) instanceof WebView) {
-            WebView webView = (WebView) root.getChildAt(0); if (webView.canGoBack()) { webView.goBack(); return; }
-        }
-        super.onBackPressed();
-    }
-    @Override protected void onDestroy() { handler.removeCallbacksAndMessages(null); super.onDestroy(); }
+    private static final String START_URL="https://pwfb-frontend.onrender.com/";
+    private static final String DASHBOARD_URL="https://pwfb-frontend.onrender.com/dashboard";
+    private static final String SCHEME="pwfb";
+    private static final String OPEN_APP_HOST="open-app";
+    private static final String OPEN_CHROME_HOST="open-chrome";
+    private static final int DEEP_GREEN=Color.rgb(5,78,34),GREEN=Color.rgb(8,117,52),ORANGE=Color.rgb(244,119,18);
+    private SwipeRefreshLayout swipeRefresh; private WebView webView; private String pendingNativeToken; private boolean nativeLoginRedirected;
+    @Override protected void onCreate(Bundle b){SplashScreen.installSplashScreen(this);super.onCreate(b);getWindow().setStatusBarColor(DEEP_GREEN);getWindow().setNavigationBarColor(DEEP_GREEN);getWindow().getDecorView().setSystemUiVisibility(0);Intent i=getIntent();pendingNativeToken=i==null?null:i.getStringExtra("app_token");if((pendingNativeToken==null||pendingNativeToken.trim().isEmpty())&&i!=null)pendingNativeToken=extractToken(i);if(pendingNativeToken==null||pendingNativeToken.trim().isEmpty())resetWebSession();buildWebApp();}
+    @Override protected void onNewIntent(Intent i){super.onNewIntent(i);setIntent(i);String t=i==null?null:i.getStringExtra("app_token");if(t==null||t.trim().isEmpty())t=extractToken(i);if(t!=null&&!t.trim().isEmpty()){pendingNativeToken=t;nativeLoginRedirected=false;if(webView!=null)webView.loadUrl(START_URL);return;}if(handleAppIntent(i))return;if(webView!=null)webView.loadUrl(START_URL);}
+    private void resetWebSession(){CookieManager c=CookieManager.getInstance();c.removeAllCookies(null);c.flush();WebStorage.getInstance().deleteAllData();}
+    private void buildWebApp(){swipeRefresh=new SwipeRefreshLayout(this);swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1,-1));swipeRefresh.setColorSchemeColors(GREEN,ORANGE);swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE);webView=new WebView(this);webView.setLayoutParams(new ViewGroup.LayoutParams(-1,-1));WebSettings s=webView.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setDatabaseEnabled(true);s.setLoadsImagesAutomatically(true);s.setBuiltInZoomControls(false);s.setDisplayZoomControls(false);s.setSupportMultipleWindows(false);s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(webView,false);webView.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return handleWebViewUrl(r.getUrl().toString());}@Override public boolean shouldOverrideUrlLoading(WebView v,String u){return handleWebViewUrl(u);}@Override public void onPageFinished(WebView v,String u){if(swipeRefresh!=null)swipeRefresh.setRefreshing(false);continueNativeLogin(v,u);}});webView.setWebChromeClient(new WebChromeClient());swipeRefresh.addView(webView);swipeRefresh.setOnRefreshListener(()->{if(webView!=null)webView.reload();});setContentView(swipeRefresh);webView.loadUrl(START_URL);}
+    private void continueNativeLogin(WebView v,String u){if(nativeLoginRedirected||pendingNativeToken==null||pendingNativeToken.trim().isEmpty())return;Uri x=Uri.parse(u==null?"":u);if(!"pwfb-frontend.onrender.com".equalsIgnoreCase(x.getHost()))return;if(!"/".equals(x.getPath())&&!"/login".equals(x.getPath()))return;nativeLoginRedirected=true;String t=pendingNativeToken.replace("\\","\\\\").replace("'","\\'").replace("\n","\\n").replace("\r","\\r");v.evaluateJavascript("window.localStorage.setItem('token','"+t+"');window.location.replace('"+DASHBOARD_URL+"');",null);}
+    private String extractToken(Intent i){try{Uri d=i==null?null:i.getData();if(d==null||!SCHEME.equalsIgnoreCase(d.getScheme())||!OPEN_APP_HOST.equalsIgnoreCase(d.getHost()))return null;String t=d.getQueryParameter("app_token");if(t!=null&&!t.isEmpty())return t;String u=d.getQueryParameter("url");if(u==null||u.isEmpty())return null;String f=Uri.parse(u).getFragment();return f==null?null:new android.net.UrlQuerySanitizer(f).getValue("app_token");}catch(Exception e){return null;}}
+    private boolean handleAppIntent(Intent i){Uri d=i==null?null:i.getData();if(d==null||!SCHEME.equalsIgnoreCase(d.getScheme()))return false;if(OPEN_APP_HOST.equalsIgnoreCase(d.getHost())){String u=d.getQueryParameter("url");if(u==null||u.isEmpty())u=START_URL;try{Uri x=Uri.parse(u);if(("http".equalsIgnoreCase(x.getScheme())||"https".equalsIgnoreCase(x.getScheme()))&&"pwfb-frontend.onrender.com".equalsIgnoreCase(x.getHost())){if(webView!=null)webView.loadUrl(x.toString());}}catch(Exception e){}return true;}if(OPEN_CHROME_HOST.equalsIgnoreCase(d.getHost())){String u=d.getQueryParameter("url");if(u==null||u.isEmpty())u=START_URL;try{Uri x=Uri.parse(u);Intent c=new Intent(Intent.ACTION_VIEW,x);c.setPackage("com.android.chrome");try{startActivity(c);}catch(Exception e){startActivity(new Intent(Intent.ACTION_VIEW,x));}}catch(Exception e){}return true;}return true;}
+    private boolean handleWebViewUrl(String u){if(u==null)return false;Uri d=Uri.parse(u);return SCHEME.equalsIgnoreCase(d.getScheme())&&handleAppIntent(new Intent(Intent.ACTION_VIEW,d));}
+    @Override public void onBackPressed(){if(webView!=null&&webView.canGoBack()){webView.goBack();return;}super.onBackPressed();}
 }

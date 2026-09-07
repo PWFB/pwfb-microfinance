@@ -36,14 +36,14 @@ export default function RegisterPasskeyPage() {
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     if (!token || browserSupportsPasskeys()) return;
     setChromeNeeded(true);
-    setStatus("PWFB needs Chrome on this phone to register the fingerprint/passkey.");
+    setStatus("PWFB needs a passkey-capable browser on this phone to register security.");
     const timer = window.setTimeout(() => openChromeForPasskey(), 500);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("registered") === "1") {
-      setDone(true); setStatus("This phone's PWFB fingerprint/passkey is now registered.");
+      setDone(true); setStatus("This device's PWFB passkey is now registered.");
     }
   }, []);
 
@@ -54,26 +54,26 @@ export default function RegisterPasskeyPage() {
       if (!token) throw new Error("Please sign in with your email and password first.");
       if (!browserSupportsPasskeys()) { setChromeNeeded(true); openChromeForPasskey(); return; }
       if (isReplacementFlow()) {
-        setStatus("Removing the old PWFB passkey from this account…");
+        setStatus("Removing all existing PWFB passkeys from this account…");
         await apiRequest("/auth/passkey/unregister-all", { method: "POST" });
       }
-      setStatus("Preparing a fresh passkey for this phone…");
+      setStatus("Preparing a fresh passkey for this device…");
       const options = await apiRequest("/auth/passkey/register/options", { method: "POST" });
-      setStatus("Follow the Android security prompt and approve this phone's fingerprint/passkey.");
+      setStatus("Follow the security prompt and approve the fingerprint, PIN, pattern, or other device security method.");
       const credential = await startRegistration({ optionsJSON: options });
       const result = await apiRequest("/auth/passkey/register/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) });
       if (!result?.verified) throw new Error(result?.message || "PWFB could not verify this passkey.");
-      setDone(true); setStatus("Fresh PWFB fingerprint/passkey registered successfully on this phone.");
+      setDone(true); setStatus("Fresh PWFB passkey registered successfully on this device.");
       if (new URLSearchParams(window.location.search).get("chrome") === "1") setTimeout(returnToApp, 500);
     } catch (e: any) {
       setStatus("We could not finish passkey setup.");
       const detail = String(e?.message || "");
       if (e?.name === "InvalidStateError" || /previously registered|already registered|credential already exists|authenticator was previously registered/i.test(detail)) {
-        setError("The Android authenticator rejected the new credential because it is already stored on this phone. No existing PWFB server passkey was added back.");
+        setError("This authenticator already has a credential for this PWFB account. The server did not restore the removed passkey.");
       } else if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap Register Fresh Passkey and try again.");
       else setError(e instanceof Error ? e.message : "Passkey registration failed.");
     } finally { setLoading(false); }
   }
 
-  return <main className="pk-page"><section className="pk-card"><img className="logo" src="/pwfb-login-logo.svg" alt="PWFB"/><div className="icon">⌁</div><small>PWFB SECURITY</small><h1>Register this phone</h1><p>After you sign in, PWFB removes the old web passkey from your account and registers a fresh passkey for this phone.</p><div className="steps"><div><b>1</b> Sign in with email and password</div><div><b>2</b> Remove the old web passkey</div><div><b>3</b> Approve the Android fingerprint/security prompt</div></div><div className={`status ${done ? "success" : error ? "error" : ""}`}>{status}</div>{error && <div className="errorBox">{error}</div>}{chromeNeeded && !done ? <button onClick={openChromeForPasskey}>Open PWFB in Chrome</button> : done ? <button onClick={() => router.back()}>Continue to PWFB</button> : <button disabled={loading} onClick={register}>{loading ? "Registering…" : "Register Fresh Passkey"}</button>}<button className="cancel" onClick={() => router.back()}>Cancel</button></section><style jsx>{`*{box-sizing:border-box}.pk-page{min-height:100dvh;padding:18px;display:grid;place-items:center;background:linear-gradient(145deg,#075d2a,#087534);font-family:Inter,system-ui,sans-serif}.pk-card{width:min(450px,100%);padding:28px 24px;border-radius:22px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.25)}.logo{width:min(260px,88%);margin-bottom:14px}.icon{margin:auto;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:#eaf7ef;color:#087534;font-size:38px}.pk-card small{display:block;color:#f47712;font-weight:900;letter-spacing:2px;margin:10px}.pk-card h1{color:#087534;margin:8px 0}.pk-card p{color:#657169;font-size:13px;line-height:1.6}.steps{display:grid;gap:8px;text-align:left;margin:18px 0}.steps div{padding:10px;border-radius:9px;background:#f5f8f6;color:#435048;font-size:12px}.steps b{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:8px;border-radius:50%;background:#087534;color:#fff}.status,.errorBox{padding:10px;border-radius:9px;margin:10px 0;font-size:11px;background:#f5f8f6;color:#59635d}.success{background:#eaf7ef;color:#087534}.error,.errorBox{background:#fff4e5;color:#9b4800}.pk-card button{width:100%;height:48px;border:0;border-radius:9px;background:#087534;color:#fff;font-weight:900}.pk-card button:disabled{opacity:.6}.pk-card .cancel{margin-top:10px;background:none;color:#68736d;height:36px;font-weight:500}`}</style></main>;
+  return <main className="pk-page"><section className="pk-card"><img className="logo" src="/pwfb-login-logo.svg" alt="PWFB"/><div className="icon">⌁</div><small>PWFB SECURITY</small><h1>Register this device</h1><p>Sign in first, remove the account's existing PWFB passkeys, then register a fresh passkey on the device you are using now. No old-phone registration is required.</p><div className="steps"><div><b>1</b> Sign in with email and password</div><div><b>2</b> Remove existing PWFB passkeys</div><div><b>3</b> Approve this device's security prompt</div></div><div className={`status ${done ? "success" : error ? "error" : ""}`}>{status}</div>{error && <div className="errorBox">{error}</div>}{chromeNeeded && !done ? <button onClick={openChromeForPasskey}>Open PWFB in Chrome</button> : done ? <button onClick={() => router.back()}>Continue to PWFB</button> : <button disabled={loading} onClick={register}>{loading ? "Registering…" : "Register Fresh Passkey"}</button>}<button className="cancel" onClick={() => router.back()}>Cancel</button></section><style jsx>{`*{box-sizing:border-box}.pk-page{min-height:100dvh;padding:18px;display:grid;place-items:center;background:linear-gradient(145deg,#075d2a,#087534);font-family:Inter,system-ui,sans-serif}.pk-card{width:min(450px,100%);padding:28px 24px;border-radius:22px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.25)}.logo{width:min(260px,88%);margin-bottom:14px}.icon{margin:auto;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:#eaf7ef;color:#087534;font-size:38px}.pk-card small{display:block;color:#f47712;font-weight:900;letter-spacing:2px;margin:10px}.pk-card h1{color:#087534;margin:8px 0}.pk-card p{color:#657169;font-size:13px;line-height:1.6}.steps{display:grid;gap:8px;text-align:left;margin:18px 0}.steps div{padding:10px;border-radius:9px;background:#f5f8f6;color:#435048;font-size:12px}.steps b{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:8px;border-radius:50%;background:#087534;color:#fff}.status,.errorBox{padding:10px;border-radius:9px;margin:10px 0;font-size:11px;background:#f5f8f6;color:#59635d}.success{background:#eaf7ef;color:#087534}.error,.errorBox{background:#fff4e5;color:#9b4800}.pk-card button{width:100%;height:48px;border:0;border-radius:9px;background:#087534;color:#fff;font-weight:900}.pk-card button:disabled{opacity:.6}.pk-card .cancel{margin-top:10px;background:none;color:#68736d;height:36px;font-weight:500}`}</style></main>;
 }

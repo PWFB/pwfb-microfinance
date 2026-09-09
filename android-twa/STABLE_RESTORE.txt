@@ -1,0 +1,3 @@
+PWFB Android stable-flow restore marker.
+
+The Android launcher/auth flow is intentionally based on the first stable PWFB application flow. Do not change the launcher back to the newer native-auth-first entrypoint without testing the complete signed APK flow.

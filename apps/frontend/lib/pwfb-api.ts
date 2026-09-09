@@ -13,6 +13,7 @@ function query(params?: ApiListParams) {
 export const pwfbApi = {
   customers: { me: () => apiRequest("/customers/me"), search: (q?: string) => apiRequest(`/customers${query(q ? { search: q } : undefined)}`) },
   staff: { search: (q?: string) => apiRequest(`/staff${query(q ? { search: q } : undefined)}`), create: (body: unknown) => apiRequest("/staff", { method: "POST", body: JSON.stringify(body) }) },
+  transactions: { list: () => apiRequest("/transactions"), get: (id: string) => apiRequest(`/transactions/${id}`), create: (body: unknown) => apiRequest("/transactions", { method: "POST", body: JSON.stringify(body) }), update: (id: string, body: unknown) => apiRequest(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify(body) }), remove: (id: string) => apiRequest(`/transactions/${id}`, { method: "DELETE" }) },
   reports: { summary: () => apiRequest("/reports/summary"), operations: (params?: ApiListParams) => apiRequest(`/reports/operations${query(params)}`) },
   permissions: { list: () => apiRequest("/permissions/wallet"), update: (body: { role: string; permission: string; enabled: boolean }) => apiRequest("/permissions/wallet", { method: "PATCH", body: JSON.stringify(body) }) },
   periods: { list: (params?: ApiListParams) => apiRequest(`/periods${query(params)}`), current: () => apiRequest("/periods/current"), get: (id: string) => apiRequest(`/periods/${id}`), create: (body: unknown) => apiRequest("/periods", { method: "POST", body: JSON.stringify(body) }), close: (id: string) => apiRequest(`/periods/${id}/close`, { method: "PATCH" }) },

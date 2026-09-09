@@ -4,46 +4,71 @@ import { createContext, useContext, useEffect, useState } from "react";
 import "./theme.module.css";
 
 type Theme = "light" | "dark" | "system";
+type ResolvedTheme = "light" | "dark";
 
-type ThemeContextValue = { theme: Theme; resolvedTheme: "light" | "dark"; setTheme: (theme: Theme) => void };
+type ThemeContextValue = {
+  theme: Theme;
+  resolvedTheme: ResolvedTheme;
+  setTheme: (theme: Theme) => void;
+};
+
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function resolveTheme(theme: Theme): "light" | "dark" {
-  if (theme === "system") return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  return theme;
+function resolveTheme(theme: Theme): ResolvedTheme {
+  if (theme !== "system") return theme;
+  if (typeof window === "undefined") return "light";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function readSavedTheme(): Theme {
+  try {
+    const saved = window.localStorage.getItem("pwfb-theme");
+    if (saved === "light" || saved === "dark" || saved === "system") return saved;
+  } catch {}
+  return "system";
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">("light");
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
+
+  const applyTheme = (next: Theme) => {
+    const resolved = resolveTheme(next);
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.style.colorScheme = resolved;
+    document.documentElement.classList.toggle("dark", resolved === "dark");
+    setResolvedTheme(resolved);
+  };
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("pwfb-theme") as Theme | null;
-    const initial = saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+    const initial = readSavedTheme();
     setThemeState(initial);
-    setResolvedTheme(resolveTheme(initial));
+    applyTheme(initial);
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => setResolvedTheme(resolveTheme(theme));
-    apply();
-    media.addEventListener?.("change", apply);
-    return () => media.removeEventListener?.("change", apply);
+    const handleSystemChange = () => {
+      if (theme === "system") applyTheme("system");
+    };
+    media.addEventListener?.("change", handleSystemChange);
+    return () => media.removeEventListener?.("change", handleSystemChange);
   }, [theme]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = resolvedTheme;
-    document.documentElement.style.colorScheme = resolvedTheme;
-  }, [resolvedTheme]);
 
   const setTheme = (next: Theme) => {
     setThemeState(next);
-    window.localStorage.setItem("pwfb-theme", next);
-    setResolvedTheme(resolveTheme(next));
+    applyTheme(next);
+    try {
+      window.localStorage.setItem("pwfb-theme", next);
+    } catch {}
   };
 
-  return <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

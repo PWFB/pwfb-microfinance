@@ -21,7 +21,10 @@ export const pwfbApi = {
     search: (q?: string) => apiRequest(`/staff${query(q ? { search: q } : undefined)}`),
     create: (body: unknown) => apiRequest("/staff", { method: "POST", body: JSON.stringify(body) }),
   },
-  reports: { summary: () => apiRequest("/reports/summary") },
+  reports: {
+    summary: () => apiRequest("/reports/summary"),
+    operations: (params?: ApiListParams) => apiRequest(`/reports/operations${query(params)}`),
+  },
   periods: {
     list: (params?: ApiListParams) => apiRequest(`/periods${query(params)}`),
     current: () => apiRequest("/periods/current"),

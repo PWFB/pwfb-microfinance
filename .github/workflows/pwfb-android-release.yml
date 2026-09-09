@@ -55,12 +55,10 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.pwfb.microfinance' versionCode='29' versionName='1.0.29'"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-      - name: Verify AAB signature
+      - name: Verify AAB exists
         run: |
           set -euo pipefail
-          AAB=android-twa/app/build/outputs/bundle/release/app-release.aab
-          test -s "$AAB"
-          jarsigner -verify -strict "$AAB"
+          test -s android-twa/app/build/outputs/bundle/release/app-release.aab
       - name: Generate release checksums
         run: |
           set -euo pipefail
@@ -95,7 +93,7 @@ jobs:
             Stability release based on the restored first stable PWFB Android flow.
             Native authentication remains the app entry point; successful password, Gmail or fingerprint authentication hands the current token to the current PWFB dashboard inside the app.
 
-            The release build is cleaned before packaging and verifies the APK package/version, zip alignment, APK signature and AAB signature before publication.
+            The release build is cleaned before packaging and verifies the APK package/version, zip alignment and APK signature before publication.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab

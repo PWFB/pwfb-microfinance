@@ -30,8 +30,8 @@
 :global(html[data-theme="dark"]) .text-slate-700,:global(html[data-theme="dark"]) .text-gray-700,:global(html[data-theme="dark"]) .text-slate-600,:global(html[data-theme="dark"]) .text-gray-600{color:#c1cec5!important}
 :global(html[data-theme="dark"]) .text-slate-500,:global(html[data-theme="dark"]) .text-gray-500,:global(html[data-theme="dark"]) .text-slate-400,:global(html[data-theme="dark"]) .text-gray-400{color:#91a398!important}
 :global(html[data-theme="dark"]) .border-slate-200,:global(html[data-theme="dark"]) .border-gray-200,:global(html[data-theme="dark"]) .border-slate-300,:global(html[data-theme="dark"]) .border-gray-300{border-color:#2d4136!important}
-:global(html[data-theme="dark"]) input,:global(html[data-theme="dark"]) select,:global(html[data-theme="dark"]) textarea{background-color:#101c16;color:#edf5ef;border-color:#34483c}
-:global(html[data-theme="dark"]) input::placeholder,:global(html[data-theme="dark"]) textarea::placeholder{color:#718478}
+:global(html[data-theme="dark"]) .pwfb-content input,:global(html[data-theme="dark"]) .pwfb-content select,:global(html[data-theme="dark"]) .pwfb-content textarea{background-color:#101c16;color:#edf5ef;border-color:#34483c}
+:global(html[data-theme="dark"]) .pwfb-content input::placeholder,:global(html[data-theme="dark"]) .pwfb-content textarea::placeholder{color:#718478}
 .pwfb-theme-switcher{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid #dfe7e2;border-radius:11px;background:#f7faf8}
 .pwfb-theme-option{border:0;border-radius:8px;background:transparent;color:#66736b;font-size:10px;font-weight:800;padding:7px 9px;cursor:pointer}
 .pwfb-theme-option:hover{background:#eaf7ef;color:#0a5c28}

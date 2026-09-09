@@ -1,41 +1,37 @@
-/* PWFB application theme overrides. The existing green/orange brand remains unchanged. */
-:global(html[data-theme="dark"] body){background:#0b1410;color:#e8f1eb}
-:global(html[data-theme="dark"] .pwfb-shell){background:radial-gradient(circle at 90% 0%,rgba(242,140,24,.08),transparent 28%),#0b1410}
-:global(html[data-theme="dark"] .pwfb-topbar){background:rgba(13,25,19,.96);border-color:#26372d}
-:global(html[data-theme="dark"] .pwfb-topbar-left strong){color:#8ee0a7}
-:global(html[data-theme="dark"] .pwfb-topbar-left small),:global(html[data-theme="dark"] .pwfb-user-info small){color:#9caf9f}
-:global(html[data-theme="dark"] .pwfb-user-info strong){color:#f1f6f2}
-:global(html[data-theme="dark"] .pwfb-menu-button){background:#15251c;border-color:#304239;color:#a9e4b9}
-:global(html[data-theme="dark"] .pwfb-content){color:#e8f1eb}
-:global(html[data-theme="dark"] .pwfb-panel){background:#122019;border-color:#2b4034;box-shadow:0 4px 18px rgba(0,0,0,.22)}
-:global(html[data-theme="dark"] .pwfb-panel-header){border-color:#26382e}
-:global(html[data-theme="dark"] .pwfb-panel-header h2),:global(html[data-theme="dark"] .pwfb-page-title){color:#9be1ae}
-:global(html[data-theme="dark"] .pwfb-panel-header p),:global(html[data-theme="dark"] .pwfb-page-description){color:#9caf9f}
-:global(html[data-theme="dark"] .pwfb-secondary-button){background:#17271f;border-color:#385044;color:#a9e4b9!important}
-:global(html[data-theme="dark"] .pwfb-input){background:#101c16;border-color:#34483c;color:#edf5ef}
-:global(html[data-theme="dark"] .pwfb-input::placeholder){color:#718478}
-:global(html[data-theme="dark"] .pwfb-label){color:#c7d6cc}
-:global(html[data-theme="dark"] .pwfb-table th){background:#17271f;color:#a9e4b9}
-:global(html[data-theme="dark"] .pwfb-table td){border-color:#26382e;color:#c1cec5}
-:global(html[data-theme="dark"] .pwfb-banking-operation){background:#122019;border-color:#2b4034;color:#a9e4b9}
-:global(html[data-theme="dark"] .pwfb-banking-operation-active){background:linear-gradient(180deg,#292017,#172019)}
-:global(html[data-theme="dark"] .pwfb-operation-header){background:linear-gradient(90deg,#14251c,#251d13)}
-:global(html[data-theme="dark"] .pwfb-deposit-actions){background:#101c16;border-color:#26382e}
-:global(html[data-theme="dark"] .pwfb-banking-empty){color:#9caf9f}
-:global(html[data-theme="dark"] .pwfb-verify-field){background:#101c16;border-color:#3a4c41;color:#87988c}
-:global(html[data-theme="dark"] .pwfb-record-count){background:#193522;color:#9be1ae}
-
-/* Common utility-class coverage for pages that use Tailwind directly. */
-:global(html[data-theme="dark"] .bg-white){background-color:#122019!important}
-:global(html[data-theme="dark"] .bg-slate-50),:global(html[data-theme="dark"] .bg-gray-50){background-color:#0f1b15!important}
-:global(html[data-theme="dark"] .bg-slate-100),:global(html[data-theme="dark"] .bg-gray-100){background-color:#17271f!important}
-:global(html[data-theme="dark"] .text-slate-900),:global(html[data-theme="dark"] .text-gray-900),:global(html[data-theme="dark"] .text-slate-800),:global(html[data-theme="dark"] .text-gray-800){color:#edf5ef!important}
-:global(html[data-theme="dark"] .text-slate-700),:global(html[data-theme="dark"] .text-gray-700),:global(html[data-theme="dark"] .text-slate-600),:global(html[data-theme="dark"] .text-gray-600){color:#c1cec5!important}
-:global(html[data-theme="dark"] .text-slate-500),:global(html[data-theme="dark"] .text-gray-500),:global(html[data-theme="dark"] .text-slate-400),:global(html[data-theme="dark"] .text-gray-400){color:#91a398!important}
-:global(html[data-theme="dark"] .border-slate-200),:global(html[data-theme="dark"] .border-gray-200),:global(html[data-theme="dark"] .border-slate-300),:global(html[data-theme="dark"] .border-gray-300){border-color:#2d4136!important}
-:global(html[data-theme="dark"] input),:global(html[data-theme="dark"] select),:global(html[data-theme="dark"] textarea){background-color:#101c16;color:#edf5ef;border-color:#34483c}
-:global(html[data-theme="dark"] input::placeholder),:global(html[data-theme="dark"] textarea::placeholder){color:#718478}
-
+/* PWFB application theme overrides. CSS-module-safe selectors. */
+:global(html[data-theme="dark"]) .pwfb-shell{background:radial-gradient(circle at 90% 0%,rgba(242,140,24,.08),transparent 28%),#0b1410}
+:global(html[data-theme="dark"]) .pwfb-topbar{background:rgba(13,25,19,.96);border-color:#26372d}
+:global(html[data-theme="dark"]) .pwfb-topbar-left strong{color:#8ee0a7}
+:global(html[data-theme="dark"]) .pwfb-topbar-left small,:global(html[data-theme="dark"]) .pwfb-user-info small{color:#9caf9f}
+:global(html[data-theme="dark"]) .pwfb-user-info strong{color:#f1f6f2}
+:global(html[data-theme="dark"]) .pwfb-menu-button{background:#15251c;border-color:#304239;color:#a9e4b9}
+:global(html[data-theme="dark"]) .pwfb-content{color:#e8f1eb}
+:global(html[data-theme="dark"]) .pwfb-panel{background:#122019;border-color:#2b4034;box-shadow:0 4px 18px rgba(0,0,0,.22)}
+:global(html[data-theme="dark"]) .pwfb-panel-header{border-color:#26382e}
+:global(html[data-theme="dark"]) .pwfb-panel-header h2,:global(html[data-theme="dark"]) .pwfb-page-title{color:#9be1ae}
+:global(html[data-theme="dark"]) .pwfb-panel-header p,:global(html[data-theme="dark"]) .pwfb-page-description{color:#9caf9f}
+:global(html[data-theme="dark"]) .pwfb-secondary-button{background:#17271f;border-color:#385044;color:#a9e4b9!important}
+:global(html[data-theme="dark"]) .pwfb-input{background:#101c16;border-color:#34483c;color:#edf5ef}
+:global(html[data-theme="dark"]) .pwfb-input::placeholder{color:#718478}
+:global(html[data-theme="dark"]) .pwfb-label{color:#c7d6cc}
+:global(html[data-theme="dark"]) .pwfb-table th{background:#17271f;color:#a9e4b9}
+:global(html[data-theme="dark"]) .pwfb-table td{border-color:#26382e;color:#c1cec5}
+:global(html[data-theme="dark"]) .pwfb-banking-operation{background:#122019;border-color:#2b4034;color:#a9e4b9}
+:global(html[data-theme="dark"]) .pwfb-banking-operation-active{background:linear-gradient(180deg,#292017,#172019)}
+:global(html[data-theme="dark"]) .pwfb-operation-header{background:linear-gradient(90deg,#14251c,#251d13)}
+:global(html[data-theme="dark"]) .pwfb-deposit-actions{background:#101c16;border-color:#26382e}
+:global(html[data-theme="dark"]) .pwfb-banking-empty{color:#9caf9f}
+:global(html[data-theme="dark"]) .pwfb-verify-field{background:#101c16;border-color:#3a4c41;color:#87988c}
+:global(html[data-theme="dark"]) .pwfb-record-count{background:#193522;color:#9be1ae}
+:global(html[data-theme="dark"]) .bg-white{background-color:#122019!important}
+:global(html[data-theme="dark"]) .bg-slate-50,:global(html[data-theme="dark"]) .bg-gray-50{background-color:#0f1b15!important}
+:global(html[data-theme="dark"]) .bg-slate-100,:global(html[data-theme="dark"]) .bg-gray-100{background-color:#17271f!important}
+:global(html[data-theme="dark"]) .text-slate-900,:global(html[data-theme="dark"]) .text-gray-900,:global(html[data-theme="dark"]) .text-slate-800,:global(html[data-theme="dark"]) .text-gray-800{color:#edf5ef!important}
+:global(html[data-theme="dark"]) .text-slate-700,:global(html[data-theme="dark"]) .text-gray-700,:global(html[data-theme="dark"]) .text-slate-600,:global(html[data-theme="dark"]) .text-gray-600{color:#c1cec5!important}
+:global(html[data-theme="dark"]) .text-slate-500,:global(html[data-theme="dark"]) .text-gray-500,:global(html[data-theme="dark"]) .text-slate-400,:global(html[data-theme="dark"]) .text-gray-400{color:#91a398!important}
+:global(html[data-theme="dark"]) .border-slate-200,:global(html[data-theme="dark"]) .border-gray-200,:global(html[data-theme="dark"]) .border-slate-300,:global(html[data-theme="dark"]) .border-gray-300{border-color:#2d4136!important}
+:global(html[data-theme="dark"]) input,:global(html[data-theme="dark"]) select,:global(html[data-theme="dark"]) textarea{background-color:#101c16;color:#edf5ef;border-color:#34483c}
+:global(html[data-theme="dark"]) input::placeholder,:global(html[data-theme="dark"]) textarea::placeholder{color:#718478}
 .pwfb-theme-switcher{display:flex;align-items:center;gap:4px;padding:4px;border:1px solid #dfe7e2;border-radius:11px;background:#f7faf8}
 .pwfb-theme-option{border:0;border-radius:8px;background:transparent;color:#66736b;font-size:10px;font-weight:800;padding:7px 9px;cursor:pointer}
 .pwfb-theme-option:hover{background:#eaf7ef;color:#0a5c28}

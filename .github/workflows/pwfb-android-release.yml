@@ -52,7 +52,7 @@ jobs:
           set -euo pipefail
           APK=android-twa/app/build/outputs/apk/release/app-release.apk
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.pwfb.microfinance' versionCode='29' versionName='1.0.29'"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.pwfb.microfinance' versionCode='30' versionName='1.0.30'"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
       - name: Verify AAB exists
@@ -62,46 +62,46 @@ jobs:
       - name: Generate release checksums
         run: |
           set -euo pipefail
-          sha256sum android-twa/app/build/outputs/apk/release/app-release.apk android-twa/app/build/outputs/bundle/release/app-release.aab > android-twa/pwfb-v1.0.29-SHA256SUMS.txt
-          cat android-twa/pwfb-v1.0.29-SHA256SUMS.txt
+          sha256sum android-twa/app/build/outputs/apk/release/app-release.apk android-twa/app/build/outputs/bundle/release/app-release.aab > android-twa/pwfb-v1.0.30-SHA256SUMS.txt
+          cat android-twa/pwfb-v1.0.30-SHA256SUMS.txt
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.29-native-auth-signed-apk
+          name: pwfb-microfinance-v1.0.30-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.29-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.30-play-store-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Upload release checksums
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.29-checksums
-          path: android-twa/pwfb-v1.0.29-SHA256SUMS.txt
+          name: pwfb-microfinance-v1.0.30-checksums
+          path: android-twa/pwfb-v1.0.30-SHA256SUMS.txt
           if-no-files-found: error
       - name: Publish APK, AAB and checksums
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.29
-          name: PWFB Microfinance v1.0.29
+          tag_name: v1.0.30
+          name: PWFB Microfinance v1.0.30
           body: |
-            PWFB Microfinance Android application v1.0.29.
+            PWFB Microfinance Android application v1.0.30.
 
-            Stability release based on the restored first stable PWFB Android flow.
-            Native authentication remains the app entry point; successful password, Gmail or fingerprint authentication hands the current token to the current PWFB dashboard inside the app.
+            Updated Android release that opens the current PWFB web login instead of the legacy native login screen.
+            The release uses the current PWFB application flow and keeps the signed APK/AAB packaging and verification steps.
 
             The release build is cleaned before packaging and verifies the APK package/version, zip alignment and APK signature before publication.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
-            android-twa/pwfb-v1.0.29-SHA256SUMS.txt
+            android-twa/pwfb-v1.0.30-SHA256SUMS.txt
           overwrite_files: true
           make_latest: true
       - name: Delete temporary keystore
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.29 stable Android release
+# PWFB v1.0.30 Android release

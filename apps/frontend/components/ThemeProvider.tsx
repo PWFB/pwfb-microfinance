@@ -1,21 +1,15 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState } from "react";
+import "./theme.module.css";
 
 type Theme = "light" | "dark" | "system";
 
-type ThemeContextValue = {
-  theme: Theme;
-  resolvedTheme: "light" | "dark";
-  setTheme: (theme: Theme) => void;
-};
-
+type ThemeContextValue = { theme: Theme; resolvedTheme: "light" | "dark"; setTheme: (theme: Theme) => void };
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function resolveTheme(theme: Theme): "light" | "dark" {
-  if (theme === "system") {
-    return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
+  if (theme === "system") return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   return theme;
 }
 

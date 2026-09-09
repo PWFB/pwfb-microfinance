@@ -2,15 +2,14 @@
 
 import { AuthProvider } from "../context/AuthContext";
 import AppShellContent from "./AppShellContent";
+import { ThemeProvider } from "./ThemeProvider";
 
-export default function AppShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <AppShellContent>{children}</AppShellContent>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppShellContent>{children}</AppShellContent>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

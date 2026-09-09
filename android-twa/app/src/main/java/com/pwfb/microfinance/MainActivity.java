@@ -42,8 +42,9 @@ public class MainActivity extends Activity {
         String t=i==null?null:i.getStringExtra("app_token");
         if(t==null||t.trim().isEmpty()) t=extractToken(i);
         if(t!=null&&!t.trim().isEmpty()){
-            pendingNativeToken=t; nativeLoginRedirected=false;
-            if(webView!=null) webView.loadUrl(START_URL);
+            pendingNativeToken=t;
+            nativeLoginRedirected=false;
+            if(webView!=null) handoffTokenToWebApp();
             return;
         }
         if(handleAppIntent(i)) return;
@@ -67,7 +68,10 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return handleWebViewUrl(r.getUrl().toString());}
             @Override public boolean shouldOverrideUrlLoading(WebView v,String u){return handleWebViewUrl(u);}
-            @Override public void onPageFinished(WebView v,String u){if(swipeRefresh!=null)swipeRefresh.setRefreshing(false);continueNativeLogin(v,u);}
+            @Override public void onPageFinished(WebView v,String u){
+                if(swipeRefresh!=null)swipeRefresh.setRefreshing(false);
+                continueNativeLogin(v,u);
+            }
         });
         webView.setWebChromeClient(new WebChromeClient());
         swipeRefresh.addView(webView);
@@ -81,19 +85,44 @@ public class MainActivity extends Activity {
         Uri x=Uri.parse(u==null?"":u);
         if(!"pwfb-frontend.onrender.com".equalsIgnoreCase(x.getHost())) return;
         if(!"/".equals(x.getPath())&&!"/login".equals(x.getPath())) return;
+        handoffTokenToWebApp();
+    }
+
+    private void handoffTokenToWebApp(){
+        if(webView==null||pendingNativeToken==null||pendingNativeToken.trim().isEmpty()||nativeLoginRedirected) return;
         String t=pendingNativeToken.replace("\\","\\\\").replace("'","\\'").replace("\n","\\n").replace("\r","\\r");
         nativeLoginRedirected=true;
-        v.evaluateJavascript("window.localStorage.setItem('token','"+t+"');window.localStorage.setItem('access_token','"+t+"');window.sessionStorage.setItem('token','"+t+"');window.sessionStorage.setItem('access_token','"+t+"');true;",value->{if(webView!=null)webView.loadUrl(DASHBOARD_URL);});
+        String dashboard=jsString(DASHBOARD_URL);
+        webView.evaluateJavascript(
+            "(function(){"+
+            "localStorage.setItem('token','"+t+"');"+
+            "localStorage.setItem('access_token','"+t+"');"+
+            "sessionStorage.setItem('token','"+t+"');"+
+            "sessionStorage.setItem('access_token','"+t+"');"+
+            "window.location.replace("+dashboard+");"+
+            "})();",
+            value->{ }
+        );
+    }
+
+    private String jsString(String value){
+        return "'"+value.replace("\\","\\\\").replace("'","\\'").replace("\n","\\n").replace("\r","\\r")+"'";
     }
 
     private String extractToken(Intent i){
         try{
             Uri d=i==null?null:i.getData();
             if(d==null||!SCHEME.equalsIgnoreCase(d.getScheme())||!OPEN_APP_HOST.equalsIgnoreCase(d.getHost())) return null;
-            String t=d.getQueryParameter("app_token"); if(t!=null&&!t.isEmpty()) return t;
-            String u=d.getQueryParameter("url"); if(u==null||u.isEmpty()) return null;
-            String f=Uri.parse(u).getFragment();
-            return f==null?null:new android.net.UrlQuerySanitizer(f).getValue("app_token");
+            String t=d.getQueryParameter("app_token");
+            if(t!=null&&!t.isEmpty()) return t;
+            String u=d.getQueryParameter("url");
+            if(u==null||u.isEmpty()) return null;
+            Uri target=Uri.parse(u);
+            String f=target.getEncodedFragment();
+            if(f==null||f.isEmpty()) return null;
+            String raw=f.startsWith("#")?f.substring(1):f;
+            String parsed=new android.net.UrlQuerySanitizer(raw).getValue("app_token");
+            return parsed==null?null:Uri.decode(parsed);
         }catch(Exception e){return null;}
     }
 
@@ -102,14 +131,14 @@ public class MainActivity extends Activity {
         if(d==null||!SCHEME.equalsIgnoreCase(d.getScheme())) return false;
         if(OPEN_APP_HOST.equalsIgnoreCase(d.getHost())){
             String t=d.getQueryParameter("app_token");
-            if(t!=null&&!t.trim().isEmpty()){pendingNativeToken=t;nativeLoginRedirected=false;}
-            String u=d.getQueryParameter("url"); if(u==null||u.isEmpty()) u=START_URL;
-            try{
-                Uri x=Uri.parse(u);
-                if(("http".equalsIgnoreCase(x.getScheme())||"https".equalsIgnoreCase(x.getScheme()))&&"pwfb-frontend.onrender.com".equalsIgnoreCase(x.getHost())){
-                    if(webView!=null) webView.loadUrl(x.toString());
-                }
-            }catch(Exception e){}
+            if(t!=null&&!t.trim().isEmpty()){
+                pendingNativeToken=t;
+                nativeLoginRedirected=false;
+            }
+            if(webView!=null){
+                if(pendingNativeToken!=null&&!pendingNativeToken.trim().isEmpty()) handoffTokenToWebApp();
+                else webView.loadUrl(START_URL);
+            }
             return true;
         }
         if(OPEN_CHROME_HOST.equalsIgnoreCase(d.getHost())){

@@ -4,15 +4,14 @@
     <application android:theme="@style/AppTheme.Splash" android:label="PWFB Microfinance" android:icon="@drawable/pwfb_icon" android:allowBackup="false" android:supportsRtl="true">
         <meta-data android:name="asset_statements" android:resource="@string/asset_statements" />
 
-        <!-- Native authentication is the only launcher. WebView opens after successful authentication. -->
-        <activity android:name=".NativeAuthActivity" android:exported="true">
+        <!-- The current PWFB web application is the only launcher. -->
+        <activity android:name=".NativeAuthActivity" android:exported="true" />
+
+        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-
-        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

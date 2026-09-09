@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import PWFBIntelligenceStyles from "../../components/PWFBIntelligenceStyles";
 
 const events = [
   { name: "Flutterwave payments", path: "/webhooks/wallet/flutterwave", tone: "green", description: "Receive provider payment events and reconcile successful wallet or account funding." },
@@ -10,33 +11,11 @@ const events = [
 ];
 
 export default function WebhooksPage() {
-  return (
-    <main className="pwfb-webhooks-page">
-      <div className="pwfb-page-header">
-        <div>
-          <p className="pwfb-eyebrow">SUPER ADMIN • INTEGRATIONS</p>
-          <h1 className="pwfb-page-title">Webhook Control Center</h1>
-          <p className="pwfb-page-description">Secure event delivery, payment reconciliation and integration documentation for PWFB Microfinance.</p>
-        </div>
-        <Link href="/admin-overview" className="pwfb-secondary-button">← Control Center</Link>
-      </div>
-
-      <section className="pwfb-webhook-hero">
-        <div><span className="pwfb-webhook-orb">↯</span><div><p>EVENT INFRASTRUCTURE</p><h2>Keep financial events connected and auditable.</h2><span>Every provider callback should be authenticated, validated, processed once and traceable to a PWFB transaction.</span></div></div>
-        <div className="pwfb-webhook-health"><small>SECURITY POSTURE</small><strong>Protected</strong><span>Secrets stay server-side</span></div>
-      </section>
-
-      <section className="pwfb-webhook-grid">
-        {events.map((event) => <article key={event.path} className={`pwfb-webhook-card ${event.tone}`}><div className="pwfb-webhook-card-top"><span className="pwfb-webhook-icon">↗</span><span className="pwfb-webhook-badge">SIGNED</span></div><h3>{event.name}</h3><code>{event.path}</code><p>{event.description}</p><div className="pwfb-webhook-card-foot"><span>Authentication required</span><span>›</span></div></article>)}
-      </section>
-
-      <section className="pwfb-webhook-layout">
-        <article className="pwfb-panel pwfb-doc-panel"><div className="pwfb-panel-header"><div><h2>Webhook implementation guide</h2><p>Operational rules for reliable financial integrations.</p></div><span className="pwfb-record-count">DOCUMENTATION</span></div><div className="pwfb-doc-content"><div><b>01 · Verify authenticity</b><p>Validate the provider signature or PWFB webhook secret before accepting an event. Never trust a callback solely because it reaches the endpoint.</p></div><div><b>02 · Preserve the event</b><p>Store a safe event reference and provider metadata needed for reconciliation. Do not store raw secrets or sensitive authorization headers.</p></div><div><b>03 · Make processing idempotent</b><p>The same event may be delivered more than once. Use a unique provider reference and reject duplicate financial effects.</p></div><div><b>04 · Reconcile before settlement</b><p>Only apply a balance change after the event has passed authentication and business validation. Keep the transaction reference visible in audit history.</p></div><div><b>05 · Return quickly</b><p>Webhook handlers should acknowledge valid requests promptly and move slow work into a controlled processing path.</p></div><div><b>06 · Monitor failures</b><p>Track rejected signatures, validation failures, duplicate events and provider outages so operations staff can investigate.</p></div></div></article>
-
-        <aside className="pwfb-panel pwfb-secret-panel"><div className="pwfb-panel-header"><div><h2>Environment configuration</h2><p>Names only — never expose secret values in the UI.</p></div></div><div className="pwfb-secret-list"><div><code>FLUTTERWAVE_SECRET_KEY</code><span>Server secret</span></div><div><code>FLUTTERWAVE_WEBHOOK_SECRET_HASH</code><span>Signature validation</span></div><div><code>FLUTTERWAVE_CALLBACK_URL</code><span>Provider callback</span></div><div><code>PWFB_VIRTUAL_ACCOUNT_WEBHOOK_SECRET</code><span>PWFB boundary secret</span></div></div><div className="pwfb-security-box"><strong>🔐 Secret handling</strong><p>Keep credentials in Render/AWS secret storage or environment variables. Never commit secret values to GitHub, frontend bundles, screenshots or documentation.</p></div></aside>
-      </section>
-
-      <section className="pwfb-panel pwfb-reference-panel"><div className="pwfb-panel-header"><div><h2>Integration checklist</h2><p>Use this before enabling a production webhook.</p></div></div><div className="pwfb-checklist"><span>✓ HTTPS callback URL configured</span><span>✓ Provider signature verification enabled</span><span>✓ Duplicate-event protection enabled</span><span>✓ Transaction reference captured</span><span>✓ Failed events are observable</span><span>✓ Secrets are server-side only</span></div></section>
-    </main>
-  );
+  return <><PWFBIntelligenceStyles /><main className="pwfb-webhooks-page">
+    <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">SUPER ADMIN • INTEGRATIONS</p><h1 className="pwfb-page-title">Webhook Control Center</h1><p className="pwfb-page-description">Secure event delivery, payment reconciliation and integration documentation for PWFB Microfinance.</p></div><Link href="/admin-overview" className="pwfb-secondary-button">← Control Center</Link></div>
+    <section className="pwfb-webhook-hero"><div><span className="pwfb-webhook-orb">↯</span><div><p>EVENT INFRASTRUCTURE</p><h2>Keep financial events connected and auditable.</h2><span>Every provider callback should be authenticated, validated, processed once and traceable to a PWFB transaction.</span></div></div><div className="pwfb-webhook-health"><small>SECURITY POSTURE</small><strong>Protected</strong><span>Secrets stay server-side</span></div></section>
+    <section className="pwfb-webhook-grid">{events.map((event) => <article key={event.path} className={`pwfb-webhook-card ${event.tone}`}><div className="pwfb-webhook-card-top"><span className="pwfb-webhook-icon">↗</span><span className="pwfb-webhook-badge">SIGNED</span></div><h3>{event.name}</h3><code>{event.path}</code><p>{event.description}</p><div className="pwfb-webhook-card-foot"><span>Authentication required</span><span>›</span></div></article>)}</section>
+    <section className="pwfb-webhook-layout"><article className="pwfb-panel pwfb-doc-panel"><div className="pwfb-panel-header"><div><h2>Webhook implementation guide</h2><p>Operational rules for reliable financial integrations.</p></div><span className="pwfb-record-count">DOCUMENTATION</span></div><div className="pwfb-doc-content"><div><b>01 · Verify authenticity</b><p>Validate the provider signature or PWFB webhook secret before accepting an event. Never trust a callback solely because it reaches the endpoint.</p></div><div><b>02 · Preserve the event</b><p>Store a safe event reference and provider metadata needed for reconciliation. Do not store raw secrets or sensitive authorization headers.</p></div><div><b>03 · Make processing idempotent</b><p>The same event may be delivered more than once. Use a unique provider reference and reject duplicate financial effects.</p></div><div><b>04 · Reconcile before settlement</b><p>Only apply a balance change after the event has passed authentication and business validation. Keep the transaction reference visible in audit history.</p></div><div><b>05 · Return quickly</b><p>Webhook handlers should acknowledge valid requests promptly and move slow work into a controlled processing path.</p></div><div><b>06 · Monitor failures</b><p>Track rejected signatures, validation failures, duplicate events and provider outages so operations staff can investigate.</p></div></div></article><aside className="pwfb-panel pwfb-secret-panel"><div className="pwfb-panel-header"><div><h2>Environment configuration</h2><p>Names only — never expose secret values in the UI.</p></div></div><div className="pwfb-secret-list"><div><code>FLUTTERWAVE_SECRET_KEY</code><span>Server secret</span></div><div><code>FLUTTERWAVE_WEBHOOK_SECRET_HASH</code><span>Signature validation</span></div><div><code>FLUTTERWAVE_CALLBACK_URL</code><span>Provider callback</span></div><div><code>PWFB_VIRTUAL_ACCOUNT_WEBHOOK_SECRET</code><span>PWFB boundary secret</span></div></div><div className="pwfb-security-box"><strong>🔐 Secret handling</strong><p>Keep credentials in Render/AWS secret storage or environment variables. Never commit secret values to GitHub, frontend bundles, screenshots or documentation.</p></div></aside></section>
+    <section className="pwfb-panel pwfb-reference-panel"><div className="pwfb-panel-header"><div><h2>Integration checklist</h2><p>Use this before enabling a production webhook.</p></div></div><div className="pwfb-checklist"><span>✓ HTTPS callback URL configured</span><span>✓ Provider signature verification enabled</span><span>✓ Duplicate-event protection enabled</span><span>✓ Transaction reference captured</span><span>✓ Failed events are observable</span><span>✓ Secrets are server-side only</span></div></section>
+  </main></>;
 }

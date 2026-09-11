@@ -77,8 +77,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('passkey/register/options')
-  passkeyRegisterOptions(@Req() req: any, @Headers('origin') origin?: string) {
-    return this.authService.passkeyRegisterOptions(req.user, origin);
+  passkeyRegisterOptions(@Req() req: any, @Body() body: { replaceExisting?: boolean }, @Headers('origin') origin?: string) {
+    return this.authService.passkeyRegisterOptions(req.user, origin, !!body?.replaceExisting);
   }
 
   @UseGuards(JwtAuthGuard)

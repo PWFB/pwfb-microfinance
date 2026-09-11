@@ -5,15 +5,12 @@ import { useRouter } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
 import { apiRequest } from "../../../lib/api";
 
-const CHROME_HANDOFF = "pwfb://open-chrome?url=";
-
 export default function RegisterPasskeyPage() {
   const router = useRouter();
   const [status, setStatus] = useState("Ready to secure your PWFB account.");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
-  const [chromeNeeded, setChromeNeeded] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
@@ -21,10 +18,6 @@ export default function RegisterPasskeyPage() {
   }, [router]);
 
   function isReplacementFlow() { return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("replacePasskey") === "1"; }
-  function openChromeForPasskey() {
-    const target = `${window.location.origin}/passkey/register?newDevice=1&replacePasskey=1&chrome=1`;
-    window.location.href = `${CHROME_HANDOFF}${encodeURIComponent(target)}`;
-  }
   function returnToApp() {
     const target = `${window.location.origin}/passkey/register?newDevice=1&registered=1`;
     window.location.href = `pwfb://open-app?url=${encodeURIComponent(target)}`;
@@ -35,10 +28,8 @@ export default function RegisterPasskeyPage() {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     if (!token || browserSupportsPasskeys()) return;
-    setChromeNeeded(true);
-    setStatus("PWFB needs a passkey-capable browser on this phone to register security.");
-    const timer = window.setTimeout(() => openChromeForPasskey(), 500);
-    return () => window.clearTimeout(timer);
+    setStatus("This app cannot access the phone's passkey authenticator.");
+    setError("Fingerprint/passkey registration is not available in this WebView. Sign in with your password or Gmail, then use a device build with native passkey support. PWFB will not redirect you to Chrome.");
   }, []);
 
   useEffect(() => {
@@ -52,7 +43,7 @@ export default function RegisterPasskeyPage() {
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) throw new Error("Please sign in with your email and password first.");
-      if (!browserSupportsPasskeys()) { setChromeNeeded(true); openChromeForPasskey(); return; }
+      if (!browserSupportsPasskeys()) throw new Error("This app cannot access the phone's passkey authenticator. No Chrome fallback is used.");
       if (isReplacementFlow()) {
         setStatus("Removing all existing PWFB passkeys from this account…");
         await apiRequest("/auth/passkey/unregister-all", { method: "POST" });
@@ -64,7 +55,7 @@ export default function RegisterPasskeyPage() {
       const result = await apiRequest("/auth/passkey/register/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) });
       if (!result?.verified) throw new Error(result?.message || "PWFB could not verify this passkey.");
       setDone(true); setStatus("Fresh PWFB passkey registered successfully on this device.");
-      if (new URLSearchParams(window.location.search).get("chrome") === "1") setTimeout(returnToApp, 500);
+      if (window.location.search.includes("nativeApp=1")) setTimeout(returnToApp, 500);
     } catch (e: any) {
       setStatus("We could not finish passkey setup.");
       const detail = String(e?.message || "");
@@ -75,5 +66,5 @@ export default function RegisterPasskeyPage() {
     } finally { setLoading(false); }
   }
 
-  return <main className="pk-page"><section className="pk-card"><img className="logo" src="/pwfb-login-logo.svg" alt="PWFB"/><div className="icon">⌁</div><small>PWFB SECURITY</small><h1>Register this device</h1><p>Sign in first, remove the account's existing PWFB passkeys, then register a fresh passkey on the device you are using now. No old-phone registration is required.</p><div className="steps"><div><b>1</b> Sign in with email and password</div><div><b>2</b> Remove existing PWFB passkeys</div><div><b>3</b> Approve this device's security prompt</div></div><div className={`status ${done ? "success" : error ? "error" : ""}`}>{status}</div>{error && <div className="errorBox">{error}</div>}{chromeNeeded && !done ? <button onClick={openChromeForPasskey}>Open PWFB in Chrome</button> : done ? <button onClick={() => router.back()}>Continue to PWFB</button> : <button disabled={loading} onClick={register}>{loading ? "Registering…" : "Register Fresh Passkey"}</button>}<button className="cancel" onClick={() => router.back()}>Cancel</button></section><style jsx>{`*{box-sizing:border-box}.pk-page{min-height:100dvh;padding:18px;display:grid;place-items:center;background:linear-gradient(145deg,#075d2a,#087534);font-family:Inter,system-ui,sans-serif}.pk-card{width:min(450px,100%);padding:28px 24px;border-radius:22px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.25)}.logo{width:min(260px,88%);margin-bottom:14px}.icon{margin:auto;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:#eaf7ef;color:#087534;font-size:38px}.pk-card small{display:block;color:#f47712;font-weight:900;letter-spacing:2px;margin:10px}.pk-card h1{color:#087534;margin:8px 0}.pk-card p{color:#657169;font-size:13px;line-height:1.6}.steps{display:grid;gap:8px;text-align:left;margin:18px 0}.steps div{padding:10px;border-radius:9px;background:#f5f8f6;color:#435048;font-size:12px}.steps b{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:8px;border-radius:50%;background:#087534;color:#fff}.status,.errorBox{padding:10px;border-radius:9px;margin:10px 0;font-size:11px;background:#f5f8f6;color:#59635d}.success{background:#eaf7ef;color:#087534}.error,.errorBox{background:#fff4e5;color:#9b4800}.pk-card button{width:100%;height:48px;border:0;border-radius:9px;background:#087534;color:#fff;font-weight:900}.pk-card button:disabled{opacity:.6}.pk-card .cancel{margin-top:10px;background:none;color:#68736d;height:36px;font-weight:500}`}</style></main>;
+  return <main className="pk-page"><section className="pk-card"><img className="logo" src="/pwfb-login-logo.svg" alt="PWFB"/><div className="icon">⌁</div><small>PWFB SECURITY</small><h1>Register this device</h1><p>Sign in first, remove the account's existing PWFB passkeys, then register a fresh passkey on this device. No Chrome handoff is used.</p><div className="steps"><div><b>1</b> Sign in with email and password</div><div><b>2</b> Remove existing PWFB passkeys</div><div><b>3</b> Approve this device's security prompt</div></div><div className={`status ${done ? "success" : error ? "error" : ""}`}>{status}</div>{error && <div className="errorBox">{error}</div>}{done ? <button onClick={() => router.back()}>Continue to PWFB</button> : <button disabled={loading} onClick={register}>{loading ? "Registering…" : "Register Fresh Passkey"}</button>}<button className="cancel" onClick={() => router.back()}>Cancel</button></section><style jsx>{`*{box-sizing:border-box}.pk-page{min-height:100dvh;padding:18px;display:grid;place-items:center;background:linear-gradient(145deg,#075d2a,#087534);font-family:Inter,system-ui,sans-serif}.pk-card{width:min(450px,100%);padding:28px 24px;border-radius:22px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.25)}.logo{width:min(260px,88%);margin-bottom:14px}.icon{margin:auto;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:#eaf7ef;color:#087534;font-size:38px}.pk-card small{display:block;color:#f47712;font-weight:900;letter-spacing:2px;margin:10px}.pk-card h1{color:#087534;margin:8px 0}.pk-card p{color:#657169;font-size:13px;line-height:1.6}.steps{display:grid;gap:8px;text-align:left;margin:18px 0}.steps div{padding:10px;border-radius:9px;background:#f5f8f6;color:#435048;font-size:12px}.steps b{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:8px;border-radius:50%;background:#087534;color:#fff}.status,.errorBox{padding:10px;border-radius:9px;margin:10px 0;font-size:11px;background:#f5f8f6;color:#59635d}.success{background:#eaf7ef;color:#087534}.error,.errorBox{background:#fff4e5;color:#9b4800}.pk-card button{width:100%;height:48px;border:0;border-radius:9px;background:#087534;color:#fff;font-weight:900}.pk-card button:disabled{opacity:.6}.pk-card .cancel{margin-top:10px;background:none;color:#68736d;height:36px;font-weight:500}`}</style></main>;
 }

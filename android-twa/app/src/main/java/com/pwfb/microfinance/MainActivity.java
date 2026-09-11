@@ -111,24 +111,22 @@ public class MainActivity extends Activity {
     }
 
     public final class NativePasskeyBridge {
-        @JavascriptInterface public void registerPasskey(final boolean replaceExisting) {
-            // JavascriptInterface methods are invoked on Chromium's JavaBridge thread.
-            // Never call WebView methods directly from that thread; marshal all WebView/UI work to main.
-            runOnUiThread(() -> registerPasskeyOnMainThread(replaceExisting));
+        @JavascriptInterface public void registerPasskey(final boolean replaceExisting, final String token) {
+            runOnUiThread(() -> registerPasskeyOnMainThread(replaceExisting, token));
         }
     }
 
-    private void registerPasskeyOnMainThread(final boolean replaceExisting) {
+    private void registerPasskeyOnMainThread(final boolean replaceExisting, final String token) {
         try {
             if (webView == null) return;
             Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
             if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) {
                 sendNativePasskeyResult(false, "PWFB native passkey registration is only available on the PWFB application domain.", null); return;
             }
-            final String token = getSharedPreferences(PREFS, MODE_PRIVATE).getString(TOKEN, null);
             if (token == null || token.trim().isEmpty()) {
-                sendNativePasskeyResult(false, "Please sign in to PWFB first, then register your fingerprint/passkey.", null); return;
+                sendNativePasskeyResult(false, "Your PWFB login session is missing. Please sign in again before registering your fingerprint.", null); return;
             }
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
             sendNativePasskeyStatus("Preparing secure native passkey registration…");
             new Thread(() -> {
                 try {
@@ -223,6 +221,7 @@ public class MainActivity extends Activity {
         if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return;
         if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
         nativeLoginRedirected = true; String token = escapeJs(pendingNativeToken);
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, pendingNativeToken).apply();
         String script = "window.localStorage.setItem('token','" + token + "');window.sessionStorage.setItem('token','" + token + "');window.localStorage.setItem('access_token','" + token + "');window.sessionStorage.setItem('access_token','" + token + "');window.location.replace('" + DASHBOARD_URL + "?nativeApp=1');";
         view.evaluateJavascript(script, null);
     }

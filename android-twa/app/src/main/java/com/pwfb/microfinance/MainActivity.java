@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
     private static final String OPEN_APP_HOST = "open-app";
     private static final String PREFS = "pwfb_app_auth";
     private static final String TOKEN = "access_token";
-    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU";
+    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU";
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private WebView webView;
     private SwipeRefreshLayout refreshLayout;

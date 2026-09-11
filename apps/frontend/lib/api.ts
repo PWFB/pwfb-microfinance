@@ -16,12 +16,30 @@ function absorbNativeAppToken() {
   } catch { /* ignore malformed native handoff */ }
 }
 
+function tokenExpiry(token: string | null) {
+  if (!token) return 0;
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return 0;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return Number(payload?.exp || 0);
+  } catch {
+    return 0;
+  }
+}
+
+function getStoredToken() {
+  if (typeof window === "undefined") return null;
+  const localToken = localStorage.getItem("token");
+  const sessionToken = sessionStorage.getItem("token");
+  if (!localToken) return sessionToken;
+  if (!sessionToken) return localToken;
+  return tokenExpiry(sessionToken) >= tokenExpiry(localToken) ? sessionToken : localToken;
+}
+
 async function request(endpoint: string, options: RequestInit = {}) {
   absorbNativeAppToken();
-  const token =
-    typeof window !== "undefined"
-      ? localStorage.getItem("token") || sessionStorage.getItem("token")
-      : null;
+  const token = getStoredToken();
 
   const url = `${API_URL}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
   const headers = new Headers(options.headers);
@@ -32,7 +50,7 @@ async function request(endpoint: string, options: RequestInit = {}) {
 
   let response: Response;
   try {
-    response = await fetch(url, { ...options, headers });
+    response = await fetch(url, { ...options, headers, credentials: "include" });
   } catch {
     throw new Error("Unable to connect to PWFB server. Please check your internet connection and try again.");
   }
@@ -40,7 +58,9 @@ async function request(endpoint: string, options: RequestInit = {}) {
   let data: any = null;
   try { data = await response.json(); } catch { data = null; }
 
-  if (response.status === 401) throw new Error(data?.message || "Invalid email or password");
+  if (response.status === 401) {
+    throw new Error(data?.message || "Your PWFB session has expired or is no longer valid. Please sign in again.");
+  }
   if (response.status === 403) throw new Error(data?.message || "You do not have permission to perform this action.");
   if (!response.ok) throw new Error(data?.message || `PWFB server error (${response.status})`);
   return data;

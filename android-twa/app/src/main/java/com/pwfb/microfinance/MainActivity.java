@@ -99,27 +99,31 @@ public class MainActivity extends Activity {
         setContentView(webView); webView.loadUrl(START_URL);
     }
 
-    private final class NativePasskeyBridge {
+    public final class NativePasskeyBridge {
         @JavascriptInterface public void registerPasskey(final boolean replaceExisting) {
-            if (webView == null) return;
-            Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
-            if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) {
-                sendNativePasskeyResult(false, "PWFB native passkey registration is only available on the PWFB application domain.", null); return;
-            }
-            final String token = getSharedPreferences(PREFS, MODE_PRIVATE).getString(TOKEN, null);
-            if (token == null || token.trim().isEmpty()) {
-                sendNativePasskeyResult(false, "Please sign in to PWFB first, then register your fingerprint/passkey.", null); return;
-            }
-            sendNativePasskeyStatus("Preparing secure native passkey registration…");
-            new Thread(() -> {
-                try {
-                    if (replaceExisting) postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
-                    JSONObject options = postAuthenticated("/auth/passkey/register/options", new JSONObject(), token);
-                    runOnUiThread(() -> createNativePasskey(options, token));
-                } catch (Exception e) {
-                    sendNativePasskeyResult(false, e.getMessage() == null ? "Unable to prepare passkey registration." : e.getMessage(), null);
+            try {
+                if (webView == null) return;
+                Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
+                if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) {
+                    sendNativePasskeyResult(false, "PWFB native passkey registration is only available on the PWFB application domain.", null); return;
                 }
-            }).start();
+                final String token = getSharedPreferences(PREFS, MODE_PRIVATE).getString(TOKEN, null);
+                if (token == null || token.trim().isEmpty()) {
+                    sendNativePasskeyResult(false, "Please sign in to PWFB first, then register your fingerprint/passkey.", null); return;
+                }
+                sendNativePasskeyStatus("Preparing secure native passkey registration…");
+                new Thread(() -> {
+                    try {
+                        if (replaceExisting) postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
+                        JSONObject options = postAuthenticated("/auth/passkey/register/options", new JSONObject(), token);
+                        runOnUiThread(() -> createNativePasskey(options, token));
+                    } catch (Exception e) {
+                        sendNativePasskeyResult(false, e.getMessage() == null ? "Unable to prepare passkey registration." : e.getMessage(), null);
+                    }
+                }).start();
+            } catch (Throwable t) {
+                sendNativePasskeyResult(false, t.getMessage() == null ? "Unable to start native PWFB passkey registration." : t.getMessage(), null);
+            }
         }
     }
 
@@ -172,6 +176,10 @@ public class MainActivity extends Activity {
         if (stream == null) throw new Exception("PWFB server returned no response.");
         StringBuilder s = new StringBuilder();
         try (BufferedReader r = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) { String line; while ((line = r.readLine()) != null) s.append(line); }
+        if (s.length() == 0) {
+            if (status >= 400) throw new Exception("PWFB server error (" + status + ").");
+            return new JSONObject();
+        }
         JSONObject result = new JSONObject(s.toString());
         if (status >= 400) throw new Exception(result.optString("message", "PWFB server error (" + status + ")"));
         return result;

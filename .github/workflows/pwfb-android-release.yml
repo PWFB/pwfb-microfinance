@@ -38,69 +38,49 @@ jobs:
           set -euo pipefail
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android-twa/pwfb-upload-key.jks
           chmod 600 android-twa/pwfb-upload-key.jks
-      - name: Build signed APK and AAB
+      - name: Build restored signed APK and AAB
         working-directory: android-twa
         run: |
           set -euo pipefail
-          gradle --no-daemon clean assembleRelease bundleRelease \
+          gradle --no-daemon assembleRelease bundleRelease \
             -PPWFB_KEYSTORE_FILE="$PWD/pwfb-upload-key.jks" \
             -PPWFB_KEYSTORE_PASSWORD="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             -PPWFB_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
             -PPWFB_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD }}"
-      - name: Verify APK package, version, alignment and signature
-        run: |
-          set -euo pipefail
-          APK=android-twa/app/build/outputs/apk/release/app-release.apk
-          test -s "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -F "package: name='com.pwfb.microfinance' versionCode='31' versionName='1.0.31'"
-          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
-      - name: Verify AAB exists
-        run: |
-          set -euo pipefail
-          test -s android-twa/app/build/outputs/bundle/release/app-release.aab
-      - name: Generate release checksums
-        run: |
-          set -euo pipefail
-          sha256sum android-twa/app/build/outputs/apk/release/app-release.apk android-twa/app/build/outputs/bundle/release/app-release.aab > android-twa/pwfb-v1.0.31-SHA256SUMS.txt
-          cat android-twa/pwfb-v1.0.31-SHA256SUMS.txt
+      - name: Verify signed APK
+        run: test -s android-twa/app/build/outputs/apk/release/app-release.apk
+      - name: Verify signed AAB
+        run: test -s android-twa/app/build/outputs/bundle/release/app-release.aab
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.31-signed-apk
+          name: pwfb-microfinance-v1.0.28-restored-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.31-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.28-restored-play-store-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
-      - name: Upload release checksums
-        uses: actions/upload-artifact@v4
-        with:
-          name: pwfb-microfinance-v1.0.31-checksums
-          path: android-twa/pwfb-v1.0.31-SHA256SUMS.txt
-          if-no-files-found: error
-      - name: Publish APK, AAB and checksums
+      - name: Publish restored APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.31
-          name: PWFB Microfinance v1.0.31
+          tag_name: v1.0.28
+          name: PWFB Microfinance v1.0.28 — Restored First App
           body: |
-            PWFB Microfinance Android application v1.0.31.
+            PWFB Microfinance Android application v1.0.28.
 
-            Fixes the fingerprint/passkey Chrome-to-app handoff so a successful fingerprint authentication returns the authenticated session to the PWFB Android app and opens the dashboard instead of leaving the user on the login page.
+            This release restores the original PWFB Android app behavior: the app launches the PWFB frontend directly inside the Android WebView instead of using the newer native authentication handoff flow.
 
-            The release opens the current PWFB web login, uses the signed APK/AAB packaging and verifies the APK package/version, zip alignment and APK signature before publication.
+            This version is intended as the stable rollback from the abnormal v1.0.27 app behavior reported on the device.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
-            android-twa/pwfb-v1.0.31-SHA256SUMS.txt
           overwrite_files: true
           make_latest: true
       - name: Delete temporary keystore
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.31 Android release
+# PWFB v1.0.28 restored first-app release build

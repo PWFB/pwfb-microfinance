@@ -83,7 +83,6 @@ public class MainActivity extends Activity {
             if (webView != null) webView.reload();
             else if (refreshLayout != null) refreshLayout.setRefreshing(false);
         });
-
         webView = new WebView(this);
         webView.setLayoutParams(new android.view.ViewGroup.LayoutParams(-1, -1));
         webView.setBackgroundColor(Color.WHITE);
@@ -127,11 +126,13 @@ public class MainActivity extends Activity {
                 sendNativePasskeyResult(false, "Your PWFB login session is missing. Please sign in again before registering your fingerprint.", null); return;
             }
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
-            sendNativePasskeyStatus("Preparing secure native passkey registration…");
+            sendNativePasskeyStatus(replaceExisting ? "Removing the old PWFB passkey and preparing a fresh device credential…" : "Preparing secure native passkey registration…");
             new Thread(() -> {
                 try {
                     if (replaceExisting) postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
-                    JSONObject options = postAuthenticated("/auth/passkey/register/options", new JSONObject(), token);
+                    JSONObject requestBody = new JSONObject();
+                    requestBody.put("replaceExisting", replaceExisting);
+                    JSONObject options = postAuthenticated("/auth/passkey/register/options", requestBody, token);
                     runOnUiThread(() -> createNativePasskey(options, token));
                 } catch (Exception e) {
                     sendNativePasskeyResult(false, e.getMessage() == null ? "Unable to prepare passkey registration." : e.getMessage(), null);
@@ -145,7 +146,7 @@ public class MainActivity extends Activity {
     private void createNativePasskey(JSONObject options, String token) {
         try {
             CreatePublicKeyCredentialRequest request = new CreatePublicKeyCredentialRequest(options.toString(), null, false, null, false, false);
-            sendNativePasskeyStatus("Use your fingerprint or device security to create the PWFB passkey…");
+            sendNativePasskeyStatus("Use your fingerprint or device security to create the fresh PWFB passkey…");
             credentialManager.createCredentialAsync(this, request, null, ContextCompat.getMainExecutor(this), new CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException>() {
                 @Override public void onResult(CreateCredentialResponse response) {
                     if (!(response instanceof CreatePublicKeyCredentialResponse)) {
@@ -191,28 +192,16 @@ public class MainActivity extends Activity {
         if (stream == null) throw new Exception("PWFB server returned no response.");
         StringBuilder s = new StringBuilder();
         try (BufferedReader r = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) { String line; while ((line = r.readLine()) != null) s.append(line); }
-        if (s.length() == 0) {
-            if (status >= 400) throw new Exception("PWFB server error (" + status + ").");
-            return new JSONObject();
-        }
+        if (s.length() == 0) { if (status >= 400) throw new Exception("PWFB server error (" + status + ")."); return new JSONObject(); }
         JSONObject result = new JSONObject(s.toString());
         if (status >= 400) throw new Exception(result.optString("message", "PWFB server error (" + status + ")"));
         return result;
     }
 
-    private void sendNativePasskeyStatus(String status) {
-        runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript("window.__pwfbNativePasskeyStatus && window.__pwfbNativePasskeyStatus(" + JSONObject.quote(status) + ")", null); });
-    }
+    private void sendNativePasskeyStatus(String status) { runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript("window.__pwfbNativePasskeyStatus && window.__pwfbNativePasskeyStatus(" + JSONObject.quote(status) + ")", null); }); }
 
     private void sendNativePasskeyResult(boolean ok, String message, JSONObject result) {
-        runOnUiThread(() -> {
-            if (webView == null) return;
-            try {
-                JSONObject payload = new JSONObject(); payload.put("ok", ok); payload.put("message", message == null ? "" : message);
-                if (result != null) payload.put("result", result);
-                webView.evaluateJavascript("window.__pwfbNativePasskeyResult && window.__pwfbNativePasskeyResult(" + payload.toString() + ")", null);
-            } catch (Exception ignored) { }
-        });
+        runOnUiThread(() -> { if (webView == null) return; try { JSONObject payload = new JSONObject(); payload.put("ok", ok); payload.put("message", message == null ? "" : message); if (result != null) payload.put("result", result); webView.evaluateJavascript("window.__pwfbNativePasskeyResult && window.__pwfbNativePasskeyResult(" + payload.toString() + ")", null); } catch (Exception ignored) { } });
     }
 
     private void continueNativeLogin(WebView view, String url) {
@@ -229,30 +218,12 @@ public class MainActivity extends Activity {
     private String escapeJs(String value) { return value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r"); }
 
     private String extractTokenFromAppIntent(Intent intent) {
-        try {
-            Uri data = intent == null ? null : intent.getData();
-            if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme()) || !OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) return null;
-            String direct = data.getQueryParameter("app_token"); if (direct != null && !direct.trim().isEmpty()) return direct;
-            String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) return null;
-            Uri targetUri = Uri.parse(target); String fragment = targetUri.getFragment();
-            if (fragment == null || fragment.isEmpty()) return null;
-            return new android.net.UrlQuerySanitizer(fragment).getValue("app_token");
-        } catch (Exception ignored) { return null; }
+        try { Uri data = intent == null ? null : intent.getData(); if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme()) || !OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) return null; String direct = data.getQueryParameter("app_token"); if (direct != null && !direct.trim().isEmpty()) return direct; String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) return null; Uri targetUri = Uri.parse(target); String fragment = targetUri.getFragment(); if (fragment == null || fragment.isEmpty()) return null; return new android.net.UrlQuerySanitizer(fragment).getValue("app_token"); } catch (Exception ignored) { return null; }
     }
 
     private boolean handleAppIntent(Intent intent) {
         Uri data = intent == null ? null : intent.getData(); if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-        if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
-            String token = extractTokenFromAppIntent(intent); if (token != null && !token.trim().isEmpty()) { pendingNativeToken = token; nativeLoginRedirected = false; }
-            String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) target = START_URL;
-            try {
-                Uri targetUri = Uri.parse(target);
-                if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) && "pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
-                    if (webView != null) webView.loadUrl(targetUri.toString());
-                } else if (webView != null) webView.loadUrl(START_URL);
-            } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); }
-            return true;
-        }
+        if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) { String token = extractTokenFromAppIntent(intent); if (token != null && !token.trim().isEmpty()) { pendingNativeToken = token; nativeLoginRedirected = false; } String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) target = START_URL; try { Uri targetUri = Uri.parse(target); if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) && "pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) { if (webView != null) webView.loadUrl(targetUri.toString()); } else if (webView != null) webView.loadUrl(START_URL); } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); } return true; }
         return true;
     }
 

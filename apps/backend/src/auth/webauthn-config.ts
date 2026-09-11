@@ -1,6 +1,7 @@
 const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-frontend.onrender.com';
 const DEFAULT_PRODUCTION_RP_ID = 'pwfb-frontend.onrender.com';
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
+const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const PLACEHOLDER_RP_IDS = new Set(['your-frontend-domain.com', 'example.com', 'localhost']);
 
 export function normalizeOrigin(value?: string | null): string {
@@ -17,10 +18,11 @@ function configuredOrigin(): string {
 }
 
 function configuredAndroidOrigins(): string[] {
-  return (process.env.WEBAUTHN_ANDROID_ORIGINS || DEFAULT_ANDROID_APP_ORIGIN)
-    .split(',')
-    .map(normalizeOrigin)
-    .filter(isAndroidAppOrigin);
+  return Array.from(new Set([
+    DEFAULT_ANDROID_APP_ORIGIN,
+    CURRENT_ANDROID_APP_ORIGIN,
+    ...(process.env.WEBAUTHN_ANDROID_ORIGINS || '').split(',').map(normalizeOrigin),
+  ])).filter(isAndroidAppOrigin);
 }
 
 export function getWebAuthnOrigin(requestOrigin?: string | null): string {
@@ -32,8 +34,6 @@ export function getWebAuthnOrigin(requestOrigin?: string | null): string {
 }
 
 export function getWebAuthnRpId(requestOrigin?: string | null): string {
-  // The RP ID remains the PWFB web domain. Android's apk-key-hash origin is
-  // an application origin, not a hostname, so never pass it to URL().
   const baseOrigin = getWebAuthnOrigin(isAndroidAppOrigin(requestOrigin) ? undefined : requestOrigin);
   const configured = String(process.env.WEBAUTHN_RP_ID || '').trim().toLowerCase();
   if (configured && !PLACEHOLDER_RP_IDS.has(configured)) {

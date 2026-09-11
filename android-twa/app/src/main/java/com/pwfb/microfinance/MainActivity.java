@@ -22,7 +22,6 @@ public class MainActivity extends Activity {
     private static final String DASHBOARD_URL = "https://pwfb-frontend.onrender.com/dashboard";
     private static final String SCHEME = "pwfb";
     private static final String OPEN_APP_HOST = "open-app";
-    private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private static final int GREEN = Color.rgb(8, 117, 52);
     private static final int ORANGE = Color.rgb(244, 119, 18);
@@ -37,13 +36,11 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(DEEP_GREEN);
         getWindow().setNavigationBarColor(DEEP_GREEN);
         getWindow().getDecorView().setSystemUiVisibility(0);
-
         Intent launchIntent = getIntent();
         pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
         if ((pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) && launchIntent != null) {
             pendingNativeToken = extractTokenFromAppIntent(launchIntent);
         }
-
         if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) resetWebSession();
         buildWebApp();
     }
@@ -59,7 +56,7 @@ public class MainActivity extends Activity {
             if (webView != null) webView.loadUrl(START_URL);
             return;
         }
-        if (handleAppIntent(intent)) return;
+        if (handleAppIntent(intent) && webView != null) return;
         if (webView != null) webView.loadUrl(START_URL);
     }
 
@@ -77,7 +74,6 @@ public class MainActivity extends Activity {
         swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE);
         swipeRefresh.setDistanceToTriggerSync(dp(72));
         swipeRefresh.setSlingshotDistance(dp(96));
-
         webView = new WebView(this);
         webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
         webView.setBackgroundColor(Color.WHITE);
@@ -94,7 +90,6 @@ public class MainActivity extends Activity {
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
-
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return handleWebViewUrl(request.getUrl().toString()); }
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleWebViewUrl(url); }
@@ -120,13 +115,16 @@ public class MainActivity extends Activity {
         if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return;
         if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
         nativeLoginRedirected = true;
-        String token = JSONObjectEscape(pendingNativeToken);
-        String script = "window.localStorage.setItem('token', '" + token + "');" +
-                "window.location.replace('" + DASHBOARD_URL + "');";
+        String token = escapeJs(pendingNativeToken);
+        String script = "window.localStorage.setItem('token','" + token + "');" +
+                "window.sessionStorage.setItem('token','" + token + "');" +
+                "window.localStorage.setItem('access_token','" + token + "');" +
+                "window.sessionStorage.setItem('access_token','" + token + "');" +
+                "window.location.replace('" + DASHBOARD_URL + "?nativeApp=1');";
         view.evaluateJavascript(script, null);
     }
 
-    private String JSONObjectEscape(String value) {
+    private String escapeJs(String value) {
         return value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r");
     }
 
@@ -151,34 +149,20 @@ public class MainActivity extends Activity {
         Uri data = intent == null ? null : intent.getData();
         if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
         if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
+            String token = extractTokenFromAppIntent(intent);
+            if (token != null && !token.trim().isEmpty()) {
+                pendingNativeToken = token;
+                nativeLoginRedirected = false;
+            }
             String target = data.getQueryParameter("url");
             if (target == null || target.trim().isEmpty()) target = START_URL;
             try {
                 Uri targetUri = Uri.parse(target);
-                if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {
-                    if ("pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
-                        String token = extractTokenFromAppIntent(intent);
-                        if (token != null && !token.trim().isEmpty()) {
-                            pendingNativeToken = token;
-                            nativeLoginRedirected = false;
-                        }
-                        if (webView != null) webView.loadUrl(targetUri.toString());
-                    } else if (webView != null) webView.loadUrl(START_URL);
-                }
+                if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) &&
+                        "pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
+                    if (webView != null) webView.loadUrl(targetUri.toString());
+                } else if (webView != null) webView.loadUrl(START_URL);
             } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); }
-            return true;
-        }
-        if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) {
-            String target = data.getQueryParameter("url");
-            if (target == null || target.trim().isEmpty()) target = START_URL;
-            try {
-                Uri targetUri = Uri.parse(target);
-                if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) {
-                    Intent chromeIntent = new Intent(Intent.ACTION_VIEW, targetUri);
-                    chromeIntent.setPackage("com.android.chrome");
-                    try { startActivity(chromeIntent); } catch (Exception chromeUnavailable) { startActivity(new Intent(Intent.ACTION_VIEW, targetUri)); }
-                }
-            } catch (Exception ignored) { }
             return true;
         }
         return true;
@@ -191,7 +175,10 @@ public class MainActivity extends Activity {
         return handleAppIntent(new Intent(Intent.ACTION_VIEW, data));
     }
 
-    @Override public void onBackPressed() { if (webView != null && webView.canGoBack()) { webView.goBack(); return; } super.onBackPressed(); }
+    @Override public void onBackPressed() {
+        if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
+        super.onBackPressed();
+    }
 
     @Override protected void onDestroy() {
         if (webView != null) { webView.stopLoading(); webView.setWebChromeClient(null); webView.setWebViewClient(null); webView.destroy(); webView = null; }

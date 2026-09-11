@@ -6,7 +6,6 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
-import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -15,7 +14,6 @@ import android.webkit.WebStorage;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import androidx.core.splashscreen.SplashScreen;
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 
@@ -25,9 +23,6 @@ public class MainActivity extends Activity {
     private static final String SCHEME = "pwfb";
     private static final String OPEN_APP_HOST = "open-app";
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
-    private static final int GREEN = Color.rgb(8, 117, 52);
-    private static final int ORANGE = Color.rgb(244, 119, 18);
-    private SwipeRefreshLayout swipeRefresh;
     private WebView webView;
     private String pendingNativeToken;
     private boolean nativeLoginRedirected;
@@ -38,12 +33,13 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(DEEP_GREEN);
         getWindow().setNavigationBarColor(DEEP_GREEN);
         getWindow().getDecorView().setSystemUiVisibility(0);
+
         Intent launchIntent = getIntent();
         pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
         if ((pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) && launchIntent != null) {
             pendingNativeToken = extractTokenFromAppIntent(launchIntent);
         }
-        if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) resetWebSession();
+
         buildWebApp();
     }
 
@@ -62,24 +58,15 @@ public class MainActivity extends Activity {
         if (webView != null) webView.loadUrl(START_URL);
     }
 
-    private void resetWebSession() {
-        CookieManager cookies = CookieManager.getInstance();
-        cookies.removeAllCookies(null);
-        cookies.flush();
-        WebStorage.getInstance().deleteAllData();
-    }
-
     private void buildWebApp() {
-        swipeRefresh = new SwipeRefreshLayout(this);
-        swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
-        swipeRefresh.setColorSchemeColors(GREEN, ORANGE);
-        swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE);
-        swipeRefresh.setDistanceToTriggerSync(dp(72));
-        swipeRefresh.setSlingshotDistance(dp(96));
         webView = new WebView(this);
-        webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
+        webView.setLayoutParams(new android.view.ViewGroup.LayoutParams(-1, -1));
         webView.setBackgroundColor(Color.WHITE);
         webView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
+        webView.setVerticalScrollBarEnabled(true);
+        webView.setHorizontalScrollBarEnabled(false);
+        webView.setNestedScrollingEnabled(false);
+
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -90,30 +77,33 @@ public class MainActivity extends Activity {
         s.setSupportMultipleWindows(false);
         s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
+
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
             WebSettingsCompat.setWebAuthenticationSupport(
                     s,
                     WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP
             );
         }
+
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
+
         webView.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return handleWebViewUrl(request.getUrl().toString()); }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleWebViewUrl(url); }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                return handleWebViewUrl(request.getUrl().toString());
+            }
+
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return handleWebViewUrl(url);
+            }
+
             @Override public void onPageFinished(WebView view, String url) {
-                if (swipeRefresh != null) swipeRefresh.setRefreshing(false);
                 continueNativeLogin(view, url);
             }
-            @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) {
-                if (request.isForMainFrame() && swipeRefresh != null) swipeRefresh.setRefreshing(false);
-            }
         });
+
         webView.setWebChromeClient(new WebChromeClient());
-        swipeRefresh.addView(webView);
-        swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); });
-        swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.getScrollY() > 0);
-        setContentView(swipeRefresh);
+        setContentView(webView);
         webView.loadUrl(START_URL);
     }
 
@@ -122,6 +112,7 @@ public class MainActivity extends Activity {
         Uri current = Uri.parse(url == null ? "" : url);
         if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return;
         if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
+
         nativeLoginRedirected = true;
         String token = escapeJs(pendingNativeToken);
         String script = "window.localStorage.setItem('token','" + token + "');" +
@@ -133,7 +124,10 @@ public class MainActivity extends Activity {
     }
 
     private String escapeJs(String value) {
-        return value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r");
+        return value.replace("\\", "\\\\")
+                .replace("'", "\\'")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 
     private String extractTokenFromAppIntent(Intent intent) {
@@ -148,20 +142,22 @@ public class MainActivity extends Activity {
             String fragment = targetUri.getFragment();
             if (fragment == null || fragment.isEmpty()) return null;
             return new android.net.UrlQuerySanitizer(fragment).getValue("app_token");
-        } catch (Exception ignored) { return null; }
+        } catch (Exception ignored) {
+            return null;
+        }
     }
-
-    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
     private boolean handleAppIntent(Intent intent) {
         Uri data = intent == null ? null : intent.getData();
         if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
+
         if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
             String token = extractTokenFromAppIntent(intent);
             if (token != null && !token.trim().isEmpty()) {
                 pendingNativeToken = token;
                 nativeLoginRedirected = false;
             }
+
             String target = data.getQueryParameter("url");
             if (target == null || target.trim().isEmpty()) target = START_URL;
             try {
@@ -169,10 +165,15 @@ public class MainActivity extends Activity {
                 if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) &&
                         "pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
                     if (webView != null) webView.loadUrl(targetUri.toString());
-                } else if (webView != null) webView.loadUrl(START_URL);
-            } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); }
+                } else if (webView != null) {
+                    webView.loadUrl(START_URL);
+                }
+            } catch (Exception ignored) {
+                if (webView != null) webView.loadUrl(START_URL);
+            }
             return true;
         }
+
         return true;
     }
 
@@ -184,12 +185,21 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
         super.onBackPressed();
     }
 
     @Override protected void onDestroy() {
-        if (webView != null) { webView.stopLoading(); webView.setWebChromeClient(null); webView.setWebViewClient(null); webView.destroy(); webView = null; }
+        if (webView != null) {
+            webView.stopLoading();
+            webView.setWebChromeClient(null);
+            webView.setWebViewClient(null);
+            webView.destroy();
+            webView = null;
+        }
         super.onDestroy();
     }
 }

@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private static final String OPEN_APP_HOST = "open-app";
     private static final String PREFS = "pwfb_app_auth";
     private static final String TOKEN = "access_token";
-    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP_5_8vsNy7TU";
+    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU";
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private WebView webView;
     private String pendingNativeToken;
@@ -53,12 +53,9 @@ public class MainActivity extends Activity {
         getWindow().setNavigationBarColor(DEEP_GREEN);
         getWindow().getDecorView().setSystemUiVisibility(0);
         credentialManager = CredentialManager.create(this);
-
         Intent launchIntent = getIntent();
         pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
-        if ((pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) && launchIntent != null) {
-            pendingNativeToken = extractTokenFromAppIntent(launchIntent);
-        }
+        if ((pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) && launchIntent != null) pendingNativeToken = extractTokenFromAppIntent(launchIntent);
         buildWebApp();
     }
 
@@ -68,8 +65,7 @@ public class MainActivity extends Activity {
         String token = intent == null ? null : intent.getStringExtra("app_token");
         if (token == null || token.trim().isEmpty()) token = extractTokenFromAppIntent(intent);
         if (token != null && !token.trim().isEmpty()) {
-            pendingNativeToken = token;
-            nativeLoginRedirected = false;
+            pendingNativeToken = token; nativeLoginRedirected = false;
             if (webView != null) webView.loadUrl(START_URL);
             return;
         }
@@ -85,63 +81,39 @@ public class MainActivity extends Activity {
         webView.setVerticalScrollBarEnabled(true);
         webView.setHorizontalScrollBarEnabled(false);
         webView.setNestedScrollingEnabled(false);
-
         WebSettings s = webView.getSettings();
-        s.setJavaScriptEnabled(true);
-        s.setDomStorageEnabled(true);
-        s.setDatabaseEnabled(true);
-        s.setLoadsImagesAutomatically(true);
-        s.setBuiltInZoomControls(false);
-        s.setDisplayZoomControls(false);
-        s.setSupportMultipleWindows(false);
-        s.setJavaScriptCanOpenWindowsAutomatically(false);
+        s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true);
+        s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false);
+        s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) {
-            WebSettingsCompat.setWebAuthenticationSupport(s, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
-        }
-
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) WebSettingsCompat.setWebAuthenticationSupport(s, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(webView, false);
         webView.addJavascriptInterface(new NativePasskeyBridge(), "PWFBNative");
-
         webView.setWebViewClient(new WebViewClient() {
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return handleWebViewUrl(request.getUrl().toString());
-            }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return handleWebViewUrl(url);
-            }
-            @Override public void onPageFinished(WebView view, String url) {
-                continueNativeLogin(view, url);
-            }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return handleWebViewUrl(request.getUrl().toString()); }
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleWebViewUrl(url); }
+            @Override public void onPageFinished(WebView view, String url) { continueNativeLogin(view, url); }
         });
-
         webView.setWebChromeClient(new WebChromeClient());
-        setContentView(webView);
-        webView.loadUrl(START_URL);
+        setContentView(webView); webView.loadUrl(START_URL);
     }
 
     private final class NativePasskeyBridge {
-        @JavascriptInterface
-        public void registerPasskey(final boolean replaceExisting) {
+        @JavascriptInterface public void registerPasskey(final boolean replaceExisting) {
             if (webView == null) return;
             Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
             if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) {
-                sendNativePasskeyResult(false, "PWFB native passkey registration is only available on the PWFB application domain.", null);
-                return;
+                sendNativePasskeyResult(false, "PWFB native passkey registration is only available on the PWFB application domain.", null); return;
             }
             final String token = getSharedPreferences(PREFS, MODE_PRIVATE).getString(TOKEN, null);
             if (token == null || token.trim().isEmpty()) {
-                sendNativePasskeyResult(false, "Please sign in to PWFB first, then register your fingerprint/passkey.", null);
-                return;
+                sendNativePasskeyResult(false, "Please sign in to PWFB first, then register your fingerprint/passkey.", null); return;
             }
             sendNativePasskeyStatus("Preparing secure native passkey registration…");
             new Thread(() -> {
                 try {
-                    if (replaceExisting) {
-                        postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
-                    }
+                    if (replaceExisting) postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
                     JSONObject options = postAuthenticated("/auth/passkey/register/options", new JSONObject(), token);
                     runOnUiThread(() -> createNativePasskey(options, token));
                 } catch (Exception e) {
@@ -153,31 +125,21 @@ public class MainActivity extends Activity {
 
     private void createNativePasskey(JSONObject options, String token) {
         try {
-            String requestJson = options.toString();
-            CreatePublicKeyCredentialRequest request = new CreatePublicKeyCredentialRequest(
-                    requestJson, null, false, null, false, false
-            );
+            CreatePublicKeyCredentialRequest request = new CreatePublicKeyCredentialRequest(options.toString(), null, false, null, false, false);
             sendNativePasskeyStatus("Use your fingerprint or device security to create the PWFB passkey…");
-            credentialManager.createCredentialAsync(
-                    this,
-                    request,
-                    null,
-                    ContextCompat.getMainExecutor(this),
-                    new CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException>() {
-                        @Override public void onResult(CreateCredentialResponse response) {
-                            if (!(response instanceof CreatePublicKeyCredentialResponse)) {
-                                sendNativePasskeyResult(false, "PWFB did not receive a passkey credential from the device.", null);
-                                return;
-                            }
-                            String registrationJson = ((CreatePublicKeyCredentialResponse) response).getRegistrationResponseJson();
-                            new Thread(() -> verifyNativePasskey(registrationJson, options.optString("challenge", ""), token)).start();
-                        }
-                        @Override public void onError(CreateCredentialException error) {
-                            String message = error == null ? "Native passkey registration was cancelled." : error.getMessage();
-                            sendNativePasskeyResult(false, message == null ? "Native passkey registration failed." : message, null);
-                        }
+            credentialManager.createCredentialAsync(this, request, null, ContextCompat.getMainExecutor(this), new CredentialManagerCallback<CreateCredentialResponse, CreateCredentialException>() {
+                @Override public void onResult(CreateCredentialResponse response) {
+                    if (!(response instanceof CreatePublicKeyCredentialResponse)) {
+                        sendNativePasskeyResult(false, "PWFB did not receive a passkey credential from the device.", null); return;
                     }
-            );
+                    String registrationJson = ((CreatePublicKeyCredentialResponse) response).getRegistrationResponseJson();
+                    new Thread(() -> verifyNativePasskey(registrationJson, options.optString("challenge", ""), token)).start();
+                }
+                @Override public void onError(CreateCredentialException error) {
+                    String message = error == null ? "Native passkey registration was cancelled." : error.getMessage();
+                    sendNativePasskeyResult(false, message == null ? "Native passkey registration failed." : message, null);
+                }
+            });
         } catch (Exception e) {
             sendNativePasskeyResult(false, e.getMessage() == null ? "This Android device cannot create a native PWFB passkey." : e.getMessage(), null);
         }
@@ -186,12 +148,9 @@ public class MainActivity extends Activity {
     private void verifyNativePasskey(String registrationJson, String challenge, String token) {
         try {
             JSONObject body = new JSONObject();
-            body.put("credential", new JSONObject(registrationJson));
-            body.put("challenge", challenge);
+            body.put("credential", new JSONObject(registrationJson)); body.put("challenge", challenge);
             JSONObject result = postAuthenticated("/auth/passkey/register/verify", body, token);
-            if (!result.optBoolean("verified", false)) {
-                throw new Exception(result.optString("message", "PWFB could not verify the native passkey."));
-            }
+            if (!result.optBoolean("verified", false)) throw new Exception(result.optString("message", "PWFB could not verify the native passkey."));
             sendNativePasskeyResult(true, result.optString("message", "PWFB passkey registered successfully on this device."), result);
         } catch (Exception e) {
             sendNativePasskeyResult(false, e.getMessage() == null ? "PWFB could not verify the native passkey." : e.getMessage(), null);
@@ -200,13 +159,8 @@ public class MainActivity extends Activity {
 
     private JSONObject postAuthenticated(String path, JSONObject body, String token) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(API + path).openConnection();
-        c.setRequestMethod("POST");
-        c.setDoOutput(true);
-        c.setConnectTimeout(15000);
-        c.setReadTimeout(30000);
-        c.setRequestProperty("Content-Type", "application/json");
-        c.setRequestProperty("Authorization", "Bearer " + token);
-        c.setRequestProperty("Origin", ANDROID_ORIGIN);
+        c.setRequestMethod("POST"); c.setDoOutput(true); c.setConnectTimeout(15000); c.setReadTimeout(30000);
+        c.setRequestProperty("Content-Type", "application/json"); c.setRequestProperty("Authorization", "Bearer " + token); c.setRequestProperty("Origin", ANDROID_ORIGIN);
         byte[] bytes = body.toString().getBytes(StandardCharsets.UTF_8);
         try (OutputStream out = c.getOutputStream()) { out.write(bytes); }
         return readResponse(c);
@@ -217,29 +171,21 @@ public class MainActivity extends Activity {
         java.io.InputStream stream = status >= 400 ? c.getErrorStream() : c.getInputStream();
         if (stream == null) throw new Exception("PWFB server returned no response.");
         StringBuilder s = new StringBuilder();
-        try (BufferedReader r = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-            String line;
-            while ((line = r.readLine()) != null) s.append(line);
-        }
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) { String line; while ((line = r.readLine()) != null) s.append(line); }
         JSONObject result = new JSONObject(s.toString());
         if (status >= 400) throw new Exception(result.optString("message", "PWFB server error (" + status + ")"));
         return result;
     }
 
     private void sendNativePasskeyStatus(String status) {
-        runOnUiThread(() -> {
-            if (webView == null) return;
-            webView.evaluateJavascript("window.__pwfbNativePasskeyStatus && window.__pwfbNativePasskeyStatus(" + JSONObject.quote(status) + ")", null);
-        });
+        runOnUiThread(() -> { if (webView != null) webView.evaluateJavascript("window.__pwfbNativePasskeyStatus && window.__pwfbNativePasskeyStatus(" + JSONObject.quote(status) + ")", null); });
     }
 
     private void sendNativePasskeyResult(boolean ok, String message, JSONObject result) {
         runOnUiThread(() -> {
             if (webView == null) return;
             try {
-                JSONObject payload = new JSONObject();
-                payload.put("ok", ok);
-                payload.put("message", message == null ? "" : message);
+                JSONObject payload = new JSONObject(); payload.put("ok", ok); payload.put("message", message == null ? "" : message);
                 if (result != null) payload.put("result", result);
                 webView.evaluateJavascript("window.__pwfbNativePasskeyResult && window.__pwfbNativePasskeyResult(" + payload.toString() + ")", null);
             } catch (Exception ignored) { }
@@ -251,47 +197,33 @@ public class MainActivity extends Activity {
         Uri current = Uri.parse(url == null ? "" : url);
         if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return;
         if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
-        nativeLoginRedirected = true;
-        String token = escapeJs(pendingNativeToken);
-        String script = "window.localStorage.setItem('token','" + token + "');" +
-                "window.sessionStorage.setItem('token','" + token + "');" +
-                "window.localStorage.setItem('access_token','" + token + "');" +
-                "window.sessionStorage.setItem('access_token','" + token + "');" +
-                "window.location.replace('" + DASHBOARD_URL + "?nativeApp=1');";
+        nativeLoginRedirected = true; String token = escapeJs(pendingNativeToken);
+        String script = "window.localStorage.setItem('token','" + token + "');window.sessionStorage.setItem('token','" + token + "');window.localStorage.setItem('access_token','" + token + "');window.sessionStorage.setItem('access_token','" + token + "');window.location.replace('" + DASHBOARD_URL + "?nativeApp=1');";
         view.evaluateJavascript(script, null);
     }
 
-    private String escapeJs(String value) {
-        return value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r");
-    }
+    private String escapeJs(String value) { return value.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r"); }
 
     private String extractTokenFromAppIntent(Intent intent) {
         try {
             Uri data = intent == null ? null : intent.getData();
             if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme()) || !OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) return null;
-            String direct = data.getQueryParameter("app_token");
-            if (direct != null && !direct.trim().isEmpty()) return direct;
-            String target = data.getQueryParameter("url");
-            if (target == null || target.trim().isEmpty()) return null;
-            Uri targetUri = Uri.parse(target);
-            String fragment = targetUri.getFragment();
+            String direct = data.getQueryParameter("app_token"); if (direct != null && !direct.trim().isEmpty()) return direct;
+            String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) return null;
+            Uri targetUri = Uri.parse(target); String fragment = targetUri.getFragment();
             if (fragment == null || fragment.isEmpty()) return null;
             return new android.net.UrlQuerySanitizer(fragment).getValue("app_token");
         } catch (Exception ignored) { return null; }
     }
 
     private boolean handleAppIntent(Intent intent) {
-        Uri data = intent == null ? null : intent.getData();
-        if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
+        Uri data = intent == null ? null : intent.getData(); if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
         if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) {
-            String token = extractTokenFromAppIntent(intent);
-            if (token != null && !token.trim().isEmpty()) { pendingNativeToken = token; nativeLoginRedirected = false; }
-            String target = data.getQueryParameter("url");
-            if (target == null || target.trim().isEmpty()) target = START_URL;
+            String token = extractTokenFromAppIntent(intent); if (token != null && !token.trim().isEmpty()) { pendingNativeToken = token; nativeLoginRedirected = false; }
+            String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) target = START_URL;
             try {
                 Uri targetUri = Uri.parse(target);
-                if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) &&
-                        "pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
+                if (("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) && "pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) {
                     if (webView != null) webView.loadUrl(targetUri.toString());
                 } else if (webView != null) webView.loadUrl(START_URL);
             } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); }
@@ -300,27 +232,7 @@ public class MainActivity extends Activity {
         return true;
     }
 
-    private boolean handleWebViewUrl(String url) {
-        if (url == null) return false;
-        Uri data = Uri.parse(url);
-        if (!SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-        return handleAppIntent(new Intent(Intent.ACTION_VIEW, data));
-    }
-
-    @Override public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
-        super.onBackPressed();
-    }
-
-    @Override protected void onDestroy() {
-        if (webView != null) {
-            webView.removeJavascriptInterface("PWFBNative");
-            webView.stopLoading();
-            webView.setWebChromeClient(null);
-            webView.setWebViewClient(null);
-            webView.destroy();
-            webView = null;
-        }
-        super.onDestroy();
-    }
+    private boolean handleWebViewUrl(String url) { if (url == null) return false; Uri data = Uri.parse(url); if (!SCHEME.equalsIgnoreCase(data.getScheme())) return false; return handleAppIntent(new Intent(Intent.ACTION_VIEW, data)); }
+    @Override public void onBackPressed() { if (webView != null && webView.canGoBack()) { webView.goBack(); return; } super.onBackPressed(); }
+    @Override protected void onDestroy() { if (webView != null) { webView.removeJavascriptInterface("PWFBNative"); webView.stopLoading(); webView.setWebChromeClient(null); webView.setWebViewClient(null); webView.destroy(); webView = null; } super.onDestroy(); }
 }

@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
 import { apiRequest } from "../../../lib/api";
 
+declare global {
+  interface Window {
+    PWFBNative?: { registerPasskey: (replaceExisting: boolean) => void };
+    __pwfbNativePasskeyStatus?: (message: string) => void;
+    __pwfbNativePasskeyResult?: (payload: { ok: boolean; message?: string; result?: any }) => void;
+  }
+}
+
 export default function RegisterPasskeyPage() {
   const router = useRouter();
   const [status, setStatus] = useState("Ready to secure your PWFB account.");
@@ -12,59 +20,86 @@ export default function RegisterPasskeyPage() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
+  const isReplacementFlow = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("replacePasskey") === "1";
+  const hasNativeBridge = () => typeof window !== "undefined" && !!window.PWFBNative?.registerPasskey;
+  const browserSupportsPasskeys = () => typeof window !== "undefined" && "credentials" in navigator && "PublicKeyCredential" in window;
+
   useEffect(() => {
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     if (!token) router.replace("/login?registerPasskey=1&replacePasskey=1");
   }, [router]);
 
-  function isReplacementFlow() { return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("replacePasskey") === "1"; }
-  function returnToApp() {
-    const target = `${window.location.origin}/passkey/register?newDevice=1&registered=1`;
-    window.location.href = `pwfb://open-app?url=${encodeURIComponent(target)}`;
-  }
-  function browserSupportsPasskeys() { return "credentials" in navigator && "PublicKeyCredential" in window; }
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.__pwfbNativePasskeyStatus = (message) => setStatus(message);
+    window.__pwfbNativePasskeyResult = (payload) => {
+      setLoading(false);
+      if (payload?.ok) {
+        setDone(true);
+        setError("");
+        setStatus(payload.message || "Fresh PWFB passkey registered successfully on this device.");
+      } else {
+        setStatus("We could not finish passkey setup.");
+        setError(payload?.message || "Native passkey registration failed.");
+      }
+    };
+    return () => {
+      delete window.__pwfbNativePasskeyStatus;
+      delete window.__pwfbNativePasskeyResult;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-    if (!token || browserSupportsPasskeys()) return;
-    setStatus("This app cannot access the phone's passkey authenticator.");
-    setError("Fingerprint/passkey registration is not available in this WebView. Sign in with your password or Gmail, then use a device build with native passkey support. PWFB will not redirect you to Chrome.");
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("registered") === "1") {
-      setDone(true); setStatus("This device's PWFB passkey is now registered.");
+    if (!token) return;
+    if (new URLSearchParams(window.location.search).get("registered") === "1") {
+      setDone(true);
+      setStatus("This device's PWFB passkey is now registered.");
+      return;
+    }
+    if (hasNativeBridge()) setStatus("Native PWFB fingerprint registration is ready.");
+    else if (!browserSupportsPasskeys()) {
+      setStatus("This browser cannot access the phone's passkey authenticator.");
+      setError("Native registration is available in the PWFB Android app. Please use the latest PWFB Android build for fingerprint registration.");
     }
   }, []);
 
   async function register() {
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) throw new Error("Please sign in with your email and password first.");
-      if (!browserSupportsPasskeys()) throw new Error("This app cannot access the phone's passkey authenticator. No Chrome fallback is used.");
+
+      if (hasNativeBridge()) {
+        setStatus(isReplacementFlow() ? "Removing existing PWFB passkeys and preparing native registration…" : "Preparing native fingerprint registration…");
+        window.PWFBNative!.registerPasskey(isReplacementFlow());
+        return;
+      }
+
+      if (!browserSupportsPasskeys()) throw new Error("Native PWFB passkey registration is available only in the latest Android app build. No Chrome fallback is used.");
       if (isReplacementFlow()) {
         setStatus("Removing all existing PWFB passkeys from this account…");
         await apiRequest("/auth/passkey/unregister-all", { method: "POST" });
       }
       setStatus("Preparing a fresh passkey for this device…");
       const options = await apiRequest("/auth/passkey/register/options", { method: "POST" });
-      setStatus("Follow the security prompt and approve the fingerprint, PIN, pattern, or other device security method.");
+      setStatus("Follow the security prompt and approve the device security method.");
       const credential = await startRegistration({ optionsJSON: options });
       const result = await apiRequest("/auth/passkey/register/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) });
       if (!result?.verified) throw new Error(result?.message || "PWFB could not verify this passkey.");
-      setDone(true); setStatus("Fresh PWFB passkey registered successfully on this device.");
-      if (window.location.search.includes("nativeApp=1")) setTimeout(returnToApp, 500);
+      setDone(true);
+      setStatus("Fresh PWFB passkey registered successfully on this device.");
     } catch (e: any) {
       setStatus("We could not finish passkey setup.");
       const detail = String(e?.message || "");
-      if (e?.name === "InvalidStateError" || /previously registered|already registered|credential already exists|authenticator was previously registered/i.test(detail)) {
-        setError("This authenticator already has a credential for this PWFB account. The server did not restore the removed passkey.");
-      } else if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap Register Fresh Passkey and try again.");
-      else setError(e instanceof Error ? e.message : "Passkey registration failed.");
-    } finally { setLoading(false); }
+      if (e?.name === "InvalidStateError" || /previously registered|already registered|credential already exists|authenticator was previously registered/i.test(detail)) setError("This authenticator already has a credential for this PWFB account. Try Register Fresh Passkey again to replace the old credential.");
+      else if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap Register Fresh Passkey and try again.");
+      else setError(detail || "Passkey registration failed.");
+      setLoading(false);
+    }
   }
 
-  return <main className="pk-page"><section className="pk-card"><img className="logo" src="/pwfb-login-logo.svg" alt="PWFB"/><div className="icon">⌁</div><small>PWFB SECURITY</small><h1>Register this device</h1><p>Sign in first, remove the account's existing PWFB passkeys, then register a fresh passkey on this device. No Chrome handoff is used.</p><div className="steps"><div><b>1</b> Sign in with email and password</div><div><b>2</b> Remove existing PWFB passkeys</div><div><b>3</b> Approve this device's security prompt</div></div><div className={`status ${done ? "success" : error ? "error" : ""}`}>{status}</div>{error && <div className="errorBox">{error}</div>}{done ? <button onClick={() => router.back()}>Continue to PWFB</button> : <button disabled={loading} onClick={register}>{loading ? "Registering…" : "Register Fresh Passkey"}</button>}<button className="cancel" onClick={() => router.back()}>Cancel</button></section><style jsx>{`*{box-sizing:border-box}.pk-page{min-height:100dvh;padding:18px;display:grid;place-items:center;background:linear-gradient(145deg,#075d2a,#087534);font-family:Inter,system-ui,sans-serif}.pk-card{width:min(450px,100%);padding:28px 24px;border-radius:22px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.25)}.logo{width:min(260px,88%);margin-bottom:14px}.icon{margin:auto;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:#eaf7ef;color:#087534;font-size:38px}.pk-card small{display:block;color:#f47712;font-weight:900;letter-spacing:2px;margin:10px}.pk-card h1{color:#087534;margin:8px 0}.pk-card p{color:#657169;font-size:13px;line-height:1.6}.steps{display:grid;gap:8px;text-align:left;margin:18px 0}.steps div{padding:10px;border-radius:9px;background:#f5f8f6;color:#435048;font-size:12px}.steps b{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:8px;border-radius:50%;background:#087534;color:#fff}.status,.errorBox{padding:10px;border-radius:9px;margin:10px 0;font-size:11px;background:#f5f8f6;color:#59635d}.success{background:#eaf7ef;color:#087534}.error,.errorBox{background:#fff4e5;color:#9b4800}.pk-card button{width:100%;height:48px;border:0;border-radius:9px;background:#087534;color:#fff;font-weight:900}.pk-card button:disabled{opacity:.6}.pk-card .cancel{margin-top:10px;background:none;color:#68736d;height:36px;font-weight:500}`}</style></main>;
+  return <main className="pk-page"><section className="pk-card"><img className="logo" src="/pwfb-login-logo.svg" alt="PWFB"/><div className="icon">⌁</div><small>PWFB SECURITY</small><h1>Register this device</h1><p>Register a real device passkey protected by your Android fingerprint or device security. The PWFB Android app performs registration through Android Credential Manager instead of relying on the WebView.</p><div className="steps"><div><b>1</b> Sign in with email and password</div><div><b>2</b> Replace any old PWFB passkey when requested</div><div><b>3</b> Approve the Android fingerprint/security prompt</div></div><div className={`status ${done ? "success" : error ? "error" : ""}`}>{status}</div>{error && <div className="errorBox">{error}</div>}{done ? <button onClick={() => router.back()}>Continue to PWFB</button> : <button disabled={loading} onClick={register}>{loading ? "Registering…" : "Register Fresh Passkey"}</button>}<button className="cancel" onClick={() => router.back()}>Cancel</button></section><style jsx>{`*{box-sizing:border-box}.pk-page{min-height:100dvh;padding:18px;display:grid;place-items:center;background:linear-gradient(145deg,#075d2a,#087534);font-family:Inter,system-ui,sans-serif}.pk-card{width:min(450px,100%);padding:28px 24px;border-radius:22px;background:#fff;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.25)}.logo{width:min(260px,88%);margin-bottom:14px}.icon{margin:auto;width:66px;height:66px;border-radius:50%;display:grid;place-items:center;background:#eaf7ef;color:#087534;font-size:38px}.pk-card small{display:block;color:#f47712;font-weight:900;letter-spacing:2px;margin:10px}.pk-card h1{color:#087534;margin:8px 0}.pk-card p{color:#657169;font-size:13px;line-height:1.6}.steps{display:grid;gap:8px;text-align:left;margin:18px 0}.steps div{padding:10px;border-radius:9px;background:#f5f8f6;color:#435048;font-size:12px}.steps b{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:8px;border-radius:50%;background:#087534;color:#fff}.status,.errorBox{padding:10px;border-radius:9px;margin:10px 0;font-size:11px;background:#f5f8f6;color:#59635d}.success{background:#eaf7ef;color:#087534}.error,.errorBox{background:#fff4e5;color:#9b4800}.pk-card button{width:100%;height:48px;border:0;border-radius:9px;background:#087534;color:#fff;font-weight:900}.pk-card button:disabled{opacity:.6}.pk-card .cancel{margin-top:10px;background:none;color:#68736d;height:36px;font-weight:500}`}</style></main>;
 }

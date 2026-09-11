@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android-twa/pwfb-upload-key.jks
           chmod 600 android-twa/pwfb-upload-key.jks
-      - name: Build v1.0.32 restored first-app APK and AAB
+      - name: Build v1.0.33 signed APK and AAB
         working-directory: android-twa
         run: |
           set -euo pipefail
@@ -55,43 +55,43 @@ jobs:
         run: |
           set -euo pipefail
           ${ANDROID_HOME}/build-tools/36.0.0/apksigner verify --verbose android-twa/app/build/outputs/apk/release/app-release.apk
-          ${ANDROID_HOME}/build-tools/36.0.0/aapt dump badging android-twa/app/build/outputs/apk/release/app-release.apk | grep -E "package: name='com.pwfb.microfinance' versionCode='32' versionName='1.0.32'"
-      - name: Upload v1.0.32 signed APK artifact
+          ${ANDROID_HOME}/build-tools/36.0.0/aapt dump badging android-twa/app/build/outputs/apk/release/app-release.apk | grep -E "package: name='com.pwfb.microfinance' versionCode='33' versionName='1.0.33'"
+      - name: Upload v1.0.33 signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.32-restored-first-app-signed-apk
+          name: pwfb-microfinance-v1.0.33-no-chrome-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-      - name: Upload v1.0.32 signed AAB artifact
+      - name: Upload v1.0.33 signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.32-restored-first-app-play-store-aab
+          name: pwfb-microfinance-v1.0.33-no-chrome-play-store-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Generate SHA256 checksums
         run: |
           set -euo pipefail
-          sha256sum android-twa/app/build/outputs/apk/release/app-release.apk > pwfb-v1.0.32-SHA256SUMS.txt
-          sha256sum android-twa/app/build/outputs/bundle/release/app-release.aab >> pwfb-v1.0.32-SHA256SUMS.txt
-      - name: Publish v1.0.32 release
+          sha256sum android-twa/app/build/outputs/apk/release/app-release.apk > pwfb-v1.0.33-SHA256SUMS.txt
+          sha256sum android-twa/app/build/outputs/bundle/release/app-release.aab >> pwfb-v1.0.33-SHA256SUMS.txt
+      - name: Publish v1.0.33 release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.32
-          name: PWFB Microfinance v1.0.32 — Restored First App
+          tag_name: v1.0.33
+          name: PWFB Microfinance v1.0.33 — No Chrome Fallback
           body: |
-            PWFB Microfinance Android application v1.0.32.
+            PWFB Microfinance Android application v1.0.33.
 
-            Fresh Android release based on the first stable PWFB app flow. The Android launcher is MainActivity and opens the current PWFB frontend directly inside the Android WebView. The newer native authentication handoff flow is not the Android launcher in this release.
+            This release keeps the restored first-app flow and removes the PWFB Chrome fallback. The Android application stays inside its own WebView for supported PWFB pages and custom pwfb://open-app handoff only. It will not launch Chrome as a fallback for authentication or passkey registration.
 
-            APK and AAB are signed with the PWFB release keystore. The workflow verifies the APK signature and confirms package com.pwfb.microfinance, versionCode 32 and versionName 1.0.32 before publication.
+            APK and AAB are signed with the PWFB release keystore. The workflow verifies the APK signature and confirms package com.pwfb.microfinance, versionCode 33 and versionName 1.0.33 before publication.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
-            pwfb-v1.0.32-SHA256SUMS.txt
+            pwfb-v1.0.33-SHA256SUMS.txt
           overwrite_files: true
           make_latest: true
       - name: Delete temporary keystore
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.32 fresh restored first-app release build
+# PWFB v1.0.33 signed release — restored first-app flow, no Chrome fallback

@@ -7,7 +7,7 @@ import { apiRequest } from "../../../lib/api";
 
 declare global {
   interface Window {
-    PWFBNative?: { registerPasskey: (replaceExisting: boolean) => void };
+    PWFBNative?: { registerPasskey: (replaceExisting: boolean, token: string) => void };
     __pwfbNativePasskeyStatus?: (message: string) => void;
     __pwfbNativePasskeyResult?: (payload: { ok: boolean; message?: string; result?: any }) => void;
   }
@@ -23,6 +23,14 @@ export default function RegisterPasskeyPage() {
   const isReplacementFlow = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("replacePasskey") === "1";
   const hasNativeBridge = () => typeof window !== "undefined" && !!window.PWFBNative?.registerPasskey;
   const browserSupportsPasskeys = () => typeof window !== "undefined" && "credentials" in navigator && "PublicKeyCredential" in window;
+  const tokenExpiry = (token: string) => {
+    try {
+      const part = token.split(".")[1];
+      if (!part) return 0;
+      const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+      return Number(payload?.exp || 0);
+    } catch { return 0; }
+  };
 
   useEffect(() => {
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
@@ -41,18 +49,29 @@ export default function RegisterPasskeyPage() {
       } else {
         setStatus("We could not finish passkey setup.");
         setError(payload?.message || "Native passkey registration failed.");
+        if (/jwt expired|token expired|session has expired|unauthorized/i.test(payload?.message || "")) {
+          localStorage.removeItem("token");
+          sessionStorage.removeItem("token");
+          setTimeout(() => router.replace("/login?registerPasskey=1&replacePasskey=1"), 250);
+        }
       }
     };
     return () => {
       delete window.__pwfbNativePasskeyStatus;
       delete window.__pwfbNativePasskeyResult;
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     if (!token) return;
+    if (tokenExpiry(token) && tokenExpiry(token) <= Math.floor(Date.now() / 1000)) {
+      localStorage.removeItem("token");
+      sessionStorage.removeItem("token");
+      router.replace("/login?registerPasskey=1&replacePasskey=1");
+      return;
+    }
     if (new URLSearchParams(window.location.search).get("registered") === "1") {
       setDone(true);
       setStatus("This device's PWFB passkey is now registered.");
@@ -63,7 +82,7 @@ export default function RegisterPasskeyPage() {
       setStatus("This browser cannot access the phone's passkey authenticator.");
       setError("Native registration is available in the PWFB Android app. Please use the latest PWFB Android build for fingerprint registration.");
     }
-  }, []);
+  }, [router]);
 
   async function register() {
     setLoading(true);
@@ -71,10 +90,16 @@ export default function RegisterPasskeyPage() {
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) throw new Error("Please sign in with your email and password first.");
+      if (tokenExpiry(token) && tokenExpiry(token) <= Math.floor(Date.now() / 1000)) {
+        localStorage.removeItem("token");
+        sessionStorage.removeItem("token");
+        router.replace("/login?registerPasskey=1&replacePasskey=1");
+        return;
+      }
 
       if (hasNativeBridge()) {
         setStatus(isReplacementFlow() ? "Removing existing PWFB passkeys and preparing native registration…" : "Preparing native fingerprint registration…");
-        window.PWFBNative!.registerPasskey(isReplacementFlow());
+        window.PWFBNative!.registerPasskey(isReplacementFlow(), token);
         return;
       }
 

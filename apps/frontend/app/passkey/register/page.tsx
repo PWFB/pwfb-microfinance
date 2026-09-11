@@ -23,103 +23,52 @@ export default function RegisterPasskeyPage() {
   const isReplacementFlow = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("replacePasskey") === "1";
   const hasNativeBridge = () => typeof window !== "undefined" && !!window.PWFBNative?.registerPasskey;
   const browserSupportsPasskeys = () => typeof window !== "undefined" && "credentials" in navigator && "PublicKeyCredential" in window;
-  const tokenExpiry = (token: string) => {
-    try {
-      const part = token.split(".")[1];
-      if (!part) return 0;
-      const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
-      return Number(payload?.exp || 0);
-    } catch { return 0; }
-  };
+  const tokenExpiry = (token: string) => { try { const part = token.split(".")[1]; if (!part) return 0; const payload = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))); return Number(payload?.exp || 0); } catch { return 0; } };
 
-  useEffect(() => {
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
-    if (!token) router.replace("/login?registerPasskey=1&replacePasskey=1");
-  }, [router]);
+  useEffect(() => { const token = localStorage.getItem("token") || sessionStorage.getItem("token"); if (!token) router.replace("/login?registerPasskey=1&replacePasskey=1"); }, [router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.__pwfbNativePasskeyStatus = (message) => setStatus(message);
     window.__pwfbNativePasskeyResult = (payload) => {
       setLoading(false);
-      if (payload?.ok) {
-        setDone(true);
-        setError("");
-        setStatus(payload.message || "Fresh PWFB passkey registered successfully on this device.");
-      } else {
-        setStatus("We could not finish passkey setup.");
-        setError(payload?.message || "Native passkey registration failed.");
-        if (/jwt expired|token expired|session has expired|unauthorized/i.test(payload?.message || "")) {
-          localStorage.removeItem("token");
-          sessionStorage.removeItem("token");
-          setTimeout(() => router.replace("/login?registerPasskey=1&replacePasskey=1"), 250);
-        }
-      }
+      if (payload?.ok) { setDone(true); setError(""); setStatus(payload.message || "Fresh PWFB passkey registered successfully on this device."); }
+      else { setStatus("We could not finish passkey setup."); setError(payload?.message || "Native passkey registration failed."); if (/jwt expired|token expired|session has expired|unauthorized/i.test(payload?.message || "")) { localStorage.removeItem("token"); sessionStorage.removeItem("token"); setTimeout(() => router.replace("/login?registerPasskey=1&replacePasskey=1"), 250); } }
     };
-    return () => {
-      delete window.__pwfbNativePasskeyStatus;
-      delete window.__pwfbNativePasskeyResult;
-    };
+    return () => { delete window.__pwfbNativePasskeyStatus; delete window.__pwfbNativePasskeyResult; };
   }, [router]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("token") || sessionStorage.getItem("token");
     if (!token) return;
-    if (tokenExpiry(token) && tokenExpiry(token) <= Math.floor(Date.now() / 1000)) {
-      localStorage.removeItem("token");
-      sessionStorage.removeItem("token");
-      router.replace("/login?registerPasskey=1&replacePasskey=1");
-      return;
-    }
-    if (new URLSearchParams(window.location.search).get("registered") === "1") {
-      setDone(true);
-      setStatus("This device's PWFB passkey is now registered.");
-      return;
-    }
+    if (tokenExpiry(token) && tokenExpiry(token) <= Math.floor(Date.now() / 1000)) { localStorage.removeItem("token"); sessionStorage.removeItem("token"); router.replace("/login?registerPasskey=1&replacePasskey=1"); return; }
+    if (new URLSearchParams(window.location.search).get("registered") === "1") { setDone(true); setStatus("This device's PWFB passkey is now registered."); return; }
     if (hasNativeBridge()) setStatus("Native PWFB fingerprint registration is ready.");
-    else if (!browserSupportsPasskeys()) {
-      setStatus("This browser cannot access the phone's passkey authenticator.");
-      setError("Native registration is available in the PWFB Android app. Please use the latest PWFB Android build for fingerprint registration.");
-    }
+    else if (!browserSupportsPasskeys()) { setStatus("This browser cannot access the phone's passkey authenticator."); setError("Native registration is available in the PWFB Android app. Please use the latest PWFB Android build for fingerprint registration."); }
   }, [router]);
 
   async function register() {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const token = localStorage.getItem("token") || sessionStorage.getItem("token");
       if (!token) throw new Error("Please sign in with your email and password first.");
-      if (tokenExpiry(token) && tokenExpiry(token) <= Math.floor(Date.now() / 1000)) {
-        localStorage.removeItem("token");
-        sessionStorage.removeItem("token");
-        router.replace("/login?registerPasskey=1&replacePasskey=1");
-        return;
-      }
-
-      if (hasNativeBridge()) {
-        setStatus(isReplacementFlow() ? "Removing existing PWFB passkeys and preparing native registration…" : "Preparing native fingerprint registration…");
-        window.PWFBNative!.registerPasskey(isReplacementFlow(), token);
-        return;
-      }
-
+      if (tokenExpiry(token) && tokenExpiry(token) <= Math.floor(Date.now() / 1000)) { localStorage.removeItem("token"); sessionStorage.removeItem("token"); router.replace("/login?registerPasskey=1&replacePasskey=1"); return; }
+      const replacing = isReplacementFlow();
+      if (hasNativeBridge()) { setStatus(replacing ? "Removing the old PWFB passkey and preparing a fresh device credential…" : "Preparing native fingerprint registration…"); window.PWFBNative!.registerPasskey(replacing, token); return; }
       if (!browserSupportsPasskeys()) throw new Error("Native PWFB passkey registration is available only in the latest Android app build. No Chrome fallback is used.");
-      if (isReplacementFlow()) {
-        setStatus("Removing all existing PWFB passkeys from this account…");
-        await apiRequest("/auth/passkey/unregister-all", { method: "POST" });
-      }
+      if (replacing) { setStatus("Removing all existing PWFB passkeys from this account…"); await apiRequest("/auth/passkey/unregister-all", { method: "POST" }); }
       setStatus("Preparing a fresh passkey for this device…");
-      const options = await apiRequest("/auth/passkey/register/options", { method: "POST" });
+      const options = await apiRequest("/auth/passkey/register/options", { method: "POST", body: JSON.stringify({ replaceExisting: replacing }) });
       setStatus("Follow the security prompt and approve the device security method.");
       const credential = await startRegistration({ optionsJSON: options });
       const result = await apiRequest("/auth/passkey/register/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) });
       if (!result?.verified) throw new Error(result?.message || "PWFB could not verify this passkey.");
-      setDone(true);
-      setStatus("Fresh PWFB passkey registered successfully on this device.");
+      setDone(true); setStatus("Fresh PWFB passkey registered successfully on this device.");
     } catch (e: any) {
       setStatus("We could not finish passkey setup.");
       const detail = String(e?.message || "");
-      if (e?.name === "InvalidStateError" || /previously registered|already registered|credential already exists|authenticator was previously registered/i.test(detail)) setError("This authenticator already has a credential for this PWFB account. Try Register Fresh Passkey again to replace the old credential.");
+      if (e?.name === "InvalidStateError" || /previously registered|already registered|credential already exists|excluded credentials exists on the local device/i.test(detail)) setError("This device already has the old PWFB credential. The latest replacement flow creates a fresh credential instead of excluding the old local credential.");
       else if (e?.name === "NotAllowedError") setError("Passkey setup was cancelled. Tap Register Fresh Passkey and try again.");
       else setError(detail || "Passkey registration failed.");
       setLoading(false);

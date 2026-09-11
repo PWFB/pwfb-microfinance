@@ -38,7 +38,7 @@ jobs:
           set -euo pipefail
           printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android-twa/pwfb-upload-key.jks
           chmod 600 android-twa/pwfb-upload-key.jks
-      - name: Build v1.0.37 signed APK and AAB
+      - name: Build v1.0.38 signed APK and AAB
         working-directory: android-twa
         run: |
           set -euo pipefail
@@ -55,41 +55,41 @@ jobs:
         run: |
           set -euo pipefail
           ${ANDROID_HOME}/build-tools/36.0.0/apksigner verify --verbose android-twa/app/build/outputs/apk/release/app-release.apk
-          ${ANDROID_HOME}/build-tools/36.0.0/aapt dump badging android-twa/app/build/outputs/apk/release/app-release.apk | grep -E "package: name='com.pwfb.microfinance' versionCode='37' versionName='1.0.37'"
-      - name: Upload v1.0.37 signed APK artifact
+          ${ANDROID_HOME}/build-tools/36.0.0/aapt dump badging android-twa/app/build/outputs/apk/release/app-release.apk | grep -E "package: name='com.pwfb.microfinance' versionCode='38' versionName='1.0.38'"
+      - name: Upload v1.0.38 signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.37-passkey-jwt-fix-signed-apk
+          name: pwfb-microfinance-v1.0.38-passkey-replacement-fix-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-      - name: Upload v1.0.37 signed AAB artifact
+      - name: Upload v1.0.38 signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.37-passkey-jwt-fix-play-store-aab
+          name: pwfb-microfinance-v1.0.38-passkey-replacement-fix-play-store-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Generate SHA256 checksums
         run: |
           set -euo pipefail
-          sha256sum android-twa/app/build/outputs/apk/release/app-release.apk > pwfb-v1.0.37-SHA256SUMS.txt
-          sha256sum android-twa/app/build/outputs/bundle/release/app-release.aab >> pwfb-v1.0.37-SHA256SUMS.txt
-      - name: Publish v1.0.37 release
+          sha256sum android-twa/app/build/outputs/apk/release/app-release.apk > pwfb-v1.0.38-SHA256SUMS.txt
+          sha256sum android-twa/app/build/outputs/bundle/release/app-release.aab >> pwfb-v1.0.38-SHA256SUMS.txt
+      - name: Publish v1.0.38 release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.37
-          name: PWFB Microfinance v1.0.37 — Passkey JWT Fix
+          tag_name: v1.0.38
+          name: PWFB Microfinance v1.0.38 — Passkey Replacement Fix
           body: |
-            PWFB Microfinance Android application v1.0.37.
+            PWFB Microfinance Android application v1.0.38.
 
-            Fixes native passkey registration failing with "jwt expired" by passing the current web login JWT directly from the authenticated WebView to the native Android Credential Manager bridge. The fresh token is also stored for subsequent native authentication flows. Expired browser tokens are detected and the user is sent back through the normal login flow.
+            Fixes native passkey replacement failing with "One of the excluded credentials exists on the local device". Replacement registration now removes the old server credential, requests a clean registration without excludeCredentials, and uses a fresh WebAuthn user handle so Android Credential Manager can create a new device credential while PWFB continues mapping the credential to the same account.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
-            pwfb-v1.0.37-SHA256SUMS.txt
+            pwfb-v1.0.38-SHA256SUMS.txt
           overwrite_files: true
           make_latest: true
       - name: Delete temporary keystore
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.37 — pass current web JWT to native passkey registration
+# PWFB v1.0.38 — fresh replacement credential flow

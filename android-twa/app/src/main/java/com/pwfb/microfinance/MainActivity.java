@@ -21,6 +21,7 @@ import androidx.credentials.CreatePublicKeyCredentialResponse;
 import androidx.credentials.CredentialManager;
 import androidx.credentials.CredentialManagerCallback;
 import androidx.credentials.exceptions.CreateCredentialException;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 import org.json.JSONObject;
@@ -42,6 +43,7 @@ public class MainActivity extends Activity {
     private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU";
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private WebView webView;
+    private SwipeRefreshLayout refreshLayout;
     private String pendingNativeToken;
     private boolean nativeLoginRedirected;
     private CredentialManager credentialManager;
@@ -74,6 +76,14 @@ public class MainActivity extends Activity {
     }
 
     private void buildWebApp() {
+        refreshLayout = new SwipeRefreshLayout(this);
+        refreshLayout.setLayoutParams(new android.view.ViewGroup.LayoutParams(-1, -1));
+        refreshLayout.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.canScrollVertically(-1));
+        refreshLayout.setOnRefreshListener(() -> {
+            if (webView != null) webView.reload();
+            else if (refreshLayout != null) refreshLayout.setRefreshing(false);
+        });
+
         webView = new WebView(this);
         webView.setLayoutParams(new android.view.ViewGroup.LayoutParams(-1, -1));
         webView.setBackgroundColor(Color.WHITE);
@@ -93,10 +103,11 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return handleWebViewUrl(request.getUrl().toString()); }
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) { return handleWebViewUrl(url); }
-            @Override public void onPageFinished(WebView view, String url) { continueNativeLogin(view, url); }
+            @Override public void onPageFinished(WebView view, String url) { if (refreshLayout != null) refreshLayout.setRefreshing(false); continueNativeLogin(view, url); }
         });
         webView.setWebChromeClient(new WebChromeClient());
-        setContentView(webView); webView.loadUrl(START_URL);
+        refreshLayout.addView(webView);
+        setContentView(refreshLayout); webView.loadUrl(START_URL);
     }
 
     public final class NativePasskeyBridge {
@@ -242,5 +253,5 @@ public class MainActivity extends Activity {
 
     private boolean handleWebViewUrl(String url) { if (url == null) return false; Uri data = Uri.parse(url); if (!SCHEME.equalsIgnoreCase(data.getScheme())) return false; return handleAppIntent(new Intent(Intent.ACTION_VIEW, data)); }
     @Override public void onBackPressed() { if (webView != null && webView.canGoBack()) { webView.goBack(); return; } super.onBackPressed(); }
-    @Override protected void onDestroy() { if (webView != null) { webView.removeJavascriptInterface("PWFBNative"); webView.stopLoading(); webView.setWebChromeClient(null); webView.setWebViewClient(null); webView.destroy(); webView = null; } super.onDestroy(); }
+    @Override protected void onDestroy() { if (webView != null) { webView.removeJavascriptInterface("PWFBNative"); webView.stopLoading(); webView.setWebChromeClient(null); webView.setWebViewClient(null); webView.destroy(); webView = null; } refreshLayout = null; super.onDestroy(); }
 }

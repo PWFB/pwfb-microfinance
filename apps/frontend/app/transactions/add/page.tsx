@@ -39,8 +39,10 @@ export default function AddTransactionPage() {
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return setError('Enter an amount greater than zero.');
     setSaving(true);
     try {
-      await pwfbApi.transactions.create({ customerId, type, amount: numericAmount, description: description.trim() || undefined });
-      router.push('/transactions');
+      const created = await pwfbApi.transactions.create({ customerId, type, amount: numericAmount, description: description.trim() || undefined });
+      const record = created?.data && !created?.id ? created.data : created;
+      if (!record?.id) throw new Error('Transaction was saved, but no transaction ID was returned by the PWFB server.');
+      router.push(`/transactions/view/${record.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to save transaction.');
     } finally { setSaving(false); }

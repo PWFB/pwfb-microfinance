@@ -111,7 +111,7 @@ public class MainActivity extends Activity {
 
     public final class NativePasskeyBridge {
         @JavascriptInterface public void registerPasskey(final boolean replaceExisting, final String token) {
-            runOnUiThread(() -> registerPasskeyOnMainThread(replaceExisting, token));
+            runOnUiThread(() -> registerPasskeyOnMainThread(true, token));
         }
     }
 
@@ -126,12 +126,12 @@ public class MainActivity extends Activity {
                 sendNativePasskeyResult(false, "Your PWFB login session is missing. Please sign in again before registering your fingerprint.", null); return;
             }
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
-            sendNativePasskeyStatus(replaceExisting ? "Removing the old PWFB passkey and preparing a fresh device credential…" : "Preparing secure native passkey registration…");
+            sendNativePasskeyStatus("Removing the old PWFB passkey and preparing a fresh device credential…");
             new Thread(() -> {
                 try {
-                    if (replaceExisting) postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
+                    postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
                     JSONObject requestBody = new JSONObject();
-                    requestBody.put("replaceExisting", replaceExisting);
+                    requestBody.put("replaceExisting", true);
                     JSONObject options = postAuthenticated("/auth/passkey/register/options", requestBody, token);
                     runOnUiThread(() -> createNativePasskey(options, token));
                 } catch (Exception e) {

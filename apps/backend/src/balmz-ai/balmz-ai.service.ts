@@ -25,7 +25,7 @@ export class BalmzAiService {
 
   private async financialIntegrityAudit(): Promise<{ status: 'healthy' | 'warning' | 'critical'; checks: number; findings: Finding[] }> {
     const findings: Finding[] = [];
-    const [cashbookNegative, collectionsNegative, payrollItems, periods, transactions, repayments, loans] = await Promise.all([
+    const [cashbookNegative, collectionsNegative, payrollItems, periods, transactions, repayments, loans, savingsAccounts, activeStaff] = await Promise.all([
       this.prisma.cashbookEntry.count({ where: { amount: { lt: 0 } } }),
       this.prisma.dailyCollection.count({ where: { amount: { lt: 0 } } }),
       this.prisma.payrollItem.findMany({ select: { id: true, basicSalary: true, allowances: true, deductions: true, netSalary: true } }),
@@ -33,6 +33,8 @@ export class BalmzAiService {
       this.prisma.transaction.findMany({ select: { id: true, customerId: true, type: true, amount: true, description: true, createdAt: true } }),
       this.prisma.repayment.findMany({ select: { id: true, loanId: true, amount: true } }),
       this.prisma.loan.findMany({ select: { id: true, amount: true } }),
+      this.prisma.savings.findMany({ select: { id: true, customerId: true, amount: true, accountType: true, createdAt: true } }),
+      this.prisma.staff.count({ where: { employmentStatus: 'ACTIVE' } }),
     ]);
     if (cashbookNegative) findings.push({ severity: 'critical', title: 'Negative cashbook amounts detected', detail: `${cashbookNegative} cashbook entr${cashbookNegative === 1 ? 'y' : 'ies'} have a negative amount.`, fixable: false });
     if (collectionsNegative) findings.push({ severity: 'critical', title: 'Negative collection amounts detected', detail: `${collectionsNegative} daily collection record(s) have a negative amount.`, fixable: false });
@@ -47,6 +49,36 @@ export class BalmzAiService {
     }
     const duplicateTransactionGroups = [...fingerprintCounts.values()].filter((count) => count > 1).length;
     if (duplicateTransactionGroups) findings.push({ severity: 'warning', title: 'Potential duplicate transactions detected', detail: `${duplicateTransactionGroups} exact transaction fingerprint group(s) contain duplicates. Review before reversing anything.`, fixable: false });
+
+    // Savings coverage is evaluated by customer, not by comparing raw table counts.
+    // A savings record does not require a matching Transaction row: deposits can be
+    // represented by savings/collection workflows. Only report customers who have
+    // savings records and no transaction history at all.
+    const transactionCustomers = new Set(transactions.map((row) => row.customerId));
+    const savingsCustomers = new Set(savingsAccounts.map((row) => row.customerId));
+    const savingsCustomersWithoutTransactions = [...savingsCustomers].filter((customerId) => !transactionCustomers.has(customerId));
+    const zeroBalanceSavings = savingsAccounts.filter((row) => Math.abs(row.amount) < 0.000001).length;
+    if (savingsCustomersWithoutTransactions.length) {
+      findings.push({
+        severity: 'warning',
+        title: 'Savings customers without transaction history',
+        detail: `${savingsCustomersWithoutTransactions.length} customer(s) have savings account records but no Transaction record at all. This does not prove an opening deposit is missing; review whether these accounts are newly created, dormant, zero-balance, or funded through another collection workflow.`,
+        fixable: false,
+      });
+    }
+    if (zeroBalanceSavings) findings.push({
+      severity: 'info',
+      title: 'Zero-balance savings accounts identified',
+      detail: `${zeroBalanceSavings} of ${savingsAccounts.length} savings record(s) currently have a zero balance. Confirm these are intentionally dormant or newly opened accounts.`,
+      fixable: false,
+    });
+    if (activeStaff <= 1) findings.push({
+      severity: 'warning',
+      title: 'Low active staff coverage',
+      detail: `${activeStaff} active staff record${activeStaff === 1 ? '' : 's'} is currently registered. Confirm that branch operations have appropriate backup coverage and role separation.`,
+      fixable: false,
+    });
+
     const repaymentTotals = new Map<string, number>();
     for (const repayment of repayments) repaymentTotals.set(repayment.loanId, (repaymentTotals.get(repayment.loanId) || 0) + repayment.amount);
     const loanMap = new Map(loans.map((loan) => [loan.id, loan.amount]));
@@ -56,7 +88,7 @@ export class BalmzAiService {
     if (payrollMismatches.length) findings.push({ severity: 'critical', title: 'Payroll totals do not reconcile', detail: `${payrollMismatches.length} payroll item(s) have net salary different from basic salary + allowances - deductions.`, fixable: false });
     if (!findings.length) findings.push({ severity: 'info', title: 'Financial integrity audit passed', detail: 'BALMZ AI found no basic financial integrity anomalies across the checked operational tables.', fixable: false });
     const status = findings.some((f) => f.severity === 'critical') ? 'critical' : findings.some((f) => f.severity === 'warning') ? 'warning' : 'healthy';
-    return { status, checks: 9, findings };
+    return { status, checks: 12, findings };
   }
 
   async diagnose() {

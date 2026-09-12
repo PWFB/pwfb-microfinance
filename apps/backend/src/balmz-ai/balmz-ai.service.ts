@@ -101,7 +101,10 @@ export class BalmzAiService {
   private async callGemini(message: string, system: string): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-    const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+    const configuredModel = (process.env.GEMINI_MODEL || 'gemini-3.7-flash').trim();
+    // Google REST generateContent requires the URL path to contain exactly one `models/` prefix.
+    // Accept both `gemini-3.7-flash` and `models/gemini-3.7-flash` in Render environment variables.
+    const model = configuredModel.replace(/^models\//i, '');
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
     const response = await fetch(endpoint, {
       method: 'POST',

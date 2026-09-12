@@ -1,4 +1,4 @@
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 type Severity = 'critical' | 'warning' | 'info';
@@ -114,20 +114,30 @@ export class BalmzAiService {
 
   private sleep(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
+  private isQuotaError(status: number, body: string) {
+    return status === 429 || /insufficient_quota|credit_balance_exhausted|quota exceeded|resource_exhausted|exceeded your current quota/i.test(body);
+  }
+
   private async callOpenAi(message: string, system: string): Promise<string> {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
     const model = process.env.BALMZ_AI_MODEL || 'gpt-5.6-luna';
     const response = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: `${system}\n\nAdmin request: ${message}` }) });
-    if (!response.ok) throw new Error(`OpenAI ${response.status}: ${(await response.text()).slice(0, 300)}`);
-    return this.extractOpenAiText(await response.json());
+    if (!response.ok) {
+      const body = (await response.text()).slice(0, 500);
+      if (this.isQuotaError(response.status, body)) throw new Error('OpenAI quota exhausted; provider skipped until credits are restored.');
+      throw new Error(`OpenAI ${response.status}: ${body}`);
+    }
+    const reply = this.extractOpenAiText(await response.json());
+    if (!reply) throw new Error('OpenAI returned no text');
+    return reply;
   }
 
   private async callGemini(message: string, system: string): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-    const configuredModel = this.cleanGeminiModel(process.env.GEMINI_MODEL || 'gemini-3.7-flash');
-    const models = [...new Set([configuredModel, 'gemini-3.7-flash', 'gemini-2.5-flash'])].filter(Boolean);
+    const configuredModel = this.cleanGeminiModel(process.env.GEMINI_MODEL || 'gemini-3.6-flash');
+    const models = [...new Set([configuredModel, 'gemini-3.6-flash', 'gemini-3.7-flash'])].filter(Boolean);
     const errors: string[] = [];
     for (const model of models) {
       let lastError = '';
@@ -135,9 +145,10 @@ export class BalmzAiService {
         try {
           const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ model, system_instruction: system, input: message }) });
           if (!response.ok) {
-            const body = (await response.text()).slice(0, 300);
+            const body = (await response.text()).slice(0, 500);
             lastError = `${model} ${response.status}: ${body}`;
-            if (response.status === 429 || response.status >= 500) { if (attempt === 0) await this.sleep(800); continue; }
+            if (this.isQuotaError(response.status, body)) break;
+            if (response.status >= 500 && attempt === 0) { await this.sleep(800); continue; }
             break;
           }
           const payload = await response.json();
@@ -151,6 +162,7 @@ export class BalmzAiService {
         }
       }
       if (lastError) errors.push(lastError);
+      if (errors.some((error) => /quota exceeded|exhausted|resource_exhausted/i.test(error))) break;
     }
     throw new Error(`Gemini ${errors.join(' | ')}`);
   }
@@ -159,7 +171,15 @@ export class BalmzAiService {
     const configured = (process.env.BALMZ_AI_PROVIDER || 'auto').trim().toLowerCase();
     if (configured === 'gemini') return ['gemini', 'openai'];
     if (configured === 'openai') return ['openai', 'gemini'];
-    return ['openai', 'gemini'];
+    return process.env.GEMINI_API_KEY?.trim() ? ['gemini', 'openai'] : ['openai', 'gemini'];
+  }
+
+  private localDiagnosticsReply(audit: { status: string; checks: number; findings: Finding[] }) {
+    const actionable = audit.findings.filter((finding) => finding.severity !== 'info');
+    if (!actionable.length) return 'BALMZ AI provider services are temporarily unavailable, but the built-in financial integrity audit is healthy. No financial correction is required.';
+    const priority = actionable.find((finding) => finding.severity === 'critical') || actionable.find((finding) => finding.severity === 'warning')!;
+    const lines = actionable.slice(0, 6).map((finding, index) => `${index + 1}. ${finding.severity.toUpperCase()}: ${finding.title} — ${finding.detail}`);
+    return `BALMZ AI provider services are temporarily unavailable because the configured AI quotas are exhausted. The PWFB database diagnostics are still available and remain authoritative.\n\nCurrent integrity status: ${audit.status.toUpperCase()} (${audit.checks} checks).\n\nFirst priority: ${priority.title}.\n\nFindings:\n${lines.join('\n')}\n\nNo financial record should be changed automatically. Review and approve any correction explicitly.`;
   }
 
   async chat(message: string) {
@@ -173,13 +193,11 @@ export class BalmzAiService {
       if (!providers[provider]) continue;
       try {
         const reply = provider === 'openai' ? await this.callOpenAi(message, system) : await this.callGemini(message, system);
-        return { assistant: 'BALMZ AI', configured: true, provider, providers, reply: reply || 'BALMZ AI returned no text.', diagnostics: { snapshot, integrityAudit } };
-      } catch (error: any) { errors.push(`${provider}: ${error?.message || 'provider error'}`); }
+        return { assistant: 'BALMZ AI', configured: true, provider, providers, reply, diagnostics: { snapshot, integrityAudit } };
+      } catch (error: any) {
+        errors.push(`${provider}: ${error?.message || 'provider error'}`);
+      }
     }
-    throw new ServiceUnavailableException(`BALMZ AI providers unavailable. ${errors.join(' | ')}`);
-  }
-
-  async repairCheck() {
-    return { assistant: 'BALMZ AI', mode: 'safe-repair', message: 'BALMZ AI will not silently change money, balances, loans, repayments, or customer records. It can detect the problem and prepare a correction for explicit Super Admin approval.', diagnostics: await this.diagnose() };
+    return { assistant: 'BALMZ AI', configured: true, provider: 'local-diagnostics', providers, reply: this.localDiagnosticsReply(integrityAudit), diagnostics: { snapshot, integrityAudit }, providerErrors: errors };
   }
 }

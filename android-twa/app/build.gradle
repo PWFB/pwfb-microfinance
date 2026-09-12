@@ -8,8 +8,8 @@ android {
         applicationId 'com.pwfb.microfinance'
         minSdk 23
         targetSdk 36
-        versionCode 4
-        versionName '1.0.3'
+        versionCode 41
+        versionName '1.0.41'
     }
 
     signingConfigs {

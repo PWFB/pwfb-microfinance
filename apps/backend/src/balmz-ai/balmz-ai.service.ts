@@ -81,9 +81,20 @@ export class BalmzAiService {
   }
 
   private extractGeminiText(payload: any): string {
+    if (typeof payload?.output_text === 'string') return payload.output_text.trim();
     const parts: string[] = [];
     for (const candidate of payload?.candidates || []) for (const part of candidate?.content?.parts || []) if (typeof part?.text === 'string') parts.push(part.text);
+    for (const item of payload?.output || []) for (const content of item?.content || []) if (typeof content?.text === 'string') parts.push(content.text);
     return parts.join('\n').trim();
+  }
+
+  private cleanGeminiModel(value: string): string {
+    let model = value.trim().replace(/^['"]|['"]$/g, '');
+    model = model.replace(/^https?:\/\/[^/]+\/v1beta\//i, '');
+    model = model.replace(/^.*\/models\//i, '');
+    model = model.replace(/^models\//i, '');
+    model = model.replace(/:generateContent$/i, '');
+    return model.trim();
   }
 
   private async callOpenAi(message: string, system: string): Promise<string> {
@@ -101,18 +112,31 @@ export class BalmzAiService {
   private async callGemini(message: string, system: string): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-    const configuredModel = (process.env.GEMINI_MODEL || 'gemini-3.7-flash').trim();
-    // Google REST generateContent requires the URL path to contain exactly one `models/` prefix.
-    // Accept both `gemini-3.7-flash` and `models/gemini-3.7-flash` in Render environment variables.
-    const model = configuredModel.replace(/^models\//i, '');
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: message }] }] }),
-    });
-    if (!response.ok) throw new Error(`Gemini ${response.status}: ${(await response.text()).slice(0, 300)}`);
-    return this.extractGeminiText(await response.json());
+
+    const configuredModel = this.cleanGeminiModel(process.env.GEMINI_MODEL || 'gemini-3.7-flash');
+    const models = [...new Set([configuredModel, 'gemini-3.7-flash'])].filter(Boolean);
+    const errors: string[] = [];
+
+    for (const model of models) {
+      try {
+        const endpoint = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+          body: JSON.stringify({ model, input: `${system}\n\nAdmin request: ${message}` }),
+        });
+        if (!response.ok) {
+          errors.push(`${model} ${response.status}: ${(await response.text()).slice(0, 300)}`);
+          continue;
+        }
+        const reply = this.extractGeminiText(await response.json());
+        if (reply) return reply;
+        errors.push(`${model}: Gemini returned no text`);
+      } catch (error: any) {
+        errors.push(`${model}: ${error?.message || 'provider error'}`);
+      }
+    }
+    throw new Error(`Gemini ${errors.join(' | ')}`);
   }
 
   private providerOrder(): AiProvider[] {

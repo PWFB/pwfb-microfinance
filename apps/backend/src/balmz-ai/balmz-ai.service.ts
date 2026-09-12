@@ -23,7 +23,7 @@ export class BalmzAiService {
     return { counts: { customers, staff, loans, savings, transactions, repayments }, anomalies: { negativeSavings, negativeLoans, negativeTransactions, negativeRepayments }, generatedAt: new Date().toISOString() };
   }
 
-  private async financialIntegrityAudit(): Promise<{ status: 'healthy' | 'warning' | 'critical'; checks: number; findings: Finding[]; coverage: any }> {
+  private async financialIntegrityAudit(): Promise<{ status: 'healthy' | 'warning' | 'critical'; checks: number; findings: Finding[] }> {
     const findings: Finding[] = [];
     const [cashbookNegative, collectionsNegative, payrollItems, periods, transactions, repayments, loans, savingsAccounts, activeStaff] = await Promise.all([
       this.prisma.cashbookEntry.count({ where: { amount: { lt: 0 } } }),
@@ -50,69 +50,38 @@ export class BalmzAiService {
     const duplicateTransactionGroups = [...fingerprintCounts.values()].filter((count) => count > 1).length;
     if (duplicateTransactionGroups) findings.push({ severity: 'warning', title: 'Potential duplicate transactions detected', detail: `${duplicateTransactionGroups} exact transaction fingerprint group(s) contain duplicates. Review before reversing anything.`, fixable: false });
 
-    // Savings coverage is evaluated by customer, not by comparing raw table counts.
-    // A savings record does not require a matching Transaction row: deposits can be
-    // represented by savings/collection workflows. Only report customers who have
-    // savings records and no transaction history at all.
-    const transactionCustomers = new Set(transactions.filter((row) => row.customerId).map((row) => row.customerId));
-    const savingsCustomers = new Set(savingsAccounts.filter((row) => row.customerId).map((row) => row.customerId));
+    const transactionCustomers = new Set(transactions.map((row) => row.customerId));
+    const savingsCustomers = new Set(savingsAccounts.map((row) => row.customerId));
     const savingsCustomersWithoutTransactions = [...savingsCustomers].filter((customerId) => !transactionCustomers.has(customerId));
-    const zeroBalanceSavings = savingsAccounts.filter((row) => Math.abs(row.amount) < 0.000001).length;
     const savingsCustomersWithTransactions = [...savingsCustomers].filter((customerId) => transactionCustomers.has(customerId));
-    const coveragePercent = savingsCustomers.size ? Math.round((savingsCustomersWithTransactions.length / savingsCustomers.size) * 100) : 100;
-    const savingsCoverage = {
-      savingsAccounts: savingsAccounts.length,
-      savingsCustomers: savingsCustomers.size,
-      customersWithTransactionHistory: savingsCustomersWithTransactions.length,
-      customersWithoutTransactionHistory: savingsCustomersWithoutTransactions.length,
-      transactionCoveragePercent: coveragePercent,
-      zeroBalanceAccounts: zeroBalanceSavings,
-      customersWithoutTransactionIds: savingsCustomersWithoutTransactions.slice(0, 25),
-    };
-    if (savingsCustomersWithoutTransactions.length) {
-      findings.push({
-        severity: 'warning',
-        title: 'Savings customers without transaction history',
-        detail: `${savingsCustomersWithoutTransactions.length} of ${savingsCustomers.size} savings customer(s) have no Transaction record at all (${coveragePercent}% transaction coverage). This does not prove an opening deposit is missing; review whether these accounts are newly created, dormant, zero-balance, or funded through another collection workflow.`,
-        fixable: false,
-      });
-    }
-    if (zeroBalanceSavings) findings.push({
-      severity: 'info',
-      title: 'Zero-balance savings accounts identified',
-      detail: `${zeroBalanceSavings} of ${savingsAccounts.length} savings record(s) currently have a zero balance. Confirm these are intentionally dormant or newly opened accounts.`,
-      fixable: false,
-    });
-    if (activeStaff <= 1) findings.push({
-      severity: 'warning',
-      title: 'Low active staff coverage',
-      detail: `${activeStaff} active staff record${activeStaff === 1 ? '' : 's'} is currently registered. Confirm that branch operations have appropriate backup coverage and role separation.`,
-      fixable: false,
-    });
+    const zeroBalanceSavings = savingsAccounts.filter((row) => Math.abs(row.amount) < 0.000001).length;
+    const savingsCoveragePercent = savingsCustomers.size ? Number(((savingsCustomersWithTransactions.length / savingsCustomers.size) * 100).toFixed(1)) : 100;
+    if (savingsCustomersWithoutTransactions.length) findings.push({ severity: 'warning', title: 'Savings customers without transaction history', detail: `${savingsCustomersWithoutTransactions.length} customer(s) have savings account records but no Transaction record at all. ${savingsCustomersWithTransactions.length} savings customer(s) do have transaction history (${savingsCoveragePercent}% customer coverage). This does not prove an opening deposit is missing; review whether these accounts are newly created, dormant, zero-balance, or funded through another collection workflow.`, fixable: false });
+    if (zeroBalanceSavings) findings.push({ severity: 'info', title: 'Zero-balance savings accounts identified', detail: `${zeroBalanceSavings} of ${savingsAccounts.length} savings record(s) currently have a zero balance. Confirm these are intentionally dormant or newly opened accounts.`, fixable: false });
+    if (activeStaff <= 1) findings.push({ severity: 'warning', title: 'Low active staff coverage', detail: `${activeStaff} active staff record${activeStaff === 1 ? '' : 's'} is currently registered. Confirm that branch operations have appropriate backup coverage and role separation.`, fixable: false });
 
-    const loanIds = new Set(loans.map((loan) => loan.id));
-    const orphanRepayments = repayments.filter((repayment) => !loanIds.has(repayment.loanId));
-    if (orphanRepayments.length) findings.push({ severity: 'critical', title: 'Orphan repayments detected', detail: `${orphanRepayments.length} repayment record(s) reference a loan ID that is not present in the current loan table. Do not delete or reassign them automatically; investigate the source record first.`, fixable: false });
     const repaymentTotals = new Map<string, number>();
     for (const repayment of repayments) repaymentTotals.set(repayment.loanId, (repaymentTotals.get(repayment.loanId) || 0) + repayment.amount);
     const loanMap = new Map(loans.map((loan) => [loan.id, loan.amount]));
+    const orphanRepayments = repayments.filter((repayment) => !loanMap.has(repayment.loanId)).length;
+    if (orphanRepayments) findings.push({ severity: 'critical', title: 'Orphan repayments detected', detail: `${orphanRepayments} repayment record(s) reference a loan that does not exist in the current loan table. Do not delete or relink automatically; investigate the source record first.`, fixable: false });
     const repaymentOverPrincipal = [...repaymentTotals.entries()].filter(([loanId, total]) => (loanMap.get(loanId) ?? 0) >= 0 && total > (loanMap.get(loanId) ?? 0) + 0.01).length;
     if (repaymentOverPrincipal) findings.push({ severity: 'warning', title: 'Repayments exceed recorded loan principal', detail: `${repaymentOverPrincipal} loan(s) have cumulative repayments above their recorded principal. This may be valid when interest or fees are included, so review the loan terms before correction.`, fixable: false });
     const payrollMismatches = payrollItems.filter((item) => Math.abs((item.basicSalary + item.allowances - item.deductions) - item.netSalary) > 0.01);
     if (payrollMismatches.length) findings.push({ severity: 'critical', title: 'Payroll totals do not reconcile', detail: `${payrollMismatches.length} payroll item(s) have net salary different from basic salary + allowances - deductions.`, fixable: false });
     if (!findings.length) findings.push({ severity: 'info', title: 'Financial integrity audit passed', detail: 'BALMZ AI found no basic financial integrity anomalies across the checked operational tables.', fixable: false });
     const status = findings.some((f) => f.severity === 'critical') ? 'critical' : findings.some((f) => f.severity === 'warning') ? 'warning' : 'healthy';
-    return { status, checks: 13, findings, coverage: savingsCoverage };
+    return { status, checks: 12, findings };
   }
 
   async diagnose() {
     const snapshot = await this.operationalSnapshot();
+    const audit = await this.financialIntegrityAudit();
     const basicFindings: Finding[] = [];
     if (snapshot.anomalies.negativeSavings) basicFindings.push({ severity: 'critical', title: 'Negative savings amounts detected', detail: `${snapshot.anomalies.negativeSavings} savings record(s) have a negative amount. Financial records must not be silently changed by AI; review and approve the correction.`, fixable: false });
     if (snapshot.anomalies.negativeLoans) basicFindings.push({ severity: 'critical', title: 'Negative loan amounts detected', detail: `${snapshot.anomalies.negativeLoans} loan record(s) have a negative amount.`, fixable: false });
     if (snapshot.anomalies.negativeTransactions) basicFindings.push({ severity: 'critical', title: 'Negative transaction amounts detected', detail: `${snapshot.anomalies.negativeTransactions} transaction record(s) have a negative amount.`, fixable: false });
     if (snapshot.anomalies.negativeRepayments) basicFindings.push({ severity: 'critical', title: 'Negative repayment amounts detected', detail: `${snapshot.anomalies.negativeRepayments} repayment record(s) have a negative amount.`, fixable: false });
-    const audit = await this.financialIntegrityAudit();
     const findings = [...basicFindings, ...audit.findings.filter((finding) => finding.severity !== 'info')];
     const status = findings.some((f) => f.severity === 'critical') ? 'critical' : findings.some((f) => f.severity === 'warning') ? 'warning' : 'healthy';
     if (!findings.length) findings.push({ severity: 'info', title: 'No financial data anomalies detected', detail: 'BALMZ AI completed the basic anomaly scan and deeper financial integrity checks with no findings.', fixable: false });
@@ -149,10 +118,7 @@ export class BalmzAiService {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
     const model = process.env.BALMZ_AI_MODEL || 'gpt-5.6-luna';
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, input: `${system}\n\nAdmin request: ${message}` }),
-    });
+    const response = await fetch('https://api.openai.com/v1/responses', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` }, body: JSON.stringify({ model, input: `${system}\n\nAdmin request: ${message}` }) });
     if (!response.ok) throw new Error(`OpenAI ${response.status}: ${(await response.text()).slice(0, 300)}`);
     return this.extractOpenAiText(await response.json());
   }
@@ -165,22 +131,13 @@ export class BalmzAiService {
     const errors: string[] = [];
     for (const model of models) {
       try {
-        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({ model, system_instruction: system, input: message }),
-        });
-        if (!response.ok) {
-          errors.push(`${model} ${response.status}: ${(await response.text()).slice(0, 300)}`);
-          continue;
-        }
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ model, system_instruction: system, input: message }) });
+        if (!response.ok) { errors.push(`${model} ${response.status}: ${(await response.text()).slice(0, 300)}`); continue; }
         const payload = await response.json();
         const reply = this.extractGeminiText(payload);
         if (reply) return reply;
         errors.push(`${model}: Gemini returned no text`);
-      } catch (error: any) {
-        errors.push(`${model}: ${error?.message || 'provider error'}`);
-      }
+      } catch (error: any) { errors.push(`${model}: ${error?.message || 'provider error'}`); }
     }
     throw new Error(`Gemini ${errors.join(' | ')}`);
   }
@@ -194,27 +151,22 @@ export class BalmzAiService {
 
   async chat(message: string) {
     const snapshot = await this.operationalSnapshot();
-    const system = `You are BALMZ AI, the internal operations assistant for PWFB Microfinance. You help the Super Admin diagnose application and operational mistakes. Be precise, concise and conservative. Never invent financial records. Never instruct the system to silently alter financial records. For financial corrections, identify the exact problem and require explicit administrator approval before any change. Current operational snapshot: ${JSON.stringify(snapshot)}`;
+    const integrityAudit = await this.financialIntegrityAudit();
+    const system = `You are BALMZ AI, the internal operations assistant for PWFB Microfinance. You help the Super Admin diagnose application and operational mistakes. Be precise, concise and conservative. NEVER infer a discrepancy from unrelated raw table counts. NEVER say that savings accounts without transactions are missing deposits unless the database explicitly proves it. Use the supplied integrity audit as the authoritative source for findings and priorities. Do not contradict it with arithmetic such as “6 savings accounts minus 3 transactions”. Never invent financial records. Never instruct the system to silently alter financial records. For financial corrections, identify the exact problem and require explicit administrator approval before any change. Current operational snapshot: ${JSON.stringify(snapshot)}. Current financial integrity audit: ${JSON.stringify(integrityAudit)}`;
     const providers = { openai: Boolean(process.env.OPENAI_API_KEY?.trim()), gemini: Boolean(process.env.GEMINI_API_KEY?.trim()) };
-    if (!providers.openai && !providers.gemini) return { assistant: 'BALMZ AI', configured: false, provider: null, providers, reply: 'BALMZ AI is connected to the PWFB admin system, but no AI model key has been configured on the backend yet. I can still run the built-in system diagnostics.', diagnostics: await this.diagnose() };
+    if (!providers.openai && !providers.gemini) return { assistant: 'BALMZ AI', configured: false, provider: null, providers, reply: 'BALMZ AI is connected to the PWFB admin system, but no AI model key has been configured on the backend yet. I can still run the built-in system diagnostics.', diagnostics: { snapshot, integrityAudit } };
     const errors: string[] = [];
     for (const provider of this.providerOrder()) {
       if (!providers[provider]) continue;
       try {
         const reply = provider === 'openai' ? await this.callOpenAi(message, system) : await this.callGemini(message, system);
-        return { assistant: 'BALMZ AI', configured: true, provider, providers, reply: reply || 'BALMZ AI returned no text.', diagnostics: { snapshot } };
-      } catch (error: any) {
-        errors.push(`${provider}: ${error?.message || 'provider error'}`);
-      }
+        return { assistant: 'BALMZ AI', configured: true, provider, providers, reply: reply || 'BALMZ AI returned no text.', diagnostics: { snapshot, integrityAudit } };
+      } catch (error: any) { errors.push(`${provider}: ${error?.message || 'provider error'}`); }
     }
     throw new ServiceUnavailableException(`BALMZ AI providers unavailable. ${errors.join(' | ')}`);
   }
 
   async repairCheck() {
-    return {
-      assistant: 'BALMZ AI', mode: 'safe-repair',
-      message: 'BALMZ AI will not silently change money, balances, loans, repayments, or customer records. It can detect the problem and prepare a correction for explicit Super Admin approval.',
-      diagnostics: await this.diagnose(),
-    };
+    return { assistant: 'BALMZ AI', mode: 'safe-repair', message: 'BALMZ AI will not silently change money, balances, loans, repayments, or customer records. It can detect the problem and prepare a correction for explicit Super Admin approval.', diagnostics: await this.diagnose() };
   }
 }

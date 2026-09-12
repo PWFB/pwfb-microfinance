@@ -23,7 +23,7 @@ export class BalmzAiService {
     return { counts: { customers, staff, loans, savings, transactions, repayments }, anomalies: { negativeSavings, negativeLoans, negativeTransactions, negativeRepayments }, generatedAt: new Date().toISOString() };
   }
 
-  private async financialIntegrityAudit(): Promise<{ status: 'healthy' | 'warning' | 'critical'; checks: number; findings: Finding[] }> {
+  private async financialIntegrityAudit(): Promise<{ status: 'healthy' | 'warning' | 'critical'; checks: number; findings: Finding[]; coverage: any }> {
     const findings: Finding[] = [];
     const [cashbookNegative, collectionsNegative, payrollItems, periods, transactions, repayments, loans, savingsAccounts, activeStaff] = await Promise.all([
       this.prisma.cashbookEntry.count({ where: { amount: { lt: 0 } } }),
@@ -54,15 +54,26 @@ export class BalmzAiService {
     // A savings record does not require a matching Transaction row: deposits can be
     // represented by savings/collection workflows. Only report customers who have
     // savings records and no transaction history at all.
-    const transactionCustomers = new Set(transactions.map((row) => row.customerId));
-    const savingsCustomers = new Set(savingsAccounts.map((row) => row.customerId));
+    const transactionCustomers = new Set(transactions.filter((row) => row.customerId).map((row) => row.customerId));
+    const savingsCustomers = new Set(savingsAccounts.filter((row) => row.customerId).map((row) => row.customerId));
     const savingsCustomersWithoutTransactions = [...savingsCustomers].filter((customerId) => !transactionCustomers.has(customerId));
     const zeroBalanceSavings = savingsAccounts.filter((row) => Math.abs(row.amount) < 0.000001).length;
+    const savingsCustomersWithTransactions = [...savingsCustomers].filter((customerId) => transactionCustomers.has(customerId));
+    const coveragePercent = savingsCustomers.size ? Math.round((savingsCustomersWithTransactions.length / savingsCustomers.size) * 100) : 100;
+    const savingsCoverage = {
+      savingsAccounts: savingsAccounts.length,
+      savingsCustomers: savingsCustomers.size,
+      customersWithTransactionHistory: savingsCustomersWithTransactions.length,
+      customersWithoutTransactionHistory: savingsCustomersWithoutTransactions.length,
+      transactionCoveragePercent: coveragePercent,
+      zeroBalanceAccounts: zeroBalanceSavings,
+      customersWithoutTransactionIds: savingsCustomersWithoutTransactions.slice(0, 25),
+    };
     if (savingsCustomersWithoutTransactions.length) {
       findings.push({
         severity: 'warning',
         title: 'Savings customers without transaction history',
-        detail: `${savingsCustomersWithoutTransactions.length} customer(s) have savings account records but no Transaction record at all. This does not prove an opening deposit is missing; review whether these accounts are newly created, dormant, zero-balance, or funded through another collection workflow.`,
+        detail: `${savingsCustomersWithoutTransactions.length} of ${savingsCustomers.size} savings customer(s) have no Transaction record at all (${coveragePercent}% transaction coverage). This does not prove an opening deposit is missing; review whether these accounts are newly created, dormant, zero-balance, or funded through another collection workflow.`,
         fixable: false,
       });
     }
@@ -79,6 +90,9 @@ export class BalmzAiService {
       fixable: false,
     });
 
+    const loanIds = new Set(loans.map((loan) => loan.id));
+    const orphanRepayments = repayments.filter((repayment) => !loanIds.has(repayment.loanId));
+    if (orphanRepayments.length) findings.push({ severity: 'critical', title: 'Orphan repayments detected', detail: `${orphanRepayments.length} repayment record(s) reference a loan ID that is not present in the current loan table. Do not delete or reassign them automatically; investigate the source record first.`, fixable: false });
     const repaymentTotals = new Map<string, number>();
     for (const repayment of repayments) repaymentTotals.set(repayment.loanId, (repaymentTotals.get(repayment.loanId) || 0) + repayment.amount);
     const loanMap = new Map(loans.map((loan) => [loan.id, loan.amount]));
@@ -88,7 +102,7 @@ export class BalmzAiService {
     if (payrollMismatches.length) findings.push({ severity: 'critical', title: 'Payroll totals do not reconcile', detail: `${payrollMismatches.length} payroll item(s) have net salary different from basic salary + allowances - deductions.`, fixable: false });
     if (!findings.length) findings.push({ severity: 'info', title: 'Financial integrity audit passed', detail: 'BALMZ AI found no basic financial integrity anomalies across the checked operational tables.', fixable: false });
     const status = findings.some((f) => f.severity === 'critical') ? 'critical' : findings.some((f) => f.severity === 'warning') ? 'warning' : 'healthy';
-    return { status, checks: 12, findings };
+    return { status, checks: 13, findings, coverage: savingsCoverage };
   }
 
   async diagnose() {

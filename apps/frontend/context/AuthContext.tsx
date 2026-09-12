@@ -22,7 +22,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   loading: boolean;
   logout: () => void;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<AuthUser | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  async function refreshProfile() {
+  async function refreshProfile(): Promise<AuthUser | null> {
     const token =
       localStorage.getItem("token") ||
       sessionStorage.getItem("token");
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token) {
       setUser(null);
       setLoading(false);
-      return;
+      return null;
     }
 
     try {
@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setUser(profile);
+      return profile as AuthUser;
     } catch (error) {
       if (error instanceof Error && error.message.includes("Two-factor authentication is required")) {
         throw error;
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionStorage.removeItem("token");
       sessionStorage.removeItem("user");
       setUser(null);
+      return null;
     } finally {
       setLoading(false);
     }

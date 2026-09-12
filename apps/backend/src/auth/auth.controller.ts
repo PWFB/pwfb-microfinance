@@ -88,8 +88,8 @@ export class AuthController {
   }
 
   @Post('passkey/login/options')
-  passkeyLoginOptions(@Body() body: { email: string }, @Headers('origin') origin?: string) {
-    return this.authService.passkeyLoginOptions(body.email, origin);
+  passkeyLoginOptions(@Body() body: { email?: string }, @Headers('origin') origin?: string) {
+    return this.authService.passkeyLoginOptions(body?.email, origin);
   }
 
   @Post('passkey/login/verify')

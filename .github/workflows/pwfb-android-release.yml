@@ -42,7 +42,7 @@ jobs:
         working-directory: android-twa
         run: |
           set -euo pipefail
-          gradle --no-daemon assembleRelease bundleRelease \
+          gradle --no-daemon clean assembleRelease bundleRelease \
             -PPWFB_KEYSTORE_FILE="$PWD/pwfb-upload-key.jks" \
             -PPWFB_KEYSTORE_PASSWORD="${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             -PPWFB_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
@@ -54,25 +54,25 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.28-stable-signed-apk
+          name: pwfb-microfinance-v1.0.41-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.28-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.41-play-store-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.28
-          name: PWFB Microfinance v1.0.28 — Stable App
+          tag_name: v1.0.41
+          name: PWFB Microfinance v1.0.41 — Stable App
           body: |
-            PWFB Microfinance Android application v1.0.28.
+            PWFB Microfinance Android application v1.0.41.
 
-            This release restores the first stable PWFB native authentication application flow. It uses the established PWFB deep-green/orange UI, native password/Google/fingerprint authentication, and the stable dashboard handoff.
-            Includes the signed APK and signed Play Store AAB.
+            This release is based on the current stable PWFB native application flow. It keeps the established PWFB deep-green/orange UI, native password/Google/fingerprint authentication, and stable dashboard handoff.
+            Includes the signed APK for Android installation and the signed AAB for Google Play.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
             android-twa/app/build/outputs/bundle/release/app-release.aab
@@ -82,4 +82,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.28 stable signed APK + Play Store AAB release build
+# PWFB v1.0.41 stable signed APK + Play Store AAB release build

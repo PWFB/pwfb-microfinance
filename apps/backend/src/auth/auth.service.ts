@@ -40,7 +40,7 @@ export class AuthService {
 
   googleConfig() {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-    const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() || '';
+    const androidClientId = (process.env.GOOGLE_ANDROID_CLIENT_ID || clientId || '').trim();
     if (!clientId) throw new BadRequestException('Google login is not configured on the server');
     return { client_id: clientId, android_client_id: androidClientId, android_configured: Boolean(androidClientId) };
   }
@@ -53,8 +53,8 @@ export class AuthService {
 
   async googleLogin(idToken?: string, requestOrigin?: string, requestClientId?: string, expectedNonce?: string) {
     const isAndroid = requestOrigin === 'android-app';
-    const clientId = (isAndroid ? process.env.GOOGLE_ANDROID_CLIENT_ID : process.env.GOOGLE_CLIENT_ID)?.trim();
-    if (!clientId) throw new BadRequestException(isAndroid ? 'Google Android login is not configured on the server. Set GOOGLE_ANDROID_CLIENT_ID in Render.' : 'Google login is not configured on the server');
+    const clientId = (isAndroid ? (process.env.GOOGLE_ANDROID_CLIENT_ID || process.env.GOOGLE_CLIENT_ID) : process.env.GOOGLE_CLIENT_ID)?.trim();
+    if (!clientId) throw new BadRequestException(isAndroid ? 'Google login is not configured on the server. Set GOOGLE_CLIENT_ID in Render.' : 'Google login is not configured on the server');
     if (!idToken) throw new BadRequestException('Google credential is required');
     const googleOrigin = requestOrigin?.trim().replace(/\/$/, '');
     const configuredOrigins = [process.env.GOOGLE_ALLOWED_ORIGINS, process.env.WEBAUTHN_ORIGIN]

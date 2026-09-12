@@ -85,6 +85,7 @@ export class BalmzAiService {
     const parts: string[] = [];
     for (const candidate of payload?.candidates || []) for (const part of candidate?.content?.parts || []) if (typeof part?.text === 'string') parts.push(part.text);
     for (const item of payload?.output || []) for (const content of item?.content || []) if (typeof content?.text === 'string') parts.push(content.text);
+    for (const step of payload?.steps || []) for (const content of step?.content || []) if (typeof content?.text === 'string') parts.push(content.text);
     return parts.join('\n').trim();
   }
 
@@ -113,18 +114,15 @@ export class BalmzAiService {
   private async callGemini(message: string, system: string): Promise<string> {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
-
     const configuredModel = this.cleanGeminiModel(process.env.GEMINI_MODEL || 'gemini-3.7-flash');
     const models = [...new Set([configuredModel, 'gemini-3.7-flash'])].filter(Boolean);
     const errors: string[] = [];
-
     for (const model of models) {
       try {
-        const endpoint = 'https://generativelanguage.googleapis.com/v1beta/interactions';
-        const response = await fetch(endpoint, {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-          body: JSON.stringify({ model, input: `${system}\n\nAdmin request: ${message}` }),
+          body: JSON.stringify({ model, system_instruction: system, input: message }),
         });
         if (!response.ok) {
           errors.push(`${model} ${response.status}: ${(await response.text()).slice(0, 300)}`);

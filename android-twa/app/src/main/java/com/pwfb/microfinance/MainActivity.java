@@ -133,6 +133,11 @@ public class MainActivity extends Activity {
                     JSONObject requestBody = new JSONObject();
                     requestBody.put("replaceExisting", true);
                     JSONObject options = postAuthenticated("/auth/passkey/register/options", requestBody, token);
+                    // The Android Credential Manager must never receive an exclusion list during
+                    // the replacement flow. A stale credential can remain on the local provider
+                    // even after the server-side Passkey row has been removed, and Credential
+                    // Manager rejects registration when that stale ID appears in excludeCredentials.
+                    options.remove("excludeCredentials");
                     runOnUiThread(() -> createNativePasskey(options, token));
                 } catch (Exception e) {
                     sendNativePasskeyResult(false, e.getMessage() == null ? "Unable to prepare passkey registration." : e.getMessage(), null);

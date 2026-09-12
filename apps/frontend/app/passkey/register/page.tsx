@@ -11,7 +11,7 @@ declare global {
       registerPasskey: (replaceExisting: boolean, token: string) => void;
     };
     __pwfbNativePasskeyStatus?: (message: string) => void;
-    __pwfbNativePasskeyResult?: (payload: { ok: boolean; message?: string; result?: any }) => void;
+    __pwfbNativePasskeyResult?: (payload: any) => void;
   }
 }
 
@@ -28,31 +28,26 @@ export default function RegisterPasskeyPage() {
       if (!token) throw new Error("Please sign in first before registering a fingerprint.");
       if (window.PWFBNative?.registerPasskey) {
         await new Promise<void>((resolve) => {
-          let settled = false;
-          const finish = () => { if (!settled) { settled = true; resolve(); } };
-          window.__pwfbNativePasskeyStatus = (m) => setMessage(m);
+          let done = false;
+          const finish = () => { if (!done) { done = true; resolve(); } };
+          window.__pwfbNativePasskeyStatus = (text) => setMessage(text);
           window.__pwfbNativePasskeyResult = (payload) => {
-            if (payload?.ok) setMessage(payload.message || "Fresh PWFB fingerprint registered successfully on this device.");
-            else setError(payload?.message || "We could not finish fingerprint registration.");
-            finish();
+            if (payload?.ok) { setMessage(payload.message || "Fingerprint registered successfully."); finish(); }
+            else { setError(payload?.message || "Fingerprint registration failed."); finish(); }
           };
           window.PWFBNative!.registerPasskey(true, token);
-          window.setTimeout(() => finish(), 30000);
+          window.setTimeout(() => { if (!done) { setError("Fingerprint registration timed out. Please try again."); finish(); } }, 60000);
         });
         return;
       }
-
+      if (!("credentials" in navigator) || !("PublicKeyCredential" in window)) {
+        throw new Error("Fingerprint/passkey authentication is not available on this device.");
+      }
       await apiRequest("/auth/passkey/unregister-all", { method: "POST" });
-      const options = await apiRequest("/auth/passkey/register/options", {
-        method: "POST",
-        body: JSON.stringify({ replaceExisting: true }),
-      });
-      const result = await startRegistration({ optionsJSON: options });
-      await apiRequest("/auth/passkey/register/verify", {
-        method: "POST",
-        body: JSON.stringify({ credential: result, challenge: options.challenge }),
-      });
-      setMessage("Fresh PWFB fingerprint registered successfully on this device.");
+      const options = await apiRequest("/auth/passkey/register/options", { method: "POST", body: JSON.stringify({ replaceExisting: true }) });
+      const credential = await startRegistration({ optionsJSON: options });
+      await apiRequest("/auth/passkey/register/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) });
+      setMessage("Fingerprint registered successfully on this device.");
     } catch (e: any) {
       setError(e?.message || "Fingerprint registration failed.");
     } finally {
@@ -61,18 +56,21 @@ export default function RegisterPasskeyPage() {
   };
 
   useEffect(() => {
-    if (!token) setError("Sign in first, then register your fingerprint on this device.");
-  }, [token]);
+    return () => {
+      delete window.__pwfbNativePasskeyStatus;
+      delete window.__pwfbNativePasskeyResult;
+    };
+  }, []);
 
   return (
-    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24, background: "linear-gradient(135deg,#f4fff8,#fff8ed)" }}>
-      <section style={{ width: "min(520px,100%)", background: "white", borderRadius: 28, padding: 32, boxShadow: "0 20px 60px rgba(0,0,0,.10)" }}>
-        <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: "#16834b" }}>PWFB SECURITY</div>
-        <h1 style={{ margin: "8px 0" }}>Register this fingerprint</h1>
-        <p style={{ color: "#667085", lineHeight: 1.6 }}>Register a fresh device passkey. Your old PWFB passkey is removed when replacement is requested.</p>
-        {message && <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: "#ecfdf3", color: "#11643a" }}>{message}</div>}
-        {error && <div style={{ marginTop: 18, padding: 14, borderRadius: 14, background: "#fff1f2", color: "#b42318" }}>{error}</div>}
-        <button type="button" onClick={register} disabled={loading || !token} style={{ width: "100%", marginTop: 24, padding: 16, border: 0, borderRadius: 14, background: "#f28c28", color: "white", fontWeight: 800, cursor: loading || !token ? "not-allowed" : "pointer" }}>
+    <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <section style={{ width: "100%", maxWidth: 520, borderRadius: 24, padding: 28, background: "var(--card, #fff)", boxShadow: "0 20px 60px rgba(0,0,0,.10)" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 1.5, color: "#138a4b" }}>PWFB SECURITY</div>
+        <h1 style={{ marginBottom: 8 }}>Register this fingerprint</h1>
+        <p style={{ opacity: .72 }}>Register a fresh device passkey. Your Android fingerprint/security prompt will protect future PWFB sign-ins.</p>
+        {message && <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#edf9f1" }}>{message}</div>}
+        {error && <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#fff0f0", color: "#b42318" }}>{error}</div>}
+        <button type="button" onClick={register} disabled={loading} style={{ width: "100%", marginTop: 22, padding: 15, border: 0, borderRadius: 12, fontWeight: 800, cursor: loading ? "wait" : "pointer" }}>
           {loading ? "Registering fingerprint…" : "Register Fresh Fingerprint"}
         </button>
       </section>

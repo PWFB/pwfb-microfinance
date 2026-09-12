@@ -40,9 +40,9 @@ export class AuthService {
 
   googleConfig() {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-    const androidClientId = (process.env.GOOGLE_ANDROID_CLIENT_ID || clientId || '').trim();
+    const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() || '';
     if (!clientId) throw new BadRequestException('Google login is not configured on the server');
-    return { client_id: clientId, android_client_id: androidClientId };
+    return { client_id: clientId, android_client_id: androidClientId, android_configured: Boolean(androidClientId) };
   }
 
   private async ensureGoogleIdentityTable() {
@@ -52,8 +52,9 @@ export class AuthService {
   }
 
   async googleLogin(idToken?: string, requestOrigin?: string, requestClientId?: string, expectedNonce?: string) {
-    const clientId = (requestOrigin === 'android-app' ? (process.env.GOOGLE_ANDROID_CLIENT_ID || process.env.GOOGLE_CLIENT_ID) : process.env.GOOGLE_CLIENT_ID)?.trim();
-    if (!clientId) throw new BadRequestException('Google login is not configured on the server');
+    const isAndroid = requestOrigin === 'android-app';
+    const clientId = (isAndroid ? process.env.GOOGLE_ANDROID_CLIENT_ID : process.env.GOOGLE_CLIENT_ID)?.trim();
+    if (!clientId) throw new BadRequestException(isAndroid ? 'Google Android login is not configured on the server. Set GOOGLE_ANDROID_CLIENT_ID in Render.' : 'Google login is not configured on the server');
     if (!idToken) throw new BadRequestException('Google credential is required');
     const googleOrigin = requestOrigin?.trim().replace(/\/$/, '');
     const configuredOrigins = [process.env.GOOGLE_ALLOWED_ORIGINS, process.env.WEBAUTHN_ORIGIN]
@@ -68,7 +69,7 @@ export class AuthService {
       if (payload?.iss !== 'accounts.google.com' && payload?.iss !== 'https://accounts.google.com') throw new UnauthorizedException('Invalid Google token issuer');
       if (!payload?.sub) throw new UnauthorizedException('Google account identifier is missing');
       if (!payload.email || payload.email_verified !== true) throw new UnauthorizedException('Google account email is not verified');
-      if (googleOrigin !== 'android-app' && (!expectedNonce || payload.nonce !== expectedNonce)) throw new UnauthorizedException('Google authentication nonce mismatch');
+      if (!isAndroid && (!expectedNonce || payload.nonce !== expectedNonce)) throw new UnauthorizedException('Google authentication nonce mismatch');
       const email = payload.email.toLowerCase().trim(); const googleAuthoritative = email.endsWith('@gmail.com') || Boolean(payload.hd);
       await this.ensureGoogleIdentityTable(); const googleSub = payload.sub;
       const linkedRows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT "userId" FROM "GoogleIdentity" WHERE "googleSub" = $1 LIMIT 1`, googleSub);
@@ -90,26 +91,9 @@ export class AuthService {
     this.authenticatorTableReady = true;
   }
 
-  private authenticatorKey() {
-    const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET;
-    if (!seed || seed === 'pwfb-secret-key') throw new BadRequestException('Authenticator encryption key is not configured on the server');
-    return createHash('sha256').update(seed).digest();
-  }
-
-  private encryptAuthenticatorSecret(secret: string) {
-    const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', this.authenticatorKey(), iv);
-    const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
-    return `${iv.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}.${encrypted.toString('base64url')}`;
-  }
-
-  private decryptAuthenticatorSecret(value: string) {
-    const [ivText, tagText, dataText] = value.split('.');
-    if (!ivText || !tagText || !dataText) throw new BadRequestException('Stored authenticator secret is invalid');
-    const decipher = createDecipheriv('aes-256-gcm', this.authenticatorKey(), Buffer.from(ivText, 'base64url'));
-    decipher.setAuthTag(Buffer.from(tagText, 'base64url'));
-    return Buffer.concat([decipher.update(Buffer.from(dataText, 'base64url')), decipher.final()]).toString('utf8');
-  }
-
+  private authenticatorKey() { const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET; if (!seed || seed === 'pwfb-secret-key') throw new BadRequestException('Authenticator encryption key is not configured on the server'); return createHash('sha256').update(seed).digest(); }
+  private encryptAuthenticatorSecret(secret: string) { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', this.authenticatorKey(), iv); const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]); return `${iv.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}.${encrypted.toString('base64url')}`; }
+  private decryptAuthenticatorSecret(value: string) { const [ivText, tagText, dataText] = value.split('.'); if (!ivText || !tagText || !dataText) throw new BadRequestException('Stored authenticator secret is invalid'); const decipher = createDecipheriv('aes-256-gcm', this.authenticatorKey(), Buffer.from(ivText, 'base64url')); decipher.setAuthTag(Buffer.from(tagText, 'base64url')); return Buffer.concat([decipher.update(Buffer.from(dataText, 'base64url')), decipher.final()]).toString('utf8'); }
   private base32Encode(buffer: Buffer) { const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; let bits = 0; let value = 0; let output = ''; for (const byte of buffer) { value = (value << 8) | byte; bits += 8; while (bits >= 5) { output += alphabet[(value >>> (bits - 5)) & 31]; bits -= 5; } } if (bits > 0) output += alphabet[(value << (5 - bits)) & 31]; return output; }
   private base32Decode(input: string) { const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, ''); let bits = 0; let value = 0; const out: number[] = []; for (const char of clean) { const index = alphabet.indexOf(char); if (index < 0) continue; value = (value << 5) | index; bits += 5; if (bits >= 8) { out.push((value >>> (bits - 8)) & 255); bits -= 8; } } return Buffer.from(out); }
   private totp(secret: string, timestamp = Date.now()) { const counter = Math.floor(timestamp / 1000 / 30); const counterBuffer = Buffer.alloc(8); counterBuffer.writeBigUInt64BE(BigInt(counter)); const digest = createHmac('sha1', this.base32Decode(secret)).update(counterBuffer).digest(); const offset = digest[digest.length - 1] & 0x0f; const binary = ((digest[offset] & 0x7f) << 24) | ((digest[offset + 1] & 0xff) << 16) | ((digest[offset + 2] & 0xff) << 8) | (digest[offset + 3] & 0xff); return String(binary % 1000000).padStart(6, '0'); }

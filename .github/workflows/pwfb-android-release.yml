@@ -54,24 +54,25 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.41-native-auth-signed-apk
+          name: pwfb-microfinance-v1.0.42-native-auth-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.41-play-store-signed-aab
+          name: pwfb-microfinance-v1.0.42-play-store-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.41
-          name: PWFB Microfinance v1.0.41 — Stable App
+          tag_name: v1.0.42
+          name: PWFB Microfinance v1.0.42 — Restored Stable App
           body: |
-            PWFB Microfinance Android application v1.0.41.
+            PWFB Microfinance Android application v1.0.42.
 
-            This release is based on the current stable PWFB native application flow. It keeps the established PWFB deep-green/orange UI, native password/Google/fingerprint authentication, and stable dashboard handoff.
+            Restored the native PWFB app as the Android launcher so the application opens in the PWFB native authentication screen first, instead of launching the WebView directly.
+            Native password, Google, and fingerprint authentication remain available, followed by the PWFB dashboard handoff.
             Includes the signed APK for Android installation and the signed AAB for Google Play.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
@@ -82,4 +83,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.41 stable signed APK + Play Store AAB release build
+# PWFB v1.0.42 restored stable signed APK + Play Store AAB release build

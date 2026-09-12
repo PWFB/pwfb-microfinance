@@ -90,6 +90,7 @@ export class BalmzAiService {
 
   private cleanGeminiModel(value: string): string {
     let model = value.trim().replace(/^['"]|['"]$/g, '');
+    model = model.replace(/^=+/, '');
     model = model.replace(/^https?:\/\/[^/]+\/v1beta\//i, '');
     model = model.replace(/^.*\/models\//i, '');
     model = model.replace(/^models\//i, '');
@@ -129,7 +130,8 @@ export class BalmzAiService {
           errors.push(`${model} ${response.status}: ${(await response.text()).slice(0, 300)}`);
           continue;
         }
-        const reply = this.extractGeminiText(await response.json());
+        const payload = await response.json();
+        const reply = this.extractGeminiText(payload);
         if (reply) return reply;
         errors.push(`${model}: Gemini returned no text`);
       } catch (error: any) {

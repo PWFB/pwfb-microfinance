@@ -2,6 +2,7 @@ const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-frontend.onrender.com';
 const DEFAULT_PRODUCTION_RP_ID = 'pwfb-frontend.onrender.com';
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
 const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
+const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const PLACEHOLDER_RP_IDS = new Set(['your-frontend-domain.com', 'example.com', 'localhost']);
 
 export function normalizeOrigin(value?: string | null): string {
@@ -21,6 +22,7 @@ function configuredAndroidOrigins(): string[] {
   return Array.from(new Set([
     DEFAULT_ANDROID_APP_ORIGIN,
     CURRENT_ANDROID_APP_ORIGIN,
+    ACTUAL_ANDROID_APP_ORIGIN,
     ...(process.env.WEBAUTHN_ANDROID_ORIGINS || '').split(',').map(normalizeOrigin),
   ])).filter(isAndroidAppOrigin);
 }

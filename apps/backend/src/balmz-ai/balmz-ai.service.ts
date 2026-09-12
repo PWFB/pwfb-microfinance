@@ -49,7 +49,6 @@ export class BalmzAiService {
     }
     const duplicateTransactionGroups = [...fingerprintCounts.values()].filter((count) => count > 1).length;
     if (duplicateTransactionGroups) findings.push({ severity: 'warning', title: 'Potential duplicate transactions detected', detail: `${duplicateTransactionGroups} exact transaction fingerprint group(s) contain duplicates. Review before reversing anything.`, fixable: false });
-
     const transactionCustomers = new Set(transactions.map((row) => row.customerId));
     const savingsCustomers = new Set(savingsAccounts.map((row) => row.customerId));
     const savingsCustomersWithoutTransactions = [...savingsCustomers].filter((customerId) => !transactionCustomers.has(customerId));
@@ -59,7 +58,6 @@ export class BalmzAiService {
     if (savingsCustomersWithoutTransactions.length) findings.push({ severity: 'warning', title: 'Savings customers without transaction history', detail: `${savingsCustomersWithoutTransactions.length} customer(s) have savings account records but no Transaction record at all. ${savingsCustomersWithTransactions.length} savings customer(s) do have transaction history (${savingsCoveragePercent}% customer coverage). This does not prove an opening deposit is missing; review whether these accounts are newly created, dormant, zero-balance, or funded through another collection workflow.`, fixable: false });
     if (zeroBalanceSavings) findings.push({ severity: 'info', title: 'Zero-balance savings accounts identified', detail: `${zeroBalanceSavings} of ${savingsAccounts.length} savings record(s) currently have a zero balance. Confirm these are intentionally dormant or newly opened accounts.`, fixable: false });
     if (activeStaff <= 1) findings.push({ severity: 'warning', title: 'Low active staff coverage', detail: `${activeStaff} active staff record${activeStaff === 1 ? '' : 's'} is currently registered. Confirm that branch operations have appropriate backup coverage and role separation.`, fixable: false });
-
     const repaymentTotals = new Map<string, number>();
     for (const repayment of repayments) repaymentTotals.set(repayment.loanId, (repaymentTotals.get(repayment.loanId) || 0) + repayment.amount);
     const loanMap = new Map(loans.map((loan) => [loan.id, loan.amount]));
@@ -114,6 +112,8 @@ export class BalmzAiService {
     return model.trim();
   }
 
+  private sleep(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+
   private async callOpenAi(message: string, system: string): Promise<string> {
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) throw new Error('OPENAI_API_KEY is not configured');
@@ -127,17 +127,30 @@ export class BalmzAiService {
     const apiKey = process.env.GEMINI_API_KEY?.trim();
     if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
     const configuredModel = this.cleanGeminiModel(process.env.GEMINI_MODEL || 'gemini-3.7-flash');
-    const models = [...new Set([configuredModel, 'gemini-3.7-flash'])].filter(Boolean);
+    const models = [...new Set([configuredModel, 'gemini-3.7-flash', 'gemini-2.5-flash'])].filter(Boolean);
     const errors: string[] = [];
     for (const model of models) {
-      try {
-        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ model, system_instruction: system, input: message }) });
-        if (!response.ok) { errors.push(`${model} ${response.status}: ${(await response.text()).slice(0, 300)}`); continue; }
-        const payload = await response.json();
-        const reply = this.extractGeminiText(payload);
-        if (reply) return reply;
-        errors.push(`${model}: Gemini returned no text`);
-      } catch (error: any) { errors.push(`${model}: ${error?.message || 'provider error'}`); }
+      let lastError = '';
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const response = await fetch('https://generativelanguage.googleapis.com/v1beta/interactions', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey }, body: JSON.stringify({ model, system_instruction: system, input: message }) });
+          if (!response.ok) {
+            const body = (await response.text()).slice(0, 300);
+            lastError = `${model} ${response.status}: ${body}`;
+            if (response.status === 429 || response.status >= 500) { if (attempt === 0) await this.sleep(800); continue; }
+            break;
+          }
+          const payload = await response.json();
+          const reply = this.extractGeminiText(payload);
+          if (reply) return reply;
+          lastError = `${model}: Gemini returned no text`;
+          break;
+        } catch (error: any) {
+          lastError = `${model}: ${error?.message || 'provider error'}`;
+          if (attempt === 0) await this.sleep(800);
+        }
+      }
+      if (lastError) errors.push(lastError);
     }
     throw new Error(`Gemini ${errors.join(' | ')}`);
   }

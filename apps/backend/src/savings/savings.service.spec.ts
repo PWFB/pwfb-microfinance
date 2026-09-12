@@ -17,10 +17,15 @@ describe('SavingsService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    transaction: {
+      create: jest.fn(),
+    },
+    $transaction: jest.fn(),
   } as unknown as PrismaService;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    (prisma as any).$transaction.mockImplementation(async (callback: any) => callback(prisma));
     service = new SavingsService(prisma);
   });
 
@@ -28,7 +33,7 @@ describe('SavingsService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should create savings for an existing customer', async () => {
+  it('should create savings and an opening deposit ledger entry for an existing customer', async () => {
     const dto = {
       customerId: 'customer-1',
       amount: 5000,
@@ -55,6 +60,15 @@ describe('SavingsService', () => {
       .fn()
       .mockResolvedValue(created);
 
+    prisma.transaction.create = jest
+      .fn()
+      .mockResolvedValue({
+        id: 'transaction-1',
+        customerId: 'customer-1',
+        type: 'Deposit',
+        amount: 5000,
+      });
+
     await expect(service.create(dto)).resolves.toBe(created);
 
     expect(prisma.customer.findUnique).toHaveBeenCalledWith({
@@ -73,6 +87,35 @@ describe('SavingsService', () => {
         customer: true,
       },
     });
+
+    expect(prisma.transaction.create).toHaveBeenCalledWith({
+      data: {
+        customerId: 'customer-1',
+        type: 'Deposit',
+        amount: 5000,
+        description: 'Savings account opening deposit — SAVINGS',
+      },
+    });
+  });
+
+  it('should not create a ledger deposit for a zero-balance savings account', async () => {
+    const dto = {
+      customerId: 'customer-1',
+      amount: 0,
+      accountType: 'SAVINGS',
+    };
+
+    const customer = {
+      id: 'customer-1',
+      firstName: 'Test',
+      lastName: 'Customer',
+    };
+
+    prisma.customer.findUnique = jest.fn().mockResolvedValue(customer);
+    prisma.savings.create = jest.fn().mockResolvedValue({ id: 'savings-1', ...dto, customer });
+
+    await expect(service.create(dto)).resolves.toEqual({ id: 'savings-1', ...dto, customer });
+    expect(prisma.transaction.create).not.toHaveBeenCalled();
   });
 
   it('should reject savings creation when customer does not exist', async () => {
@@ -91,6 +134,7 @@ describe('SavingsService', () => {
     );
 
     expect(prisma.savings.create).not.toHaveBeenCalled();
+    expect(prisma.transaction.create).not.toHaveBeenCalled();
   });
 
   it('should return all savings ordered by newest first', async () => {

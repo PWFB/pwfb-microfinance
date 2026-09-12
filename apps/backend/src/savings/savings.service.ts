@@ -29,16 +29,35 @@ export class SavingsService {
       );
     }
 
-    return this.prisma.savings.create({
-      data: {
-        customerId: createSavingsDto.customerId,
-        amount: createSavingsDto.amount,
-        accountType:
-          createSavingsDto.accountType,
-      },
-      include: {
-        customer: true,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const savings = await tx.savings.create({
+        data: {
+          customerId: createSavingsDto.customerId,
+          amount: createSavingsDto.amount,
+          accountType:
+            createSavingsDto.accountType,
+        },
+        include: {
+          customer: true,
+        },
+      });
+
+      // Every non-negative opening balance must have an auditable
+      // ledger entry. This prevents BALMZ from correctly reporting
+      // a newly-created funded savings account with no transaction
+      // history. The transaction and savings record are atomic.
+      if (createSavingsDto.amount > 0) {
+        await tx.transaction.create({
+          data: {
+            customerId: createSavingsDto.customerId,
+            type: 'Deposit',
+            amount: createSavingsDto.amount,
+            description: `Savings account opening deposit — ${createSavingsDto.accountType}`,
+          },
+        });
+      }
+
+      return savings;
     });
   }
 

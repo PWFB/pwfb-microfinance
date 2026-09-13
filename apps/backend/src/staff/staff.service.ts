@@ -21,7 +21,8 @@ export class StaffService {
   private async ensureBvnVerificationTable() {
     await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StaffBvnVerification" ("id" TEXT PRIMARY KEY,"reference" TEXT NOT NULL UNIQUE,"bvnHash" TEXT,"requestedFirstName" TEXT NOT NULL,"requestedLastName" TEXT NOT NULL,"firstName" TEXT,"middleName" TEXT,"lastName" TEXT,"fullName" TEXT,"status" TEXT NOT NULL DEFAULT 'PENDING',"message" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"verifiedAt" TIMESTAMP(3))`);
     await this.prisma.$executeRawUnsafe(`ALTER TABLE "StaffBvnVerification" ADD COLUMN IF NOT EXISTS "bvnHash" TEXT`);
-    await this.prisma.$executeRawUnsafe(`UPDATE "StaffBvnVerification" SET "bvnHash"=encode(digest("bvn", 'sha256'),'hex') WHERE COALESCE("bvnHash",'')='' AND COALESCE("bvn",'')<>''`);
+    const legacyRows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id","bvn" FROM "StaffBvnVerification" WHERE COALESCE("bvnHash",'')='' AND COALESCE("bvn",'')<>''`);
+    for (const legacy of legacyRows) await this.prisma.$executeRawUnsafe(`UPDATE "StaffBvnVerification" SET "bvnHash"=$1 WHERE "id"=$2`, this.hashBvn(String(legacy.bvn)), legacy.id);
     await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "StaffBvnVerification_bvnHash_idx" ON "StaffBvnVerification" ("bvnHash")`);
     await this.prisma.$executeRawUnsafe(`ALTER TABLE "StaffBvnVerification" DROP COLUMN IF EXISTS "bvn"`);
   }

@@ -13,82 +13,59 @@ export default function AddStaffPage() {
   const [consentBusy,setConsentBusy]=useState(false);
   const [form,setForm]=useState({firstName:'',middleName:'',lastName:'',email:'',phone:'',department:'',position:'',employmentStatus:'ACTIVE',regionId:'',divisionId:'',areaId:'',branch:'',role:'STAFF'});
   const [regions,setRegions]=useState<Region[]>([]), [roles,setRoles]=useState(defaultRoles), [busy,setBusy]=useState(false), [message,setMessage]=useState('');
-  useEffect(()=>{
-    apiRequest('/organization/hierarchy').then((x:any)=>setRegions(Array.isArray(x)?x:[])).catch(()=>undefined);
-    apiRequest('/staff/roles').then((x:any)=>Array.isArray(x)&&setRoles(x.map((r:any)=>typeof r==='string'?r:r.name).filter(Boolean))).catch(()=>undefined);
-
-    const reference = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('bvnRef') : null;
-    if (!reference) return;
-    setStep(1); setConsentBusy(true); setMessage('Flutterwave consent returned. Completing BVN verification…');
-    let attempts = 0;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const poll = async () => {
-      attempts += 1;
-      try {
-        const r = await apiRequest(`/staff/bvn/verify/${encodeURIComponent(reference)}`);
-        if (r?.verified) {
-          setVerified(r);
-          setBvn(String(r.bvn || sessionStorage.getItem('pwfb_staff_bvn') || ''));
-          setForm(x=>({...x,firstName:r.firstName||'',middleName:r.middleName||'',lastName:r.lastName||''}));
-          const legal = [r.firstName,r.middleName,r.lastName].filter(Boolean).join(' ');
-          setUsername(`STF-${String(r.bvn||'').slice(-6)}-${Math.floor(1000+Math.random()*9000)}`);
-          setMessage(`BVN VERIFIED — legal name: ${legal}`);
-          setConsentBusy(false); setStep(2);
-          if (timer) clearInterval(timer);
-          window.history.replaceState({}, '', '/staff/add');
-          sessionStorage.removeItem('pwfb_staff_bvn');
-          return;
-        }
-        if (['FAILED','DECLINED','REJECTED','CANCELLED'].includes(String(r?.status||'').toUpperCase()) || attempts >= 30) {
-          setConsentBusy(false); setMessage(r?.message || 'BVN consent was not completed. Start verification again.');
-          if (timer) clearInterval(timer);
-          window.history.replaceState({}, '', '/staff/add');
-          return;
-        }
-        setMessage('Waiting for Flutterwave BVN consent confirmation…');
-      } catch (e:any) {
-        if (attempts >= 30) { setConsentBusy(false); setMessage(e?.message || 'Unable to complete BVN verification.'); if (timer) clearInterval(timer); }
-      }
-    };
-    void poll(); timer = setInterval(()=>void poll(),2000);
-    return ()=>{if(timer) clearInterval(timer)};
-  },[]);
-
+  useEffect(()=>{apiRequest('/organization/hierarchy').then((x:any)=>setRegions(Array.isArray(x)?x:[])).catch(()=>undefined);apiRequest('/staff/roles').then((x:any)=>Array.isArray(x)&&setRoles(x.map((r:any)=>typeof r==='string'?r:r.name).filter(Boolean))).catch(()=>undefined)},[]);
   const region=regions.find(r=>r.id===form.regionId), divisions=region?.divisions||[];
   const areas=(region?.areas||[]).filter(a=>!form.divisionId||a.divisionId===form.divisionId);
   const branches=(region?.branches||[]).filter(b=>(!form.divisionId||b.divisionId===form.divisionId)&&(!form.areaId||b.areaId===form.areaId));
   const legalName=useMemo(()=>verified?.fullName||[form.firstName,form.middleName,form.lastName].filter(Boolean).join(' '),[verified,form]);
   const set=(k:string,v:string)=>setForm(x=>({...x,[k]:v}));
 
+  async function waitForBvn(reference:string){
+    setConsentBusy(true); setMessage('Waiting for Flutterwave consent confirmation…');
+    for(let attempt=1;attempt<=30;attempt++){
+      try{
+        const r=await apiRequest(`/staff/bvn/verify/${encodeURIComponent(reference)}`);
+        if(r?.verified){
+          setVerified(r); setBvn(String(r.bvn||bvn)); setForm(x=>({...x,firstName:r.firstName||x.firstName,middleName:r.middleName||'',lastName:r.lastName||x.lastName}));
+          setUsername(`STF-${String(r.bvn||bvn).slice(-6)}-${Math.floor(1000+Math.random()*9000)}`); setMessage(`BVN VERIFIED — legal name: ${r.fullName}`); setConsentBusy(false); setStep(2); return;
+        }
+        const status=String(r?.status||'').toUpperCase();
+        if(['FAILED','DECLINED','REJECTED','CANCELLED'].includes(status)){setConsentBusy(false);setMessage(r?.message||`BVN verification ${status.toLowerCase()}.`);return;}
+      }catch(e:any){if(attempt===30){setConsentBusy(false);setMessage(e?.message||'Unable to complete BVN verification.');return;}}
+      await new Promise(resolve=>setTimeout(resolve,2000));
+    }
+    setConsentBusy(false); setMessage('BVN consent is still pending. Keep the Flutterwave consent tab open and try verification again when it completes.');
+  }
+
   async function verifyBvn(){
     if(!/^\d{11}$/.test(bvn))return setMessage('Enter a valid 11-digit BVN.');
     if(!form.firstName.trim()||!form.lastName.trim())return setMessage('Enter the staff member’s first and last name to start Flutterwave consent.');
     setBusy(true);setMessage('');
     try{
-      const redirectUrl=`${window.location.origin}/staff/add?bvnRef=`;
+      const redirectUrl=`${window.location.origin}/staff/add`;
       const r=await apiRequest('/staff/bvn/verify',{method:'POST',body:JSON.stringify({bvn,firstName:form.firstName,lastName:form.lastName,redirectUrl})});
-      sessionStorage.setItem('pwfb_staff_bvn',bvn);
-      if(r?.consentUrl){setMessage('Redirecting to Flutterwave secure BVN consent…');window.location.assign(r.consentUrl);return;}
-      setMessage('Flutterwave accepted the BVN request. Waiting for verification…');
-      const ref=String(r?.reference||'');
-      if(ref)window.location.assign(`/staff/add?bvnRef=${encodeURIComponent(ref)}`);
-    }catch(e:any){setMessage(e?.message||'BVN verification failed.')}finally{setBusy(false)}
+      const reference=String(r?.reference||'');
+      if(!reference)throw new Error('Flutterwave did not return a BVN verification reference.');
+      if(r?.consentUrl){
+        const popup=window.open(r.consentUrl,'_blank','noopener,noreferrer');
+        if(!popup){setMessage('Your browser blocked the Flutterwave consent window. Allow pop-ups for PWFB and press Verify BVN again.');setBusy(false);return;}
+        setMessage('Flutterwave consent opened in a new tab. Complete the consent there; this PWFB page will verify the result automatically.');
+      }else setMessage('Flutterwave accepted the BVN request. Waiting for verification…');
+      setBusy(false); void waitForBvn(reference);
+    }catch(e:any){setMessage(e?.message||'BVN verification failed.');setBusy(false)}
   }
 
   async function create(){
     if(!verified?.verified)return setMessage('Complete BVN consent verification before creating this staff account.');
     setBusy(true);setMessage('');
-    try{
-      const r=await apiRequest('/staff',{method:'POST',body:JSON.stringify({...form,username,passport,middleName:form.middleName||undefined,email:form.email||undefined})});
-      setMessage(`Staff created successfully${r?.staff?.staffId?` — ${r.staff.staffId}`:''}.`);setStep(5);
-    }catch(e:any){setMessage(e?.message||'Unable to create staff.')}finally{setBusy(false)}
+    try{const r=await apiRequest('/staff',{method:'POST',body:JSON.stringify({...form,username,passport,middleName:form.middleName||undefined,email:form.email||undefined})});setMessage(`Staff created successfully${r?.staff?.staffId?` — ${r.staff.staffId}`:''}.`);setStep(5)}catch(e:any){setMessage(e?.message||'Unable to create staff.')}finally{setBusy(false)}
   }
 
   return <main className="staff-registration-page">
     <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">STAFF MANAGEMENT</p><h1 className="pwfb-page-title">Staff Registration</h1><p className="pwfb-page-description">Guided registration: BVN → Consent → Staff information → Branch → Role → Create.</p></div><Link href="/staff" className="pwfb-secondary-button">← Staff</Link></div>
     <div className="staff-steps">{['BVN & Consent','Staff Information','Branch Assignment','Role Assignment','Complete'].map((x,i)=><div className={step===i+1?'active':''} key={x}><b>{i+1}</b>{x}</div>)}</div>
     <section className="pwfb-panel staff-registration-card">
-      {step===1&&<div className="step-card"><h2>BVN Verification</h2><p>Flutterwave now requires the staff member’s consent before BVN data can be returned. Enter the BVN and the name supplied by the staff member; Flutterwave will securely collect consent and return the verified legal name.</p><div className="fields"><label>BVN<input value={bvn} onChange={e=>setBvn(e.target.value.replace(/\D/g,'').slice(0,11))} inputMode="numeric" maxLength={11} placeholder="11-digit BVN"/></label><label>First name<input value={form.firstName} onChange={e=>set('firstName',e.target.value)} placeholder="Staff first name"/></label><label>Last name<input value={form.lastName} onChange={e=>set('lastName',e.target.value)} placeholder="Staff last name"/></label></div><button className="pwfb-primary-button" onClick={verifyBvn} disabled={busy||consentBusy}>{busy||consentBusy?'Verifying…':'Verify BVN with Consent'}</button>{consentBusy&&<div className="verified">Secure Flutterwave consent verification is in progress. Do not close this page.</div>}</div>}
+      {step===1&&<div className="step-card"><h2>BVN Verification</h2><p>Flutterwave requires the staff member’s consent before BVN data can be returned. Enter the BVN and the name supplied by the staff member; PWFB will then open Flutterwave’s secure consent page.</p><div className="fields"><label>BVN<input value={bvn} onChange={e=>setBvn(e.target.value.replace(/\D/g,'').slice(0,11))} inputMode="numeric" maxLength={11} placeholder="11-digit BVN"/></label><label>First name<input value={form.firstName} onChange={e=>set('firstName',e.target.value)} placeholder="Staff first name"/></label><label>Last name<input value={form.lastName} onChange={e=>set('lastName',e.target.value)} placeholder="Staff last name"/></label></div><button className="pwfb-primary-button" onClick={verifyBvn} disabled={busy||consentBusy}>{busy||consentBusy?'Verifying…':'Verify BVN with Consent'}</button>{consentBusy&&<div className="verified">Secure Flutterwave consent verification is in progress. Complete the consent in the new tab.</div>}</div>}
       {step===2&&<div className="step-card"><div className="verified">✓ BVN VERIFIED</div><h2>Staff Information</h2><div className="two-column"><div className="fields"><label>Staff Username<input value={username} readOnly/></label><label>First name<input value={form.firstName} readOnly/></label><label>Middle name<input value={form.middleName} readOnly/></label><label>Last name<input value={form.lastName} readOnly/></label><label>Phone<input value={form.phone} onChange={e=>set('phone',e.target.value)} required/></label><label>Email (optional)<input value={form.email} onChange={e=>set('email',e.target.value)}/></label><label>Department ID<input value={form.department} onChange={e=>set('department',e.target.value)}/></label><label>Position<input value={form.position} onChange={e=>set('position',e.target.value)}/></label></div><div className="passport"><strong>Current Passport</strong>{passport?<img src={passport} alt="Current passport"/>:<div className="passport-empty">Upload current passport</div>}<input type="file" accept="image/*" onChange={e=>{const f=e.target.files?.[0];if(f)setPassport(URL.createObjectURL(f))}}/></div></div><div className="verified-name">BVN verified legal name: <strong>{legalName}</strong></div><button className="pwfb-primary-button" onClick={()=>{if(!passport)return setMessage('Upload the current passport before continuing.');setStep(3);setMessage('')}}>Continue to Branch</button></div>}
       {step===3&&<div className="step-card"><h2>Branch Assignment</h2><p>Select Region → Division → Area → Branch. The selected branch becomes the staff member's organizational scope.</p><div className="fields"><label>Region<select value={form.regionId} onChange={e=>setForm(x=>({...x,regionId:e.target.value,divisionId:'',areaId:'',branch:''}))}><option value="">Select Region</option>{regions.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label><label>Division<select value={form.divisionId} onChange={e=>setForm(x=>({...x,divisionId:e.target.value,areaId:'',branch:''}))} disabled={!form.regionId}><option value="">Select Division</option>{divisions.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label><label>Area<select value={form.areaId} onChange={e=>setForm(x=>({...x,areaId:e.target.value,branch:''}))} disabled={!form.regionId}><option value="">Select Area</option>{areas.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label>Branch<select value={form.branch} onChange={e=>set('branch',e.target.value)} disabled={!form.regionId}><option value="">Select Branch</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label></div><button className="pwfb-primary-button" onClick={()=>{if(!form.regionId||!form.branch)return setMessage('Select the Region and Branch.');setStep(4);setMessage('')}}>Save Branch & Continue</button></div>}
       {step===4&&<div className="step-card"><h2>Role Assignment</h2><p>Roles must be created in Role Management before they can be assigned.</p><Link href="/staff/roles" className="pwfb-secondary-button">Manage / Create Roles</Link><div className="role-grid">{roles.map(r=><button type="button" className={form.role===r?'selected':''} key={r} onClick={()=>set('role',r)}>{r.replaceAll('_',' ')}</button>)}</div><div className="summary"><b>{username}</b><span>{legalName}</span><span>{region?.name} → {branches.find(b=>b.id===form.branch)?.name}</span><span>Role: {form.role.replaceAll('_',' ')}</span></div><button className="pwfb-primary-button" onClick={create} disabled={busy}>{busy?'Creating…':'Create Staff Account'}</button></div>}

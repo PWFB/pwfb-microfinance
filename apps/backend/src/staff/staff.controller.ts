@@ -15,8 +15,14 @@ export class StaffController {
 
   @Post('bvn/verify')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  verifyBvn(@Body() body: { bvn: string }) {
-    return this.staffService.verifyBvn(body.bvn);
+  initiateBvn(@Body() body: { bvn: string; firstName: string; lastName: string; redirectUrl: string }) {
+    return this.staffService.initiateBvnVerification(body);
+  }
+
+  @Get('bvn/verify/:reference')
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  bvnStatus(@Param('reference') reference: string) {
+    return this.staffService.getBvnVerification(reference);
   }
 
   @Post()

@@ -25,6 +25,12 @@ export class StaffController {
     return this.staffService.getBvnVerification(reference);
   }
 
+  @Get('bvn/config-status')
+  @Roles('SUPER_ADMIN')
+  bvnConfigStatus() {
+    return this.staffService.bvnConfigurationStatus();
+  }
+
   @Post()
   @Roles('SUPER_ADMIN', 'ADMIN')
   create(@Body() createStaffDto: CreateStaffDto) { return this.staffService.create(createStaffDto); }

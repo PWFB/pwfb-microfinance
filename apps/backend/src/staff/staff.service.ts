@@ -17,6 +17,18 @@ export class StaffService {
   async initiateBvnVerification(input: { bvn: string; firstName: string; lastName: string; redirectUrl: string }) { return this.flutterwaveService.initiateBvnVerification(input); }
   async getBvnVerification(reference: string) { return this.flutterwaveService.getBvnVerification(reference); }
   async verifyBvn(bvn: string) { return this.flutterwaveService.verifyBvn(bvn); }
+  async bvnConfigurationStatus() {
+    const primary = String(process.env.FLUTTERWAVE_SECRET_KEY || '').trim();
+    const fallback = String(process.env.FLW_SECRET_KEY || '').trim();
+    const selected = primary ? 'FLUTTERWAVE_SECRET_KEY' : fallback ? 'FLW_SECRET_KEY' : null;
+    return {
+      configured: Boolean(selected),
+      source: selected,
+      environment: process.env.NODE_ENV || 'unknown',
+      api: 'https://api.flutterwave.com/v3/bvn/verifications',
+      secretValueExposed: false,
+    };
+  }
   async create(createStaffDto: CreateStaffDto) {
     let bvnVerification: any = undefined; let registrationData = { ...createStaffDto };
     if (createStaffDto.bvn) {

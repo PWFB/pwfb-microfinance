@@ -10,14 +10,16 @@ import { NibssService } from './nibss.service';
 import { FlutterwaveService } from './flutterwave.service';
 import { PaystackService } from './paystack.service';
 import { PaystackController } from './paystack.controller';
+import { PaystackBranchDvaService } from './paystack-branch-dva.service';
+import { PaystackBranchDvaController } from './paystack-branch-dva.controller';
 import { ExternalBankTransferService } from './external-bank-transfer.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PermissionsModule } from '../permissions/permissions.module';
 
 @Module({
   imports: [PrismaModule, PermissionsModule],
-  controllers: [BankingController, CustomerVirtualAccountWebhookController, WalletWithdrawalWebhookController, PaystackController],
-  providers: [BankingService, CustomerVirtualAccountService, CustomerVirtualAccountWebhookService, WalletWithdrawalWebhookService, NibssService, FlutterwaveService, PaystackService, ExternalBankTransferService],
-  exports: [BankingService, CustomerVirtualAccountService, CustomerVirtualAccountWebhookService, WalletWithdrawalWebhookService, NibssService, FlutterwaveService, PaystackService, ExternalBankTransferService],
+  controllers: [BankingController, CustomerVirtualAccountWebhookController, WalletWithdrawalWebhookController, PaystackController, PaystackBranchDvaController],
+  providers: [BankingService, CustomerVirtualAccountService, CustomerVirtualAccountWebhookService, WalletWithdrawalWebhookService, NibssService, FlutterwaveService, PaystackService, PaystackBranchDvaService, ExternalBankTransferService],
+  exports: [BankingService, CustomerVirtualAccountService, CustomerVirtualAccountWebhookService, WalletWithdrawalWebhookService, NibssService, FlutterwaveService, PaystackService, PaystackBranchDvaService, ExternalBankTransferService],
 })
 export class BankingModule {}

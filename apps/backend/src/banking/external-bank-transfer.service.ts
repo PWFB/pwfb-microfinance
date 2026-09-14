@@ -26,18 +26,22 @@ export class ExternalBankTransferService {
   currentProvider() { return this.provider(); }
   currentProviders() { return this.configuredProviders(); }
   private normalizeName(value: string) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, ' '); }
-  private namesMatchAtLeastTwo(customerName: string, accountName: string) { const customerParts = [...new Set(this.normalizeName(customerName).split(' ').filter(Boolean))]; const accountParts = new Set(this.normalizeName(accountName).split(' ').filter(Boolean)); return customerParts.filter((part) => accountParts.has(part)).length >= 2; }
 
   async listInstitutions() {
-    const providers = this.configuredProviders();
-    if (providers.includes('FLUTTERWAVE')) return this.flutterwaveService.listBanks('NG');
+    const provider = this.provider();
+    if (provider === 'PAYSTACK') return this.paystackService.listBanks();
+    if (provider === 'FLUTTERWAVE') return this.flutterwaveService.listBanks('NG');
     return this.prisma.bankInstitution.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
 
   async searchInstitutions(search?: string) {
-    const providers = this.configuredProviders();
+    const provider = this.provider();
     const query = String(search || '').trim().toLowerCase();
-    if (providers.includes('FLUTTERWAVE')) {
+    if (provider === 'PAYSTACK') {
+      const banks = await this.paystackService.listBanks();
+      return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
+    }
+    if (provider === 'FLUTTERWAVE') {
       const banks = await this.flutterwaveService.listBanks('NG');
       return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
     }
@@ -111,7 +115,7 @@ export class ExternalBankTransferService {
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const providerResult = await this.transferToVerifiedAccount({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, reference: xref });
     return this.prisma.$transaction(async (tx) => {
-      const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
       if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance after provider acceptance');
       const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;

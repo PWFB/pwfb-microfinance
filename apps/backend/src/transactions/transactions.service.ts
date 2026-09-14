@@ -130,52 +130,31 @@ export class TransactionsService {
     };
   }
 
-  async update(id: string, updateTransactionDto: UpdateTransactionDto) {
-    const walletTransaction = await this.prisma.walletTransaction.findUnique({
-      where: { id },
-      select: { id: true },
-    });
+  async update(id: string, _updateTransactionDto: UpdateTransactionDto) {
+    const transaction = await this.findOne(id);
 
-    if (walletTransaction) {
+    if (transaction.source === 'WALLET') {
       throw new BadRequestException(
         'Wallet transactions are system-generated and cannot be edited from the ledger',
       );
     }
 
-    await this.findOne(id);
-
-    if (updateTransactionDto.customerId) {
-      const customer = await this.prisma.customer.findUnique({
-        where: { id: updateTransactionDto.customerId },
-      });
-      if (!customer) throw new NotFoundException('Customer not found');
-    }
-
-    return this.prisma.transaction.update({
-      where: { id },
-      data: {
-        customerId: updateTransactionDto.customerId,
-        type: updateTransactionDto.type,
-        amount: updateTransactionDto.amount,
-        description: updateTransactionDto.description,
-      },
-      include: { customer: true },
-    });
+    throw new BadRequestException(
+      'Ledger transactions are immutable. Create a correcting transaction or reversal instead of editing the original record.',
+    );
   }
 
   async remove(id: string) {
-    const walletTransaction = await this.prisma.walletTransaction.findUnique({
-      where: { id },
-      select: { id: true },
-    });
+    const transaction = await this.findOne(id);
 
-    if (walletTransaction) {
+    if (transaction.source === 'WALLET') {
       throw new BadRequestException(
         'Wallet transactions are system-generated and cannot be deleted from the ledger',
       );
     }
 
-    await this.findOne(id);
-    return this.prisma.transaction.delete({ where: { id } });
+    throw new BadRequestException(
+      'Ledger transactions are immutable and cannot be deleted. Create a correcting transaction or reversal instead.',
+    );
   }
 }

@@ -2,12 +2,13 @@ import { Injectable, BadRequestException, NotFoundException, UnauthorizedExcepti
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CustomerVirtualAccountService } from '../banking/customer-virtual-account.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly customerVirtualAccounts: CustomerVirtualAccountService) {}
 
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.prisma.user.findUnique({ where: { email } })) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
@@ -22,11 +23,21 @@ export class CustomersService {
       const result = await this.prisma.$transaction(async (tx) => {
         let group: any = null;
         if (dto.groupId) { group = await tx.clientGroup.findUnique({ where: { id: dto.groupId } }); if (!group) throw new BadRequestException('Client group not found'); if (group.branchId && group.branchId !== staff.branchId) throw new BadRequestException('Client group belongs to another branch'); }
-        const customer = await tx.customer.create({ data: { id: customerId, firstName: dto.firstName, middleName: dto.middleName?.trim() || undefined, lastName: dto.lastName, email, phone: dto.phone, address: dto.address, dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined, branch: { connect: { id: staff.branchId } }, assignedStaff: { connect: { id: staff.id } }, ...(dto.groupId ? { clientGroup: { connect: { id: dto.groupId } } } : {}) } });
+        const customer = await tx.customer.create({ data: { id: customerId, firstName: dto.firstName, middleName: dto.middleName?.trim() || undefined, lastName: dto.lastName, email, phone: dto.phone, address: dto.address, dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined, branch: { connect: { id: staff.branchId } }, assignedStaff: { connect: { id: staff.id } }, ...(dto.groupId ? { clientGroup: { connect: { id: dto.groupId } } } : {}), wallet: { create: {} } } });
         const user = await tx.user.create({ data: { email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, role: 'CUSTOMER', customer: { connect: { id: customer.id } } } });
         return { customer, user };
       });
-      return { message: 'Client created successfully', client: { id: result.customer.id, customerId: result.customer.id, firstName: result.customer.firstName, middleName: result.customer.middleName, lastName: result.customer.lastName, email: result.customer.email, branchId: result.customer.branchId, assignedStaffId: result.customer.assignedStaffId, groupId: result.customer.groupId }, login: { email, temporaryPassword } };
+
+      let virtualAccounts: any[] = [];
+      let virtualAccountWarning: string | null = null;
+      try {
+        virtualAccounts = await this.customerVirtualAccounts.ensure(result.customer.id);
+      } catch (error) {
+        virtualAccountWarning = error instanceof Error ? error.message : 'Customer virtual account provisioning is pending';
+        try { virtualAccounts = await this.customerVirtualAccounts.list(result.customer.id); } catch { virtualAccounts = []; }
+      }
+
+      return { message: 'Client created successfully', client: { id: result.customer.id, customerId: result.customer.id, firstName: result.customer.firstName, middleName: result.customer.middleName, lastName: result.customer.lastName, email: result.customer.email, branchId: result.customer.branchId, assignedStaffId: result.customer.assignedStaffId, groupId: result.customer.groupId }, wallet: { customerId: result.customer.id, currency: 'NGN', status: 'ACTIVE' }, virtualAccounts, virtualAccountWarning, login: { email, temporaryPassword } };
     } catch (error) { if (error instanceof BadRequestException) throw error; throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create client'); }
   }
 

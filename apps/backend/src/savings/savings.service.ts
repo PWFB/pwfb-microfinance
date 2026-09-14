@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -32,8 +33,6 @@ export class SavingsService {
         include: { customer: true },
       });
 
-      // A funded savings account must have an auditable opening
-      // deposit in the transaction ledger. Keep both records atomic.
       if (createSavingsDto.amount > 0) {
         await tx.transaction.create({
           data: {
@@ -46,6 +45,66 @@ export class SavingsService {
       }
 
       return savings;
+    });
+  }
+
+  async deposit(id: string, amount: number, description?: string) {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new BadRequestException('Deposit amount must be greater than zero');
+    }
+
+    const savings = await this.findOne(id);
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.savings.update({
+        where: { id: savings.id },
+        data: { amount: { increment: value } },
+        include: { customer: true },
+      });
+
+      await tx.transaction.create({
+        data: {
+          customerId: savings.customerId,
+          type: 'Deposit',
+          amount: value,
+          description: description || `Savings deposit — ${savings.id}`,
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  async withdraw(id: string, amount: number, description?: string) {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new BadRequestException('Withdrawal amount must be greater than zero');
+    }
+
+    const savings = await this.findOne(id);
+    const balance = Number(savings.amount || 0);
+    if (value > balance) {
+      throw new BadRequestException(`Insufficient savings balance. Available balance is ${balance}`);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.savings.update({
+        where: { id: savings.id },
+        data: { amount: { decrement: value } },
+        include: { customer: true },
+      });
+
+      await tx.transaction.create({
+        data: {
+          customerId: savings.customerId,
+          type: 'Withdrawal',
+          amount: value,
+          description: description || `Savings withdrawal — ${savings.id}`,
+        },
+      });
+
+      return updated;
     });
   }
 

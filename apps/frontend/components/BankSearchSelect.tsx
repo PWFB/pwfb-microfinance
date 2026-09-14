@@ -6,6 +6,7 @@ type Bank = {
   code: string;
   name: string;
   shortName?: string;
+  provider?: string;
 };
 
 type Props = {
@@ -53,7 +54,10 @@ export default function BankSearchSelect({ banks, value, onChange, placeholder =
   const results = useMemo(() => {
     const list = banks.map((bank) => ({ bank, score: score(bank, query) }));
     if (!query.trim()) {
-      return list.sort((a, b) => a.bank.name.localeCompare(b.bank.name, undefined, { sensitivity: "base" })).slice(0, 50).map((item) => item.bank);
+      return list
+        .sort((a, b) => a.bank.name.localeCompare(b.bank.name, undefined, { sensitivity: "base" }))
+        .slice(0, 50)
+        .map((item) => item.bank);
     }
     return list
       .filter((item) => item.score >= 0)
@@ -61,6 +65,8 @@ export default function BankSearchSelect({ banks, value, onChange, placeholder =
       .slice(0, 20)
       .map((item) => item.bank);
   }, [banks, query]);
+
+  const providerLabel = selected?.provider ? selected.provider.toUpperCase() : "";
 
   return (
     <div ref={root} style={{ position: "relative" }}>
@@ -70,7 +76,7 @@ export default function BankSearchSelect({ banks, value, onChange, placeholder =
         onClick={() => { if (!disabled) { setOpen((v) => !v); setQuery(""); } }}
         style={{ width: "100%", textAlign: "left", border: "1px solid #dbe5df", borderRadius: 11, padding: "12px", background: disabled ? "#f1f4f2" : "#fbfdfc", color: selected ? "#21372d" : "#7a8780", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}
       >
-        {selected ? `${selected.name}${selected.shortName ? ` (${selected.shortName})` : ""} · ${selected.code}` : "Select a bank…"}
+        {selected ? `${selected.name}${selected.shortName ? ` (${selected.shortName})` : ""} · ${selected.code}${providerLabel ? ` · ${providerLabel}` : ""}` : "Select a bank…"}
       </button>
 
       {open && !disabled && (
@@ -89,13 +95,13 @@ export default function BankSearchSelect({ banks, value, onChange, placeholder =
               <div style={{ padding: 14, color: "#7a8780", fontSize: 12 }}>No matching bank found.</div>
             ) : results.map((bank) => (
               <button
-                key={`${bank.code}-${bank.name}`}
+                key={`${bank.provider ?? "BANK"}-${bank.code}-${bank.name}`}
                 type="button"
                 onClick={() => { onChange(bank); setOpen(false); setQuery(""); }}
                 style={{ width: "100%", border: 0, borderBottom: "1px solid #edf2ef", background: bank.code === value ? "#f2f9f5" : "#fff", textAlign: "left", padding: "11px 13px", cursor: "pointer" }}
               >
                 <strong style={{ display: "block", color: "#075b2a", fontSize: 12 }}>{bank.name}</strong>
-                <span style={{ color: "#7a8780", fontSize: 10 }}>{bank.shortName ? `${bank.shortName} · ` : ""}{bank.code}</span>
+                <span style={{ color: "#7a8780", fontSize: 10 }}>{bank.shortName ? `${bank.shortName} · ` : ""}{bank.code}{bank.provider ? ` · ${bank.provider.toUpperCase()}` : ""}</span>
               </button>
             ))}
           </div>

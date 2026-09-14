@@ -5,6 +5,6 @@ import { StaffWalletService } from './staff-wallet.service';
 @Module({
   controllers: [StaffWalletController],
   providers: [StaffWalletService],
-  exports: [StaffWalletService, StaffWalletModule],
+  exports: [StaffWalletService],
 })
 export class StaffWalletModule {}

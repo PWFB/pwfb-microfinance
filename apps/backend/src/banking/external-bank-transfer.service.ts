@@ -8,14 +8,34 @@ import { PaystackService } from './paystack.service';
 export class ExternalBankTransferService {
   constructor(private readonly prisma: PrismaService, private readonly nibssService: NibssService, private readonly flutterwaveService: FlutterwaveService, private readonly paystackService: PaystackService) {}
 
+  private hasFlutterwaveLiveCredentials() {
+    return Boolean((process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY)?.trim());
+  }
+
+  private hasPaystackCredentials() {
+    return Boolean(process.env.PAYSTACK_SECRET_KEY?.trim());
+  }
+
+  private providerIsUsable(provider: string) {
+    if (provider === 'PAYSTACK') return this.hasPaystackCredentials();
+    if (provider === 'FLUTTERWAVE') return this.hasFlutterwaveLiveCredentials();
+    if (provider === 'NIBSS') return true;
+    return false;
+  }
+
   private configuredProviders(): string[] {
     const multiple = String(process.env.BANK_TRANSFER_PROVIDERS || '').split(',').map((value) => value.trim().toUpperCase()).filter(Boolean);
     const single = String(process.env.BANK_TRANSFER_PROVIDER || '').trim().toUpperCase();
     const requested = multiple.length ? multiple : single ? [single] : [];
-    const available = requested.filter((provider) => ['FLUTTERWAVE', 'PAYSTACK', 'NIBSS'].includes(provider));
-    if (available.length) return [...new Set(available)];
+    const valid = requested.filter((provider) => ['FLUTTERWAVE', 'PAYSTACK', 'NIBSS'].includes(provider));
+    const usable = valid.filter((provider) => this.providerIsUsable(provider));
+    if (usable.length) return [...new Set(usable)];
+
+    // If Render still has the old FLUTTERWAVE provider setting but no live
+    // Flutterwave secret, automatically use the connected Paystack account.
+    if (this.hasPaystackCredentials()) return ['PAYSTACK'];
+    if (this.hasFlutterwaveLiveCredentials()) return ['FLUTTERWAVE'];
     if (process.env.FLUTTERWAVE_CLIENT_ID?.trim() && process.env.FLUTTERWAVE_CLIENT_SECRET?.trim()) return ['FLUTTERWAVE'];
-    if (process.env.PAYSTACK_SECRET_KEY?.trim()) return ['PAYSTACK'];
     return ['NIBSS'];
   }
 
@@ -57,7 +77,8 @@ export class ExternalBankTransferService {
     if (!normalizedBankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(normalizedAccountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     const requestedProvider = String(providerHint || '').trim().toUpperCase();
-    const providers = requestedProvider ? [requestedProvider] : [this.provider()];
+    const primaryProvider = this.provider();
+    const providers = requestedProvider && this.providerIsUsable(requestedProvider) ? [requestedProvider] : [primaryProvider];
     if (providers.some((provider) => !['FLUTTERWAVE', 'PAYSTACK', 'NIBSS'].includes(provider))) throw new BadRequestException('Unsupported bank verification provider');
     const failures: string[] = [];
     for (const provider of providers) {
@@ -90,7 +111,8 @@ export class ExternalBankTransferService {
   }
 
   async transferToVerifiedAccount(input: { bankCode: string; accountNumber: string; accountName: string; amount: number; narration: string; reference: string; provider?: string }) {
-    const provider = String(input.provider || this.provider()).trim().toUpperCase();
+    const requestedProvider = String(input.provider || '').trim().toUpperCase();
+    const provider = requestedProvider && this.providerIsUsable(requestedProvider) ? requestedProvider : this.provider();
     if (provider === 'PAYSTACK') return this.paystackService.transferToBank(input);
     if (provider === 'FLUTTERWAVE') return this.flutterwaveService.transfer(input);
     return this.nibssService.transfer({ bankCode: input.bankCode, accountNumber: input.accountNumber, amount: input.amount, narration: input.narration, xref: input.reference });

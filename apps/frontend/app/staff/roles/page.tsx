@@ -1,42 +1,26 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { apiRequest } from '../../../lib/api';
 
-const starterRoles = ['STAFF','CREDIT_OFFICER','BRANCH_MANAGER','AREA_MANAGER','AM1','AM2','AM3','AM4','AM5','TELLER','LOAN_OFFICER'];
+const roles = [
+  ['SUPER_ADMIN','Full system administration'],
+  ['ADMIN','Administrative operations and staff management'],
+  ['REGIONAL_MANAGER','Regional operational oversight'],
+  ['DIVISIONAL_MANAGER','Division operational oversight'],
+  ['MONITORING_TEAM','Monitoring and operational review'],
+  ['AUDITOR','Read-only audit and control review'],
+  ['AREA_MANAGER','Area-level operational management'],
+  ['BRANCH_MANAGER','Branch management and branch operations'],
+  ['CREDIT_OFFICER','Credit and loan operations'],
+  ['TELLER','Cash, deposits and withdrawals'],
+  ['LOAN_OFFICER','Loan servicing and collections'],
+  ['STAFF','General staff operational access'],
+];
 
 export default function StaffRolesPage() {
-  const [roles, setRoles] = useState<string[]>(starterRoles);
-  const [role, setRole] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-
-  useEffect(() => {
-    apiRequest('/staff/roles').then((data) => {
-      if (Array.isArray(data)) setRoles(data.map((item: any) => typeof item === 'string' ? item : item.name).filter(Boolean));
-    }).catch(() => undefined);
-  }, []);
-
-  async function addRole() {
-    const normalized = role.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_');
-    if (!normalized) return;
-    setSaving(true); setMessage('');
-    try {
-      await apiRequest('/staff/roles', { method: 'POST', body: JSON.stringify({ name: normalized }) });
-      setRoles((current) => current.includes(normalized) ? current : [...current, normalized]);
-      setRole(''); setMessage('Role created successfully.');
-    } catch (e: any) { setMessage(e?.message || 'Unable to create role.'); }
-    finally { setSaving(false); }
-  }
-
   return <main>
-    <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">STAFF MANAGEMENT</p><h1 className="pwfb-page-title">Role Management</h1><p className="pwfb-page-description">Create roles first, then assign them during staff registration.</p></div><Link href="/staff" className="pwfb-secondary-button">← Staff</Link></div>
-    <section className="pwfb-panel" style={{maxWidth: 920}}>
-      <div className="pwfb-panel-header"><div><h2>Create Role</h2><p>Roles are stored separately from staff registration.</p></div></div>
-      <div style={{display:'flex',gap:12,flexWrap:'wrap',marginBottom:24}}><input value={role} onChange={e=>setRole(e.target.value)} placeholder="e.g. AM1 or Credit Officer" style={{flex:'1 1 280px',height:44,padding:'9px 12px',border:'1px solid #cfdad3',borderRadius:10}}/><button type="button" className="pwfb-primary-button" onClick={addRole} disabled={saving}>{saving?'Saving...':'Create Role'}</button></div>
-      {message && <div className="pwfb-alert">{message}</div>}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(180px,1fr))',gap:14}}>{roles.map(item=><div key={item} style={{padding:18,border:'1px solid #dceee2',borderRadius:14,background:'#f7fcf9'}}><strong>{item.replaceAll('_',' ')}</strong><div style={{fontSize:11,color:'#66736b',marginTop:6}}>Available for assignment</div></div>)}</div>
-    </section>
+    <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">STAFF MANAGEMENT • ACCESS CONTROL</p><h1 className="pwfb-page-title">Role Management</h1><p className="pwfb-page-description">PWFB role definitions used by authentication, staff assignments and operational permissions.</p></div><div className="flex gap-2"><Link href="/staff" className="pwfb-secondary-button">← Staff</Link><Link href="/staff/add" className="pwfb-primary-button">+ Add Staff</Link></div></div>
+    <div className="pwfb-alert">Roles are controlled by the application security model. Assign a role from a staff workspace or during staff registration; new arbitrary role strings are not accepted by the backend.</div>
+    <section className="pwfb-panel"><div className="pwfb-panel-header"><div><h2>Available Roles</h2><p>These roles are the live supported access levels in the PWFB backend.</p></div><span className="pwfb-record-count">{roles.length} roles</span></div><div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">{roles.map(([name,description])=><div key={name} className="rounded-xl border border-slate-200 bg-slate-50 p-5"><strong>{name.replaceAll('_',' ')}</strong><p className="mt-2 text-sm opacity-70">{description}</p></div>)}</div></section>
   </main>;
 }

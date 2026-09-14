@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { pwfbApi } from "../../../lib/pwfb-api";
+import BankSearchSelect from "../../../components/BankSearchSelect";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 const TYPES = ["Loan", "Daily Loan", "Weekly Loan", "Individual Loan", "Monthly Loan"];
@@ -75,12 +76,6 @@ export default function AddLoanPage() {
     if (!q) return customers;
     return customers.filter((c) => `${fullName(c)} ${c.id} ${c.phone || ""} ${c.email || ""}`.toLowerCase().includes(q));
   }, [customers, customerSearch]);
-
-  const filteredBanks = useMemo(() => {
-    const q = bankSearch.trim().toLowerCase();
-    if (!q) return banks;
-    return banks.filter((b) => `${b.name} ${b.shortName || ""} ${b.code}`.toLowerCase().includes(q));
-  }, [banks, bankSearch]);
 
   const selectedCustomer = customers.find((c) => c.id === customerId);
   const rate = Number(rates.find((r) => r.loanType === loanType)?.interestRate ?? 0);
@@ -249,11 +244,7 @@ export default function AddLoanPage() {
                 <div className="fields">
                   <div className="wide">
                     <label className="label">BANK SEARCH *</label>
-                    <input className="input" value={bankSearch} onChange={(e) => setBankSearch(e.target.value)} placeholder="Search bank name, short name or code" />
-                    <select className="select" style={{marginTop:7}} value={bankCode} onChange={(e) => { const bank = banks.find((item) => item.code === e.target.value); setBankCode(e.target.value); setBankName(bank?.name || ""); setAccountNumber(""); resetVerification(); }} required>
-                      <option value="">Select bank</option>
-                      {filteredBanks.map((bank) => <option key={bank.code} value={bank.code}>{bank.name}{bank.shortName ? ` (${bank.shortName})` : ""} · {bank.code}</option>)}
-                    </select>
+                    <BankSearchSelect banks={banks} value={bankCode} onChange={(bank) => { setBankCode(bank.code); setBankName(bank.name); setBankSearch(bank.name); setAccountNumber(""); resetVerification(); }} />
                   </div>
                   <div><label className="label">10-DIGIT ACCOUNT NUMBER *</label><input className="input" inputMode="numeric" maxLength={10} value={accountNumber} onChange={(e) => { setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10)); resetVerification(); }} placeholder="0000000000" /></div>
                   <div style={{display:"flex",alignItems:"end"}}><button type="button" className="primary" style={{width:"100%"}} disabled={verifying || !bankCode || !/^\d{10}$/.test(accountNumber)} onClick={verify}>{verifying ? "Verifying…" : "Verify Account"}</button></div>

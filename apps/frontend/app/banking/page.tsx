@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { pwfbApi } from "../../lib/pwfb-api";
+import BankSearchSelect from "../../components/BankSearchSelect";
 
 type Customer = { id: string; firstName?: string; lastName?: string; name?: string; phone?: string; email?: string };
 type Wallet = { balance: number; currency?: string };
@@ -59,12 +60,6 @@ export default function BankingPage() {
     if (!q) return customers;
     return customers.filter((customer) => `${customerName(customer)} ${customer.id} ${customer.phone || ""} ${customer.email || ""}`.toLowerCase().includes(q));
   }, [customers, customerSearch]);
-
-  const filteredBanks = useMemo(() => {
-    const q = bankSearch.trim().toLowerCase();
-    if (!q) return banks;
-    return banks.filter((bank) => `${bank.name} ${bank.shortName || ""} ${bank.code}`.toLowerCase().includes(q));
-  }, [banks, bankSearch]);
 
   function clearVerification() {
     setVerified(false);
@@ -157,7 +152,7 @@ export default function BankingPage() {
     <section className="pwfb-panel pwfb-deposit-card"><div className="pwfb-panel-header pwfb-operation-header"><div><p className="pwfb-eyebrow">02 / {operation.toUpperCase()}</p><h2>{title}</h2><p>Account names are never hard-coded. Click Verify Account to query the selected bank for this exact 10-digit account.</p></div><span className="pwfb-operation-badge">{operation.toUpperCase()}</span></div>
       <div className="pwfb-banking-form-grid">
         {operation !== "transfer" && <>
-          <div className="pwfb-form-field-wide"><label className="pwfb-label">Bank Search</label><input className="pwfb-input" value={bankSearch} onChange={(e)=>setBankSearch(e.target.value)} placeholder="Search bank by name, short name or code"/><select className="pwfb-input" value={bankCode} onChange={(e)=>changeBank(e.target.value)} style={{marginTop:8}}><option value="">Select bank</option>{filteredBanks.map((bank)=><option key={bank.code} value={bank.code}>{bank.name}{bank.shortName?` (${bank.shortName})`:""} • {bank.code}</option>)}</select></div>
+          <div className="pwfb-form-field-wide"><label className="pwfb-label">Bank Search</label><BankSearchSelect banks={banks} value={bankCode} onChange={(bank) => { setBankSearch(bank.name); changeBank(bank.code); }} /></div>
           <div><label className="pwfb-label">Account Number</label><input className="pwfb-input" inputMode="numeric" maxLength={10} value={accountNumber} onChange={(e)=>changeAccount(e.target.value)} placeholder="10-digit account number"/><button type="button" className="pwfb-primary-button" style={{marginTop:10,width:"100%"}} disabled={verifying || !bankCode || !/^\d{10}$/.test(accountNumber)} onClick={verifyAccount}>{verifying?"Verifying…":"Verify Account"}</button></div>
           <div><label className="pwfb-label">Verified Account Name</label><div className={`pwfb-verify-field ${verified?"verified":""}`}>{verified?accountName:verifying?"Verifying with bank…":"Not verified"}{verified&&<b>✓</b>}</div>{verified&&<small style={{display:"block",marginTop:6}}>Verified for {verifiedAccountNumber}{verificationProvider?` • ${verificationProvider}`:""}</small>}</div>
         </>}

@@ -101,9 +101,29 @@ export class LoanDisbursementService {
     const providerStatus = String(providerResult?.status ?? '').toUpperCase();
     const finalStatus = ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'].includes(providerStatus) ? DISBURSED : PROCESSING;
     const providerReference = this.providerReference(providerResult, reference);
-    const updated = await this.prisma.loan.update({ where: { id: loanId }, data: { status: finalStatus }, include: { customer: true, repayments: true, guarantors: true } });
-    await this.prisma.transaction.create({ data: { customerId: loan.customerId, type: 'LOAN_DISBURSEMENT', amount, description: `${finalStatus}: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}` } });
-    return { loan: updated, status: finalStatus, provider: this.externalBankTransferService.currentProvider(), providerReference, beneficiary: { accountNumber, accountName, bank: bankName, bankCode, amount, alternative: useAlternative, verified: true, nameMatch: true } };
+
+    // The provider call is external, but all PWFB-side financial state is committed
+    // together so a successful provider response cannot leave a loan without its ledger entry.
+    const result = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.loan.update({
+        where: { id: loanId, status: SUBMITTED },
+        data: { status: finalStatus },
+        include: { customer: true, repayments: true, guarantors: true },
+      });
+
+      await tx.transaction.create({
+        data: {
+          customerId: loan.customerId,
+          type: 'LOAN_DISBURSEMENT',
+          amount,
+          description: `${finalStatus}: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}`,
+        },
+      });
+
+      return updated;
+    });
+
+    return { loan: result, status: finalStatus, provider: this.externalBankTransferService.currentProvider(), providerReference, beneficiary: { accountNumber, accountName, bank: bankName, bankCode, amount, alternative: useAlternative, verified: true, nameMatch: true } };
   }
 
   async reject(loanId: string, user: any, reason?: string) {

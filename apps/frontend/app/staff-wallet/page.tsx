@@ -1,79 +1,12 @@
-'use client';
+"use client";
+import { useEffect,useState } from "react";
+import { apiRequest } from "../../lib/api";
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import { apiRequest } from '../../lib/api';
-
-const branches = [
-  'Region_2','Region_1','REGION_3','REGION4','none','Am_1b','Dugbe2','Bodija2','SAKI_2','Ilesha_2','dugbe','lalupon','BODIJA_3','OYO_2','IFE BRANCH','ologuneru','OYO_1','Challenge individual','Osogbo','Igboora','Eruwa','Igbeti_1','apete_1','oje_1','ILORIN BRANCH','sango_2','apata','ashipa branch','Apata_2','Ikire','ayeye','AYETORO','ELEBU','ajagun','New Garage','Testing Branch','Ogbomosho_2','GBAGI INDIVIDUAL1','Gbagi','moniya_2','Amuloko','Lalate branch','Ayeye_2','moniya_3','TEDE BRANCH','Bodija','iwotown','Ilesha 1','AWOTAN','Abeokuta 1','BODIJA INDIVIDUAL','ilorin_2','Osogbo 1','Oloosaoko','moniya_1','ADEGBAYI','OJE_3','MOWE','SANGO_3','Ogbomosho 1','ISEYIN 1','Saki','Ede 1','AKOBO','PAARA IDI OSAN','Akobo_2','Challenge','olorunsogo','Abeokuta','sango_1','Sango Individual 1','olodo','iwo_road','OLOMI','OKEHO','Sango Individual 2','Dugbe3','Iwo_road2','Shagamu','Igboho','Adegbayi 1','Lanlate','gbagi2','AYEYE 2','Apata 2','HEADOFFICE','DUGBE_2','Iwo Town'
-];
-const tools = ['Fill Cashbook','Fill Savings','Fill Weekly Loan','Fill Loan',"Fill CO's Savings","Fill CO's Weekly Loan","Fill CO's Loan",'Weekly Opening Balance','Daily Collection','Savings Summary','Loan Summary','Weekly Loan Summary','Edit Weekly Loan Summary','Loan Clients','Bank Details history','Total Amount Received From Branch','Bank Transaction','Cash Book','Cash Book History','Delete Branch','Add Branch','Add Area','Add Division','Add Region','Move Branch','Move Area','Move Division','Move CO','Sack staff','View Staffs','Edit Cashbook','Edit Bank Transaction','Edit Expenses','Edit Daily Collection','Edit Loan Disbursement','Edit Saving Summary','Edit Loan Summary','Edit Finance Service',"Edit CO's Saving Summary","Edit CO's Loan Summary","Edit CO's Weekly Loan Summary",'CEO Monthly','CEO Collector','My Inbox','Compose Mail','Sent Mail','Add Staff','Add CO','Sack CO','Delete Images'];
-
-type OrgBranch = { id: string; name: string };
-type OrgRegion = { branches?: OrgBranch[]; divisions?: any[]; areas?: any[] };
-
-const toolLinks: Record<string, string> = {
-  'Fill Cashbook': '/cashbook', 'Cash Book': '/cashbook', 'Cash Book History': '/staff-wallet/history', 'Edit Cashbook': '/cashbook',
-  'Fill Savings': '/savings', 'Savings Summary': '/savings', 'Edit Saving Summary': '/savings',
-  'Fill Weekly Loan': '/loans', 'Fill Loan': '/loans', 'Loan Summary': '/loans', 'Weekly Loan Summary': '/loans', 'Edit Weekly Loan Summary': '/loans', 'Loan Clients': '/loans', 'Edit Loan Summary': '/loans', 'Edit Loan Disbursement': '/loans',
-  "Fill CO's Savings": '/savings', "Fill CO's Weekly Loan": '/loans', "Fill CO's Loan": '/loans', "Edit CO's Saving Summary": '/savings', "Edit CO's Loan Summary": '/loans', "Edit CO's Weekly Loan Summary": '/loans',
-  'Weekly Opening Balance': '/daily-wallet', 'Daily Collection': '/collections', 'Edit Daily Collection': '/collections',
-  'Bank Details history': '/staff-wallet/bank-details-history', 'Total Amount Received From Branch': '/banking', 'Bank Transaction': '/transactions', 'Edit Bank Transaction': '/transactions',
-  'View Staffs': '/staff', 'Add Staff': '/staff/add', 'Add CO': '/staff/add', 'Sack staff': '/staff', 'Sack CO': '/staff',
-  'CEO Monthly': '/reports', 'CEO Collector': '/reports', 'My Inbox': '/staff', 'Compose Mail': '/staff', 'Sent Mail': '/staff',
-  'Delete Branch': '/branches', 'Add Branch': '/branches', 'Add Area': '/branches', 'Add Division': '/branches', 'Add Region': '/branches', 'Move Branch': '/branches', 'Move Area': '/branches', 'Move Division': '/branches', 'Move CO': '/staff',
-  'Edit Expenses': '/transactions', 'Edit Finance Service': '/transactions', 'Delete Images': '/staff',
-};
-
-export default function StaffWalletPage() {
-  const [query, setQuery] = useState('');
-  const [branch, setBranch] = useState('HEADOFFICE');
-  const [open, setOpen] = useState(true);
-  const [orgBranches, setOrgBranches] = useState<OrgBranch[]>([]);
-  const [branchAccount, setBranchAccount] = useState<any>(null);
-  const [accountLoading, setAccountLoading] = useState(false);
-  const filtered = useMemo(() => branches.filter(b => b.toLowerCase().includes(query.toLowerCase())), [query]);
-
-  useEffect(() => {
-    apiRequest('/organization/hierarchy').then((data) => {
-      const flat: OrgBranch[] = [];
-      (Array.isArray(data) ? data : []).forEach((region: OrgRegion) => {
-        (region.branches || []).forEach((b: OrgBranch) => flat.push(b));
-        (region.divisions || []).forEach((d: any) => (d.branches || []).forEach((b: OrgBranch) => flat.push(b)));
-        (region.areas || []).forEach((a: any) => (a.branches || []).forEach((b: OrgBranch) => flat.push(b)));
-      });
-      setOrgBranches(Array.from(new Map(flat.map(b => [b.id, b])).values()));
-    }).catch(() => setOrgBranches([]));
-  }, []);
-
-  useEffect(() => {
-    const selected = orgBranches.find(b => b.name === branch);
-    if (!selected) { setBranchAccount(null); return; }
-    setAccountLoading(true);
-    apiRequest(`/banking/branches/${selected.id}/virtual-accounts`)
-      .then((accounts) => setBranchAccount(Array.isArray(accounts) ? accounts[0] || null : null))
-      .catch(() => setBranchAccount(null))
-      .finally(() => setAccountLoading(false));
-  }, [branch, orgBranches]);
-
-  return (
-    <main className="staff-wallet">
-      <aside className={open ? 'sidebar' : 'sidebar collapsed'}>
-        <div className="brand"><img src="/pwfb-logo.svg" alt="PWFB" /><span>PWFB STAFF WALLET</span></div>
-        <button className="toggle" onClick={() => setOpen(!open)}>{open ? '‹' : '›'}</button>
-        {open && <><label>Branch</label><select value={branch} onChange={e => setBranch(e.target.value)}>{branches.map(b => <option key={b}>{b}</option>)}</select><nav>
-          <div className="wallet-actions"><Link href="/staff-wallet/deposit">Deposit</Link><Link href="/staff-wallet/withdrawal">Withdrawal</Link></div>
-          {tools.map(t => <Link className="tool-link" key={t} href={toolLinks[t] || '/staff-wallet'}>{t}</Link>)}
-        </nav></>}
-      </aside>
-      <section className="content">
-        <header><div><small>PWFB STAFF WALLET</small><h1>{branch}</h1><p>Manage, review and edit branch operations.</p></div><button className="logout">Logout</button></header>
-        <div className="cards"><div><b>Opening Balance</b><strong>₦0.00</strong></div><div><b>Daily Collection</b><strong>₦0.00</strong></div><div><b>Savings</b><strong>₦0.00</strong></div><div><b>Loans</b><strong>₦0.00</strong></div></div>
-        <section className="account-card"><div><small>BRANCH ACCOUNT</small><h2>{accountLoading ? 'Loading account...' : branchAccount?.accountNumber || 'Account will be generated for the Branch Manager'}</h2><p>{branchAccount?.accountName || 'A unique PWFB branch account is created automatically when a Branch Manager is registered.'}</p></div><span className="account-status">{branchAccount ? 'ACTIVE' : accountLoading ? 'CHECKING' : 'PENDING'}</span></section>
-        <div className="quick"><Link href="/staff-wallet/deposit">＋ Deposit</Link><Link href="/staff-wallet/withdrawal">− Withdrawal</Link><Link href="/cashbook">▣ Cash Book</Link><Link href="/staff-wallet/history">◷ History</Link></div>
-        <div className="panel"><h2>All Branches</h2><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search branch"/><div className="branches">{filtered.map(b => <button className={b === branch ? 'active' : ''} key={b} onClick={() => setBranch(b)}>{b}</button>)}</div></div>
-      </section>
-      <style jsx>{`.staff-wallet{min-height:100vh;display:flex;background:#f6f8f5;color:#12352a;font-family:Arial,sans-serif}.sidebar{width:270px;background:#075c3a;color:white;padding:18px;position:sticky;top:0;height:100vh;overflow:auto;box-sizing:border-box}.sidebar.collapsed{width:64px}.brand{display:flex;align-items:center;gap:10px;font-weight:800;margin-bottom:22px}.brand img{width:42px;height:42px;object-fit:contain;background:white;border-radius:9px;padding:4px}.toggle{position:absolute;right:10px;top:18px;border:0;border-radius:7px;background:#f28c28;color:white;font-size:24px;width:34px;height:34px}.sidebar label{font-size:12px;opacity:.8}.sidebar select{width:100%;margin:6px 0 14px;padding:10px;border-radius:8px;border:0}nav{display:grid;gap:5px}.wallet-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}.wallet-actions a{background:#f28c28;color:#fff;text-decoration:none;text-align:center;padding:10px 5px;border-radius:7px;font-size:12px;font-weight:800}.tool-link{display:block;background:transparent;border:0;color:white;text-align:left;padding:9px;border-radius:7px;cursor:pointer;text-decoration:none;font-size:13px}.tool-link:hover,.tool-link:focus{background:#f28c28;color:white;outline:none}.content{flex:1;padding:30px;max-width:1500px}header{display:flex;justify-content:space-between;align-items:center}h1{margin:4px 0;font-size:30px}small{color:#f28c28;font-weight:800}.logout{border:0;background:#075c3a;color:white;padding:11px 18px;border-radius:8px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:15px;margin:28px 0 15px}.cards div,.panel,.account-card{background:white;border-radius:14px;padding:20px;box-shadow:0 2px 12px #0000000b}.cards b{display:block;font-size:13px;color:#68776f}.cards strong{font-size:24px;display:block;margin-top:10px}.account-card{display:flex;justify-content:space-between;align-items:center;gap:16px;border-left:4px solid #f28c28}.account-card h2{margin:5px 0;font-size:25px;letter-spacing:.5px}.account-card p{margin:0;color:#68776f;font-size:13px}.account-status{background:#eaf7ef;color:#075c3a;padding:7px 10px;border-radius:999px;font-size:11px;font-weight:800}.quick{display:flex;gap:10px;margin:15px 0;flex-wrap:wrap}.quick a{background:#075c3a;color:#fff;text-decoration:none;padding:11px 16px;border-radius:8px;font-weight:800;font-size:13px}.quick a:nth-child(even){background:#f28c28}.panel h2{display:inline-block;margin:0 20px 15px 0}.panel input{padding:11px;border:1px solid #d8e0db;border-radius:8px;width:240px}.branches{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.branches button{padding:12px;text-align:left;border:1px solid #e1e7e3;background:#fafcfb;border-radius:8px}.branches button.active{border-color:#f28c28;background:#fff3e7;font-weight:700}@media(max-width:900px){.cards{grid-template-columns:repeat(2,1fr)}.branches{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.sidebar{width:220px}.content{padding:18px}.cards{grid-template-columns:1fr}.branches{grid-template-columns:1fr}.account-card{align-items:flex-start;flex-direction:column}.quick a{flex:1;text-align:center}}`}</style>
-    </main>
-  );
-}
+type Wallet={id:string;staffId:string;branchId:string;balance:number;currency:string;firstName?:string;lastName?:string;position?:string;branchName?:string};
+const money=(v:any)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:0}).format(Number(v)||0);
+export default function StaffWalletPage(){const[wallets,setWallets]=useState<Wallet[]>([]),[staffId,setStaffId]=useState(""),[amount,setAmount]=useState(""),[mode,setMode]=useState<"issue"|"settle">("issue"),[reference,setReference]=useState(""),[description,setDescription]=useState(""),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[message,setMessage]=useState("");
+ async function load(){try{setLoading(true);const d=await apiRequest("/staff-wallet");setWallets(Array.isArray(d)?d:[])}catch(e:any){setError(e?.message||"Unable to load staff wallets")}finally{setLoading(false)}} useEffect(()=>{void load()},[]);
+ async function submit(e:React.FormEvent){e.preventDefault();setError("");setMessage("");if(!staffId||Number(amount)<=0)return setError("Select staff and enter a valid amount.");setSaving(true);try{await apiRequest(`/staff-wallet/${mode}`,{method:"POST",body:JSON.stringify({staffId,amount:Number(amount),reference:reference||undefined,description:description||undefined})});setMessage(mode==="issue"?"Field cash issued to staff wallet.":"Staff wallet settled successfully.");setAmount("");setReference("");setDescription("");await load()}catch(e:any){setError(e?.message||"Wallet operation failed")}finally{setSaving(false)}}
+return <main className="min-h-screen bg-slate-50 p-4 text-slate-800 md:p-7"><div className="mx-auto max-w-6xl"><header className="mb-6 rounded-3xl bg-gradient-to-r from-orange-600 to-emerald-700 p-6 text-white shadow-lg"><p className="text-xs font-black tracking-[.2em] text-orange-100">FIELD CASH CONTROL</p><h1 className="text-3xl font-black">Staff Wallet</h1><p className="mt-1 text-sm">Money entrusted to field staff and money returned/used in field operations.</p></header>{error&&<div className="mb-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}{message&&<div className="mb-4 rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
+<section className="mb-6 rounded-3xl bg-white p-5 shadow-sm"><h2 className="text-xl font-black text-emerald-900">Field cash movement</h2><div className="mt-4 grid gap-3 md:grid-cols-6"><select className="rounded-xl border p-3 md:col-span-2" value={staffId} onChange={e=>setStaffId(e.target.value)}><option value="">Select staff wallet</option>{wallets.map(w=><option key={w.staffId} value={w.staffId}>{w.firstName} {w.lastName} — {w.position||"Staff"} ({money(w.balance)})</option>)}</select><div className="flex rounded-xl border p-1"><button type="button" onClick={()=>setMode("issue")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-black ${mode==="issue"?"bg-emerald-700 text-white":""}`}>Issue</button><button type="button" onClick={()=>setMode("settle")} className={`flex-1 rounded-lg px-3 py-2 text-sm font-black ${mode==="settle"?"bg-orange-600 text-white":""}`}>Settle</button></div><input className="rounded-xl border p-3" type="number" min="0" step="0.01" placeholder="Amount" value={amount} onChange={e=>setAmount(e.target.value)}/><input className="rounded-xl border p-3" placeholder="Reference" value={reference} onChange={e=>setReference(e.target.value)}/><input className="rounded-xl border p-3" placeholder="Description" value={description} onChange={e=>setDescription(e.target.value)}/><button onClick={submit} disabled={saving} className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white disabled:opacity-50">{saving?"Saving…":mode==="issue"?"Issue Cash":"Settle Cash"}</button></div></section>
+<section className="overflow-hidden rounded-3xl bg-white shadow-sm"><div className="border-b p-5"><h2 className="text-xl font-black text-emerald-900">Field staff balances</h2><p className="text-xs text-slate-500">Collections settled from the Collections module automatically reduce the assigned staff wallet.</p></div><div className="overflow-x-auto"><table className="min-w-[800px] w-full text-sm"><thead className="bg-emerald-50 text-left text-xs uppercase text-emerald-900"><tr><th className="p-4">Staff</th><th className="p-4">Position</th><th className="p-4">Branch</th><th className="p-4">Wallet balance</th></tr></thead><tbody>{loading?<tr><td className="p-5" colSpan={4}>Loading…</td></tr>:wallets.map(w=><tr className="border-t" key={w.id}><td className="p-4 font-bold">{w.firstName} {w.lastName}</td><td className="p-4">{w.position||"—"}</td><td className="p-4">{w.branchName||"—"}</td><td className="p-4 text-lg font-black text-emerald-700">{money(w.balance)}</td></tr>)}</tbody></table></div></section></div></main>}

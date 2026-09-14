@@ -40,9 +40,15 @@ export class AuthService {
 
   googleConfig() {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-    const androidClientId = (process.env.GOOGLE_ANDROID_CLIENT_ID || clientId || '').trim();
     if (!clientId) throw new BadRequestException('Google login is not configured on the server');
-    return { client_id: clientId, android_client_id: androidClientId, android_configured: Boolean(androidClientId) };
+    // The Android client is still required in Google Cloud Console for package/signing-certificate authorization,
+    // but the ID token requested by the Android app must target the backend/web OAuth client.
+    return {
+      client_id: clientId,
+      server_client_id: clientId,
+      android_client_id: clientId,
+      android_configured: true,
+    };
   }
 
   private async ensureGoogleIdentityTable() {
@@ -53,8 +59,11 @@ export class AuthService {
 
   async googleLogin(idToken?: string, requestOrigin?: string, requestClientId?: string, expectedNonce?: string) {
     const isAndroid = requestOrigin === 'android-app';
-    const clientId = (isAndroid ? (process.env.GOOGLE_ANDROID_CLIENT_ID || process.env.GOOGLE_CLIENT_ID) : process.env.GOOGLE_CLIENT_ID)?.trim();
-    if (!clientId) throw new BadRequestException(isAndroid ? 'Google login is not configured on the server. Set GOOGLE_CLIENT_ID in Render.' : 'Google login is not configured on the server');
+    // Android ID tokens requested for backend verification must use the server/web OAuth client ID as audience.
+    // GOOGLE_ANDROID_CLIENT_ID identifies the Android app in Google Cloud (package + signing certificate); it is
+    // not the audience that the backend should require for requestIdToken().
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
+    if (!clientId) throw new BadRequestException('Google login is not configured on the server. Set GOOGLE_CLIENT_ID in Render.');
     if (!idToken) throw new BadRequestException('Google credential is required');
     const googleOrigin = requestOrigin?.trim().replace(/\/$/, '');
     const configuredOrigins = [process.env.GOOGLE_ALLOWED_ORIGINS, process.env.WEBAUTHN_ORIGIN]

@@ -18,7 +18,7 @@ function csvEscape(v: any) { return `"${String(v ?? "").replace(/"/g, '""')}"`; 
 const financialActions = [
   { title: "Customer Deposit", description: "Deposit funds into a customer wallet", href: "/banking?operation=deposit", icon: "↓", tone: "green" },
   { title: "Customer Withdrawal", description: "Withdraw funds with balance controls", href: "/banking?operation=withdraw", icon: "↑", tone: "orange" },
-  { title: "Bank Transfer", description: "Send funds to a verified bank account", href: "/banking?operation=transfer", icon: "↗", tone: "green" },
+  { title: "Bank Transfer", description: "Send funds to a verified bank account", href: "/banking?operation=bank-transfer", icon: "↗", tone: "green" },
   { title: "Savings Deposit", description: "Post a deposit to a savings account", href: "/savings", icon: "₦", tone: "green" },
   { title: "Savings Withdrawal", description: "Withdraw from an eligible savings account", href: "/savings", icon: "₦", tone: "orange" },
   { title: "Loan Repayment", description: "Record and audit customer repayments", href: "/repayments/add", icon: "✓", tone: "green" },

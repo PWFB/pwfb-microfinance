@@ -73,7 +73,16 @@ export class CashbookService {
   async dailyOne(id:string){await this.ensureDailyTable();const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id WHERE r.id=$1`,id);if(!rows[0])throw new NotFoundException('Daily cashbook record not found');return this.map(rows[0]);}
   async findDaily(periodId?:string,branchId?:string,from?:string,to?:string){await this.ensureDailyTable();const c:string[]=[],p:any[]=[];if(periodId){p.push(periodId);c.push(`r.period_id=$${p.length}`)}if(branchId){p.push(branchId);c.push(`r.branch_id=$${p.length}`)}if(from){p.push(new Date(from));c.push(`r.entry_date>=$${p.length}`)}if(to){p.push(new Date(to));c.push(`r.entry_date<$${p.length}`)}const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id ${c.length?'WHERE '+c.join(' AND '):''} ORDER BY r.entry_date DESC,r.created_at DESC`,...p);return rows.map(r=>this.map(r));}
   async dailySummary(periodId?:string,branchId?:string,from?:string,to?:string){const rows=await this.findDaily(periodId,branchId,from,to),totals:any={records:rows.length,totalAmount:0};for(const f of FIELDS)totals[f]=rows.reduce((s,r)=>s+Number(r[f]||0),0);totals.totalAmount=rows.reduce((s,r)=>s+Number(r.totalAmount||0),0);return totals;}
-  async updateDaily(id:string,data:Partial<CashbookDailyInput>){const e=await this.dailyOne(id),m:any={...e,...data,periodId:data.periodId??e.periodId,branchId:data.branchId??e.branchId};const p=await this.prisma.financialPeriod.findUnique({where:{id:m.periodId}});if(!p)throw new NotFoundException('Financial period not found');if(p.status==='CLOSED')throw new BadRequestException('Cannot edit entries in a closed period');const v=this.values(m),sets=['period_id=$2','branch_id=$3','entry_date=$4','description=$5'],params:any[]=[id,m.periodId,m.branchId,m.entryDate?new Date(m.entryDate):new Date(),m.description??null];for(const f of FIELDS){params.push(v[f]);sets.push(`${snake(f)}=$${params.length}`)}params.push(m.narration??null,m.referenceNo??null);sets.push(`narration=$${params.length-1}`,`reference_no=$${params.length}`);await this.prisma.$executeRawUnsafe(`UPDATE cashbook_daily_records SET ${sets.join(',')},updated_at=CURRENT_TIMESTAMP WHERE id=$1`,...params);return this.dailyOne(id);}
-  async removeDaily(id:string){const e=await this.dailyOne(id),p=await this.prisma.financialPeriod.findUnique({where:{id:e.periodId}});if(p?.status==='CLOSED')throw new BadRequestException('Cannot delete an entry from a closed period');await this.prisma.$executeRawUnsafe('DELETE FROM cashbook_daily_records WHERE id=$1',id);return{message:'Daily cashbook record deleted successfully'};}
-  async remove(id:string){const e=await this.findOne(id);if(e.period.status==='CLOSED')throw new BadRequestException('Cannot delete an entry from a closed period');await this.prisma.cashbookEntry.delete({where:{id}});return{message:'Cashbook entry deleted successfully'};}
+  async updateDaily(id:string,_data:Partial<CashbookDailyInput>){
+    await this.dailyOne(id);
+    throw new BadRequestException('Daily cashbook records are immutable. Create a correcting cashbook entry instead of editing the original record.');
+  }
+  async removeDaily(id:string){
+    await this.dailyOne(id);
+    throw new BadRequestException('Daily cashbook records are immutable and cannot be deleted. Create a correcting cashbook entry instead.');
+  }
+  async remove(id:string){
+    await this.findOne(id);
+    throw new BadRequestException('Cashbook entries are immutable and cannot be deleted. Create a correcting cashbook entry instead.');
+  }
 }

@@ -15,9 +15,11 @@ export class PaystackService {
   constructor(private readonly prisma: PrismaService) {}
 
   private getSecretKey() {
-    const key = process.env.PAYSTACK_SECRET_KEY;
+    const key = process.env.PAYSTACK_SECRET_KEY?.trim();
     if (!key) {
-      throw new BadRequestException('Paystack integration is not configured');
+      throw new BadRequestException(
+        'Paystack bank verification is not configured. Add PAYSTACK_SECRET_KEY to the PWFB backend environment.',
+      );
     }
     return key;
   }
@@ -271,21 +273,37 @@ export class PaystackService {
   }
 
   async resolveBankAccount(bankCode: string, accountNumber: string) {
-    if (!bankCode || !/^\d{10}$/.test(accountNumber)) {
+    const normalizedBankCode = String(bankCode || '').trim();
+    const normalizedAccountNumber = String(accountNumber || '').replace(/\D/g, '');
+
+    if (!normalizedBankCode || !/^\d{10}$/.test(normalizedAccountNumber)) {
       throw new BadRequestException(
         'Bank code and a valid 10-digit account number are required',
       );
     }
 
     const data = await this.request(
-      `/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&account_code=${encodeURIComponent(bankCode)}`,
+      `/bank/resolve?account_number=${encodeURIComponent(normalizedAccountNumber)}&bank_code=${encodeURIComponent(normalizedBankCode)}`,
     );
+
+    const returnedNumber = String(data.data?.account_number || '').replace(/\D/g, '');
+    const accountName = String(data.data?.account_name || '').trim();
+
+    if (!accountName) {
+      throw new BadRequestException('Paystack could not resolve this bank account');
+    }
+
+    if (!returnedNumber || returnedNumber !== normalizedAccountNumber) {
+      throw new BadRequestException(
+        'Paystack returned a different account number. Verification was rejected.',
+      );
+    }
 
     return {
       ok: true,
-      accountNumber,
-      accountName: data.data?.account_name,
-      bankCode,
+      accountNumber: returnedNumber,
+      accountName,
+      bankCode: normalizedBankCode,
     };
   }
 

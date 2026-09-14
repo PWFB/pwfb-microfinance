@@ -11,6 +11,16 @@ const DISBURSED = 'DISBURSED';
 export class LoanDisbursementService {
   constructor(private readonly prisma: PrismaService, private readonly externalBankTransferService: ExternalBankTransferService) {}
 
+  private providerReference(result: unknown, fallback: string) {
+    if (!result || typeof result !== 'object') return fallback;
+    const value = result as Record<string, unknown>;
+    const providerReference = value.providerReference;
+    if (typeof providerReference === 'string' && providerReference.trim()) return providerReference;
+    const transactionReference = value.transactionReference;
+    if (typeof transactionReference === 'string' && transactionReference.trim()) return transactionReference;
+    return fallback;
+  }
+
   private async actor(user: any) {
     const actor = await this.prisma.user.findUnique({ where: { id: user?.sub }, include: { staff: { include: { assignments: true, branch: true } } } });
     if (!actor) throw new UnauthorizedException('Authenticated user not found');
@@ -90,9 +100,10 @@ export class LoanDisbursementService {
 
     const providerStatus = String(providerResult?.status ?? '').toUpperCase();
     const finalStatus = ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'].includes(providerStatus) ? DISBURSED : PROCESSING;
+    const providerReference = this.providerReference(providerResult, reference);
     const updated = await this.prisma.loan.update({ where: { id: loanId }, data: { status: finalStatus }, include: { customer: true, repayments: true, guarantors: true } });
-    await this.prisma.transaction.create({ data: { customerId: loan.customerId, type: 'LOAN_DISBURSEMENT', amount, description: `${finalStatus}: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${String(providerResult?.providerReference ?? providerResult?.transactionReference ?? reference)}` } });
-    return { loan: updated, status: finalStatus, provider: this.externalBankTransferService.currentProvider(), providerReference: String(providerResult?.providerReference ?? providerResult?.transactionReference ?? reference), beneficiary: { accountNumber, accountName, bank: bankName, bankCode, amount, alternative: useAlternative, verified: true, nameMatch: true } };
+    await this.prisma.transaction.create({ data: { customerId: loan.customerId, type: 'LOAN_DISBURSEMENT', amount, description: `${finalStatus}: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}` } });
+    return { loan: updated, status: finalStatus, provider: this.externalBankTransferService.currentProvider(), providerReference, beneficiary: { accountNumber, accountName, bank: bankName, bankCode, amount, alternative: useAlternative, verified: true, nameMatch: true } };
   }
 
   async reject(loanId: string, user: any, reason?: string) {

@@ -10,7 +10,7 @@ const allStaff=["SUPER_ADMIN","ADMIN","REGIONAL_MANAGER","DIVISIONAL_MANAGER","A
 const management=["SUPER_ADMIN","ADMIN","REGIONAL_MANAGER","DIVISIONAL_MANAGER","AREA_MANAGER","BRANCH_MANAGER"]; const finance=[...management,"LOAN_OFFICER","TELLER","AUDITOR","COLLECTOR","CREDIT_OFFICER"]; const admin=["SUPER_ADMIN","ADMIN"];
 const groups:NavGroup[]=[
 {key:"customers",label:"Customer Management",icon:"👥",href:"/customers",roles:finance,children:[{label:"Customer Overview",href:"/customers",roles:finance},{label:"Add Customer",href:"/customers/add",roles:finance}]},
-{key:"savings",label:"Savings",icon:"💰",href:"/savings",roles:finance,children:[{label:"Savings Overview",href:"/savings",roles:finance},{label:"Add Savings",href:"/savings/add",roles:finance}]},
+{key:"savings",label:"Savings",icon:"💰",href:"/savings",roles:finance,children:[{label:"Savings Overview",href:"/savings",roles:finance},{label:"Add Savings",href:"/savings/add",roles:finance},{label:"Deposit",href:"/savings",roles:finance},{label:"Withdrawal",href:"/savings",roles:finance}]},
 {key:"loans",label:"Loans",icon:"🏦",href:"/loans",roles:finance,children:[{label:"Loan Overview",href:"/loans",roles:finance},{label:"Add Loan",href:"/loans/add",roles:finance}]},
 {key:"repayments",label:"Repayments",icon:"↩",href:"/repayments",roles:finance,children:[{label:"Repayment Overview",href:"/repayments",roles:finance},{label:"Add Repayment",href:"/repayments/add",roles:finance}]},
 {key:"transactions",label:"Transactions",icon:"↔",href:"/transactions",roles:finance,children:[{label:"Transaction Overview",href:"/transactions",roles:finance},{label:"Add Transaction",href:"/transactions/add",roles:finance}]},

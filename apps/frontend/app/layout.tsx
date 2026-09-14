@@ -2,6 +2,7 @@ import "./globals.css";
 import "./desktop-ui.css";
 import "./pwfb-ui-fixes.css";
 import "./sidebar-scroll-fix.css";
+import "./pwfb-brand-overrides.css";
 import type { Metadata } from "next";
 import AppShell from "../components/AppShell";
 
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   description: "PWFB Microfinance Management System",
   manifest: "/manifest.webmanifest",
   applicationName: "PWFB Microfinance",
-  themeColor: "#075d2a",
+  themeColor: "#0a5c28",
   icons: {
     icon: "/pwfb-app-icon.svg",
     apple: "/pwfb-app-icon.svg",

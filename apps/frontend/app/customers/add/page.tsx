@@ -26,16 +26,17 @@ export default function AddCustomerPage() {
       const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify(form) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
       if (customerId) {
+        await pwfbApi.banking.customerWallet(customerId);
         try {
           await pwfbApi.banking.ensureCustomerVirtualAccount(customerId);
         } catch (virtualAccountError) {
           const reason = virtualAccountError instanceof Error ? virtualAccountError.message : "Virtual account provisioning is pending.";
-          setMessage(`Customer profile created successfully. Virtual account provisioning is pending: ${reason}`);
-          window.setTimeout(() => router.push(`/customers/${customerId}`), 1400);
+          setMessage(`Customer profile and wallet created successfully. Virtual account provisioning is pending: ${reason}`);
+          window.setTimeout(() => router.push(`/customers/${customerId}`), 1600);
           return;
         }
       }
-      setMessage("Customer profile created successfully. Wallet and virtual account provisioning started.");
+      setMessage("Customer profile, wallet and virtual account are ready.");
       window.setTimeout(() => router.push("/customers"), 1100);
     }
     catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create customer."); }
@@ -54,7 +55,7 @@ export default function AddCustomerPage() {
 
       <div className={styles.progressCard}>
         <div className={styles.progressIntro}><span className={styles.progressBadge}>NEW PROFILE</span><strong>Customer registration</strong><small>Complete the required details to activate the profile.</small></div>
-        <div className={styles.steps}><div className={`${styles.step} ${styles.stepActive}`}><span>01</span><b>Personal</b></div><i /><div className={`${styles.step} ${completed >= 3 ? styles.stepDone : ""}`}><span>02</span><b>Contact</b></div><i /><div className={`${styles.step} ${form.dateOfBirth ? styles.stepDone : ""}`}><span>03</span><b>Review</b></div></div>
+        <div className={styles.steps}><div className={`${styles.step} ${styles.stepActive}`}><span>01</span><b>Personal</b></div><i /><div className={`${styles.step} ${completed >= 3 ? styles.stepDone : ""}`}><span>02</span><b>Contact</b></div><i /><div className={`${styles.step} ${styles.stepActive}`}><span>03</span><b>Review</b></div></div>
       </div>
 
       <div className={styles.layout}>
@@ -79,10 +80,10 @@ export default function AddCustomerPage() {
             <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
             <div className={styles.gridTwo}>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
-              <div className={styles.infoBox}><span>✓</span><div><b>Ready for financial services</b><small>The customer can later be linked to savings, loans, deposits and transactions.</small></div></div>
+              <div className={styles.infoBox}><span>✓</span><div><b>Ready for financial services</b><small>The customer wallet is created automatically and the virtual-account provisioning flow starts after registration.</small></div></div>
             </div>
           </section>
-          {message && <div className={message.includes("successfully") ? styles.success : styles.error}>{message}</div>}
+          {message && <div className={message.includes("successfully") || message.includes("ready") ? styles.success : styles.error}>{message}</div>}
           <div className={styles.footer}><span>Fields marked <b>*</b> are required.</span><div><Link href="/customers" className={styles.cancel}>Cancel</Link><button type="submit" disabled={loading}>{loading ? "Creating Customer…" : "Create Customer"}</button></div></div>
         </form>
 

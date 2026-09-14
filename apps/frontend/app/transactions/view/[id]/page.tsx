@@ -46,7 +46,6 @@ export default function ViewTransactionPage() {
     let active = true;
     setLoading(true);
     setError('');
-
     pwfbApi.transactions.get(id)
       .then((data) => {
         if (!active) return;
@@ -60,50 +59,40 @@ export default function ViewTransactionPage() {
         setError(err instanceof Error ? err.message : 'Unable to load transaction details.');
       })
       .finally(() => { if (active) setLoading(false); });
-
     return () => { active = false; };
   }, [id]);
 
-  if (loading) {
-    return <main className="pwfb-banking-page"><div className="pwfb-empty-state"><div className="pwfb-loading-dot" /><p>Loading transaction details...</p></div></main>;
-  }
-
-  if (!transaction) {
-    return (
-      <main className="pwfb-banking-page">
-        <div className="pwfb-page-header">
-          <div><p className="pwfb-eyebrow">FINANCIAL OPERATIONS / TRANSACTION</p><h1 className="pwfb-page-title">Transaction Details</h1><p className="pwfb-page-description">The selected transaction could not be loaded.</p></div>
-          <Link href="/transactions" className="pwfb-secondary-button">← Transaction Overview</Link>
-        </div>
-        <section className="pwfb-panel"><div className="pwfb-empty-state"><div className="pwfb-empty-icon">!</div><h3>Transaction unavailable</h3><p>{error || 'No transaction record was returned by the PWFB API.'}</p><Link href="/transactions" className="pwfb-primary-button">Back to Transactions</Link></div></section>
-      </main>
-    );
-  }
+  if (loading) return <main className="pwfb-banking-page"><div className="pwfb-empty-state"><div className="pwfb-loading-dot" /><p>Loading transaction details...</p></div></main>;
+  if (!transaction) return <main className="pwfb-banking-page"><div className="pwfb-page-header"><div><p className="pwfb-eyebrow">FINANCIAL OPERATIONS / TRANSACTION</p><h1 className="pwfb-page-title">Transaction Details</h1><p className="pwfb-page-description">The selected transaction could not be loaded.</p></div><Link href="/transactions" className="pwfb-secondary-button">← Transaction Overview</Link></div><section className="pwfb-panel"><div className="pwfb-empty-state"><div className="pwfb-empty-icon">!</div><h3>Transaction unavailable</h3><p>{error || 'No transaction record was returned by the PWFB API.'}</p><Link href="/transactions" className="pwfb-primary-button">Back to Transactions</Link></div></section></main>;
 
   const customerName = `${transaction.customer?.firstName ?? ''} ${transaction.customer?.lastName ?? ''}`.trim() || 'Customer';
   const reference = transaction.providerReference || transaction.reference || transaction.id;
   const isWallet = transaction.source === 'WALLET';
+  const operationLabel = String(transaction.type || 'TRANSACTION').replaceAll('_', ' ');
+  const print = () => window.print();
 
   return (
     <main className="pwfb-banking-page">
-      <div className="pwfb-page-header">
+      <style>{`@media print{body{background:#fff!important}.pwfb-receipt-actions,.pwfb-sidebar,.pwfb-topbar{display:none!important}.pwfb-content{padding:0!important}.pwfb-panel,.pwfb-banking-hero{box-shadow:none!important;break-inside:avoid}.pwfb-banking-hero{print-color-adjust:exact;-webkit-print-color-adjust:exact}}`}</style>
+      <div className="pwfb-page-header pwfb-receipt-actions">
         <div><p className="pwfb-eyebrow">FINANCIAL OPERATIONS / TRANSACTION</p><h1 className="pwfb-page-title">Transaction Details</h1><p className="pwfb-page-description">Complete transaction record and audit information.</p></div>
         <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
           <Link href="/transactions" className="pwfb-secondary-button">← Transaction Overview</Link>
+          <button type="button" onClick={print} className="pwfb-primary-button">🖨 Print Receipt</button>
           {!isWallet && <Link href={`/transactions/edit/${transaction.id}`} className="pwfb-primary-button">Edit Transaction</Link>}
         </div>
       </div>
 
       <section className="pwfb-banking-hero">
-        <div className="pwfb-banking-step"><div className="pwfb-step-number">✓</div><div><label>TRANSACTION RECORD</label><h2 style={{ margin: 0, color: '#fff', fontSize: 24 }}>{money(transaction.amount)}</h2><p style={{ margin: '6px 0 0', color: '#c9ead3', fontSize: 11 }}>{transaction.type || 'Transaction'} • {customerName}</p></div></div>
+        <div className="pwfb-banking-step"><div className="pwfb-step-number">✓</div><div><label>{operationLabel}</label><h2 style={{ margin: 0, color: '#fff', fontSize: 24 }}>{money(transaction.amount)}</h2><p style={{ margin: '6px 0 0', color: '#c9ead3', fontSize: 11 }}>{operationLabel} • {customerName}</p></div></div>
         <div className="pwfb-banking-hero-note"><b>✓ {transaction.status || 'COMPLETED'}</b><span>{isWallet ? 'System-generated wallet transaction' : 'PWFB ledger transaction'}</span></div>
       </section>
 
       <section className="pwfb-panel" style={{ marginTop: 18 }}>
-        <div className="pwfb-panel-header"><div><h2>Transaction Information</h2><p>Verified information returned from the PWFB transaction service.</p></div><span className="pwfb-operation-badge">{transaction.source || 'LEDGER'}</span></div>
+        <div className="pwfb-panel-header"><div><h2>Official PWFB Receipt</h2><p>Present or print this record as the transaction receipt.</p></div><span className="pwfb-operation-badge">{transaction.source || 'LEDGER'}</span></div>
         <div className="pwfb-banking-form-grid" style={{ padding: 18 }}>
           <div className="pwfb-verify-field verified"><span>Customer</span><strong>{customerName}</strong><small>{transaction.customerId || transaction.customer?.id || '—'}</small></div>
-          <div className="pwfb-verify-field"><span>Transaction Type</span><strong>{transaction.type || '—'}</strong></div>
+          <div className="pwfb-verify-field"><span>Transaction Type</span><strong>{operationLabel}</strong></div>
           <div className="pwfb-verify-field verified"><span>Amount</span><strong>{money(transaction.amount)}</strong></div>
           <div className="pwfb-verify-field"><span>Status</span><strong>{transaction.status || 'COMPLETED'}</strong></div>
           <div className="pwfb-verify-field"><span>Reference</span><strong style={{ wordBreak: 'break-all' }}>{reference}</strong></div>
@@ -115,16 +104,7 @@ export default function ViewTransactionPage() {
         </div>
       </section>
 
-      {(transaction.walletBalanceBefore != null || transaction.walletBalanceAfter != null || transaction.failureReason) && (
-        <section className="pwfb-panel" style={{ marginTop: 18 }}>
-          <div className="pwfb-panel-header"><div><h2>Processing Information</h2><p>Additional system-generated transaction details.</p></div></div>
-          <div className="pwfb-banking-form-grid" style={{ padding: 18 }}>
-            {transaction.walletBalanceBefore != null && <div className="pwfb-verify-field"><span>Balance Before</span><strong>{money(transaction.walletBalanceBefore)}</strong></div>}
-            {transaction.walletBalanceAfter != null && <div className="pwfb-verify-field"><span>Balance After</span><strong>{money(transaction.walletBalanceAfter)}</strong></div>}
-            {transaction.failureReason && <div className="pwfb-form-field-wide"><label className="pwfb-label">Failure Reason</label><div className="pwfb-input">{transaction.failureReason}</div></div>}
-          </div>
-        </section>
-      )}
+      {(transaction.walletBalanceBefore != null || transaction.walletBalanceAfter != null || transaction.failureReason) && <section className="pwfb-panel" style={{ marginTop: 18 }}><div className="pwfb-panel-header"><div><h2>Processing Information</h2><p>Additional system-generated transaction details.</p></div></div><div className="pwfb-banking-form-grid" style={{ padding: 18 }}>{transaction.walletBalanceBefore != null && <div className="pwfb-verify-field"><span>Balance Before</span><strong>{money(transaction.walletBalanceBefore)}</strong></div>}{transaction.walletBalanceAfter != null && <div className="pwfb-verify-field"><span>Balance After</span><strong>{money(transaction.walletBalanceAfter)}</strong></div>}{transaction.failureReason && <div className="pwfb-form-field-wide"><label className="pwfb-label">Failure Reason</label><div className="pwfb-input">{transaction.failureReason}</div></div>}</div></section>}
     </main>
   );
 }

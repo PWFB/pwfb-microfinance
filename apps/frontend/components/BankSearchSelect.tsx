@@ -37,7 +37,7 @@ function score(bank: Bank, query: string) {
   return -1;
 }
 
-export default function BankSearchSelect({ banks, value, onChange, placeholder = "Search bank by name, short name or code…", disabled }: Props) {
+export default function BankSearchSelect({ banks, value, onChange, placeholder = "Search bank by name…", disabled }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const root = useRef<HTMLDivElement>(null);
@@ -66,8 +66,6 @@ export default function BankSearchSelect({ banks, value, onChange, placeholder =
       .map((item) => item.bank);
   }, [banks, query]);
 
-  const providerLabel = selected?.provider ? selected.provider.toUpperCase() : "";
-
   return (
     <div ref={root} style={{ position: "relative" }}>
       <button
@@ -76,7 +74,7 @@ export default function BankSearchSelect({ banks, value, onChange, placeholder =
         onClick={() => { if (!disabled) { setOpen((v) => !v); setQuery(""); } }}
         style={{ width: "100%", textAlign: "left", border: "1px solid #dbe5df", borderRadius: 11, padding: "12px", background: disabled ? "#f1f4f2" : "#fbfdfc", color: selected ? "#21372d" : "#7a8780", cursor: disabled ? "not-allowed" : "pointer", fontSize: 13 }}
       >
-        {selected ? `${selected.name}${selected.shortName ? ` (${selected.shortName})` : ""} · ${selected.code}${providerLabel ? ` · ${providerLabel}` : ""}` : "Select a bank…"}
+        {selected ? selected.name : "Select a bank…"}
       </button>
 
       {open && !disabled && (
@@ -101,7 +99,6 @@ export default function BankSearchSelect({ banks, value, onChange, placeholder =
                 style={{ width: "100%", border: 0, borderBottom: "1px solid #edf2ef", background: bank.code === value ? "#f2f9f5" : "#fff", textAlign: "left", padding: "11px 13px", cursor: "pointer" }}
               >
                 <strong style={{ display: "block", color: "#075b2a", fontSize: 12 }}>{bank.name}</strong>
-                <span style={{ color: "#7a8780", fontSize: 10 }}>{bank.shortName ? `${bank.shortName} · ` : ""}{bank.code}{bank.provider ? ` · ${bank.provider.toUpperCase()}` : ""}</span>
               </button>
             ))}
           </div>

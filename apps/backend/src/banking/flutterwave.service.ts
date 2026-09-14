@@ -16,7 +16,7 @@ export class FlutterwaveService {
   private isSandbox() { return /sandbox/i.test(this.apiBaseUrl()); }
   private clientId() { const value = process.env.FLUTTERWAVE_CLIENT_ID?.trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Client ID is not configured'); return value; }
   private clientSecret() { const value = process.env.FLUTTERWAVE_CLIENT_SECRET?.trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Client Secret is not configured'); return value; }
-  private secretKey() { const value = (process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY || '').trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Secret Key is not configured for BVN verification'); return value; }
+  private secretKey() { const value = (process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY || '').trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Secret Key is not configured for legacy account verification'); return value; }
   private uniqueId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`; }
 
   private async accessToken(forceRefresh = false): Promise<string> {
@@ -35,9 +35,22 @@ export class FlutterwaveService {
     try {
       const response = await fetch(`${this.apiBaseUrl()}${path}`, { ...init, headers, signal: AbortSignal.timeout(15000) }); const payload = await response.json().catch(() => ({}));
       if (response.status === 401 && retry) { await this.accessToken(true); return this.request(path, init, false); }
-      if (!response.ok) { const validation = Array.isArray(payload?.error?.validation_errors) ? payload.error.validation_errors.map((item: any) => `${item?.field_name ?? 'field'}: ${item?.message ?? 'invalid'}`).join('; ') : ''; throw new ServiceUnavailableException(String(validation || payload?.error?.message || payload?.message || `Flutterwave request failed with status ${response.status}`)); }
+      if (!response.ok) { const validation = Array.isArray(payload?.error?.validation_errors) ? payload.error.validation_errors.map((item: any) => `${item?.field_name ?? 'field'}: ${item?.message ?? 'invalid'}`).join('; ') : ''; const error: any = new ServiceUnavailableException(String(validation || payload?.error?.message || payload?.message || `Flutterwave request failed with status ${response.status}`)); error.statusCode = response.status; throw error; }
       return payload as any;
     } catch (error) { if (error instanceof ServiceUnavailableException) throw error; throw new ServiceUnavailableException('Flutterwave service is unavailable'); }
+  }
+
+  private async legacyAccountResolve(bankCode: string, accountNumber: string): Promise<FlutterwaveAccountNameResult> {
+    const code = String(bankCode || '').trim(); const number = String(accountNumber || '').replace(/\D/g, '');
+    const response = await fetch('https://api.flutterwave.com/v3/accounts/resolve', { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${this.secretKey()}`, 'X-Trace-Id': this.uniqueId('pwfb-v3-resolve') }, body: JSON.stringify({ account_number: number, account_bank: code }), signal: AbortSignal.timeout(15000) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new ServiceUnavailableException(String(payload?.message || payload?.error?.message || `Flutterwave account verification failed with status ${response.status}`));
+    const data = payload?.data ?? {};
+    const accountName = String(data.account_name ?? data.accountName ?? '').trim();
+    const returnedNumber = String(data.account_number ?? data.accountNumber ?? '').replace(/\D/g, '');
+    if (!accountName) throw new BadRequestException(payload?.message || 'Account name could not be resolved');
+    if (!returnedNumber || returnedNumber !== number) throw new BadRequestException('Bank provider did not return the exact account number entered. Verification was rejected.');
+    return { accountNumber: returnedNumber, accountName, bankCode: code };
   }
 
   private async bvnRequest(path: string, init: RequestInit) {
@@ -55,6 +68,12 @@ export class FlutterwaveService {
     const code = String(bankCode || '').trim(); const number = String(accountNumber || '').replace(/\D/g, '');
     if (!code) throw new BadRequestException('Bank code is required'); if (!/^\d{10}$/.test(number)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (this.isSandbox() && process.env.ALLOW_SANDBOX_BANK_VERIFICATION !== 'true') throw new BadRequestException('Real bank account verification is disabled while Flutterwave sandbox is configured. Set the Render Flutterwave API base URL to production before verifying real accounts.');
+    if (!this.isSandbox() && (process.env.FLUTTERWAVE_SECRET_KEY?.trim() || process.env.FLW_SECRET_KEY?.trim())) {
+      try { return await this.legacyAccountResolve(code, number); } catch (error) {
+        if (error instanceof BadRequestException) throw error;
+        // If the legacy v3 resolver is unavailable, fall through to the current v4 resolver.
+      }
+    }
     const payload = await this.request('/banks/account-resolve', { method: 'POST', body: JSON.stringify({ account: { code, number }, currency: 'NGN' }) }); const data = payload?.data ?? {};
     const accountName = String(data.account_name ?? data.accountName ?? '').trim(); const returnedNumber = String(data.account_number ?? data.accountNumber ?? '').replace(/\D/g, ''); const returnedCode = String(data.bank_code ?? data.account_bank ?? '').trim();
     if (!accountName) throw new BadRequestException(payload?.message || 'Account name could not be resolved');

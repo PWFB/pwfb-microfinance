@@ -113,8 +113,9 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             try {
                 JSONObject config = get("/auth/google/config");
-                String clientId = config.optString("android_client_id", "").trim();
-                if (clientId.isEmpty()) throw new Exception("Google sign-in is not configured for the Android app.");
+                String clientId = config.optString("server_client_id", "").trim();
+                if (clientId.isEmpty()) clientId = config.optString("client_id", "").trim();
+                if (clientId.isEmpty()) throw new Exception("Google sign-in is not configured on the PWFB server.");
                 GoogleSignInOptions options = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestIdToken(clientId).requestEmail().build();
                 googleClient = GoogleSignIn.getClient(this, options);
                 runOnUiThread(() -> googleClient.signOut().addOnCompleteListener(task -> {

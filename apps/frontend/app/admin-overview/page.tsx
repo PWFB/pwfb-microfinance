@@ -15,6 +15,21 @@ function name(x: Row) { return [x.firstName, x.middleName, x.lastName].filter(Bo
 function date(x: Row) { const v = x.createdAt || x.paymentDate || x.date || x.updatedAt; return v ? new Date(v).toLocaleString("en-NG") : "—"; }
 function csvEscape(v: any) { return `"${String(v ?? "").replace(/"/g, '""')}"`; }
 
+const financialActions = [
+  { title: "Customer Deposit", description: "Deposit funds into a customer wallet", href: "/banking?operation=deposit", icon: "↓", tone: "green" },
+  { title: "Customer Withdrawal", description: "Withdraw funds with balance controls", href: "/banking?operation=withdraw", icon: "↑", tone: "orange" },
+  { title: "Bank Transfer", description: "Send funds to a verified bank account", href: "/banking?operation=transfer", icon: "↗", tone: "green" },
+  { title: "Savings Deposit", description: "Post a deposit to a savings account", href: "/savings", icon: "₦", tone: "green" },
+  { title: "Savings Withdrawal", description: "Withdraw from an eligible savings account", href: "/savings", icon: "₦", tone: "orange" },
+  { title: "Loan Repayment", description: "Record and audit customer repayments", href: "/repayments/add", icon: "✓", tone: "green" },
+  { title: "Loan Disbursement", description: "Review and process approved disbursements", href: "/loans", icon: "▣", tone: "orange" },
+  { title: "Transaction Correction", description: "Create a correcting or reversal entry", href: "/transactions/add", icon: "↺", tone: "orange" },
+  { title: "Receipts & Ledger", description: "Review transactions and print receipts", href: "/transactions", icon: "▤", tone: "green" },
+  { title: "Cashbook", description: "Review controlled cash movements", href: "/cashbook", icon: "▥", tone: "orange" },
+  { title: "Collections", description: "Review daily collection activity", href: "/collections", icon: "◉", tone: "green" },
+  { title: "Reports & Audit", description: "Inspect operational and financial history", href: "/reports", icon: "▤", tone: "orange" },
+];
+
 export default function AdminOverviewPage() {
   const [data, setData] = useState<Data>(empty); const [loading, setLoading] = useState(true); const [section, setSection] = useState<keyof Data>("customers");
   const [search, setSearch] = useState(""); const [type, setType] = useState(""); const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(50); const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0, totalPages: 1 }); const [error, setError] = useState("");
@@ -34,6 +49,13 @@ export default function AdminOverviewPage() {
       <div className="pwfb-operation-control-header"><div><span>OPERATIONAL CONTROL CENTER</span><h2>Core PWFB Operations</h2><p>Open an operational workspace directly from the control center.</p></div><strong>SUPER ADMIN</strong></div>
       <div className="pwfb-operation-control-grid">
         {sections.map(key => <Link key={key} href={operationLinks[key]} className="pwfb-operation-control-card"><span>{icons[key]}</span><div><strong>{labels[key]}</strong><small>{key === "customers" ? "Customer profiles & onboarding" : key === "loans" ? "Loans & repayments" : key === "staff" ? "Staff & access" : key === "savings" ? "Savings accounts & deposits" : key === "deposits" ? "Daily deposit activity" : key === "withdrawals" ? "Daily withdrawal activity" : "Customer & bank transfers"}</small></div><b>→</b></Link>)}
+      </div>
+    </section>
+
+    <section className="pwfb-panel" style={{ marginBottom: 20 }}>
+      <div className="pwfb-panel-header"><div><h2>Financial Operations</h2><p>Fast access to the controlled money-movement workflows.</p></div><span className="pwfb-record-count">Role-controlled</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: 12, padding: "0 18px 18px" }}>
+        {financialActions.map(action => <Link key={action.title} href={action.href} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 82, padding: 14, border: "1px solid #e4e7ec", borderRadius: 14, textDecoration: "none", background: "#fff", boxShadow: "0 1px 3px rgba(16,24,40,.05)" }}><span style={{ width: 40, height: 40, display: "grid", placeItems: "center", borderRadius: 12, background: action.tone === "green" ? "#e8f5ec" : "#fff0e6", color: action.tone === "green" ? "#18863e" : "#d65a00", fontWeight: 800, fontSize: 19 }}>{action.icon}</span><span style={{ minWidth: 0 }}><strong style={{ display: "block", color: "#101828" }}>{action.title}</strong><small style={{ display: "block", marginTop: 4, color: "#667085", lineHeight: 1.35 }}>{action.description}</small></span><b style={{ marginLeft: "auto", color: "#98a2b3" }}>→</b></Link>)}
       </div>
     </section>
 

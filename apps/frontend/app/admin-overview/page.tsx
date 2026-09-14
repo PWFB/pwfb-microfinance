@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { apiRequest } from "../../lib/api";
 
 type Row = Record<string, any>;
 type Data = { customers: Row[]; staff: Row[]; loans: Row[]; savings: Row[]; deposits: Row[]; withdrawals: Row[]; transfers: Row[] };
@@ -19,8 +18,8 @@ const financialActions = [
   { title: "Customer Deposit", description: "Deposit funds into a customer wallet", href: "/banking?operation=deposit", icon: "↓", tone: "green" },
   { title: "Customer Withdrawal", description: "Withdraw funds with balance controls", href: "/banking?operation=withdraw", icon: "↑", tone: "orange" },
   { title: "Bank Transfer", description: "Send funds to a verified bank account", href: "/banking?operation=bank-transfer", icon: "↗", tone: "green" },
-  { title: "Savings Deposit", description: "Post a deposit to a savings account", href: "/savings", icon: "₦", tone: "green" },
-  { title: "Savings Withdrawal", description: "Withdraw from an eligible savings account", href: "/savings", icon: "₦", tone: "orange" },
+  { title: "Savings Deposit", description: "Choose a savings account and post a deposit", href: "/savings?operation=deposit", icon: "₦", tone: "green" },
+  { title: "Savings Withdrawal", description: "Choose a savings account and post a withdrawal", href: "/savings?operation=withdraw", icon: "₦", tone: "orange" },
   { title: "Loan Repayment", description: "Record and audit customer repayments", href: "/repayments/add", icon: "✓", tone: "green" },
   { title: "Loan Disbursement", description: "Review and process approved disbursements", href: "/loans", icon: "▣", tone: "orange" },
   { title: "Transaction Correction", description: "Create a correcting or reversal entry", href: "/transactions/add", icon: "↺", tone: "orange" },
@@ -34,7 +33,7 @@ export default function AdminOverviewPage() {
   const [data, setData] = useState<Data>(empty); const [loading, setLoading] = useState(true); const [section, setSection] = useState<keyof Data>("customers");
   const [search, setSearch] = useState(""); const [type, setType] = useState(""); const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(50); const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0, totalPages: 1 }); const [error, setError] = useState("");
 
-  async function load(nextPage = page) { setLoading(true); setError(""); try { const qs = new URLSearchParams({ section, search, type, from, to, page: String(nextPage), pageSize: String(pageSize) }); const result = await apiRequest(`/reports/operations?${qs.toString()}`); setData({ ...empty, ...result }); setPagination(result.pagination || { page: nextPage, pageSize, total: 0, totalPages: 1 }); } catch (e: any) { setError(e?.message || "Unable to load operational data."); } finally { setLoading(false); } }
+  async function load(nextPage = page) { setLoading(true); setError(""); try { const qs = new URLSearchParams({ section, search, type, from, to, page: String(nextPage), pageSize: String(pageSize) }); const result = await (await import("../../lib/api")).apiRequest(`/reports/operations?${qs.toString()}`); setData({ ...empty, ...result }); setPagination(result.pagination || { page: nextPage, pageSize, total: 0, totalPages: 1 }); } catch (e: any) { setError(e?.message || "Unable to load operational data."); } finally { setLoading(false); } }
   useEffect(() => { load(1); }, [section, type, from, to, pageSize]);
   useEffect(() => { const t = setTimeout(() => load(1), 350); return () => clearTimeout(t); }, [search]);
 

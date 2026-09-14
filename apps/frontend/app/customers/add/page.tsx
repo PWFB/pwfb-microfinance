@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { apiRequest } from "../../../lib/api";
+import { pwfbApi } from "../../../lib/pwfb-api";
 import styles from "./page.module.css";
 
 type CustomerForm = { firstName: string; middleName: string; lastName: string; email: string; phone: string; address: string; dateOfBirth: string };
@@ -21,7 +22,22 @@ export default function AddCustomerPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setMessage("");
-    try { await apiRequest("/customers", { method: "POST", body: JSON.stringify(form) }); setMessage("Customer profile created successfully."); window.setTimeout(() => router.push("/customers"), 900); }
+    try {
+      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify(form) });
+      const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
+      if (customerId) {
+        try {
+          await pwfbApi.banking.ensureCustomerVirtualAccount(customerId);
+        } catch (virtualAccountError) {
+          const reason = virtualAccountError instanceof Error ? virtualAccountError.message : "Virtual account provisioning is pending.";
+          setMessage(`Customer profile created successfully. Virtual account provisioning is pending: ${reason}`);
+          window.setTimeout(() => router.push(`/customers/${customerId}`), 1400);
+          return;
+        }
+      }
+      setMessage("Customer profile created successfully. Wallet and virtual account provisioning started.");
+      window.setTimeout(() => router.push("/customers"), 1100);
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create customer."); }
     finally { setLoading(false); }
   }

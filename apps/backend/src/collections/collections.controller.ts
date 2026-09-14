@@ -5,6 +5,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 const VIEW_ROLES = ['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER'];
+const SETTLE_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER'];
 
 @Controller('collections')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -12,7 +13,7 @@ export class CollectionsController {
   constructor(private readonly collectionsService: CollectionsService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER')
+  @Roles(...SETTLE_ROLES)
   create(@Body() body: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string }) {
     return this.collectionsService.create(body);
   }
@@ -38,6 +39,12 @@ export class CollectionsController {
   @Get(':id')
   @Roles(...VIEW_ROLES)
   findOne(@Param('id') id: string) { return this.collectionsService.findOne(id); }
+
+  @Post(':id/settle')
+  @Roles(...SETTLE_ROLES)
+  settle(@Param('id') id: string, @Body() body: { targetId?: string }) {
+    return this.collectionsService.settle(id, body.targetId);
+  }
 
   @Patch(':id/reconcile')
   @Roles('SUPER_ADMIN','ADMIN')

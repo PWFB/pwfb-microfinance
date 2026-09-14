@@ -26,8 +26,8 @@ export class ExternalBankTransferService {
 
   async listInstitutions() {
     const provider = this.provider();
-    if (provider === 'PAYSTACK') return this.paystackService.listBanks();
-    if (provider === 'FLUTTERWAVE') return this.flutterwaveService.listBanks('NG');
+    if (provider === 'PAYSTACK') return (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
+    if (provider === 'FLUTTERWAVE') return (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
     return this.prisma.bankInstitution.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
   }
 
@@ -35,11 +35,11 @@ export class ExternalBankTransferService {
     const provider = this.provider();
     const query = String(search || '').trim().toLowerCase();
     if (provider === 'PAYSTACK') {
-      const banks = await this.paystackService.listBanks();
+      const banks = (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
       return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
     }
     if (provider === 'FLUTTERWAVE') {
-      const banks = await this.flutterwaveService.listBanks('NG');
+      const banks = (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
       return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
     }
     return this.prisma.bankInstitution.findMany({ where: { active: true, ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { shortName: { contains: search, mode: 'insensitive' } }, { code: { contains: search, mode: 'insensitive' } }] } : {}) }, orderBy: { name: 'asc' } });
@@ -51,12 +51,14 @@ export class ExternalBankTransferService {
     return this.nibssService.nameEnquiry(bankCode, accountNumber);
   }
 
-  async nameEnquiry(bankCode: string, accountNumber: string) {
+  async nameEnquiry(bankCode: string, accountNumber: string, providerHint?: string) {
     const normalizedBankCode = String(bankCode || '').trim();
     const normalizedAccountNumber = String(accountNumber || '').replace(/\D/g, '');
     if (!normalizedBankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(normalizedAccountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
-    const providers = this.configuredProviders();
+    const requestedProvider = String(providerHint || '').trim().toUpperCase();
+    const providers = requestedProvider ? [requestedProvider] : [this.provider()];
+    if (providers.some((provider) => !['FLUTTERWAVE', 'PAYSTACK', 'NIBSS'].includes(provider))) throw new BadRequestException('Unsupported bank verification provider');
     const failures: string[] = [];
     for (const provider of providers) {
       try {
@@ -70,46 +72,46 @@ export class ExternalBankTransferService {
         failures.push(`${provider}: ${error instanceof Error ? error.message : 'verification failed'}`);
       }
     }
-    throw new BadRequestException(`Bank account verification failed with all configured providers. ${failures.join(' | ')}`);
+    throw new BadRequestException(`Bank account verification failed. ${failures.join(' | ')}`);
   }
 
-  async verifyCustomerBankAccount(customerId: string, bankCode: string, accountNumber: string) {
+  async verifyCustomerBankAccount(customerId: string, bankCode: string, accountNumber: string, providerHint?: string) {
     const id = String(customerId || '').trim();
     if (!id) throw new BadRequestException('PWFB customer is required for name verification');
     const customer = await this.prisma.customer.findUnique({ where: { id }, select: { firstName: true, lastName: true } });
     if (!customer) throw new NotFoundException('PWFB customer not found');
     const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
     if (!customerName) throw new BadRequestException('PWFB customer name is not available for bank verification');
-    const result = await this.nameEnquiry(bankCode, accountNumber);
+    const result = await this.nameEnquiry(bankCode, accountNumber, providerHint);
     const accountParts = new Set(this.normalizeName(result.accountName).split(' ').filter(Boolean));
     const matchCount = [...new Set(this.normalizeName(customerName).split(' ').filter(Boolean))].filter((part) => accountParts.has(part)).length;
     if (matchCount < 2) throw new BadRequestException(`Bank account verification failed: the verified account name (${result.accountName}) does not match at least two names on the PWFB customer profile (${customerName}).`);
     return { ...result, registeredCustomerName: customerName, nameMatchCount: matchCount, nameMatch: true, verification: 'VERIFIED', beneficiaryType: 'PWFB_CUSTOMER' };
   }
 
-  async transferToVerifiedAccount(input: { bankCode: string; accountNumber: string; accountName: string; amount: number; narration: string; reference: string }) {
-    const provider = this.provider();
+  async transferToVerifiedAccount(input: { bankCode: string; accountNumber: string; accountName: string; amount: number; narration: string; reference: string; provider?: string }) {
+    const provider = String(input.provider || this.provider()).trim().toUpperCase();
     if (provider === 'PAYSTACK') return this.paystackService.transferToBank(input);
     if (provider === 'FLUTTERWAVE') return this.flutterwaveService.transfer(input);
     return this.nibssService.transfer({ bankCode: input.bankCode, accountNumber: input.accountNumber, amount: input.amount, narration: input.narration, xref: input.reference });
   }
 
-  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string }) {
+  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string }) {
     const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
     if (!bankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
-    const verified = await this.verifyCustomerBankAccount(input.customerId, bankCode, accountNumber);
+    const verified = await this.verifyCustomerBankAccount(input.customerId, bankCode, accountNumber, input.provider);
     const verifiedAccountName = String(verified.accountName || '').trim();
     const wallet = await this.prisma.customerWallet.findUnique({ where: { customerId: input.customerId } });
     if (!wallet) throw new NotFoundException('Customer wallet not found');
     if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
     if (wallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
-    const provider = this.provider();
+    const provider = String(verified.provider || input.provider || this.provider()).trim().toUpperCase();
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    const providerResult = await this.transferToVerifiedAccount({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, reference: xref });
+    const providerResult = await this.transferToVerifiedAccount({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, reference: xref, provider });
     return this.prisma.$transaction(async (tx) => {
       const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');

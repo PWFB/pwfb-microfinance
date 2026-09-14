@@ -16,7 +16,8 @@ export class FlutterwaveService {
   private isSandbox() { return /sandbox/i.test(this.apiBaseUrl()); }
   private clientId() { const value = process.env.FLUTTERWAVE_CLIENT_ID?.trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Client ID is not configured'); return value; }
   private clientSecret() { const value = process.env.FLUTTERWAVE_CLIENT_SECRET?.trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Client Secret is not configured'); return value; }
-  private secretKey() { const value = (process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY || '').trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Secret Key is not configured for legacy account verification'); return value; }
+  private secretKey() { const value = (process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY || '').trim(); if (!value) throw new ServiceUnavailableException('Flutterwave Secret Key is not configured for live bank-account verification'); return value; }
+  private hasProductionSecretKey() { return Boolean((process.env.FLUTTERWAVE_SECRET_KEY || process.env.FLW_SECRET_KEY || '').trim()); }
   private uniqueId(prefix: string) { return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 14)}`; }
 
   private async accessToken(forceRefresh = false): Promise<string> {
@@ -67,8 +68,9 @@ export class FlutterwaveService {
   async nameEnquiry(bankCode: string, accountNumber: string): Promise<FlutterwaveAccountNameResult> {
     const code = String(bankCode || '').trim(); const number = String(accountNumber || '').replace(/\D/g, '');
     if (!code) throw new BadRequestException('Bank code is required'); if (!/^\d{10}$/.test(number)) throw new BadRequestException('Enter a valid 10-digit account number');
-    if (this.isSandbox() && process.env.ALLOW_SANDBOX_BANK_VERIFICATION !== 'true') throw new BadRequestException('Real bank account verification is disabled while Flutterwave sandbox is configured. Set the Render Flutterwave API base URL to production before verifying real accounts.');
-    if (!this.isSandbox() && (process.env.FLUTTERWAVE_SECRET_KEY?.trim() || process.env.FLW_SECRET_KEY?.trim())) {
+    if (this.isSandbox() && process.env.ALLOW_SANDBOX_BANK_VERIFICATION !== 'true') throw new BadRequestException('Live bank verification is unavailable: Flutterwave is configured for sandbox/test mode. Use a documented Flutterwave test account or configure production credentials in Render.');
+    if (!this.isSandbox() && !this.hasProductionSecretKey()) throw new ServiceUnavailableException('Live bank verification is not configured. Add a Flutterwave production Secret Key to the PWFB backend Render environment before verifying Nigerian bank accounts.');
+    if (!this.isSandbox()) {
       try { return await this.legacyAccountResolve(code, number); } catch (error) {
         if (error instanceof BadRequestException) throw error;
         // If the legacy v3 resolver is unavailable, fall through to the current v4 resolver.

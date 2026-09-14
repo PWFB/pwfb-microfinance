@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { apiRequest } from "../lib/api";
 
 export type AuthUser = { id: string; email: string; role: string; firstName?: string; lastName?: string };
@@ -11,6 +11,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -25,7 +26,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await apiRequest("/auth/2fa/verify", { method: "POST", body: JSON.stringify({ token, code: code.trim() }) });
         profile = await apiRequest("/auth/profile");
       }
-      setUser(profile); return profile as AuthUser;
+      const currentUser = profile as AuthUser;
+      setUser(currentUser);
+      if (currentUser?.role === "SUPER_ADMIN" && pathname?.startsWith("/customer-dashboard")) {
+        router.replace("/dashboard");
+      }
+      return currentUser;
     } catch (error) {
       if (error instanceof Error && error.message.includes("Two-factor authentication is required")) throw error;
       localStorage.removeItem("token"); localStorage.removeItem("user"); sessionStorage.removeItem("token"); sessionStorage.removeItem("user"); setUser(null); return null;
@@ -44,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  useEffect(() => { refreshProfile().catch(() => undefined); }, []);
+  useEffect(() => { refreshProfile().catch(() => undefined); }, [pathname]);
   return <AuthContext.Provider value={{ user, loading, logout, refreshProfile }}>{children}</AuthContext.Provider>;
 }
 

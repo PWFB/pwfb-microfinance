@@ -21,7 +21,7 @@ const financialActions = [
   { title: "Savings Deposit", description: "Choose a savings account and post a deposit", href: "/savings?operation=deposit", icon: "₦", tone: "green" },
   { title: "Savings Withdrawal", description: "Choose a savings account and post a withdrawal", href: "/savings?operation=withdraw", icon: "₦", tone: "orange" },
   { title: "Loan Repayment", description: "Record and audit customer repayments", href: "/repayments/add", icon: "✓", tone: "green" },
-  { title: "Loan Disbursement", description: "Review and process approved disbursements", href: "/loans", icon: "▣", tone: "orange" },
+  { title: "Loan Disbursement", description: "Review and process approved disbursements", href: "/loans/disbursements", icon: "▣", tone: "orange" },
   { title: "Transaction Correction", description: "Create a correcting or reversal entry", href: "/transactions/add", icon: "↺", tone: "orange" },
   { title: "Receipts & Ledger", description: "Review transactions and print receipts", href: "/transactions", icon: "▤", tone: "green" },
   { title: "Cashbook", description: "Review controlled cash movements", href: "/cashbook", icon: "▥", tone: "orange" },

@@ -14,7 +14,7 @@ export class CollectionsController {
 
   @Post()
   @Roles(...SETTLE_ROLES)
-  create(@Body() body: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string }) {
+  create(@Body() body: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }) {
     return this.collectionsService.create(body);
   }
 

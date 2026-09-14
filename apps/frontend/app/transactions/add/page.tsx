@@ -1,81 +1,18 @@
 'use client';
-
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { pwfbApi } from '../../../lib/pwfb-api';
-
-interface Customer { id: string; firstName?: string; lastName?: string; }
-const money = (value: number) => `₦${Number(value || 0).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-export default function AddTransactionPage() {
-  const router = useRouter();
-  const [customerId, setCustomerId] = useState('');
-  const [customerQuery, setCustomerQuery] = useState('');
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [type, setType] = useState('Deposit');
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      pwfbApi.customers.search(customerQuery.trim() || undefined).then((data) => {
-        const rows = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
-        setCustomers(rows.slice(0, 8));
-      }).catch(() => setCustomers([]));
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [customerQuery]);
-
-  const selected = useMemo(() => customers.find((c) => c.id === customerId), [customers, customerId]);
-  const numericAmount = Number(amount || 0);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    if (!customerId) return setError('Select a customer before saving the transaction.');
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0) return setError('Enter an amount greater than zero.');
-    setSaving(true);
-    try {
-      const created = await pwfbApi.transactions.create({ customerId, type, amount: numericAmount, description: description.trim() || undefined });
-      const record = created?.data && !created?.id ? created.data : created;
-      if (!record?.id) throw new Error('Transaction was saved, but no transaction ID was returned by the PWFB server.');
-      router.push(`/transactions/view/${record.id}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to save transaction.');
-    } finally { setSaving(false); }
-  }
-
-  return <main className="pwfb-banking-page">
-    <div className="pwfb-page-header">
-      <div><p className="pwfb-eyebrow">FINANCIAL OPERATIONS / TRANSACTION</p><h1 className="pwfb-page-title">Add Transaction</h1><p className="pwfb-page-description">Record a controlled financial ledger entry for a verified customer.</p></div>
-      <Link href="/transactions" className="pwfb-secondary-button">← Transaction Overview</Link>
-    </div>
-
-    <section className="pwfb-banking-hero">
-      <div className="pwfb-banking-step"><div className="pwfb-step-number">01</div><div><label>NEW TRANSACTION</label><h2 style={{ margin: 0, color: '#fff', fontSize: 24 }}>Create a ledger entry</h2><p style={{ margin: '6px 0 0', color: '#c9ead3', fontSize: 11 }}>Complete the customer, transaction type and amount. The record will be saved to the PWFB transaction ledger.</p></div></div>
-      <div className="pwfb-banking-hero-note"><b>✓ Controlled entry</b><span>Wallet transactions are system-generated and are not created through this manual form.</span></div>
-    </section>
-
-    <form onSubmit={handleSubmit} className="pwfb-panel">
-      <div className="pwfb-panel-header"><div><h2>Transaction Details</h2><p>Enter accurate information before submitting.</p></div><span className="pwfb-operation-badge">SECURE ENTRY</span></div>
-      {error && <div className="pwfb-alert pwfb-alert-error">{error}</div>}
-      <div className="pwfb-banking-form-grid">
-        <div className="pwfb-form-field-wide">
-          <label className="pwfb-label">Customer</label>
-          <input className="pwfb-input" value={selected ? `${selected.firstName ?? ''} ${selected.lastName ?? ''}`.trim() : customerQuery} onChange={(e) => { setCustomerQuery(e.target.value); setCustomerId(''); }} placeholder="Search customer name or ID..." autoComplete="off" />
-          {!selected && customers.length > 0 && <div style={{ marginTop: 7, border: '1px solid #dfe7e2', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>{customers.map((c) => <button type="button" key={c.id} onClick={() => { setCustomerId(c.id); setCustomerQuery(`${c.firstName ?? ''} ${c.lastName ?? ''}`.trim()); setCustomers([]); }} style={{ display: 'block', width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid #edf1ee', background: '#fff', textAlign: 'left' }}><strong style={{ display: 'block', color: '#0a5c28', fontSize: 12 }}>{`${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'Customer'}</strong><small style={{ color: '#66736b' }}>{c.id}</small></button>)}</div>}
-          {selected && <div className="pwfb-verify-field verified" style={{ marginTop: 8 }}><span>Customer selected: {selected.id}</span><b>✓</b></div>}
-        </div>
-        <div><label className="pwfb-label">Transaction Type</label><select className="pwfb-input" value={type} onChange={(e) => setType(e.target.value)}><option>Deposit</option><option>Withdrawal</option><option>Loan Disbursement</option><option>Loan Repayment</option><option>Transfer</option></select></div>
-        <div><label className="pwfb-label">Amount</label><div className="pwfb-amount-input"><span>₦</span><input className="pwfb-input" type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} /></div></div>
-        <div className="pwfb-form-field-wide"><label className="pwfb-label">Description <span style={{ fontWeight: 500, color: '#8a968f' }}>(optional)</span></label><textarea className="pwfb-input" style={{ minHeight: 110, resize: 'vertical' }} placeholder="Add a clear transaction description or operational note..." value={description} onChange={(e) => setDescription(e.target.value)} /></div>
-      </div>
-      <div className="pwfb-deposit-actions"><div className="pwfb-security-note">🔒 Transaction data is submitted through the authenticated PWFB API.</div><div style={{ display: 'flex', gap: 9 }}><Link href="/transactions" className="pwfb-secondary-button">Cancel</Link><button type="submit" className="pwfb-primary-button pwfb-banking-submit" disabled={saving}>{saving ? 'Saving...' : 'Save Transaction'}</button></div></div>
-    </form>
-
-    <section className="pwfb-panel" style={{ marginTop: 18 }}><div className="pwfb-panel-header"><div><h2>Entry Preview</h2><p>Review the transaction before saving.</p></div></div><div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 12, padding: 18 }}><div className="pwfb-verify-field"><span>Customer</span><strong>{selected ? `${selected.firstName ?? ''} ${selected.lastName ?? ''}`.trim() : 'Not selected'}</strong></div><div className="pwfb-verify-field"><span>Type</span><strong>{type}</strong></div><div className="pwfb-verify-field verified"><span>Amount</span><strong>{money(numericAmount)}</strong></div></div></section>
-  </main>;
+interface Customer { id:string; firstName?:string; lastName?:string; name?:string; phone?:string; email?:string }
+const money=(v:number)=>`₦${Number(v||0).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+export default function AddTransactionPage(){
+ const router=useRouter(); const [customerId,setCustomerId]=useState(''); const [customerQuery,setCustomerQuery]=useState(''); const [customers,setCustomers]=useState<Customer[]>([]); const [type,setType]=useState('Deposit'); const [amount,setAmount]=useState(''); const [description,setDescription]=useState(''); const [saving,setSaving]=useState(false); const [error,setError]=useState(''); const [open,setOpen]=useState(false);
+ useEffect(()=>{const timer=setTimeout(()=>pwfbApi.customers.search(customerQuery.trim()||undefined).then(d=>setCustomers((Array.isArray(d)?d:Array.isArray(d?.data)?d.data:[]).slice(0,10))).catch(()=>setCustomers([])),250);return()=>clearTimeout(timer)},[customerQuery]);
+ const selected=useMemo(()=>customers.find(c=>c.id===customerId),[customers,customerId]); const customerName=(c?:Customer)=>c?.name||[c?.firstName,c?.lastName].filter(Boolean).join(' ')||c?.id||'Customer'; const numericAmount=Number(amount||0);
+ async function submit(e:React.FormEvent){e.preventDefault();setError('');if(!customerId)return setError('Select a customer before saving the ledger entry.');if(!Number.isFinite(numericAmount)||numericAmount<=0)return setError('Enter an amount greater than zero.');setSaving(true);try{const created=await pwfbApi.transactions.create({customerId,type,amount:numericAmount,description:description.trim()||undefined});const record=created?.data&&!created?.id?created.data:created;if(!record?.id)throw new Error('Transaction was saved but no transaction ID was returned.');router.push(`/transactions/view/${record.id}`)}catch(e){setError(e instanceof Error?e.message:'Unable to save transaction.')}finally{setSaving(false)}}
+ return <main className="pwfb-banking-page"><style jsx>{`.ledger{max-width:1100px;margin:auto}.hero{background:linear-gradient(135deg,#075b2a,#13813d);color:#fff;border-radius:24px;padding:26px;margin-bottom:18px;display:flex;justify-content:space-between;gap:18px;align-items:center}.hero h1{margin:4px 0;font-size:30px}.hero p{margin:0;color:#d6efe0;font-size:12px}.eyebrow{font-size:10px;font-weight:900;letter-spacing:.14em;color:#ffd39d}.card{background:#fff;border:1px solid #e2eae5;border-radius:20px;box-shadow:0 10px 30px rgba(5,63,36,.05);overflow:hidden}.fold{width:100%;border:0;background:#fff;text-align:left;padding:20px 22px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}.fold:hover{background:#f8fbf9}.fold-left{display:flex;gap:12px;align-items:center}.num{width:34px;height:34px;border-radius:10px;background:#e9f6ef;color:#087348;display:grid;place-items:center;font-weight:900}.fold h2{margin:0;color:#173a2e;font-size:16px}.fold p{margin:3px 0 0;color:#7a8780;font-size:11px}.chev{font-size:20px;color:#087348}.body{padding:0 22px 22px;border-top:1px solid #edf2ef}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding-top:18px}.wide{grid-column:1/-1}.label{display:block;font-size:10px;font-weight:900;color:#596960;margin-bottom:6px}.input,.select,.textarea{width:100%;box-sizing:border-box;border:1px solid #dbe5df;border-radius:11px;background:#fbfdfc;padding:12px 13px;font-size:13px;color:#21372d}.textarea{min-height:105px;resize:vertical}.results{margin-top:6px;border:1px solid #dfe8e3;border-radius:11px;overflow:hidden}.result{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #edf1ef;background:#fff;padding:10px 12px}.result strong{display:block;color:#075b2a}.result small{color:#7a8780}.actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.primary,.secondary{padding:12px 18px;border-radius:11px;font-size:12px;font-weight:900;text-decoration:none}.primary{border:0;background:#f7931e;color:#fff}.secondary{border:1px solid #dce5e0;color:#52625a}.preview{margin-top:18px;padding:18px;background:#f6fbf8;border:1px solid #dcebe3;border-radius:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.preview span{display:block;font-size:10px;color:#7b8881}.preview strong{display:block;margin-top:4px;color:#173a2e}.error{margin-top:14px;padding:11px;border-radius:10px;background:#fff1f1;border:1px solid #ffd2d2;color:#b42318;font-size:12px}@media(max-width:650px){.fields,.preview{grid-template-columns:1fr}.wide{grid-column:auto}.hero{padding:20px}.body,.fold{padding-left:17px;padding-right:17px}}`}</style>
+ <div className="hero"><div><p className="eyebrow">FINANCIAL OPERATIONS · LEDGER</p><h1>Add Transaction</h1><p>Record a controlled ledger entry for a verified PWFB customer.</p></div><Link href="/transactions" className="secondary">← Transaction Overview</Link></div>
+ <section className="card"><button type="button" className="fold" onClick={()=>setOpen(v=>!v)} aria-expanded={open}><span className="fold-left"><span className="num">01</span><span><h2>Create a ledger entry</h2><p>{open?'Enter customer, type, amount and description.':'Entry form is folded. Tap to unfold and create a new ledger entry.'}</p></span></span><span className="chev">{open?'⌃':'⌄'}</span></button>{open&&<form className="body" onSubmit={submit}><div className="fields"><div className="wide"><label className="label">CUSTOMER *</label><input className="input" value={selected?customerName(selected):customerQuery} onChange={e=>{setCustomerQuery(e.target.value);setCustomerId('')}} placeholder="Search customer name, ID, phone or email…" autoComplete="off"/>{!selected&&customerQuery&&customers.length>0&&<div className="results">{customers.map(c=><button type="button" className="result" key={c.id} onClick={()=>{setCustomerId(c.id);setCustomerQuery(customerName(c));setCustomers([])}}><strong>{customerName(c)}</strong><small>{c.id}{c.phone?` · ${c.phone}`:''}</small></button>)}</div>}</div><div><label className="label">TRANSACTION TYPE *</label><select className="select" value={type} onChange={e=>setType(e.target.value)}><option>Deposit</option><option>Withdrawal</option><option>Loan Disbursement</option><option>Loan Repayment</option><option>Transfer</option></select></div><div><label className="label">AMOUNT *</label><input className="input" type="number" min="0.01" step="0.01" inputMode="decimal" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" required/></div><div className="wide"><label className="label">DESCRIPTION <span style={{fontWeight:500,color:'#8a968f'}}>(optional)</span></label><textarea className="textarea" value={description} onChange={e=>setDescription(e.target.value)} placeholder="Add a clear operational note…"/></div></div>{error&&<div className="error">{error}</div>}<div className="actions"><Link href="/transactions" className="secondary">Cancel</Link><button type="submit" className="primary" disabled={saving}>{saving?'Saving…':'Save Ledger Entry'}</button></div></form>}</section>
+ <section className="preview"><div><span>Customer</span><strong>{selected?customerName(selected):'Not selected'}</strong></div><div><span>Type</span><strong>{type}</strong></div><div><span>Amount</span><strong>{money(numericAmount)}</strong></div></section>
+ </main>;
 }

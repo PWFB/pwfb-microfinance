@@ -22,32 +22,35 @@ export class AuthService {
   private issueToken(user: any) { return this.jwtService.signAsync({ sub: user.id, email: user.email, role: user.role }); }
 
   async register(dto: RegisterDto) {
-    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = String(dto.email || '').trim().toLowerCase();
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) throw new UnauthorizedException('User already exists');
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    const user = await this.prisma.user.create({ data: { email: dto.email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, passportPhoto: dto.passportPhoto, role: 'CUSTOMER' } });
+    const user = await this.prisma.user.create({ data: { email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, passportPhoto: dto.passportPhoto, role: 'CUSTOMER' } });
     const accessToken = await this.issueToken(user); const { password, ...safeUser } = user;
     return { message: 'Registration successful', access_token: accessToken, user: safeUser };
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = String(dto.email || '').trim().toLowerCase();
+    const password = String(dto.password || '');
+    if (!email || !password) throw new UnauthorizedException('Email and password are required');
+    const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Invalid email or password');
-    if (!await bcrypt.compare(dto.password, user.password)) throw new UnauthorizedException('Invalid email or password');
-    const accessToken = await this.issueToken(user); const { password, ...safeUser } = user;
+    if (!user.password || !await bcrypt.compare(password, user.password)) throw new UnauthorizedException('Invalid email or password');
+    const accessToken = await this.issueToken(user); const { password: _password, ...safeUser } = user;
     return { message: 'Login successful', access_token: accessToken, user: safeUser };
   }
 
   googleConfig() {
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
     if (!clientId) throw new BadRequestException('Google login is not configured on the server');
-    // The Android client is still required in Google Cloud Console for package/signing-certificate authorization,
-    // but the ID token requested by the Android app must target the backend/web OAuth client.
+    const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() || '';
     return {
       client_id: clientId,
       server_client_id: clientId,
-      android_client_id: clientId,
-      android_configured: true,
+      android_client_id: androidClientId,
+      android_configured: Boolean(androidClientId),
     };
   }
 
@@ -59,9 +62,6 @@ export class AuthService {
 
   async googleLogin(idToken?: string, requestOrigin?: string, requestClientId?: string, expectedNonce?: string) {
     const isAndroid = requestOrigin === 'android-app';
-    // Android ID tokens requested for backend verification must use the server/web OAuth client ID as audience.
-    // GOOGLE_ANDROID_CLIENT_ID identifies the Android app in Google Cloud (package + signing certificate); it is
-    // not the audience that the backend should require for requestIdToken().
     const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
     if (!clientId) throw new BadRequestException('Google login is not configured on the server. Set GOOGLE_CLIENT_ID in Render.');
     if (!idToken) throw new BadRequestException('Google credential is required');
@@ -102,7 +102,7 @@ export class AuthService {
 
   private authenticatorKey() { const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET; if (!seed || seed === 'pwfb-secret-key') throw new BadRequestException('Authenticator encryption key is not configured on the server'); return createHash('sha256').update(seed).digest(); }
   private encryptAuthenticatorSecret(secret: string) { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', this.authenticatorKey(), iv); const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]); return `${iv.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}.${encrypted.toString('base64url')}`; }
-  private decryptAuthenticatorSecret(value: string) { const [ivText, tagText, dataText] = value.split('.'); if (!ivText || !tagText || !dataText) throw new BadRequestException('Stored authenticator secret is invalid'); const decipher = createDecipheriv('aes-256-gcm', this.authenticatorKey(), Buffer.from(ivText, 'base64url')); decipher.setAuthTag(Buffer.from(tagText, 'base64url')); return Buffer.concat([decipher.update(Buffer.from(dataText, 'base64url')), decipher.final()]).toString('utf8'); }
+  private decryptAuthenticatorSecret(value: string) { const [ivText, tagText, dataText] = value.split('.'); if (!ivText || !tagText || !dataText) throw new BadRequestException('Stored authenticator secret is invalid'); const decipher = createDecipheriv('aes-256-gcm', this.authenticatorKey(), ivText ? Buffer.from(ivText, 'base64url') : Buffer.alloc(0)); decipher.setAuthTag(Buffer.from(tagText, 'base64url')); return Buffer.concat([decipher.update(Buffer.from(dataText, 'base64url')), decipher.final()]).toString('utf8'); }
   private base32Encode(buffer: Buffer) { const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; let bits = 0; let value = 0; let output = ''; for (const byte of buffer) { value = (value << 8) | byte; bits += 8; while (bits >= 5) { output += alphabet[(value >>> (bits - 5)) & 31]; bits -= 5; } } if (bits > 0) output += alphabet[(value << (5 - bits)) & 31]; return output; }
   private base32Decode(input: string) { const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'; const clean = input.toUpperCase().replace(/[^A-Z2-7]/g, ''); let bits = 0; let value = 0; const out: number[] = []; for (const char of clean) { const index = alphabet.indexOf(char); if (index < 0) continue; value = (value << 5) | index; bits += 5; if (bits >= 8) { out.push((value >>> (bits - 8)) & 255); bits -= 8; } } return Buffer.from(out); }
   private totp(secret: string, timestamp = Date.now()) { const counter = Math.floor(timestamp / 1000 / 30); const counterBuffer = Buffer.alloc(8); counterBuffer.writeBigUInt64BE(BigInt(counter)); const digest = createHmac('sha1', this.base32Decode(secret)).update(counterBuffer).digest(); const offset = digest[digest.length - 1] & 0x0f; const binary = ((digest[offset] & 0x7f) << 24) | ((digest[offset + 1] & 0xff) << 16) | ((digest[offset + 2] & 0xff) << 8) | (digest[offset + 3] & 0xff); return String(binary % 1000000).padStart(6, '0'); }

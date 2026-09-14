@@ -7,8 +7,42 @@ import { PrismaService } from '../prisma/prisma.service';
 export class BranchService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async ensureBranchVirtualAccount(branchId: string, branchName: string) {
+    const existing = await this.prisma.branchVirtualAccount.findFirst({
+      where: { branchId, status: 'ACTIVE' },
+      include: { institution: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (existing) return existing;
+
+    const institution = await this.prisma.bankInstitution.findFirst({
+      where: { active: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!institution) return null;
+
+    let accountNumber = '';
+    do {
+      accountNumber = `9${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 10)}`;
+    } while (await this.prisma.branchVirtualAccount.findUnique({ where: { accountNumber } }));
+
+    return this.prisma.branchVirtualAccount.create({
+      data: {
+        branchId,
+        institutionId: institution.id,
+        accountNumber,
+        accountName: `PWFB - ${branchName}`,
+        status: 'ACTIVE',
+        isGenerated: true,
+        generatedAt: new Date(),
+      },
+      include: { institution: true },
+    });
+  }
+
   async create(dto: CreateBranchDto) {
     const branch = await this.prisma.branch.create({ data: dto as any });
+    await this.ensureBranchVirtualAccount(branch.id, branch.name).catch(() => null);
     return this.findOne(branch.id);
   }
 

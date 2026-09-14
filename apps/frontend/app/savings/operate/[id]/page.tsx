@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "../../../../lib/api";
 
 type Savings = { id: string; customerId: string; amount: number; accountType?: string; status?: string };
@@ -10,15 +10,21 @@ const money = (n:number) => `₦${Number(n||0).toLocaleString("en-NG", {minimumF
 export default function SavingsOperatePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const id = String(params.id || "");
   const [account, setAccount] = useState<Savings | null>(null);
-  const [operation, setOperation] = useState<"deposit"|"withdraw">("deposit");
+  const [operation, setOperation] = useState<"deposit"|"withdraw">(searchParams.get("operation") === "withdraw" ? "withdraw" : "deposit");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    const requested = searchParams.get("operation");
+    if (requested === "deposit" || requested === "withdraw") setOperation(requested);
+  }, [searchParams]);
 
   const load = async () => {
     setLoading(true); setError("");
@@ -34,9 +40,8 @@ export default function SavingsOperatePage() {
       const value = Number(amount);
       if (!Number.isFinite(value) || value <= 0) throw new Error("Enter an amount greater than zero.");
       const path = operation === "deposit" ? `/savings/${id}/deposit` : `/savings/${id}/withdraw`;
-      const d = await apiRequest(path, { method: "POST", body: JSON.stringify({ amount: value, description: description.trim() || undefined }) });
-      const updated = d?.data ?? d;
-      if (updated?.amount !== undefined) setAccount(updated);
+      await apiRequest(path, { method: "POST", body: JSON.stringify({ amount: value, description: description.trim() || undefined }) });
+      await load();
       setSuccess(`${operation === "deposit" ? "Deposit" : "Withdrawal"} completed successfully.`);
       setAmount(""); setDescription("");
     } catch (e) { setError(e instanceof Error ? e.message : "Operation failed."); }
@@ -51,7 +56,7 @@ export default function SavingsOperatePage() {
     <section className="op-hero"><div style={{color:"#ffb14b",fontSize:10,fontWeight:900,letterSpacing:".12em"}}>SAVINGS OPERATIONS</div><h1>Deposit & Withdrawal</h1><p>{account.customerId} · {account.accountType || "Regular Savings"}</p></section>
     <section className="op-card"><form className="op-body" onSubmit={submit}>
       <div className="op-balance"><small>Current Savings Balance</small><strong>{money(account.amount)}</strong></div>
-      <div className="op-tabs"><button type="button" className={`op-tab ${operation === "deposit" ? "active" : ""}`} onClick={()=>{setOperation("deposit");setError("");setSuccess("")}}>Deposit</button><button type="button" className={`op-tab ${operation === "withdraw" ? "active" : ""}`} onClick={()=>{setOperation("withdraw");setError("");setSuccess("")}}>Withdraw</button></div>
+      <div className="op-tabs"><button type="button" className={`op-tab ${operation === "deposit" ? "active" : ""}`} onClick={()=>{setOperation("deposit");setError("");setSuccess("");router.replace(`/savings/operate/${id}?operation=deposit`)}}>Deposit</button><button type="button" className={`op-tab ${operation === "withdraw" ? "active" : ""}`} onClick={()=>{setOperation("withdraw");setError("");setSuccess("");router.replace(`/savings/operate/${id}?operation=withdraw`)}}>Withdraw</button></div>
       {error && <div className="op-error">{error}</div>}{success && <div className="op-success">{success}</div>}
       <label className="op-field"><span>{operation === "deposit" ? "Deposit Amount" : "Withdrawal Amount"}</span><input type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00" required/></label>
       <label className="op-field"><span>Description / Reference</span><textarea rows={3} value={description} onChange={e=>setDescription(e.target.value)} placeholder="Optional operation description"/></label>

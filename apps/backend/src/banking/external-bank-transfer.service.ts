@@ -9,10 +9,7 @@ export class ExternalBankTransferService {
   constructor(private readonly prisma: PrismaService, private readonly nibssService: NibssService, private readonly flutterwaveService: FlutterwaveService, private readonly paystackService: PaystackService) {}
 
   private configuredProviders(): string[] {
-    const multiple = String(process.env.BANK_TRANSFER_PROVIDERS || '')
-      .split(',')
-      .map((value) => value.trim().toUpperCase())
-      .filter(Boolean);
+    const multiple = String(process.env.BANK_TRANSFER_PROVIDERS || '').split(',').map((value) => value.trim().toUpperCase()).filter(Boolean);
     const single = String(process.env.BANK_TRANSFER_PROVIDER || '').trim().toUpperCase();
     const requested = multiple.length ? multiple : single ? [single] : [];
     const available = requested.filter((provider) => ['FLUTTERWAVE', 'PAYSTACK', 'NIBSS'].includes(provider));
@@ -59,7 +56,6 @@ export class ExternalBankTransferService {
     const normalizedAccountNumber = String(accountNumber || '').replace(/\D/g, '');
     if (!normalizedBankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(normalizedAccountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
-
     const providers = this.configuredProviders();
     const failures: string[] = [];
     for (const provider of providers) {
@@ -115,7 +111,7 @@ export class ExternalBankTransferService {
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const providerResult = await this.transferToVerifiedAccount({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, reference: xref });
     return this.prisma.$transaction(async (tx) => {
-      const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id });
+      const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
       if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance after provider acceptance');
       const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;

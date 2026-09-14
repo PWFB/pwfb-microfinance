@@ -1,19 +1,52 @@
 import "dotenv/config";
-import { PrismaClient, Role, InstitutionType } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import * as bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
 
 const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required to run the PWFB seed");
 
-if (!databaseUrl) {
-  throw new Error("DATABASE_URL is required to run the PWFB seed");
+const adapter = new PrismaPg({ connectionString: databaseUrl });
+const prisma = new PrismaClient({ adapter });
+
+async function ensureDepartment(name: string) {
+  await prisma.$executeRaw`INSERT INTO "Department" (id, name, "createdAt", "updatedAt")
+    VALUES (${randomUUID()}, ${name}, NOW(), NOW())
+    ON CONFLICT (name) DO NOTHING`;
 }
 
-const adapter = new PrismaPg({
-  connectionString: databaseUrl,
-});
+async function ensureBranch(name: string, address: string) {
+  await prisma.$executeRaw`INSERT INTO "Branch" (id, name, address, "createdAt", "updatedAt")
+    VALUES (${randomUUID()}, ${name}, ${address}, NOW(), NOW())
+    ON CONFLICT (name) DO UPDATE SET address = EXCLUDED.address, "updatedAt" = NOW()`;
+}
 
-const prisma = new PrismaClient({ adapter });
+async function ensureInstitution(name: string, shortName: string, code: string, type: string) {
+  await prisma.$executeRaw`INSERT INTO "BankInstitution" (id, name, "shortName", code, type, active, "createdAt", "updatedAt")
+    VALUES (${randomUUID()}, ${name}, ${shortName}, ${code}, ${type}::"InstitutionType", true, NOW(), NOW())
+    ON CONFLICT (name) DO UPDATE SET "shortName" = EXCLUDED."shortName", code = EXCLUDED.code,
+      type = EXCLUDED.type, active = true, "updatedAt" = NOW()`;
+}
+
+async function ensureSuperAdmin(email: string, password: string) {
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const existing = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT id FROM "User" WHERE email = ${email} LIMIT 1`;
+
+  if (existing.length) {
+    await prisma.$executeRaw`UPDATE "User"
+      SET password = ${hashedPassword}, role = 'SUPER_ADMIN'::"Role", "firstName" = 'Super', "lastName" = 'Admin', "updatedAt" = NOW()
+      WHERE id = ${existing[0].id}`;
+    return existing[0].id;
+  }
+
+  const id = randomUUID();
+  await prisma.$executeRaw`INSERT INTO "User"
+    (id, email, password, "firstName", "lastName", phone, role, "createdAt", "updatedAt")
+    VALUES (${id}, ${email}, ${hashedPassword}, 'Super', 'Admin', '', 'SUPER_ADMIN'::"Role", NOW(), NOW())`;
+  return id;
+}
 
 async function main() {
   const departments = [
@@ -29,54 +62,35 @@ async function main() {
     "Human Resources Department",
   ];
 
-  for (const name of departments) {
-    await prisma.department.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
-
-  await prisma.branch.upsert({
-    where: { name: "Head Office" },
-    update: {},
-    create: { name: "Head Office", address: "Main Branch" },
-  });
+  for (const name of departments) await ensureDepartment(name);
+  await ensureBranch("Head Office", "Main Branch");
 
   const institutions = [
-    { name: "Access Bank", shortName: "Access", code: "044", type: InstitutionType.BANK },
-    { name: "First Bank of Nigeria", shortName: "FirstBank", code: "011", type: InstitutionType.BANK },
-    { name: "Guaranty Trust Bank", shortName: "GTBank", code: "058", type: InstitutionType.BANK },
-    { name: "United Bank for Africa", shortName: "UBA", code: "033", type: InstitutionType.BANK },
-    { name: "Zenith Bank", shortName: "Zenith", code: "057", type: InstitutionType.BANK },
-    { name: "Fidelity Bank", shortName: "Fidelity", code: "070", type: InstitutionType.BANK },
-    { name: "FCMB", shortName: "FCMB", code: "214", type: InstitutionType.BANK },
-    { name: "Union Bank of Nigeria", shortName: "Union Bank", code: "032", type: InstitutionType.BANK },
-    { name: "Sterling Bank", shortName: "Sterling", code: "232", type: InstitutionType.BANK },
-    { name: "Stanbic IBTC Bank", shortName: "Stanbic IBTC", code: "221", type: InstitutionType.BANK },
-    { name: "Ecobank Nigeria", shortName: "Ecobank", code: "050", type: InstitutionType.BANK },
-    { name: "Wema Bank", shortName: "Wema", code: "035", type: InstitutionType.BANK },
-    { name: "Keystone Bank", shortName: "Keystone", code: "082", type: InstitutionType.BANK },
-    { name: "Polaris Bank", shortName: "Polaris", code: "076", type: InstitutionType.BANK },
-    { name: "Heritage Bank", shortName: "Heritage", code: "030", type: InstitutionType.BANK },
-    { name: "Opay", shortName: "OPay", code: "999992", type: InstitutionType.FINTECH },
-    { name: "PalmPay", shortName: "PalmPay", code: "999991", type: InstitutionType.FINTECH },
-    { name: "Moniepoint", shortName: "Moniepoint", code: "999993", type: InstitutionType.FINTECH },
-    { name: "Kuda Microfinance Bank", shortName: "Kuda", code: "090267", type: InstitutionType.FINTECH },
-  ];
+    ["Access Bank", "Access", "044", "BANK"],
+    ["First Bank of Nigeria", "FirstBank", "011", "BANK"],
+    ["Guaranty Trust Bank", "GTBank", "058", "BANK"],
+    ["United Bank for Africa", "UBA", "033", "BANK"],
+    ["Zenith Bank", "Zenith", "057", "BANK"],
+    ["Fidelity Bank", "Fidelity", "070", "BANK"],
+    ["FCMB", "FCMB", "214", "BANK"],
+    ["Union Bank of Nigeria", "Union Bank", "032", "BANK"],
+    ["Sterling Bank", "Sterling", "232", "BANK"],
+    ["Stanbic IBTC Bank", "Stanbic IBTC", "221", "BANK"],
+    ["Ecobank Nigeria", "Ecobank", "050", "BANK"],
+    ["Wema Bank", "Wema", "035", "BANK"],
+    ["Keystone Bank", "Keystone", "082", "BANK"],
+    ["Polaris Bank", "Polaris", "076", "BANK"],
+    ["Heritage Bank", "Heritage", "030", "BANK"],
+    ["Opay", "OPay", "999992", "FINTECH"],
+    ["PalmPay", "PalmPay", "999991", "FINTECH"],
+    ["Moniepoint", "Moniepoint", "999993", "FINTECH"],
+    ["Kuda Microfinance Bank", "Kuda", "090267", "FINTECH"],
+  ] as const;
 
-  for (const institution of institutions) {
-    await prisma.bankInstitution.upsert({
-      where: { name: institution.name },
-      update: { shortName: institution.shortName, code: institution.code, type: institution.type, active: true },
-      create: { name: institution.name, shortName: institution.shortName, code: institution.code, type: institution.type, active: true },
-    });
+  for (const [name, shortName, code, type] of institutions) {
+    await ensureInstitution(name, shortName, code, type);
   }
 
-  // Identity data is kept outside the generated Prisma model so the existing
-  // customer schema remains backwards compatible. The Super Admin endpoints
-  // access these tables with parameterized SQL and never expose raw values in
-  // normal customer-directory responses.
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS customer_identity_verifications (
       id TEXT PRIMARY KEY,
@@ -116,18 +130,11 @@ async function main() {
 
   const adminEmail = process.env.SUPER_ADMIN_EMAIL;
   const adminPassword = process.env.SUPER_ADMIN_PASSWORD;
-
   if (!adminEmail) throw new Error("SUPER_ADMIN_EMAIL is required to create/update the initial Super Admin");
   if (!adminPassword) throw new Error("SUPER_ADMIN_PASSWORD is required to create/update the initial Super Admin");
 
-  const hashedPassword = await bcrypt.hash(adminPassword, 10);
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: { password: hashedPassword, role: Role.SUPER_ADMIN, firstName: "Super", lastName: "Admin" },
-    create: { email: adminEmail, password: hashedPassword, firstName: "Super", lastName: "Admin", phone: "", role: Role.SUPER_ADMIN },
-  });
-
-  console.log(`Super Admin synchronized: ${admin.email}`);
+  await ensureSuperAdmin(adminEmail, adminPassword);
+  console.log(`Super Admin synchronized: ${adminEmail}`);
   console.log(`Bank/payment institutions synchronized: ${institutions.length}`);
   console.log("Customer identity verification tables synchronized");
   console.log("PWFB organization seed completed");

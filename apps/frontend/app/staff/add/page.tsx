@@ -11,11 +11,11 @@ const defaultRoles = ['STAFF','CREDIT_OFFICER','BRANCH_MANAGER','AREA_MANAGER','
 
 export default function AddStaffPage() {
   const [step,setStep]=useState(1), [bvn,setBvn]=useState(''), [verified,setVerified]=useState<any>(null), [passport,setPassport]=useState(''), [username,setUsername]=useState('');
-  const [bankCode,setBankCode]=useState(''), [accountNumber,setAccountNumber]=useState(''), [accountName,setAccountName]=useState(''), [banks,setBanks]=useState<Bank[]>([]);
+  const [bankCode,setBankCode]=useState(''), [accountNumber,setAccountNumber]=useState(''), [accountName,setAccountName]=useState(''), [banks,setBanks]=useState<Bank[]>([]), [verificationReference,setVerificationReference]=useState('');
   const [consentBusy,setConsentBusy]=useState(false);
   const [form,setForm]=useState({firstName:'',middleName:'',lastName:'',email:'',phone:'',department:'',position:'',employmentStatus:'ACTIVE',regionId:'',divisionId:'',areaId:'',branch:'',role:'STAFF'});
   const [regions,setRegions]=useState<Region[]>([]), [roles,setRoles]=useState(defaultRoles), [busy,setBusy]=useState(false), [message,setMessage]=useState('');
-  useEffect(()=>{apiRequest('/organization/hierarchy').then((x:any)=>setRegions(Array.isArray(x)?x:[])).catch(()=>undefined);apiRequest('/staff/roles').then((x:any)=>Array.isArray(x)&&setRoles(x.map((r:any)=>typeof r==='string'?r:r.name).filter(Boolean))).catch(()=>undefined);apiRequest('/staff/bvn/banks').then((x:any)=>setBanks(Array.isArray(x)?x:[])).catch(()=>undefined)},[]);
+  useEffect(()=>{apiRequest('/organization/hierarchy').then((x:any)=>setRegions(Array.isArray(x)?x:[])).catch(()=>undefined);apiRequest('/staff/roles').then((x:any)=>Array.isArray(x)&&setRoles(x.map((r:any)=>typeof r==='string'?r:r.name).filter(Boolean))).catch(()=>undefined);apiRequest('/staff/bvn/banks').then((x:any)=>setBanks(Array.isArray(x)?x:[])).catch((e:any)=>setMessage(e?.message||'Unable to load Paystack banks.'))},[]);
   const region=regions.find(r=>r.id===form.regionId), divisions=region?.divisions||[];
   const areas=(region?.areas||[]).filter(a=>!form.divisionId||a.divisionId===form.divisionId);
   const branches=(region?.branches||[]).filter(b=>(!form.divisionId||b.divisionId===form.divisionId)&&(!form.areaId||b.areaId===form.areaId));
@@ -23,7 +23,7 @@ export default function AddStaffPage() {
   const set=(k:string,v:string)=>setForm(x=>({...x,[k]:v}));
 
   async function waitForBvn(reference:string){
-    setConsentBusy(true); setMessage('Waiting for Paystack identity verification…');
+    setVerificationReference(reference); setConsentBusy(true); setMessage('Waiting for Paystack identity verification…');
     for(let attempt=1;attempt<=45;attempt++){
       try{
         const r=await apiRequest(`/staff/bvn/verify/${encodeURIComponent(reference)}`);
@@ -45,14 +45,14 @@ export default function AddStaffPage() {
     try{
       const r=await apiRequest('/staff/bvn/verify',{method:'POST',body:JSON.stringify({bvn,firstName:form.firstName,lastName:form.lastName,middleName:form.middleName||undefined,bankCode,accountNumber})});
       const reference=String(r?.reference||''); if(!reference)throw new Error('Paystack did not return a verification reference.');
-      setAccountName(String(r?.accountName||'')); setMessage('Paystack accepted the BVN and bank-account verification. Waiting for the verification result…'); setBusy(false); void waitForBvn(reference);
+      setAccountName(String(r?.accountName||'')); setVerificationReference(reference); setMessage('Paystack accepted the BVN and bank-account verification. Waiting for the verification result…'); setBusy(false); void waitForBvn(reference);
     }catch(e:any){setMessage(e?.message||'Paystack BVN verification failed.');setBusy(false)}
   }
 
   async function create(){
-    if(!verified?.verified)return setMessage('Complete Paystack BVN verification before creating this staff account.');
+    if(!verified?.verified||!verificationReference)return setMessage('Complete Paystack BVN verification before creating this staff account.');
     setBusy(true);setMessage('');
-    try{const r=await apiRequest('/staff',{method:'POST',body:JSON.stringify({...form,username,passport,middleName:form.middleName||undefined,email:form.email||undefined})});setMessage(`Staff created successfully${r?.staff?.staffId?` — ${r.staff.staffId}`:''}.`);setStep(5)}catch(e:any){setMessage(e?.message||'Unable to create staff.')}finally{setBusy(false)}
+    try{const r=await apiRequest('/staff',{method:'POST',body:JSON.stringify({...form,username,passport,middleName:form.middleName||undefined,email:form.email||undefined,bvnVerificationReference:verificationReference})});setMessage(`Staff created successfully${r?.staff?.staffId?` — ${r.staff.staffId}`:''}.`);setStep(5)}catch(e:any){setMessage(e?.message||'Unable to create staff.')}finally{setBusy(false)}
   }
 
   return <main className="staff-registration-page">

@@ -5,7 +5,7 @@ export type ApiListParams = Record<string, string | number | boolean | undefined
 function query(params?: ApiListParams) {
   if (!params) return "";
   const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => { if (value !== undefined) search.set(key, String(value)); });
+  Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== "") search.set(key, String(value)); });
   const result = search.toString();
   return result ? `?${result}` : "";
 }
@@ -25,6 +25,7 @@ export const pwfbApi = {
   transactions: { list: () => apiRequest("/transactions"), get: (id: string) => apiRequest(`/transactions/${id}`), create: (body: unknown) => apiRequest("/transactions", { method: "POST", body: JSON.stringify(body) }), update: (id: string, body: unknown) => apiRequest(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify(body) }), remove: (id: string) => apiRequest(`/transactions/${id}`, { method: "DELETE" }) },
   reports: { summary: () => apiRequest("/reports/summary"), operations: (params?: ApiListParams) => apiRequest(`/reports/operations${query(params)}`) },
   permissions: { list: () => apiRequest("/permissions/wallet"), update: (body: { role: string; permission: string; enabled: boolean }) => apiRequest("/permissions/wallet", { method: "PATCH", body: JSON.stringify(body) }) },
+  audit: { list: (params?: ApiListParams) => apiRequest(`/audit${query(params)}`) },
   periods: { list: (params?: ApiListParams) => apiRequest(`/periods${query(params)}`), current: () => apiRequest("/periods/current"), get: (id: string) => apiRequest(`/periods/${id}`), create: (body: unknown) => apiRequest("/periods", { method: "POST", body: JSON.stringify(body) }), close: (id: string) => apiRequest(`/periods/${id}/close`, { method: "PATCH" }) },
   payroll: { list: (params?: ApiListParams) => apiRequest(`/payroll${query(params)}`), summary: (params?: ApiListParams) => apiRequest(`/payroll/summary${query(params)}`), get: (id: string) => apiRequest(`/payroll/${id}`), create: (body: unknown) => apiRequest("/payroll", { method: "POST", body: JSON.stringify(body) }), addItem: (id: string, body: unknown) => apiRequest(`/payroll/${id}/items`, { method: "POST", body: JSON.stringify(body) }), approve: (id: string) => apiRequest(`/payroll/${id}/approve`, { method: "PATCH" }), pay: (id: string) => apiRequest(`/payroll/${id}/pay`, { method: "PATCH" }) },
   cashbook: { list: (params?: ApiListParams) => apiRequest(`/cashbook${query(params)}`), summary: (params?: ApiListParams) => apiRequest(`/cashbook/summary${query(params)}`), get: (id: string) => apiRequest(`/cashbook/${id}`), create: (body: unknown) => apiRequest("/cashbook", { method: "POST", body: JSON.stringify(body) }), remove: (id: string) => apiRequest(`/cashbook/${id}`, { method: "DELETE" }) },

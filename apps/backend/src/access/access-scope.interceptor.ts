@@ -1,12 +1,11 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
-import { Observable } from 'rxjs';
 import { AccessScopeService } from './access-scope.service';
 
 @Injectable()
 export class AccessScopeInterceptor implements NestInterceptor {
   constructor(private readonly scope: AccessScopeService) {}
 
-  async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
+  async intercept(context: ExecutionContext, next: CallHandler): Promise<any> {
     const request = context.switchToHttp().getRequest();
     const user = request.user;
     if (!user) return next.handle();

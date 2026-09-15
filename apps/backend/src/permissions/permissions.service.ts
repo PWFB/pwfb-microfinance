@@ -1,24 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-export const PERMISSION_KEYS = ['WALLET_DEPOSIT', 'WALLET_WITHDRAWAL'] as const;
+export const PERMISSION_KEYS = [
+  'WALLET_DEPOSIT','WALLET_WITHDRAWAL',
+  'CUSTOMER_CREATE','CUSTOMER_EDIT',
+  'SAVINGS_CREATE','SAVINGS_WITHDRAW',
+  'LOAN_CREATE','LOAN_DISBURSE',
+  'COLLECTION_CREATE','COLLECTION_SETTLE',
+] as const;
 type PermissionKey = typeof PERMISSION_KEYS[number];
 
+const ALL = {
+  WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true,
+  CUSTOMER_CREATE: true, CUSTOMER_EDIT: true,
+  SAVINGS_CREATE: true, SAVINGS_WITHDRAW: true,
+  LOAN_CREATE: true, LOAN_DISBURSE: true,
+  COLLECTION_CREATE: true, COLLECTION_SETTLE: true,
+};
+const NONE = Object.fromEntries(Object.keys(ALL).map(k => [k, false])) as Record<PermissionKey, boolean>;
+
 const DEFAULTS: Record<string, Record<PermissionKey, boolean>> = {
-  SUPER_ADMIN: { WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true },
-  ADMIN: { WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true },
-  BRANCH_MANAGER: { WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true },
-  TELLER: { WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true },
-  STAFF: { WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: false },
-  CUSTOMER_SERVICE: { WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: false },
-  LOAN_OFFICER: { WALLET_DEPOSIT: false, WALLET_WITHDRAWAL: false },
-  CREDIT_OFFICER: { WALLET_DEPOSIT: false, WALLET_WITHDRAWAL: false },
-  AUDITOR: { WALLET_DEPOSIT: false, WALLET_WITHDRAWAL: false },
-  REGIONAL_MANAGER: { WALLET_DEPOSIT: false, WALLET_WITHDRAWAL: false },
-  DIVISIONAL_MANAGER: { WALLET_DEPOSIT: false, WALLET_WITHDRAWAL: false },
-  AREA_MANAGER: { WALLET_DEPOSIT: false, WALLET_WITHDRAWAL: false },
-  MONITORING_TEAM: { WALLET_DEPOSIT: false, WALLET_WITHDRAWAL: false },
-  CUSTOMER: { WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true },
+  SUPER_ADMIN: { ...ALL },
+  ADMIN: { ...ALL },
+  BRANCH_MANAGER: { ...ALL },
+  TELLER: { ...ALL, LOAN_CREATE: false, LOAN_DISBURSE: false, COLLECTION_CREATE: true },
+  STAFF: { ...NONE, COLLECTION_CREATE: true, COLLECTION_SETTLE: true, SAVINGS_CREATE: true },
+  CUSTOMER_SERVICE: { ...NONE, CUSTOMER_CREATE: true, CUSTOMER_EDIT: true, SAVINGS_CREATE: true },
+  LOAN_OFFICER: { ...NONE, LOAN_CREATE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
+  CREDIT_OFFICER: { ...NONE, LOAN_CREATE: true, LOAN_DISBURSE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
+  AUDITOR: { ...NONE },
+  REGIONAL_MANAGER: { ...NONE, LOAN_CREATE: true, LOAN_DISBURSE: true, COLLECTION_SETTLE: true },
+  DIVISIONAL_MANAGER: { ...NONE, LOAN_CREATE: true, LOAN_DISBURSE: true, COLLECTION_SETTLE: true },
+  AREA_MANAGER: { ...NONE, LOAN_CREATE: true, COLLECTION_SETTLE: true },
+  MONITORING_TEAM: { ...NONE },
+  CUSTOMER: { ...NONE },
 };
 
 @Injectable()
@@ -44,6 +59,11 @@ export class PermissionsService {
       if (rows[0]) return rows[0].enabled;
     }
     return DEFAULTS[role]?.[permission] ?? false;
+  }
+
+  async assert(role: string, permission: PermissionKey) {
+    if (!(await this.get(role, permission))) throw new ForbiddenException(`Permission denied: ${permission}`);
+    return true;
   }
 
   async set(role: string, permission: PermissionKey, enabled: boolean) {

@@ -31,6 +31,7 @@ import { AuditModule } from './audit/audit.module';
 import { AccessScopeModule } from './access/access-scope.module';
 import { ApprovalsModule } from './approvals/approvals.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { BranchClosingModule } from './branch-closing/branch-closing.module';
 
 @Module({
   imports: [
@@ -40,7 +41,7 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
     LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
     PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
     BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule, AccessScopeModule,
-    ApprovalsModule, ReconciliationModule,
+    ApprovalsModule, ReconciliationModule, BranchClosingModule,
   ],
   controllers: [AppController],
 })

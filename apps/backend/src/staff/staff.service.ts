@@ -5,13 +5,13 @@ import { StaffRepository } from './staff.repository';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
 import { StaffFilterDto } from './dto/staff-filter.dto';
-import { FlutterwaveService } from '../banking/flutterwave.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { createHash, timingSafeEqual, randomUUID } from 'node:crypto';
+import { PaystackService } from './paystack.service';
+import { createHash, timingSafeEqual, randomUUID, createHmac } from 'node:crypto';
 
 @Injectable()
 export class StaffService {
-  constructor(private readonly staffRepository: StaffRepository, private readonly flutterwaveService: FlutterwaveService, private readonly prisma: PrismaService) {}
+  constructor(private readonly staffRepository: StaffRepository, private readonly prisma: PrismaService, private readonly paystack: PaystackService) {}
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.staffRepository.emailExists(email)) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
   private generateTemporaryPassword() { return `PWFB-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; }
@@ -21,17 +21,22 @@ export class StaffService {
   private async ensureBvnVerificationTable() {
     await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StaffBvnVerification" ("id" TEXT PRIMARY KEY,"reference" TEXT NOT NULL UNIQUE,"bvnHash" TEXT,"requestedFirstName" TEXT NOT NULL,"requestedLastName" TEXT NOT NULL,"firstName" TEXT,"middleName" TEXT,"lastName" TEXT,"fullName" TEXT,"status" TEXT NOT NULL DEFAULT 'PENDING',"message" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"verifiedAt" TIMESTAMP(3))`);
     await this.prisma.$executeRawUnsafe(`ALTER TABLE "StaffBvnVerification" ADD COLUMN IF NOT EXISTS "bvnHash" TEXT`);
-    const legacyRows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id","bvn" FROM "StaffBvnVerification" WHERE COALESCE("bvnHash",'')='' AND COALESCE("bvn",'')<>''`);
-    for (const legacy of legacyRows) await this.prisma.$executeRawUnsafe(`UPDATE "StaffBvnVerification" SET "bvnHash"=$1 WHERE "id"=$2`, this.hashBvn(String(legacy.bvn)), legacy.id);
     await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "StaffBvnVerification_bvnHash_idx" ON "StaffBvnVerification" ("bvnHash")`);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "StaffBvnVerification" DROP COLUMN IF EXISTS "bvn"`);
   }
 
-  async initiateBvnVerification(input: { bvn: string; firstName: string; lastName: string; redirectUrl: string }) {
-    const result = await this.flutterwaveService.initiateBvnVerification(input);
+  async paystackBanks() { return this.paystack.listBanks(); }
+
+  async initiateBvnVerification(input: { bvn: string; firstName: string; lastName: string; middleName?: string; bankCode: string; accountNumber: string }) {
+    const bvn = String(input.bvn || '').replace(/\D/g, '');
+    if (!/^\d{11}$/.test(bvn)) throw new BadRequestException('BVN must be exactly 11 digits');
+    if (!input.firstName?.trim() || !input.lastName?.trim()) throw new BadRequestException('First name and last name are required');
+    const account = await this.paystack.resolveAccount(input.bankCode, input.accountNumber);
+    const email = `${this.normalizeName(input.firstName)}.${this.normalizeName(input.lastName)}+kyc${Date.now()}@pwfb.com`;
+    const customer = await this.paystack.createCustomer({ email, firstName: input.firstName.trim(), lastName: input.lastName.trim() });
+    await this.paystack.validateCustomer({ customerCode: customer.customerCode, bvn, firstName: input.firstName.trim(), lastName: input.lastName.trim(), middleName: input.middleName?.trim(), accountNumber: account.accountNumber, bankCode: account.bankCode });
     await this.ensureBvnVerificationTable();
-    await this.prisma.$executeRawUnsafe(`INSERT INTO "StaffBvnVerification" ("id","reference","bvnHash","requestedFirstName","requestedLastName","status","message") VALUES ($1,$2,$3,$4,$5,'PENDING',$6) ON CONFLICT ("reference") DO UPDATE SET "bvnHash"=EXCLUDED."bvnHash","requestedFirstName"=EXCLUDED."requestedFirstName","requestedLastName"=EXCLUDED."requestedLastName","status"='PENDING',"message"=EXCLUDED."message","updatedAt"=CURRENT_TIMESTAMP`, randomUUID(), result.reference, this.hashBvn(result.bvn), input.firstName.trim(), input.lastName.trim(), result.message ?? 'BVN consent initiated');
-    return result;
+    await this.prisma.$executeRawUnsafe(`INSERT INTO "StaffBvnVerification" ("id","reference","bvnHash","requestedFirstName","requestedLastName","status","message") VALUES ($1,$2,$3,$4,$5,'PENDING',$6) ON CONFLICT ("reference") DO UPDATE SET "bvnHash"=EXCLUDED."bvnHash","requestedFirstName"=EXCLUDED."requestedFirstName","requestedLastName"=EXCLUDED."requestedLastName","status"='PENDING',"message"=EXCLUDED."message","updatedAt"=CURRENT_TIMESTAMP`, randomUUID(), customer.customerCode, this.hashBvn(bvn), input.firstName.trim(), input.lastName.trim(), 'Paystack BVN and bank-account verification in progress');
+    return { verified: false, pending: true, bvn, reference: customer.customerCode, accountName: account.accountName, bankCode: account.bankCode, accountNumber: account.accountNumber, message: 'Paystack accepted the identity verification request. Waiting for verification.' };
   }
 
   async getBvnVerification(reference: string) {
@@ -43,28 +48,35 @@ export class StaffService {
   }
 
   async handleBvnWebhook(body: any, signature?: string) {
-    const secret = String(process.env.FLUTTERWAVE_WEBHOOK_SECRET_HASH || '').trim();
-    if (!secret || !signature) throw new BadRequestException('Flutterwave BVN webhook secret hash is not configured');
-    const expected = Buffer.from(secret); const received = Buffer.from(String(signature).trim());
-    if (expected.length !== received.length || !timingSafeEqual(expected, received)) throw new BadRequestException('Invalid Flutterwave BVN webhook signature');
-    const event = String(body?.event ?? body?.event_type ?? body?.type ?? '').toLowerCase();
-    if (event !== 'bvn.completed') return { ok: true, ignored: true, event };
-    const data = body?.data ?? body?.result ?? {}; const bvnData = data?.bvn_data ?? data?.bvnData ?? data;
-    const reference = String(data?.reference ?? data?.verification_reference ?? data?.transaction_reference ?? body?.reference ?? '').trim();
-    const bvn = String(bvnData?.bvn ?? data?.bvn ?? '').replace(/\D/g, ''); const status = String(data?.status ?? bvnData?.status ?? 'COMPLETED').toUpperCase();
-    const firstName = String(data?.first_name ?? data?.firstname ?? bvnData?.firstName ?? bvnData?.first_name ?? '').trim(); const middleName = String(data?.middle_name ?? data?.middlename ?? bvnData?.middleName ?? bvnData?.middle_name ?? '').trim(); const lastName = String(data?.last_name ?? data?.lastname ?? bvnData?.surname ?? bvnData?.lastName ?? bvnData?.last_name ?? '').trim();
-    const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ').trim(); const message = String(data?.complete_message ?? data?.message ?? body?.message ?? '').trim();
-    await this.ensureBvnVerificationTable(); if (!reference) throw new BadRequestException('Flutterwave BVN webhook did not contain a verification reference');
+    const secret = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
+    if (!secret || !signature) throw new BadRequestException('Paystack webhook secret is not configured');
+    const expected = createHmac('sha512', secret).update(JSON.stringify(body)).digest('hex');
+    const received = String(signature).trim();
+    const a = Buffer.from(expected); const b = Buffer.from(received);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) throw new BadRequestException('Invalid Paystack webhook signature');
+    const event = String(body?.event || '').toLowerCase();
+    if (!['customeridentification.success','customeridentification.failed'].includes(event)) return { ok: true, ignored: true, event };
+    const data = body?.data || {}; const identification = data?.identification || {};
+    const reference = String(data?.customer_code || data?.customerCode || '').trim();
+    if (!reference) return { ok: true, ignored: true, reason: 'no-customer-code' };
+    await this.ensureBvnVerificationTable();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "StaffBvnVerification" WHERE "reference" = $1 LIMIT 1`, reference); const row = rows[0];
-    if (!row) return { ok: true, ignored: true, reason: 'no-matching-pending-request', reference };
-    const completed = ['COMPLETED','SUCCESS','SUCCESSFUL'].includes(status) && Boolean(firstName || lastName || fullName); const finalStatus = completed ? 'COMPLETED' : (['FAILED','DECLINED','REJECTED','CANCELLED'].includes(status) ? status : 'PENDING');
-    await this.prisma.$executeRawUnsafe(`UPDATE "StaffBvnVerification" SET "bvnHash"=COALESCE(NULLIF($1,''),"bvnHash"),"firstName"=$2,"middleName"=$3,"lastName"=$4,"fullName"=$5,"status"=$6,"message"=$7,"updatedAt"=CURRENT_TIMESTAMP,"verifiedAt"=CASE WHEN $6='COMPLETED' THEN CURRENT_TIMESTAMP ELSE "verifiedAt" END WHERE "id"=$8`, bvn ? this.hashBvn(bvn) : '', firstName || null, middleName || null, lastName || null, fullName || null, finalStatus, message || null, row.id);
-    return { ok: true, verified: finalStatus === 'COMPLETED', reference: row.reference, status: finalStatus };
+    if (!row) return { ok: true, ignored: true, reason: 'no-matching-request', reference };
+    const failed = event.endsWith('.failed');
+    const firstName = String(data?.first_name || '').trim(); const middleName = String(data?.middle_name || '').trim(); const lastName = String(data?.last_name || '').trim(); const fullName = [firstName,middleName,lastName].filter(Boolean).join(' ').trim();
+    await this.prisma.$executeRawUnsafe(`UPDATE "StaffBvnVerification" SET "firstName"=$1,"middleName"=$2,"lastName"=$3,"fullName"=$4,"status"=$5,"message"=$6,"updatedAt"=CURRENT_TIMESTAMP,"verifiedAt"=CASE WHEN $5='COMPLETED' THEN CURRENT_TIMESTAMP ELSE "verifiedAt" END WHERE "id"=$7`, firstName || null, middleName || null, lastName || null, fullName || null, failed ? 'FAILED' : 'COMPLETED', failed ? String(data?.reason || 'Paystack identity verification failed') : 'Paystack identity verification completed', row.id);
+    return { ok: true, verified: !failed, reference, status: failed ? 'FAILED' : 'COMPLETED' };
   }
 
-  async verifyBvn(bvn: string) { return this.flutterwaveService.verifyBvn(bvn); }
-  async bvnConfigurationStatus() { const primary = String(process.env.FLUTTERWAVE_SECRET_KEY || '').trim(); const fallback = String(process.env.FLW_SECRET_KEY || '').trim(); const webhook = String(process.env.FLUTTERWAVE_WEBHOOK_SECRET_HASH || '').trim(); const selected = primary ? 'FLUTTERWAVE_SECRET_KEY' : fallback ? 'FLW_SECRET_KEY' : null; return { configured: Boolean(selected), source: selected, webhookConfigured: Boolean(webhook), environment: process.env.NODE_ENV || 'unknown', api: 'https://api.flutterwave.com/v3/bvn/verifications', secretValueExposed: false }; }
-  async create(createStaffDto: CreateStaffDto) { let bvnVerification: any = undefined; let registrationData = { ...createStaffDto }; if (createStaffDto.bvn) throw new BadRequestException('Complete the Flutterwave BVN consent verification before creating this staff account.'); const email = await this.generateLoginEmail(registrationData.firstName, registrationData.lastName); const temporaryPassword = this.generateTemporaryPassword(); const password = await bcrypt.hash(temporaryPassword, 10); const staffId = createStaffDto.staffId || await this.generateStaffId(); try { const result = await this.staffRepository.createWithUser(registrationData, { staffId, email, password }, bvnVerification); return { message: 'Staff created successfully', staff: result.staff, login: { email, temporaryPassword }, bvn: { verified: false } }; } catch (error) { throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create staff'); } }
+  async bvnConfigurationStatus() { return { configured: this.paystack.isConfigured(), source: this.paystack.isConfigured() ? 'PAYSTACK_SECRET_KEY' : null, webhookConfigured: this.paystack.isConfigured(), environment: process.env.NODE_ENV || 'unknown', api: 'https://api.paystack.co/customer/:code/identification', secretValueExposed: false }; }
+
+  async create(createStaffDto: CreateStaffDto) {
+    let bvnVerification: any = undefined; const registrationData = { ...createStaffDto };
+    if (createStaffDto.bvn) throw new BadRequestException('Complete the Paystack BVN and bank-account verification before creating this staff account.');
+    const email = await this.generateLoginEmail(registrationData.firstName, registrationData.lastName); const temporaryPassword = this.generateTemporaryPassword(); const password = await bcrypt.hash(temporaryPassword, 10); const staffId = createStaffDto.staffId || await this.generateStaffId();
+    try { const result = await this.staffRepository.createWithUser(registrationData, { staffId, email, password }, bvnVerification); return { message: 'Staff created successfully', staff: result.staff, login: { email, temporaryPassword }, bvn: { verified: false } }; }
+    catch (error) { throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create staff'); }
+  }
   async findAll(filter?: StaffFilterDto) { const staff = await this.staffRepository.findAll(); if (!filter) return staff; return staff.filter((member) => { const departmentMatch = !filter.department || member.department.name === filter.department; const branchMatch = !filter.branch || member.branch.name === filter.branch; const statusMatch = !filter.employmentStatus || member.employmentStatus === filter.employmentStatus; const searchMatch = !filter.search || `${member.firstName} ${member.lastName}`.toLowerCase().includes(filter.search.toLowerCase()); return departmentMatch && branchMatch && statusMatch && searchMatch; }); }
   findOne(id: string) { return this.staffRepository.findOne(id); }
   update(id: string, updateStaffDto: UpdateStaffDto) { return this.staffRepository.update(id, updateStaffDto); }

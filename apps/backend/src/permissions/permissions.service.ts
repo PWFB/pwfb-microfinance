@@ -2,7 +2,7 @@ import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const PERMISSION_KEYS = [
-  'WALLET_DEPOSIT','WALLET_WITHDRAWAL',
+  'WALLET_DEPOSIT','WALLET_WITHDRAWAL','BANK_TRANSFER',
   'CUSTOMER_CREATE','CUSTOMER_EDIT',
   'SAVINGS_CREATE','SAVINGS_WITHDRAW',
   'LOAN_CREATE','LOAN_DISBURSE',
@@ -11,7 +11,7 @@ export const PERMISSION_KEYS = [
 type PermissionKey = typeof PERMISSION_KEYS[number];
 
 const ALL = {
-  WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true,
+  WALLET_DEPOSIT: true, WALLET_WITHDRAWAL: true, BANK_TRANSFER: true,
   CUSTOMER_CREATE: true, CUSTOMER_EDIT: true,
   SAVINGS_CREATE: true, SAVINGS_WITHDRAW: true,
   LOAN_CREATE: true, LOAN_DISBURSE: true,
@@ -24,7 +24,7 @@ const DEFAULTS: Record<string, Record<PermissionKey, boolean>> = {
   ADMIN: { ...ALL },
   BRANCH_MANAGER: { ...ALL },
   TELLER: { ...ALL, LOAN_CREATE: false, LOAN_DISBURSE: false, COLLECTION_CREATE: true },
-  STAFF: { ...NONE, COLLECTION_CREATE: true, COLLECTION_SETTLE: true, SAVINGS_CREATE: true },
+  STAFF: { ...NONE, BANK_TRANSFER: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true, SAVINGS_CREATE: true },
   CUSTOMER_SERVICE: { ...NONE, CUSTOMER_CREATE: true, CUSTOMER_EDIT: true, SAVINGS_CREATE: true },
   LOAN_OFFICER: { ...NONE, LOAN_CREATE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
   CREDIT_OFFICER: { ...NONE, LOAN_CREATE: true, LOAN_DISBURSE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
@@ -33,7 +33,7 @@ const DEFAULTS: Record<string, Record<PermissionKey, boolean>> = {
   DIVISIONAL_MANAGER: { ...NONE, LOAN_CREATE: true, LOAN_DISBURSE: true, COLLECTION_SETTLE: true },
   AREA_MANAGER: { ...NONE, LOAN_CREATE: true, COLLECTION_SETTLE: true },
   MONITORING_TEAM: { ...NONE },
-  CUSTOMER: { ...NONE },
+  CUSTOMER: { ...NONE, BANK_TRANSFER: true },
 };
 
 @Injectable()

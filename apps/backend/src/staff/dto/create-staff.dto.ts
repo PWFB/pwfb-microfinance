@@ -74,4 +74,8 @@ export class CreateStaffDto {
   @IsString()
   @Matches(/^\d{11}$/, { message: 'BVN must be exactly 11 digits' })
   bvn?: string;
+
+  @IsOptional()
+  @IsString()
+  bvnVerificationReference?: string;
 }

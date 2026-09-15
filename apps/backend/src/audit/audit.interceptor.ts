@@ -1,12 +1,12 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
-import { Observable, tap } from 'rxjs';
 import { AuditService } from './audit.service';
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   constructor(private readonly audit: AuditService) {}
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler) {
+    const { tap } = require('rxjs');
     const req = context.switchToHttp().getRequest<any>();
     const method = String(req.method || 'GET').toUpperCase();
     const path = String(req.originalUrl || req.url || '');

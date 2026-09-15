@@ -29,6 +29,7 @@ import { PermissionsModule } from './permissions/permissions.module';
 import { StaffWalletModule } from './staff-wallet/staff-wallet.module';
 import { AuditModule } from './audit/audit.module';
 import { AccessScopeModule } from './access/access-scope.module';
+import { ApprovalsModule } from './approvals/approvals.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AccessScopeModule } from './access/access-scope.module';
     LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
     PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
     BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule, AccessScopeModule,
+    ApprovalsModule,
   ],
   controllers: [AppController],
 })

@@ -30,6 +30,7 @@ import { StaffWalletModule } from './staff-wallet/staff-wallet.module';
 import { AuditModule } from './audit/audit.module';
 import { AccessScopeModule } from './access/access-scope.module';
 import { ApprovalsModule } from './approvals/approvals.module';
+import { ReconciliationModule } from './reconciliation/reconciliation.module';
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
     LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
     PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
     BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule, AccessScopeModule,
-    ApprovalsModule,
+    ApprovalsModule, ReconciliationModule,
   ],
   controllers: [AppController],
 })

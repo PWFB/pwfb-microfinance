@@ -56,6 +56,40 @@ export class OrganizationService {
     }));
   }
 
+  /**
+   * Full organizational picker for staff registration.
+   * This deliberately returns every branch, including branches that have not yet
+   * been attached to a region/division/area, so an administrator can see the
+   * complete branch register and assign the exact place a new staff member belongs.
+   */
+  async registrationHierarchy() {
+    await this.ensureLegacyBranchHierarchy();
+    const [regions, unassignedBranches] = await Promise.all([
+      this.prisma.region.findMany({
+        where: { active: true },
+        orderBy: { name: 'asc' },
+        include: {
+          divisions: {
+            where: { active: true },
+            orderBy: { name: 'asc' },
+            include: {
+              areas: { where: { active: true }, orderBy: { name: 'asc' }, include: { branches: true } },
+              branches: { orderBy: { name: 'asc' } },
+            },
+          },
+          areas: { where: { active: true }, orderBy: { name: 'asc' }, include: { branches: true } },
+          branches: { orderBy: { name: 'asc' } },
+        },
+      }),
+      this.prisma.branch.findMany({
+        where: { regionId: null },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, address: true, regionId: true, divisionId: true, areaId: true },
+      }),
+    ]);
+    return { regions, unassignedBranches };
+  }
+
   createRegion(body: { name: string; code?: string }) {
     return this.prisma.region.create({ data: { name: body.name, code: body.code } });
   }

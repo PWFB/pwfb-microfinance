@@ -13,23 +13,23 @@ import { Role } from '@prisma/client';
 export class StaffController {
   constructor(private readonly staffService: StaffService) {}
 
+  @Get('bvn/banks')
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  bvnBanks() { return this.staffService.paystackBanks(); }
+
   @Post('bvn/verify')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  initiateBvn(@Body() body: { bvn: string; firstName: string; lastName: string; redirectUrl: string }) {
+  initiateBvn(@Body() body: { bvn: string; firstName: string; lastName: string; middleName?: string; bankCode: string; accountNumber: string }) {
     return this.staffService.initiateBvnVerification(body);
   }
 
   @Get('bvn/verify/:reference')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  bvnStatus(@Param('reference') reference: string) {
-    return this.staffService.getBvnVerification(reference);
-  }
+  bvnStatus(@Param('reference') reference: string) { return this.staffService.getBvnVerification(reference); }
 
   @Get('bvn/config-status')
   @Roles('SUPER_ADMIN')
-  bvnConfigStatus() {
-    return this.staffService.bvnConfigurationStatus();
-  }
+  bvnConfigStatus() { return this.staffService.bvnConfigurationStatus(); }
 
   @Post()
   @Roles('SUPER_ADMIN', 'ADMIN')
@@ -45,12 +45,7 @@ export class StaffController {
 
   @Post(':id/assignments')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  assign(
-    @Param('id') id: string,
-    @Body() body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string },
-  ) {
-    return this.staffService.assign(id, body);
-  }
+  assign(@Param('id') id: string, @Body() body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) { return this.staffService.assign(id, body); }
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')

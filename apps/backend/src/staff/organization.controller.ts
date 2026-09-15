@@ -15,6 +15,12 @@ export class OrganizationController {
     return this.organizationService.listForUser(req.user.sub);
   }
 
+  @Get('registration-hierarchy')
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  registrationHierarchy() {
+    return this.organizationService.registrationHierarchy();
+  }
+
   @Post('regions')
   @Roles('SUPER_ADMIN', 'ADMIN')
   createRegion(@Body() body: { name: string; code?: string }) {

@@ -1,0 +1,33 @@
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { Observable } from 'rxjs';
+import { AccessScopeService } from './access-scope.service';
+
+@Injectable()
+export class AccessScopeInterceptor implements NestInterceptor {
+  constructor(private readonly scope: AccessScopeService) {}
+
+  async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
+    const request = context.switchToHttp().getRequest();
+    const user = request.user;
+    if (!user) return next.handle();
+
+    const path = String(request.route?.path || request.path || '').toLowerCase();
+    const id = request.params?.id;
+    const branchId = request.params?.branchId || request.body?.branchId || request.query?.branchId;
+    const staffId = request.params?.staffId || request.body?.staffId || request.query?.staffId;
+    const customerId = request.params?.customerId || request.body?.customerId || request.query?.customerId;
+
+    if (branchId) await this.scope.assertBranch(user, String(branchId));
+    if (staffId) await this.scope.assertStaff(user, String(staffId));
+    if (customerId) await this.scope.assertCustomer(user, String(customerId));
+
+    if (id) {
+      if (path.includes('/staff')) await this.scope.assertStaff(user, String(id));
+      else if (path.includes('/customers')) await this.scope.assertCustomer(user, String(id));
+      else if (path.includes('/loans')) await this.scope.assertLoan(user, String(id));
+      else if (path.includes('/savings')) await this.scope.assertSavings(user, String(id));
+      else if (path.includes('/collections')) await this.scope.assertCollection(user, String(id));
+    }
+    return next.handle();
+  }
+}

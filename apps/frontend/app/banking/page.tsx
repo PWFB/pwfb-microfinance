@@ -65,9 +65,10 @@ export default function BankingPage() {
     setVerified(false); setAccountName(""); setVerifiedAccountNumber(""); setVerifiedBankCode(""); setVerificationProvider("");
   }
 
-  function changeBank(bank: Bank) {
-    setBankCode(bank.code);
-    setBankProvider(String(bank.provider || "").toUpperCase());
+  function changeBank(bankCode: string) {
+    const selected = banks.find((bank) => bank.code === bankCode);
+    setBankCode(bankCode);
+    setBankProvider(String(selected?.provider || "").toUpperCase());
     clearVerification();
   }
 

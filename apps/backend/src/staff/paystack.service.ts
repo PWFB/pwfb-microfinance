@@ -50,6 +50,22 @@ export class PaystackService {
     return { customerCode: code };
   }
 
+  async getCustomer(customerCode: string) {
+    const code = String(customerCode || '').trim();
+    if (!code) throw new BadRequestException('Paystack customer code is required');
+    const payload = await this.request(`/customer/${encodeURIComponent(code)}`);
+    const data = payload?.data || {};
+    return {
+      customerCode: String(data.customer_code || code),
+      firstName: String(data.first_name || '').trim(),
+      middleName: String(data.middle_name || '').trim(),
+      lastName: String(data.last_name || '').trim(),
+      email: String(data.email || '').trim(),
+      phone: String(data.phone || '').trim(),
+      identified: Boolean(data.identified),
+    };
+  }
+
   async validateCustomer(input: { customerCode: string; bvn: string; firstName: string; lastName: string; accountNumber: string; bankCode: string; middleName?: string }) {
     const bvn = String(input.bvn || '').replace(/\D/g, '');
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');

@@ -4,7 +4,7 @@ import { BadRequestException, Injectable, ServiceUnavailableException } from '@n
 export class PaystackService {
   private secretKey() {
     const value = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
-    if (!value) throw new ServiceUnavailableException('Paystack Secret Key is not configured');
+    if (!value) throw new ServiceUnavailableException('Paystack Secret Key is not configured. Add PAYSTACK_SECRET_KEY to the PWFB backend environment.');
     return value;
   }
 
@@ -60,6 +60,16 @@ export class PaystackService {
       body: JSON.stringify({ country: 'NG', type: 'bank_account', account_number: accountNumber, bvn, bank_code: input.bankCode, first_name: input.firstName, last_name: input.lastName, ...(input.middleName ? { middle_name: input.middleName } : {}) }),
     });
     return { accepted: Boolean(payload?.status), message: String(payload?.message || 'Customer identification in progress'), customerCode: input.customerCode };
+  }
+
+  verifyWebhookSignature(rawBody: Buffer, signature?: string) {
+    const crypto = require('node:crypto') as typeof import('node:crypto');
+    const secret = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
+    if (!secret || !signature) return false;
+    const expected = crypto.createHmac('sha512', secret).update(rawBody).digest('hex');
+    const a = Buffer.from(expected, 'utf8');
+    const b = Buffer.from(String(signature).trim(), 'utf8');
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
   }
 
   isConfigured() { return Boolean(String(process.env.PAYSTACK_SECRET_KEY || '').trim()); }

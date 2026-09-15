@@ -28,6 +28,7 @@ import { CustomerAiModule } from './customer-ai/customer-ai.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { StaffWalletModule } from './staff-wallet/staff-wallet.module';
 import { AuditModule } from './audit/audit.module';
+import { AccessScopeModule } from './access/access-scope.module';
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { AuditModule } from './audit/audit.module';
     SuperAdminModule, StaffModule, StaffWalletModule, BranchModule, CustomersModule, SavingsModule,
     LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
     PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
-    BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule,
+    BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule, AccessScopeModule,
   ],
   controllers: [AppController],
 })

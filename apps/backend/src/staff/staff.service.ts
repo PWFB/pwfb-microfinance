@@ -46,9 +46,27 @@ export class StaffService {
     await this.ensureBvnVerificationTable();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "reference","status","requestedFirstName","requestedLastName","firstName","middleName","lastName","fullName","message" FROM "StaffBvnVerification" WHERE "reference" = $1 LIMIT 1`, ref); const row = rows[0];
     if (!row) throw new NotFoundException('Paystack BVN verification request not found');
-    const firstName = row.firstName || row.requestedFirstName; const lastName = row.lastName || row.requestedLastName;
-    const fullName = row.fullName || [firstName, row.middleName, lastName].filter(Boolean).join(' ');
-    return { verified: row.status === 'COMPLETED', pending: row.status === 'PENDING', reference: row.reference, firstName, middleName: row.middleName || '', lastName, fullName, status: row.status, message: row.message || '' };
+    let firstName = row.firstName || row.requestedFirstName;
+    let middleName = row.middleName || '';
+    let lastName = row.lastName || row.requestedLastName;
+    let fullName = row.fullName || [firstName, middleName, lastName].filter(Boolean).join(' ');
+
+    // Paystack's customer-identification webhook confirms the identity but does not
+    // include the customer's unmasked legal name in its event payload. Paystack
+    // updates the customer record after successful validation, so fetch that record
+    // to populate the actual legal first/middle/last name used by registration.
+    if (row.status === 'COMPLETED') {
+      try {
+        const customer = await this.paystack.getCustomer(ref);
+        if (customer.firstName) firstName = customer.firstName;
+        if (customer.middleName) middleName = customer.middleName;
+        if (customer.lastName) lastName = customer.lastName;
+        fullName = [firstName, middleName, lastName].filter(Boolean).join(' ');
+      } catch (_) {
+        // Keep the verified values already stored by the webhook if Paystack is temporarily unavailable.
+      }
+    }
+    return { verified: row.status === 'COMPLETED', pending: row.status === 'PENDING', reference: row.reference, firstName, middleName, lastName, fullName, status: row.status, message: row.message || '' };
   }
 
   async handleBvnWebhook(body: any, signature?: string, rawBody?: Buffer) {
@@ -60,13 +78,29 @@ export class StaffService {
     const reference = String(data?.customer_code || data?.customerCode || '').trim();
     if (!reference) return { ok: true, ignored: true, reason: 'no-customer-code' };
     await this.ensureBvnVerificationTable();
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "StaffBvnVerification" WHERE "reference" = $1 LIMIT 1`, reference); const row = rows[0];
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "StaffBvnVerification" WHERE "reference" = $1 LIMIT 1`); const row = rows[0];
     if (!row) return { ok: true, ignored: true, reason: 'no-matching-request', reference };
     const failed = event.endsWith('.failed');
     const identification = data?.identification || {};
-    const firstName = String(data?.first_name || '').trim();
-    const middleName = String(data?.middle_name || '').trim();
-    const lastName = String(data?.last_name || '').trim();
+
+    let firstName = String(data?.first_name || '').trim();
+    let middleName = String(data?.middle_name || '').trim();
+    let lastName = String(data?.last_name || '').trim();
+
+    // Paystack's documented customer-identification event contains customer_code
+    // and identification details, but not the full unmasked legal name. On success,
+    // fetch the customer record, which Paystack updates to the BVN-verified name.
+    if (!failed) {
+      try {
+        const customer = await this.paystack.getCustomer(reference);
+        firstName = customer.firstName || firstName;
+        middleName = customer.middleName || middleName;
+        lastName = customer.lastName || lastName;
+      } catch (_) {
+        // The verification remains valid; the polling endpoint will retry the fetch.
+      }
+    }
+
     const fullName = [firstName,middleName,lastName].filter(Boolean).join(' ').trim();
     const message = failed ? String(data?.reason || 'Paystack identity verification failed') : 'Paystack identity verification completed';
     await this.prisma.$executeRawUnsafe(`UPDATE "StaffBvnVerification" SET "firstName"=$1,"middleName"=$2,"lastName"=$3,"fullName"=$4,"status"=$5,"message"=$6,"updatedAt"=CURRENT_TIMESTAMP,"verifiedAt"=CASE WHEN $5='COMPLETED' THEN CURRENT_TIMESTAMP ELSE "verifiedAt" END WHERE "id"=$7`, firstName || null, middleName || null, lastName || null, fullName || null, failed ? 'FAILED' : 'COMPLETED', message, row.id);

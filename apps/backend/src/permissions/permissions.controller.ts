@@ -13,7 +13,7 @@ export class PermissionsController {
   @Get('wallet') list() { return this.permissions.list(); }
 
   @Patch('wallet') async update(@Body() body: { role: string; permission: string; enabled: boolean }) {
-    if (!PERMISSION_KEYS.includes(body.permission as any)) throw new Error('Invalid wallet permission');
+    if (!PERMISSION_KEYS.includes(body.permission as any)) throw new Error('Invalid permission');
     return this.permissions.set(body.role, body.permission as any, Boolean(body.enabled));
   }
 }

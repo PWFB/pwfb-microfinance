@@ -33,9 +33,52 @@ export class AccessScopeService {
     throw new ForbiddenException('Access denied: outside your organizational scope');
   }
 
+  private scopeWhere(scope: any, alias = '') {
+    const p = alias ? `${alias}.` : '';
+    if (scope.role === 'REGIONAL_MANAGER') return { sql: `"${p.replace('.', '')}regionId" = $2`, value: scope.regionId };
+    if (scope.role === 'DIVISIONAL_MANAGER') return { sql: `"${p.replace('.', '')}divisionId" = $2`, value: scope.divisionId };
+    if (scope.role === 'AREA_MANAGER') return { sql: `"${p.replace('.', '')}areaId" = $2`, value: scope.areaId };
+    return { sql: `"${p.replace('.', '')}branchId" = $2`, value: scope.branchId };
+  }
+
+  async filterList(user: AccessUser, resource: string, rows: any[]) {
+    if (!Array.isArray(rows) || rows.length === 0) return rows;
+    const scope = await this.getScope(user);
+    if (scope.global) return rows;
+    const ids = rows.map((row) => String(row?.id || '')).filter(Boolean);
+    if (!ids.length) return rows;
+    let allowed: any[] = [];
+    if (resource === 'staff') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Staff')})`, ids);
+    } else if (resource === 'customers') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id" FROM "Customer" c LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE c."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
+    } else if (resource === 'loans') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id" FROM "Loan" l JOIN "Customer" c ON c."id"=l."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE l."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
+    } else if (resource === 'savings') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE s."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
+    } else if (resource === 'collections') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id"=dc."branchId" WHERE dc."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
+    } else if (resource === 'branches') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Branch')})`, ids);
+    } else return rows;
+    const allowedIds = new Set(allowed.map((row) => String(row.id)));
+    return rows.filter((row) => allowedIds.has(String(row?.id)));
+  }
+
+  private orgCondition(scope: any, alias: string) {
+    if (scope.role === 'REGIONAL_MANAGER') return `"${alias}"."regionId" = '${this.escape(scope.regionId)}'`;
+    if (scope.role === 'DIVISIONAL_MANAGER') return `"${alias}"."divisionId" = '${this.escape(scope.divisionId)}'`;
+    if (scope.role === 'AREA_MANAGER') return `"${alias}"."areaId" = '${this.escape(scope.areaId)}'`;
+    return `"${alias}"."branchId" = '${this.escape(scope.branchId)}'`;
+  }
+
+  private escape(value: unknown) { return String(value ?? '').replace(/'/g, "''"); }
+
   async assertBranch(user: AccessUser, branchId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Branch" WHERE "id" = $1 LIMIT 1`, branchId);
-    return this.assertOrg(user, rows[0]);
+    const row = rows[0];
+    if (row && !row.branchId) row.branchId = row.id;
+    return this.assertOrg(user, row);
   }
 
   async assertStaff(user: AccessUser, targetStaffId: string) {

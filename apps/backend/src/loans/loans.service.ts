@@ -63,8 +63,8 @@ export class LoansService {
     const dueDate=new Date(start);
     dueDate.setDate(dueDate.getDate()+intervalDays*(index+1));
     cumulativePaid+=Number(repayments.filter((r:any)=>new Date(r.paymentDate||r.createdAt)<=dueDate).reduce((s:number,r:any)=>s+Number(r.amount||0),0));
-    const expected=Math.round(installment*(index+1)*100)/100;
-    const paidForPeriod=Math.min(installment,Math.max(0,cumulativePaid-Math.round((expected-installment)*100)/100));
+    const expectedBefore=Math.round((baseInstallment*index)*100)/100;
+    const paidForPeriod=Math.min(installment,Math.max(0,cumulativePaid-expectedBefore));
     const remaining=Math.max(0,installment-paidForPeriod);
     const status=remaining<=0.005?'PAID':new Date()>=dueDate?'OVERDUE':'DUE';
     return {installmentNumber:index+1,dueDate:dueDate.toISOString(),amount:installment,principalAmount:Math.round((principal/duration)*100)/100,interestAmount:Math.round((interest/duration)*100)/100,paidAmount:Math.round(paidForPeriod*100)/100,remainingAmount:Math.round(remaining*100)/100,status};
@@ -77,6 +77,6 @@ export class LoansService {
  async remove(id:string){await this.findOne(id);await this.ensureLoanTables();await this.prisma.$executeRawUnsafe(`DELETE FROM "PWFBLoanMeta" WHERE "loanId"=$1`,id);return this.prisma.loan.delete({where:{id}});}
  async findGuarantors(loanId:string){await this.findOne(loanId);return this.prisma.guarantor.findMany({where:{loanId},orderBy:{createdAt:'desc'}});}
  async addGuarantor(loanId:string,dto:CreateGuarantorDto){await this.findOne(loanId);return this.prisma.guarantor.create({data:{loanId,firstName:dto.firstName,middleName:dto.middleName,lastName:dto.lastName,phone:dto.phone,email:dto.email,address:dto.address,dateOfBirth:dto.dateOfBirth?new Date(dto.dateOfBirth):undefined,relationship:dto.relationship,idType:dto.idType,idNumber:dto.idNumber,idDocument:dto.idDocument,passportPhoto:dto.passportPhoto,temporaryVerified:false,verificationNote:dto.verificationNote??'Temporary record only. Identity has not been externally verified.'}});}
- async updateGuarantor(loanId:string,guarantorId:string,dto:Partial<CreateGuarantorDto>){await this.findOne(loanId);const existing=await this.prisma.guarantor.findFirst({where:{id:guarantorId,loanId}});if(!existing)throw new NotFoundException('Guarantor not found');return this.prisma.guarantor.update({where:{id:guarantorId},data:{firstName:dto.firstName,middleName:dto.middleName,lastName:dto.lastName,address:dto.address,dateOfBirth:dto.dateOfBirth?new Date(dto.dateOfBirth):undefined,relationship:dto.relationship,idType:dto.idType,idNumber:dto.idNumber,idDocument:dto.idDocument,passportPhoto:dto.passportPhoto,verificationNote:dto.verificationNote}});}
+ async updateGuarantor(loanId:string,guarantorId:string,dto:Partial<CreateGuarantorDto>){await this.findOne(loanId);const existing=await this.prisma.guarantor.findFirst({where:{id:guarantorId,loanId}});if(!existing)throw new NotFoundException('Guarantor not found');return this.prisma.guarantor.update({where:{id:guarantorId},data:{firstName:dto.firstName,middleName:dto.middleName,lastName:dto.lastName,phone:dto.phone,email:dto.email,address:dto.address,dateOfBirth:dto.dateOfBirth?new Date(dto.dateOfBirth):undefined,relationship:dto.relationship,idType:dto.idType,idNumber:dto.idNumber,idDocument:dto.idDocument,passportPhoto:dto.passportPhoto,verificationNote:dto.verificationNote}});}
  async removeGuarantor(loanId:string,guarantorId:string){await this.findOne(loanId);const existing=await this.prisma.guarantor.findFirst({where:{id:guarantorId,loanId}});if(!existing)throw new NotFoundException('Guarantor not found');return this.prisma.guarantor.delete({where:{id:guarantorId}});}
 }

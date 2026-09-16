@@ -23,6 +23,7 @@ export class LoansController {
   }
   @Post() @Roles('CREDIT_OFFICER','SUPER_ADMIN','ADMIN') async create(@Body() dto:CreateLoanDto,@Req() req:any){await this.permissions.assert(req.user.role,'LOAN_CREATE');return this.loansService.create(dto);}
   @Get() @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') findAll(){return this.loansService.findAll();}
+  @Get(':id/schedule') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') getSchedule(@Param('id') id:string){return this.loansService.getRepaymentSchedule(id);}
   @Get(':id') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') findOne(@Param('id') id:string){return this.loansService.findOne(id);}
   @Patch(':id') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER') update(@Param('id') id:string,@Body() dto:UpdateLoanDto){return this.loansService.update(id,dto);}
   @Delete(':id') @Roles('SUPER_ADMIN','ADMIN') remove(@Param('id') id:string){return this.loansService.remove(id);}

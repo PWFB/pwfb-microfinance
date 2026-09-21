@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { apiRequest } from "../../../lib/api";
 
 type Tx = { id:string; type:string; amount:number; previousBalance:number; newBalance:number; reference?:string|null; description?:string|null; createdAt?:string };
@@ -9,8 +9,8 @@ type Wallet = { id:string; staffId:string; branchId:string; balance:number; curr
 
 const money=(v:any)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:2}).format(Number(v)||0);
 
-export default async function StaffWalletDetailPage({params}:{params:Promise<{staffId:string}>}){
-  const { staffId } = await params;
+export default function StaffWalletDetailPage({params}:{params:Promise<{staffId:string}>}){
+  const { staffId } = use(params);
   const [wallet,setWallet]=useState<Wallet|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");

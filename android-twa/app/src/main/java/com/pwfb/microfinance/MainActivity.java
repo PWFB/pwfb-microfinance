@@ -89,8 +89,8 @@ public class MainActivity extends Activity {
     private void resetWebSession() { CookieManager cookies = CookieManager.getInstance(); cookies.removeAllCookies(null); cookies.flush(); WebStorage.getInstance().deleteAllData(); }
 
     private void buildWebApp() {
-        swipeRefresh = new SwipeRefreshLayout(this); swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); swipeRefresh.setColorSchemeColors(GREEN, ORANGE); swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE); swipeRefresh.setDistanceToTriggerSync(dp(72)); swipeRefresh.setSlingshotDistance(dp(96));
-        webView = new WebView(this); webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); webView.setBackgroundColor(Color.WHITE); webView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
+        swipeRefresh = new SwipeRefreshLayout(this); swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); swipeRefresh.setEnabled(false); swipeRefresh.setColorSchemeColors(GREEN, ORANGE); swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE); swipeRefresh.setDistanceToTriggerSync(dp(72)); swipeRefresh.setSlingshotDistance(dp(96));
+        webView = new WebView(this); webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); webView.setBackgroundColor(Color.WHITE); webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
         WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0");
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) WebSettingsCompat.setWebAuthenticationSupport(s, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);

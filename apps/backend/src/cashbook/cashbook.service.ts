@@ -113,7 +113,7 @@ export class CashbookService {
     const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}});if(!p)throw new NotFoundException('Financial period not found');if(p.status==='CLOSED')throw new BadRequestException('Cannot add entries to a closed period');
     const b=await this.prisma.branch.findUnique({where:{id:data.branchId}});if(!b)throw new NotFoundException('Branch not found');
     if(data.staffId){const staff=await this.prisma.staff.findUnique({where:{id:data.staffId}});if(!staff)throw new NotFoundException('Field staff not found');if(staff.branchId!==data.branchId)throw new BadRequestException('Field staff must belong to the selected branch');}
-    const v=this.values(data),id=randomUUID(); const cols=ALL_FIELDS.map(snake);
+    const v=this.values(data),id=randomUUID(); const rowTotals=this.totals(v); v.otherAfterTotal=Math.max(0,rowTotals.totalReceipts-rowTotals.totalPayments); const cols=ALL_FIELDS.map(snake);
     const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,data.entryDate?new Date(data.entryDate):new Date(),data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
     const placeholders=params.map((_,i)=>`$${i+1}`);
     await this.prisma.$executeRawUnsafe(`INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,...params);

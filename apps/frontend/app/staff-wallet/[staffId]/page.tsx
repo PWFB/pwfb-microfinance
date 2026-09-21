@@ -9,11 +9,12 @@ type Wallet = { id:string; staffId:string; branchId:string; balance:number; curr
 
 const money=(v:any)=>new Intl.NumberFormat("en-NG",{style:"currency",currency:"NGN",maximumFractionDigits:2}).format(Number(v)||0);
 
-export default function StaffWalletDetailPage({params}:{params:{staffId:string}}){
+export default async function StaffWalletDetailPage({params}:{params:Promise<{staffId:string}>}){
+  const { staffId } = await params;
   const [wallet,setWallet]=useState<Wallet|null>(null);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
-  useEffect(()=>{(async()=>{try{const d=await apiRequest(`/staff-wallet/${params.staffId}`);setWallet(d)}catch(e:any){setError(e?.message||"Unable to load staff wallet")}finally{setLoading(false)}})()},[params.staffId]);
+  useEffect(()=>{(async()=>{try{const d=await apiRequest(`/staff-wallet/${staffId}`);setWallet(d)}catch(e:any){setError(e?.message||"Unable to load staff wallet")}finally{setLoading(false)}})()},[staffId]);
   if(loading)return <main className="min-h-screen bg-slate-50 p-6"><p>Loading staff wallet…</p></main>;
   if(error||!wallet)return <main className="min-h-screen bg-slate-50 p-6"><div className="mx-auto max-w-4xl rounded-3xl bg-white p-6 shadow-sm"><p className="font-bold text-red-700">{error||"Staff wallet not found."}</p><Link className="mt-4 inline-block rounded-xl bg-emerald-700 px-4 py-2 font-bold text-white" href="/staff-wallet">Back to Staff Wallet</Link></div></main>;
   const name=[wallet.firstName,wallet.middleName,wallet.lastName].filter(Boolean).join(" ");

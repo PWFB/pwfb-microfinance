@@ -7,6 +7,7 @@ export type CashbookDailyInput = {
   previousCashAtHand?: number;
   savingsDeposits?: number; dailyCollection?: number; weeklyCollection?: number; monthlyCollection?: number;
   monitorRegistrationFees?: number; riskPremium?: number; passbookSales?: number; loanApplicationForm?: number;
+  withdrawalFromBank?: number; fundReceivedHeadOffice?: number; fundReceivedBranchOther?: number; receiptOthers?: number;
   fixedOther?: number; otherIncome?: number;
   dailyDisbursementCount?: number; dailyDisbursementAmount?: number;
   weeklyDisbursementCount?: number; weeklyDisbursementAmount?: number;
@@ -39,6 +40,7 @@ export class CashbookService {
         previous_cash_at_hand DOUBLE PRECISION NOT NULL DEFAULT 0,
         savings_deposits DOUBLE PRECISION NOT NULL DEFAULT 0, daily_collection DOUBLE PRECISION NOT NULL DEFAULT 0, weekly_collection DOUBLE PRECISION NOT NULL DEFAULT 0, monthly_collection DOUBLE PRECISION NOT NULL DEFAULT 0,
         monitor_registration_fees DOUBLE PRECISION NOT NULL DEFAULT 0, risk_premium DOUBLE PRECISION NOT NULL DEFAULT 0, passbook_sales DOUBLE PRECISION NOT NULL DEFAULT 0, loan_application_form DOUBLE PRECISION NOT NULL DEFAULT 0,
+        withdrawal_from_bank DOUBLE PRECISION NOT NULL DEFAULT 0, fund_received_head_office DOUBLE PRECISION NOT NULL DEFAULT 0, fund_received_branch_other DOUBLE PRECISION NOT NULL DEFAULT 0, receipt_others DOUBLE PRECISION NOT NULL DEFAULT 0,
         fixed_other DOUBLE PRECISION NOT NULL DEFAULT 0, other_income DOUBLE PRECISION NOT NULL DEFAULT 0,
         daily_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0, daily_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
         weekly_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0, weekly_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -58,6 +60,10 @@ export class CashbookService {
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS risk_premium DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS passbook_sales DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS loan_application_form DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS withdrawal_from_bank DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_received_head_office DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_received_branch_other DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS receipt_others DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fixed_other DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS other_income DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS daily_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0;
@@ -81,7 +87,7 @@ export class CashbookService {
 
   private values(data: CashbookDailyInput) { const v:any = {}; for (const f of ALL_FIELDS) v[f] = this.number(data[f], f); return v; }
   private totals(r:any) {
-    const receipts = ['savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','fixedOther','otherIncome'];
+    const receipts = ['previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','withdrawalFromBank','fundReceivedHeadOffice','fundReceivedBranchOther','receiptOthers'];
     const payments = ['dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedDW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others'];
     const totalReceipts = receipts.reduce((s,k)=>s+Number(r[k]||0),0);
     const totalPayments = payments.reduce((s,k)=>s+Number(r[k]||0),0);

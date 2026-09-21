@@ -13,13 +13,13 @@ export type CashbookDailyInput = {
   weeklyDisbursementCount?: number; weeklyDisbursementAmount?: number;
   monthlyDisbursementCount?: number; monthlyDisbursementAmount?: number;
   bankDeposit?: number; savingsWithdrawalCount?: number; savingsWithdrawalAmount?: number;
-  savingsReturnedDW?: number; savingsReturnedCash?: number; savingsReturnedAdjust?: number;
-  fundTransferHeadOffice?: number; fundTransferBranch?: number; others?: number;
+  savingsReturnedDW?: number; savingsReturnedD?: number; savingsReturnedW?: number; savingsReturnedCash?: number; savingsReturnedAdjust?: number;
+  fundTransferHeadOffice?: number; fundTransferBranch?: number; others?: number; otherAfterTotal?: number;
 };
 
 const MONEY_FIELDS = [
   'previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','fixedOther','otherIncome',
-  'dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedDW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others',
+  'dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedDW','savingsReturnedD','savingsReturnedW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others','otherAfterTotal',
 ] as const;
 const COUNT_FIELDS = ['dailyDisbursementCount','weeklyDisbursementCount','monthlyDisbursementCount','savingsWithdrawalCount'] as const;
 const ALL_FIELDS = [...MONEY_FIELDS, ...COUNT_FIELDS] as const;
@@ -46,7 +46,7 @@ export class CashbookService {
         weekly_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0, weekly_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
         monthly_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0, monthly_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
         bank_deposit DOUBLE PRECISION NOT NULL DEFAULT 0, savings_withdrawal_count DOUBLE PRECISION NOT NULL DEFAULT 0, savings_withdrawal_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-        savings_returned_d_w DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_cash DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_adjust DOUBLE PRECISION NOT NULL DEFAULT 0,
+        savings_returned_d_w DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_d DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_w DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_cash DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_adjust DOUBLE PRECISION NOT NULL DEFAULT 0,
         fund_transfer_head_office DOUBLE PRECISION NOT NULL DEFAULT 0, fund_transfer_branch DOUBLE PRECISION NOT NULL DEFAULT 0, others DOUBLE PRECISION NOT NULL DEFAULT 0,
         narration TEXT, reference_no TEXT, created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
       );
@@ -76,11 +76,14 @@ export class CashbookService {
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_withdrawal_count DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_withdrawal_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_d_w DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_d DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_w DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_cash DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_adjust DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_transfer_head_office DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_transfer_branch DOUBLE PRECISION NOT NULL DEFAULT 0;
       ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS others DOUBLE PRECISION NOT NULL DEFAULT 0;
+      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS other_after_total DOUBLE PRECISION NOT NULL DEFAULT 0;
     `).then(() => undefined).catch(e => { this.ready = null; throw e; });
     await this.ready;
   }
@@ -88,7 +91,7 @@ export class CashbookService {
   private values(data: CashbookDailyInput) { const v:any = {}; for (const f of ALL_FIELDS) v[f] = this.number(data[f], f); return v; }
   private totals(r:any) {
     const receipts = ['previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','withdrawalFromBank','fundReceivedHeadOffice','fundReceivedBranchOther','receiptOthers'];
-    const payments = ['dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedDW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others'];
+    const payments = ['dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedD','savingsReturnedW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others'];
     const totalReceipts = receipts.reduce((s,k)=>s+Number(r[k]||0),0);
     const totalPayments = payments.reduce((s,k)=>s+Number(r[k]||0),0);
     return { totalReceipts, totalPayments, netAmount: totalReceipts-totalPayments };

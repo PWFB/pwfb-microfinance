@@ -82,13 +82,13 @@ export default function CustomerAccountPage() {
   async function attachAccount() {
     setMessage(""); setError("");
     if (!customer?.id) return;
-    if (!selectedBank?.code || !selectedBank?.id) { setError("Select a supported bank."); return; }
+    if (!selectedBank?.code) { setError("Select a supported bank."); return; }
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
     if (!accountName.trim()) { setError("Verify the account name before attaching it."); return; }
     setSaving(true);
     try {
       await pwfbApi.banking.addCustomerAccount(customer.id, {
-        institutionId: selectedBank.id,
+        institutionId: selectedBank.id || selectedBank.code,
         accountNumber,
         accountName: accountName.trim(),
         isPrimary: accounts.length === 0,

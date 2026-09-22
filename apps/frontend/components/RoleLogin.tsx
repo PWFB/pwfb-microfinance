@@ -14,7 +14,7 @@ declare global { interface Window { google?: any; PWFBNative?: { signInWithGoogl
 
 export default function RoleLogin(){
   const router=useRouter(); const {refreshProfile}=useAuth(); const googleRef=useRef<HTMLDivElement>(null);
-  const [mode,setMode]=useState<Mode>("admin"); const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [show,setShow]=useState(false); const [loading,setLoading]=useState(false); const [message,setMessage]=useState(""); const [nativeApp,setNativeApp]=useState(false); const [fingerprintReady,setFingerprintReady]=useState(false); const [googleReady,setGoogleReady]=useState(false);
+  const [mode,setMode]=useState<Mode>(() => typeof navigator !== "undefined" && /PWFBAndroidApp/i.test(navigator.userAgent) ? "staff" : "admin"); const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [show,setShow]=useState(false); const [loading,setLoading]=useState(false); const [message,setMessage]=useState(""); const [nativeApp,setNativeApp]=useState(false); const [fingerprintReady,setFingerprintReady]=useState(false); const [googleReady,setGoogleReady]=useState(false);
   const isAdmin=mode==="admin";
   const isCustomer=mode==="customer";
   const destination=(role?:string)=>role==="CUSTOMER"?"/customer-dashboard":role==="SUPER_ADMIN"?"/dashboard":"/staff-dashboard";

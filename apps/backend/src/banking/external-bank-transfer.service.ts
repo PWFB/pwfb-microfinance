@@ -57,6 +57,7 @@ export class ExternalBankTransferService {
     { name: 'Kuda Microfinance Bank', shortName: 'Kuda', code: '090267', provider: 'PAYSTACK' },
     { name: 'Moniepoint Microfinance Bank', shortName: 'Moniepoint', code: '090405', provider: 'PAYSTACK' },
     { name: 'Opay', shortName: 'OPay', code: '999992', provider: 'PAYSTACK' },
+    { name: 'PalmPay', shortName: 'PalmPay', code: '999991', provider: 'PAYSTACK' },
     { name: 'Polaris Bank', shortName: 'Polaris', code: '076', provider: 'PAYSTACK' },
     { name: 'Premium Trust Bank', shortName: 'PremiumTrust', code: '000031', provider: 'PAYSTACK' },
     { name: 'Providus Bank', shortName: 'Providus', code: '101', provider: 'PAYSTACK' },
@@ -71,43 +72,51 @@ export class ExternalBankTransferService {
 
   private normalizeName(value: string) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, ' '); }
 
+  private bankMatches(bank: { name?: string; shortName?: string; code?: string }, query: string) {
+    const q = this.normalizeName(query);
+    if (!q) return true;
+    return [bank.name, bank.shortName, bank.code].some((value) => this.normalizeName(String(value || '')).includes(q));
+  }
+
+  private mergeBanks(...sources: any[][]) {
+    const merged = new Map<string, any>();
+    for (const source of sources) {
+      for (const bank of source || []) {
+        const name = String(bank?.name ?? bank?.bankName ?? bank?.institutionName ?? '').trim();
+        const code = String(bank?.code ?? bank?.bankCode ?? '').trim();
+        if (!name || !code) continue;
+        const key = code || this.normalizeName(name);
+        if (!merged.has(key)) merged.set(key, { ...bank, name, code });
+      }
+    }
+    return [...merged.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' }));
+  }
+
   async listInstitutions() {
     const provider = this.provider();
+    let providerBanks: any[] = [];
+    let localBanks: any[] = [];
     try {
       if (provider === 'PAYSTACK') {
-        const banks = (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
-        if (banks.length) return banks;
+        providerBanks = (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
+      } else if (provider === 'FLUTTERWAVE') {
+        providerBanks = (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
       }
-      if (provider === 'FLUTTERWAVE') {
-        const banks = (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
-        if (banks.length) return banks;
-      }
-      const local = await this.prisma.bankInstitution.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
-      if (local.length) return local;
     } catch {
-      // Keep bank selection usable when a provider is temporarily unavailable.
+      // Use local/fallback references when the provider list is temporarily unavailable.
     }
-    return this.fallbackNigeriaBanks;
+    try {
+      localBanks = await this.prisma.bankInstitution.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+    } catch {
+      localBanks = [];
+    }
+    return this.mergeBanks(providerBanks, localBanks, this.fallbackNigeriaBanks);
   }
 
   async searchInstitutions(search?: string) {
-    const provider = this.provider();
-    const query = String(search || '').trim().toLowerCase();
-    try {
-      if (provider === 'PAYSTACK') {
-        const banks = (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
-        if (banks.length) return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
-      }
-      if (provider === 'FLUTTERWAVE') {
-        const banks = (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
-        if (banks.length) return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
-      }
-      const local = await this.prisma.bankInstitution.findMany({ where: { active: true, ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { shortName: { contains: search, mode: 'insensitive' } }, { code: { contains: search, mode: 'insensitive' } }] } : {}) }, orderBy: { name: 'asc' } });
-      if (local.length) return local;
-    } catch {
-      // Fall through to the local fallback list.
-    }
-    return query ? this.fallbackNigeriaBanks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.shortName.toLowerCase().includes(query) || bank.code.includes(query)) : this.fallbackNigeriaBanks;
+    const query = String(search || '').trim();
+    const banks = await this.listInstitutions();
+    return banks.filter((bank) => this.bankMatches(bank, query));
   }
 
   private async resolveWithProvider(provider: string, bankCode: string, accountNumber: string) {

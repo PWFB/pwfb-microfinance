@@ -30,16 +30,31 @@ export class PaystackService {
   }
 
   async listBanks() {
-    const data = await this.request('/bank?country=nigeria&perPage=100');
-    const banks = Array.isArray(data.data) ? data.data : [];
-    return banks
+    const allBanks: any[] = [];
+    const perPage = 100;
+
+    // Paystack can paginate the Nigeria institution list. Fetch all pages so
+    // customer bank search is not limited to the first page of institutions.
+    for (let page = 1; page <= 20; page += 1) {
+      const data = await this.request(`/bank?country=nigeria&perPage=${perPage}&page=${page}`);
+      const pageBanks = Array.isArray(data.data) ? data.data : [];
+      allBanks.push(...pageBanks);
+      if (pageBanks.length < perPage) break;
+    }
+
+    const seen = new Set<string>();
+    return allBanks
       .map((bank: any) => ({
         name: String(bank?.name || '').trim(),
         shortName: String(bank?.slug || bank?.name || '').trim(),
         code: String(bank?.code || '').trim(),
         provider: 'PAYSTACK',
       }))
-      .filter((bank: any) => bank.name && bank.code)
+      .filter((bank: any) => {
+        if (!bank.name || !bank.code || seen.has(bank.code)) return false;
+        seen.add(bank.code);
+        return true;
+      })
       .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
   }
 

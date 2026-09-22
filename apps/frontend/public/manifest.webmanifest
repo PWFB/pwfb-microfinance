@@ -1,0 +1,46 @@
+{
+  "id": "/",
+  "name": "PWFB Microfinance",
+  "short_name": "PWFB",
+  "description": "PWFB Microfinance Management System",
+  "lang": "en-NG",
+  "dir": "ltr",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#f2f7f4",
+  "theme_color": "#075d2a",
+  "categories": ["finance", "business"],
+  "icons": [
+    {
+      "src": "/pwfb-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "url": "/dashboard"
+    },
+    {
+      "name": "Customers",
+      "short_name": "Customers",
+      "url": "/customers"
+    },
+    {
+      "name": "Banking",
+      "short_name": "Banking",
+      "url": "/banking"
+    },
+    {
+      "name": "Loans",
+      "short_name": "Loans",
+      "url": "/loans"
+    }
+  ]
+}

@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return currentUser;
     } catch (error) {
       if (error instanceof Error && error.message.includes("Two-factor authentication is required")) throw error;
-      localStorage.removeItem("token"); localStorage.removeItem("user"); sessionStorage.removeItem("token"); sessionStorage.removeItem("user"); setUser(null); return null;
+      localStorage.removeItem("token"); localStorage.removeItem("access_token"); localStorage.removeItem("user"); localStorage.removeItem("pwfb_google_oidc_nonce"); sessionStorage.removeItem("token"); sessionStorage.removeItem("access_token"); sessionStorage.removeItem("user"); sessionStorage.removeItem("pwfb_google_oidc_nonce"); setUser(null); return null;
     } finally { setLoading(false); }
   }
 

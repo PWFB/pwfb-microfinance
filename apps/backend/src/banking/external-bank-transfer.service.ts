@@ -42,27 +42,72 @@ export class ExternalBankTransferService {
   private provider() { return this.configuredProviders()[0]; }
   currentProvider() { return this.provider(); }
   currentProviders() { return this.configuredProviders(); }
+  private readonly fallbackNigeriaBanks = [
+    { name: 'Access Bank', shortName: 'Access Bank', code: '044', provider: 'PAYSTACK' },
+    { name: 'Citibank Nigeria', shortName: 'Citibank', code: '023', provider: 'PAYSTACK' },
+    { name: 'Ecobank Nigeria', shortName: 'Ecobank', code: '050', provider: 'PAYSTACK' },
+    { name: 'Fidelity Bank', shortName: 'Fidelity', code: '070', provider: 'PAYSTACK' },
+    { name: 'First Bank of Nigeria', shortName: 'FirstBank', code: '011', provider: 'PAYSTACK' },
+    { name: 'First City Monument Bank', shortName: 'FCMB', code: '214', provider: 'PAYSTACK' },
+    { name: 'Globus Bank', shortName: 'Globus', code: '103', provider: 'PAYSTACK' },
+    { name: 'Guaranty Trust Bank', shortName: 'GTBank', code: '058', provider: 'PAYSTACK' },
+    { name: 'Heritage Bank', shortName: 'Heritage', code: '030', provider: 'PAYSTACK' },
+    { name: 'Jaiz Bank', shortName: 'Jaiz', code: '301', provider: 'PAYSTACK' },
+    { name: 'Keystone Bank', shortName: 'Keystone', code: '082', provider: 'PAYSTACK' },
+    { name: 'Kuda Microfinance Bank', shortName: 'Kuda', code: '090267', provider: 'PAYSTACK' },
+    { name: 'Moniepoint Microfinance Bank', shortName: 'Moniepoint', code: '090405', provider: 'PAYSTACK' },
+    { name: 'Opay', shortName: 'OPay', code: '999992', provider: 'PAYSTACK' },
+    { name: 'Polaris Bank', shortName: 'Polaris', code: '076', provider: 'PAYSTACK' },
+    { name: 'Premium Trust Bank', shortName: 'PremiumTrust', code: '000031', provider: 'PAYSTACK' },
+    { name: 'Providus Bank', shortName: 'Providus', code: '101', provider: 'PAYSTACK' },
+    { name: 'Stanbic IBTC Bank', shortName: 'Stanbic IBTC', code: '221', provider: 'PAYSTACK' },
+    { name: 'Sterling Bank', shortName: 'Sterling', code: '232', provider: 'PAYSTACK' },
+    { name: 'Union Bank of Nigeria', shortName: 'Union Bank', code: '032', provider: 'PAYSTACK' },
+    { name: 'United Bank for Africa', shortName: 'UBA', code: '033', provider: 'PAYSTACK' },
+    { name: 'Unity Bank', shortName: 'Unity', code: '215', provider: 'PAYSTACK' },
+    { name: 'Wema Bank', shortName: 'Wema', code: '035', provider: 'PAYSTACK' },
+    { name: 'Zenith Bank', shortName: 'Zenith', code: '057', provider: 'PAYSTACK' },
+  ];
+
   private normalizeName(value: string) { return String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim().replace(/\s+/g, ' '); }
 
   async listInstitutions() {
     const provider = this.provider();
-    if (provider === 'PAYSTACK') return (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
-    if (provider === 'FLUTTERWAVE') return (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
-    return this.prisma.bankInstitution.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+    try {
+      if (provider === 'PAYSTACK') {
+        const banks = (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
+        if (banks.length) return banks;
+      }
+      if (provider === 'FLUTTERWAVE') {
+        const banks = (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
+        if (banks.length) return banks;
+      }
+      const local = await this.prisma.bankInstitution.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+      if (local.length) return local;
+    } catch {
+      // Keep bank selection usable when a provider is temporarily unavailable.
+    }
+    return this.fallbackNigeriaBanks;
   }
 
   async searchInstitutions(search?: string) {
     const provider = this.provider();
     const query = String(search || '').trim().toLowerCase();
-    if (provider === 'PAYSTACK') {
-      const banks = (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
-      return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
+    try {
+      if (provider === 'PAYSTACK') {
+        const banks = (await this.paystackService.listBanks()).map((bank) => ({ ...bank, provider }));
+        if (banks.length) return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
+      }
+      if (provider === 'FLUTTERWAVE') {
+        const banks = (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
+        if (banks.length) return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
+      }
+      const local = await this.prisma.bankInstitution.findMany({ where: { active: true, ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { shortName: { contains: search, mode: 'insensitive' } }, { code: { contains: search, mode: 'insensitive' } }] } : {}) }, orderBy: { name: 'asc' } });
+      if (local.length) return local;
+    } catch {
+      // Fall through to the local fallback list.
     }
-    if (provider === 'FLUTTERWAVE') {
-      const banks = (await this.flutterwaveService.listBanks('NG')).map((bank) => ({ ...bank, provider }));
-      return query ? banks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.code.toLowerCase().includes(query)) : banks;
-    }
-    return this.prisma.bankInstitution.findMany({ where: { active: true, ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { shortName: { contains: search, mode: 'insensitive' } }, { code: { contains: search, mode: 'insensitive' } }] } : {}) }, orderBy: { name: 'asc' } });
+    return query ? this.fallbackNigeriaBanks.filter((bank) => bank.name.toLowerCase().includes(query) || bank.shortName.toLowerCase().includes(query) || bank.code.includes(query)) : this.fallbackNigeriaBanks;
   }
 
   private async resolveWithProvider(provider: string, bankCode: string, accountNumber: string) {

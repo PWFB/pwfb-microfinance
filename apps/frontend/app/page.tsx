@@ -5,10 +5,10 @@ const androidDownloadUrl =
   "https://github.com/PWFB/pwfb-microfinance/releases/download/v1.0.0/app-release.apk";
 
 const modules = [
-  ["👥", "Customers", "Manage customer profiles and KYC.", "/customers"],
-  ["💰", "Savings", "Create and manage savings accounts.", "/savings"],
-  ["🏦", "Loans", "Loan applications and approvals.", "/loans"],
-  ["💳", "Transactions", "View deposits, withdrawals and transfers.", "/transactions"],
+  ["👥", "Customers", "Manage customer profiles and KYC.", "/login"],
+  ["💰", "Savings", "Create and manage savings accounts.", "/login"],
+  ["🏦", "Loans", "Loan applications and approvals.", "/login"],
+  ["💳", "Transactions", "View deposits, withdrawals and transfers.", "/login"],
 ];
 
 const stats = [
@@ -31,11 +31,11 @@ export default function Home() {
         </Link>
 
         <nav className={styles.nav}>
-          <Link href="/dashboard">Dashboard</Link>
-          <Link href="/customers">Customers</Link>
-          <Link href="/savings">Savings</Link>
-          <Link href="/loans">Loans</Link>
-          <Link href="/transactions">Transactions</Link>
+          <Link href="/login">Dashboard</Link>
+          <Link href="/login">Customers</Link>
+          <Link href="/login">Savings</Link>
+          <Link href="/login">Loans</Link>
+          <Link href="/login">Transactions</Link>
         </nav>
       </header>
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { apiRequest } from "../../lib/api";
 
 interface StaffProfile {
   firstName?: string;
@@ -16,7 +17,6 @@ interface Loan {
   status?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 const modules = [
   { title: "Customers", description: "Customer records, KYC and account support.", icon: "👥", href: "/customers", tone: "green" },
@@ -33,12 +33,9 @@ export default function StaffDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") || sessionStorage.getItem("token") : null;
-    const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-
     Promise.all([
-      fetch(`${API_URL}/auth/profile`, { headers }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-      fetch(`${API_URL}/loans`, { headers }).then((r) => (r.ok ? r.json() : [])).catch(() => []),
+      apiRequest("/auth/profile").catch(() => null),
+      apiRequest("/loans").catch(() => []),
     ]).then(([user, loanData]) => {
       setProfile(user);
       setLoans(Array.isArray(loanData) ? loanData : []);

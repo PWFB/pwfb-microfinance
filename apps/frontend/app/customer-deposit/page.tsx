@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
+import BankSearchSelect from "../../components/BankSearchSelect";
 
 type Wallet = { balance?: number; currency?: string };
 type Institution = { id: string; name?: string; code?: string };
@@ -16,9 +17,9 @@ export default function CustomerDepositPage() {
   const [customerId, setCustomerId] = useState("");
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
-  const [bankQuery, setBankQuery] = useState("");
   const [bankId, setBankId] = useState("");
-  const [bankOpen, setBankOpen] = useState(false);
+  const [fundingAccountName, setFundingAccountName] = useState("");
+  const [accountVerifying, setAccountVerifying] = useState(false);
   const [accountNumber, setAccountNumber] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
@@ -50,7 +51,6 @@ export default function CustomerDepositPage() {
   const balance = Number(wallet?.balance || 0);
   const currency = wallet?.currency || "NGN";
   const money = (value: number) => `${currency === "NGN" ? "₦" : `${currency} `}${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const filteredBanks = institutions.filter((bank) => `${bank.name || ""} ${bank.code || ""}`.toLowerCase().includes(bankQuery.toLowerCase())).slice(0, 12);
   const selectedBank = institutions.find((bank) => bank.id === bankId);
   const latestVirtualAccount = virtualAccounts[0] ?? null;
   const hasPendingAccount = virtualAccounts.some((account) => account.status === "PENDING");
@@ -75,11 +75,40 @@ export default function CustomerDepositPage() {
     return () => window.clearInterval(poll);
   }, [customerId, hasPendingAccount]);
 
+  async function verifyFundingAccount() {
+    setFundingAccountName(""); setMessage("");
+    if (!selectedBank?.code || !/^\d{10}$/.test(accountNumber.trim())) { setMessage("Select a bank and enter a valid 10-digit funding account number."); return; }
+    setAccountVerifying(true);
+    try {
+      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber);
+      const name = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
+      if (!name) throw new Error("The bank did not return a verified account name.");
+      setFundingAccountName(name); setMessage("Funding account verified.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Funding account verification failed."); }
+    finally { setAccountVerifying(false); }
+  }
+
+  async function startPaystackDeposit() {
+    setMessage(""); setSuccess(false);
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) { setMessage("Enter a valid deposit amount greater than zero."); return; }
+    if (!customerId) { setMessage("Customer account is not available."); return; }
+    setSubmitting(true);
+    try {
+      const result: any = await pwfbApi.banking.initializePaystackDeposit(customerId, numericAmount);
+      const url = String(result?.authorizationUrl || result?.data?.authorizationUrl || "").trim();
+      if (!url) throw new Error("Paystack did not return a payment URL.");
+      window.location.assign(url);
+    } catch (error) { setSuccess(false); setMessage(error instanceof Error ? error.message : "Unable to start the wallet deposit."); }
+    finally { setSubmitting(false); }
+  }
+
   async function continueDeposit() {
     setMessage(""); setSuccess(false);
     const numericAmount = Number(amount);
     if (!bankId) { setMessage("Select the bank you will use to fund your PWFB wallet."); return; }
     if (accountNumber.trim().length !== 10 || !/^\d+$/.test(accountNumber.trim())) { setMessage("Enter a valid 10-digit bank account number."); return; }
+    if (!fundingAccountName) { setMessage("Verify the funding account before preparing the wallet deposit."); return; }
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) { setMessage("Enter a valid deposit amount greater than zero."); return; }
     if (!customerId) { setMessage("Customer account is not available."); return; }
     setSubmitting(true);
@@ -107,12 +136,12 @@ export default function CustomerDepositPage() {
       <section className="mt-5 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-600">Bank funding</p><h2 className="mt-1 text-xl font-bold text-slate-900">Where are you sending from?</h2>
         <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
-        <div className="relative mt-2"><button type="button" onClick={() => setBankOpen((open) => !open)} aria-expanded={bankOpen} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-left outline-none transition hover:bg-white focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-50"><span className={selectedBank ? "font-medium text-slate-900" : "text-slate-400"}>{selectedBank?.name || "Select bank"}</span><span className={`ml-3 text-slate-500 transition-transform ${bankOpen ? "rotate-180" : ""}`}>⌄</span></button>{bankOpen && <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"><div className="border-b border-slate-100 p-3"><input autoFocus value={bankQuery} onChange={(e) => setBankQuery(e.target.value)} placeholder="Search OPay, PalmPay, FirstBank..." className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm outline-none focus:border-emerald-500 focus:bg-white" /></div><div className="max-h-56 overflow-y-auto p-1">{filteredBanks.length ? filteredBanks.map((bank) => <button key={bank.id} type="button" onClick={() => { setBankId(bank.id); setBankQuery(""); setBankOpen(false); }} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm ${bank.id === bankId ? "bg-emerald-50 font-bold text-emerald-700" : "text-slate-700 hover:bg-emerald-50"}`}><span>{bank.name || "Unnamed bank"}</span>{bank.id === bankId && <span>✓</span>}</button>) : <p className="px-3 py-4 text-center text-sm text-slate-500">No matching bank found.</p>}</div></div>}</div>
+        <div className="mt-2"><BankSearchSelect banks={institutions.map((bank) => ({ code: String(bank.code || bank.id || ""), name: String(bank.name || ""), shortName: bank.name }))} value={bankId} onChange={(code) => { const bank = institutions.find((item) => String(item.code || item.id) === code); setBankId(bank?.id || ""); setFundingAccountName(""); setMessage(""); }} placeholder="Search bank by name or code…" /></div>
         <label className="mt-4 block text-sm font-semibold text-slate-700">Your funding account number</label><input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} inputMode="numeric" placeholder="10-digit account number" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-50" />
-        <label className="mt-4 block text-sm font-semibold text-slate-700">Amount</label><div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-500 focus-within:bg-white"><span className="text-lg font-bold text-emerald-600">₦</span><input type="number" min="1" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full bg-transparent px-3 py-4 text-xl font-semibold outline-none" /></div>
+        <div className="mt-4 rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Verified funding account</p><p className="mt-1 font-bold text-slate-900">{fundingAccountName || "Not verified yet"}</p><button type="button" onClick={verifyFundingAccount} disabled={accountVerifying || !bankId || !/^\d{10}$/.test(accountNumber)} className="mt-3 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-xs font-black text-emerald-700 disabled:opacity-50">{accountVerifying ? "Verifying…" : "Verify Funding Account"}</button></div><label className="mt-4 block text-sm font-semibold text-slate-700">Amount</label><div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-500 focus-within:bg-white"><span className="text-lg font-bold text-emerald-600">₦</span><input type="number" min="1" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full bg-transparent px-3 py-4 text-xl font-semibold outline-none" /></div>
         <label className="mt-4 block text-sm font-semibold text-slate-700">Description <span className="font-normal text-slate-400">(optional)</span></label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Deposit description" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" />
-        <button type="button" disabled={submitting} onClick={continueDeposit} className="mt-5 w-full rounded-2xl bg-emerald-600 px-4 py-4 font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60">{submitting ? "Preparing..." : "Prepare PWFB Funding Account"}</button>
-        {message && <div className={`mt-4 rounded-2xl p-4 text-sm ${success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{message}</div>}
+        <button type="button" disabled={submitting || !fundingAccountName} onClick={continueDeposit} className="mt-5 w-full rounded-2xl bg-emerald-600 px-4 py-4 font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-60">{submitting ? "Preparing..." : "Prepare PWFB Funding Account"}</button>
+        <div className="mt-4 border-t border-slate-100 pt-4"><p className="text-xs font-bold uppercase tracking-[0.14em] text-orange-600">Instant deposit</p><p className="mt-1 text-sm text-slate-500">Use the configured Paystack checkout to fund the wallet directly. The wallet is credited only after Paystack confirms the successful payment.</p><button type="button" disabled={submitting || !Number(amount)} onClick={startPaystackDeposit} className="mt-3 w-full rounded-2xl bg-orange-500 px-4 py-4 font-bold text-white shadow-sm disabled:opacity-50">Paystack — Deposit to Wallet</button></div>{message && <div className={`mt-4 rounded-2xl p-4 text-sm ${success ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{message}</div>}
       </section>
     </div><nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-emerald-100 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-2xl items-center justify-around px-2 py-2"><Link href="/customer-dashboard" className="flex flex-col items-center px-2 py-1 text-slate-500"><span>⌂</span><span className="text-[10px]">Home</span></Link><Link href="/customer-deposit" className="flex flex-col items-center px-2 py-1 text-emerald-600"><span>₦</span><span className="text-[10px] font-bold">Deposit</span></Link><Link href="/customer-withdraw" className="flex flex-col items-center px-2 py-1 text-slate-500"><span>↗</span><span className="text-[10px]">Withdraw</span></Link><Link href="/customer-savings" className="flex flex-col items-center px-2 py-1 text-slate-500"><span>💰</span><span className="text-[10px]">Saving</span></Link><Link href="/customer-loans" className="flex flex-col items-center px-2 py-1 text-slate-500"><span>▣</span><span className="text-[10px]">Loan</span></Link><Link href="/customer-more" className="flex flex-col items-center px-2 py-1 text-slate-500"><span>•••</span><span className="text-[10px]">More</span></Link></div></nav></main>
   );

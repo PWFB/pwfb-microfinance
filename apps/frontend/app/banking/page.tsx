@@ -7,7 +7,7 @@ import BankSearchSelect from "../../components/BankSearchSelect";
 type Customer = { id: string; firstName?: string; lastName?: string; name?: string; phone?: string; email?: string };
 type Wallet = { balance: number; currency?: string };
 type Tx = { id: string; type?: string; amount: number; description?: string; status?: string; reference?: string; createdAt?: string; created_at?: string };
-type Bank = { code: string; name: string; shortName?: string; provider?: string };
+type Bank = { code: string; name: string; shortName?: string; provider?: string; id?: string };
 type Operation = "deposit" | "cash-withdraw" | "bank-withdraw" | "transfer" | "bank-transfer";
 const operations: Operation[] = ["deposit", "cash-withdraw", "bank-withdraw", "transfer", "bank-transfer"];
 

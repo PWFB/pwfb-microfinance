@@ -77,7 +77,33 @@ export class PaystackService {
   }
 
   async handleWebhook(event: any) {
-    if (event?.event !== 'charge.success') return { ok: true, processed: false, message: 'Event ignored' };
+    const eventName = String(event?.event || '').trim().toLowerCase();
+    if (eventName.startsWith('transfer.')) {
+      const transfer = event?.data ?? {};
+      const reference = String(transfer?.reference || '').trim();
+      const providerReference = String(transfer?.id ?? transfer?.transfer_code ?? '').trim();
+      if (!reference) throw new BadRequestException('Paystack transfer webhook is missing reference');
+      if (!['transfer.success','transfer.failed','transfer.reversed'].includes(eventName)) return { ok: true, processed: false, message: 'Transfer event ignored' };
+      return this.prisma.$transaction(async (tx) => {
+        const transaction = await tx.walletTransaction.findUnique({ where: { reference } });
+        if (!transaction) return { ok: true, processed: false, message: 'Withdrawal transaction not found', reference };
+        if (transaction.type !== 'WITHDRAWAL') return { ok: true, processed: false, message: 'Referenced transaction is not a withdrawal', reference };
+        if (eventName === 'transfer.success') {
+          if (transaction.status === 'COMPLETED') return { ok: true, processed: false, duplicate: true, transaction };
+          const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status: 'COMPLETED', provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, processedAt: new Date(), failureReason: null } });
+          return { ok: true, processed: true, action: 'COMPLETED', transaction: updated };
+        }
+        if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') return { ok: true, processed: false, duplicate: true, transaction };
+        const wallet = await tx.customerWallet.findUnique({ where: { customerId: transaction.customerId } });
+        if (!wallet) throw new BadRequestException('Customer wallet not found while reversing Paystack withdrawal');
+        const restoredBalance = Math.round((wallet.balance + transaction.amount) * 100) / 100;
+        const updatedWallet = await tx.customerWallet.update({ where: { id: wallet.id }, data: { balance: restoredBalance } });
+        const status = eventName === 'transfer.reversed' ? 'REVERSED' : 'FAILED';
+        const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status, provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, failureReason: String(transfer?.reason || transfer?.message || 'Paystack reported a failed or reversed transfer'), reversedAt: new Date(), processedAt: new Date(), newBalance: restoredBalance } });
+        return { ok: true, processed: true, action: status, wallet: updatedWallet, transaction: updated };
+      });
+    }
+    if (eventName !== 'charge.success') return { ok: true, processed: false, message: 'Event ignored' };
     const payment = event?.data;
     const reference = payment?.reference;
     const metadata = payment?.metadata;

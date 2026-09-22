@@ -44,6 +44,8 @@ export const pwfbApi = {
     withdraw: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/withdraw`, { method: "POST", body: JSON.stringify(body) }),
     transfer: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/transfer`, { method: "POST", body: JSON.stringify(body) }),
     bankTransfer: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/bank-transfer`, { method: "POST", body: JSON.stringify(body) }),
+    initializePaystackDeposit: (customerId: string, amount: number) => apiRequest(`/banking/paystack/initialize/${customerId}`, { method: "POST", body: JSON.stringify({ amount }) }),
+    verifyPaystackDeposit: (reference: string) => apiRequest(`/banking/paystack/verify/${encodeURIComponent(reference)}`, { method: "POST" }),
   },
   dashboards: { branch: (branchId: string) => apiRequest(`/dashboards/branch/${branchId}`), company: () => apiRequest("/dashboards/co") },
 };

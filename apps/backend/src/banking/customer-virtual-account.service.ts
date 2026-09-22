@@ -79,14 +79,27 @@ export class CustomerVirtualAccountService {
 
     if (!customer) throw new NotFoundException('Customer not found');
 
-    if (institutionId) {
-      const institution = await this.prisma.bankInstitution.findUnique({
-        where: { id: institutionId },
-        select: { id: true, active: true },
-      });
-      if (!institution) throw new NotFoundException('Bank or payment institution not found');
-      if (!institution.active) throw new BadRequestException('Bank or payment institution is inactive');
+    const requestedInstitution = String(institutionId || '').trim();
+    const institution = requestedInstitution
+      ? await this.prisma.bankInstitution.findFirst({
+          where: {
+            OR: [
+              { id: requestedInstitution },
+              { code: requestedInstitution },
+            ],
+          },
+          select: { id: true, active: true },
+        })
+      : null;
+
+    if (requestedInstitution && !institution) {
+      throw new NotFoundException('Bank or payment institution not found');
     }
+    if (institution && !institution.active) {
+      throw new BadRequestException('Bank or payment institution is inactive');
+    }
+
+    const resolvedInstitutionId = institution?.id ?? null;
 
     const existing = await this.prisma.customerVirtualAccount.findFirst({
       where: {
@@ -106,7 +119,7 @@ export class CustomerVirtualAccountService {
           data: {
             id: randomUUID(),
             customerId,
-            institutionId: institutionId ?? null,
+            institutionId: resolvedInstitutionId,
             branchId: customer.branchId ?? null,
             accountName: `${customer.firstName} ${customer.lastName}`.trim(),
             status: 'PENDING',
@@ -155,7 +168,7 @@ export class CustomerVirtualAccountService {
       await this.prisma.customerVirtualAccount.update({
         where: { id: local.id },
         data: {
-          institutionId: institutionId ?? local.institutionId,
+          institutionId: resolvedInstitutionId ?? local.institutionId,
           branchId: customer.branchId ?? local.branchId,
           accountNumber: virtualAccount.accountNumber,
           accountName: virtualAccount.accountName ?? narration,

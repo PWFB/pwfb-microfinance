@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    window.location.assign("/login");
+    window.location.replace(loginUrl);
   }
 
   useEffect(() => { refreshProfile().catch(() => undefined); }, [pathname]);

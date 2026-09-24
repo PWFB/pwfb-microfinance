@@ -41,7 +41,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
-    private static final String START_URL = "https://pwfb-frontend.onrender.com/";
+    private static final String START_URL = "https://pwfb-frontend.onrender.com/login?mode=staff";
     private static final String DASHBOARD_URL = "https://pwfb-frontend.onrender.com/dashboard";
     private static final String API = "https://pwfb-backend.onrender.com";
     private static final String SCHEME = "pwfb";

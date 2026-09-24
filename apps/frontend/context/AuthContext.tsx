@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { apiRequest } from "../lib/api";
+import { getDashboardPath } from "../lib/role-routing";
 
 export type AuthUser = { id: string; email: string; role: string; firstName?: string; lastName?: string };
 
@@ -28,8 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const currentUser = profile as AuthUser;
       setUser(currentUser);
-      if (currentUser?.role === "SUPER_ADMIN" && pathname?.startsWith("/customer-dashboard")) {
-        router.replace("/dashboard");
+      if (currentUser?.role) {
+        const dashboardPath = getDashboardPath(currentUser.role);
+        const protectedDashboards = ["/dashboard", "/staff-dashboard", "/customer-dashboard"];
+        if (protectedDashboards.includes(pathname || "") && pathname !== dashboardPath) {
+          router.replace(dashboardPath);
+        }
       }
       return currentUser;
     } catch (error) {

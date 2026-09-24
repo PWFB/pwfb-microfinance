@@ -68,7 +68,8 @@ public class MainActivity extends Activity {
         Intent launchIntent = getIntent();
         pendingNativeToken = launchIntent == null ? null : launchIntent.getStringExtra("app_token");
         if ((pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) && launchIntent != null) pendingNativeToken = extractTokenFromAppIntent(launchIntent);
-        if (launchIntent != null && isLogoutIntent(launchIntent)) clearNativeAuth();
+        if (launchIntent != null && isLogoutIntent(launchIntent)) { clearNativeAuth(); pendingNativeToken = null; }
+        if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) pendingNativeToken = getSharedPreferences(PREFS, MODE_PRIVATE).getString(TOKEN, null);
         if (pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) resetWebSession();
         buildWebApp();
     }

@@ -46,6 +46,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     // PWFB uses bearer JWTs, so logout is a client-session termination:
     // remove every token/session marker before returning to the production login.
+    const role = user?.role;
+    const mode = role === "CUSTOMER" ? "customer" : role === "SUPER_ADMIN" ? "admin" : "staff";
+    const loginUrl = `https://pwfb-frontend.onrender.com/login?mode=${mode}`;
     const keys = ["token", "access_token", "user", "pwfb_google_oidc_nonce"];
     for (const key of keys) {
       localStorage.removeItem(key);
@@ -55,11 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const nativeApp = /PWFBAndroidApp/i.test(ua);
-    const loginUrl = "https://pwfb-frontend.onrender.com/login";
 
     if (nativeApp) {
       window.location.href = "pwfb://open-app?logout=1&url=" + encodeURIComponent(loginUrl);
-      window.setTimeout(() => window.location.assign("/login"), 700);
+      window.setTimeout(() => window.location.assign(loginUrl), 700);
       return;
     }
 

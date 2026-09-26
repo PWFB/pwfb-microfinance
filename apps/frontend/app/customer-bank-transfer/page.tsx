@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
+import BankSearchSelect from "../../components/BankSearchSelect";
 
 type Bank = { code: string; name: string; shortName?: string };
 type Customer = { id: string; firstName?: string; lastName?: string };
@@ -27,7 +28,6 @@ export default function CustomerBankTransferPage() {
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [banks, setBanks] = useState<Bank[]>([]);
-  const [bankSearch, setBankSearch] = useState("");
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
@@ -74,7 +74,6 @@ export default function CustomerBankTransferPage() {
     return () => { cancelled = true; };
   }, [bankCode, accountNumber]);
 
-  const filteredBanks = useMemo(() => { const q = bankSearch.trim().toLowerCase(); return q ? banks.filter(b => `${b.name} ${b.shortName ?? ""} ${b.code}`.toLowerCase().includes(q)) : banks; }, [banks, bankSearch]);
   const customerName = [customer?.firstName, customer?.lastName].filter(Boolean).join(" ");
   const balance = Number(wallet?.balance || 0);
 
@@ -99,8 +98,7 @@ export default function CustomerBankTransferPage() {
     <div className="mb-5 flex items-center gap-3"><Link href="/customer-wallet" className="rounded-lg border bg-white px-3 py-2 text-sm">← Wallet</Link><div><p className="text-[10px] font-bold tracking-widest text-emerald-700">PWFB WALLET</p><h1 className="text-2xl font-bold text-slate-900">Bank Transfer</h1></div></div>
     <section className="mb-5 rounded-2xl bg-[#064d25] p-5 text-white shadow-sm"><p className="text-xs text-emerald-100">AVAILABLE BALANCE</p><p className="mt-1 text-3xl font-bold">₦{balance.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p><p className="mt-1 text-xs text-emerald-100">{customerName || "Authenticated PWFB customer"}</p></section>
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="text-lg font-bold text-slate-900">Send to bank</h2><p className="mt-1 text-sm text-slate-500">Select the destination bank and verify the exact account-holder name returned by the bank.</p>
-      <div className="mt-5 space-y-4"><div><label className="mb-1 block text-xs font-semibold text-slate-700">Search bank</label><input className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-600" value={bankSearch} onChange={e=>setBankSearch(e.target.value)} placeholder="Search Nigerian bank"/></div>
-      <div><label className="mb-1 block text-xs font-semibold text-slate-700">Destination bank</label><select className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm" value={bankCode} onChange={e=>setBankCode(e.target.value)}><option value="">Select bank</option>{filteredBanks.map(b=><option key={b.code} value={b.code}>{b.name}{b.shortName ? ` (${b.shortName})` : ""}</option>)}</select></div>
+      <div className="mt-5 space-y-4"><div><label className="mb-1 block text-xs font-semibold text-slate-700">Destination bank</label><BankSearchSelect banks={banks} value={bankCode} onChange={(code) => { setBankCode(code); setAccountNumber(""); setAccountName(""); setVerified(false); setMessage(""); }} placeholder="Search Nigerian bank by name or code…" /></div>
       <div><label className="mb-1 block text-xs font-semibold text-slate-700">Account number</label><input inputMode="numeric" maxLength={10} className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm" value={accountNumber} onChange={e=>setAccountNumber(e.target.value.replace(/\D/g, "").slice(0,10))} placeholder="10-digit account number"/></div>
       <div className={`rounded-xl border p-4 ${verified ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}><p className="text-xs font-semibold tracking-wide text-slate-500">REAL BANK-VERIFIED ACCOUNT NAME</p><p className="mt-1 break-words text-lg font-bold text-slate-900">{verifying ? "Verifying with bank..." : accountName || "Enter a 10-digit account number"}</p>{verified && <p className="mt-1 text-xs font-semibold text-emerald-700">✓ VERIFIED BY BANK PROVIDER • FULL NAME RETURNED BY PROVIDER</p>}</div>
       <div><label className="mb-1 block text-xs font-semibold text-slate-700">Amount</label><input type="number" min="1" className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="₦0.00"/></div>

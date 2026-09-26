@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
+import BankSearchSelect from "../../components/BankSearchSelect";
 
 type Wallet = { balance?: number };
 type Institution = { id?: string; code?: string; name?: string; bankCode?: string; institutionCode?: string };
@@ -20,8 +21,6 @@ export default function CustomerTransferPage() {
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [bankOpen, setBankOpen] = useState(false);
-  const [bankSearch, setBankSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -52,7 +51,6 @@ export default function CustomerTransferPage() {
   const balance = Number(wallet?.balance ?? 0);
   const bankCodeFor = (bank: Institution) => bank.code || bank.bankCode || bank.institutionCode || "";
   const selectedBank = institutions.find((bank) => bankCodeFor(bank) === bankCode);
-  const filteredBanks = institutions.filter((bank) => (bank.name || bankCodeFor(bank)).toLowerCase().includes(bankSearch.toLowerCase().trim()));
 
   function chooseBank(code: string) {
     setBankCode(code);
@@ -130,26 +128,7 @@ export default function CustomerTransferPage() {
           <p className="mt-1 text-xs leading-5 text-slate-500">Select the bank and enter the account number. PWFB will verify the account name before you can transfer.</p>
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
-          <div className="relative mt-2">
-            <button type="button" onClick={() => setBankOpen((open) => !open)} aria-expanded={bankOpen} className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-left text-slate-900 outline-none transition hover:bg-white focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-100">
-              <span className={selectedBank ? "font-medium" : "text-slate-400"}>{selectedBank?.name || "Select bank"}</span>
-              <span className={`ml-3 text-slate-500 transition-transform ${bankOpen ? "rotate-180" : ""}`}>⌄</span>
-            </button>
-            {bankOpen && (
-              <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-                <div className="border-b border-slate-100 p-3">
-                  <input autoFocus value={bankSearch} onChange={(e) => setBankSearch(e.target.value)} placeholder="Search bank..." className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:bg-white" />
-                </div>
-                <div className="max-h-64 overflow-y-auto p-1">
-                  {filteredBanks.length > 0 ? filteredBanks.map((bank, index) => {
-                    const code = bankCodeFor(bank);
-                    const selected = code === bankCode;
-                    return <button key={bank.id || code || index} type="button" onClick={() => chooseBank(code)} className={`flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-sm transition hover:bg-emerald-50 ${selected ? "bg-emerald-50 font-semibold text-emerald-700" : "text-slate-700"}`}><span>{bank.name || code}</span>{selected && <span>✓</span>}</button>;
-                  }) : <p className="px-3 py-5 text-center text-sm text-slate-400">No banks found.</p>}
-                </div>
-              </div>
-            )}
-          </div>
+          <div className="mt-2"><BankSearchSelect banks={institutions.map((bank) => ({ code: bankCodeFor(bank), name: bank.name || bankCodeFor(bank), shortName: bank.name }))} value={bankCode} onChange={chooseBank} placeholder="Search Nigerian bank by name or code…" /></div>
           {selectedBank && <p className="mt-2 text-xs text-slate-400">Selected: {selectedBank.name}</p>}
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">Account Number</label>

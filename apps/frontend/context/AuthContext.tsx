@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.setTimeout(() => router.replace("/login"), 700);
       return;
     }
-    router.replace("/login");
+    window.location.assign("https://pwfb-frontend.onrender.com/login");
   }
 
   useEffect(() => { refreshProfile().catch(() => undefined); }, [pathname]);

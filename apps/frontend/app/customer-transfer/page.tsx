@@ -57,8 +57,6 @@ export default function CustomerTransferPage() {
     setAccountName("");
     setMessage("");
     setError("");
-    setBankSearch("");
-    setBankOpen(false);
   }
 
   async function verifyAccount() {

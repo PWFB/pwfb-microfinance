@@ -123,9 +123,9 @@ public class MainActivity extends Activity {
                 googleClient = GoogleSignIn.getClient(this, options);
                 runOnUiThread(() -> googleClient.signOut().addOnCompleteListener(task -> {
                     try { startActivityForResult(googleClient.getSignInIntent(), GOOGLE_REQUEST); }
-                    catch (Exception e) { sendNativeGoogleResult(false, "Google sign-in could not start.", null); }
+                    catch (Exception e) { sendNativeGoogleResult(false, "Google sign-in could not start.", null, pendingGoogleLoginMode); }
                 }));
-            } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in is unavailable." : e.getMessage(), null); }
+            } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in is unavailable." : e.getMessage(), null, pendingGoogleLoginMode); }
         }).start();
     }
 
@@ -149,7 +149,7 @@ public class MainActivity extends Activity {
                 } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, pendingGoogleLoginMode); }
             }).start();
         } catch (ApiException e) { sendNativeGoogleResult(false, "Google sign-in error (code " + e.getStatusCode() + "). Please verify the PWFB Android Google configuration.", null, pendingGoogleLoginMode); }
-        catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, loginMode); }
+        catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, pendingGoogleLoginMode); }
     }
 
     private JSONObject get(String path) throws Exception {

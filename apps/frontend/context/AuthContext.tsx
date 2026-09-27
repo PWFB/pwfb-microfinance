@@ -46,11 +46,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function logout() {
     // PWFB uses bearer JWT client sessions; there is intentionally no /auth/logout API call.
     // Clear every session key used by password, Google, passkey and Android handoff.
-    const keys = ["token", "access_token", "user", "pwfb_google_oidc_nonce", "app_token"];
+    const keys = ["token", "access_token", "user", "app_token"];
     for (const key of keys) {
       localStorage.removeItem(key);
       sessionStorage.removeItem(key);
     }
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("pwfb_google_oidc_nonce_")) localStorage.removeItem(key);
+    }
+    if (typeof window !== "undefined" && window.google?.accounts?.id?.disableAutoSelect) window.google.accounts.id.disableAutoSelect();
     setUser(null);
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const nativeApp = /PWFBAndroidApp/i.test(ua);

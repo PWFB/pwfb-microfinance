@@ -63,6 +63,23 @@ export default function CustomerAccountPage() {
   const email = user?.email || customer?.email || "—";
   const phone = customer?.phone || "—";
 
+  useEffect(() => {
+    if (!selectedBank?.code || !/^\d{10}$/.test(accountNumber)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      setVerifying(true); setError(""); setMessage("");
+      try {
+        const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
+        const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
+        if (!verifiedName) throw new Error("The bank did not return a verified account name.");
+        if (!cancelled) { setAccountName(verifiedName); setMessage("Bank account name verified automatically."); }
+      } catch (e) {
+        if (!cancelled) { setAccountName(""); setError(e instanceof Error ? e.message : "Bank account verification failed."); }
+      } finally { if (!cancelled) setVerifying(false); }
+    }, 450);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [selectedBank?.code, selectedBank?.provider, accountNumber]);
+
   async function verifyAccount() {
     setMessage(""); setError(""); setAccountName("");
     if (!selectedBank?.code) { setError("Select a bank first."); return; }

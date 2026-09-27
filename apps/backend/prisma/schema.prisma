@@ -136,6 +136,7 @@ model CustomerAtmCard {
   expiryMonth Int?
   expiryYear Int?
   status String @default("ACTIVE")
+  providerAuthorizationCode String?
   frontImage Bytes?
   frontMimeType String?
   backImage Bytes?

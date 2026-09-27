@@ -23,7 +23,11 @@ export default function DashboardPage() {
   return (
     <main className={styles.dashboard}>
       <header className={styles.header}>
-        <div className={styles.heading}><p className={styles.eyebrow}>PWFB MICROFINANCE MANAGEMENT SYSTEM</p><h1>Dashboard</h1><p>Manage deposits. Issue loans. Track repayments. Grow responsibly.</p></div>
+        <div className={styles.headingWrap}>
+          <div className={styles.dashboardBrandMark}>
+            <img src="/pwfb-app-icon.svg" alt="" aria-hidden="true" />
+          </div>
+          <div className={styles.heading}><p className={styles.eyebrow}>PWFB MICROFINANCE MANAGEMENT SYSTEM</p><h1>Dashboard</h1><p>Manage deposits. Issue loans. Track repayments. Grow responsibly.</p></div>
         <div className={styles.headerActions}><button type="button" className={styles.headerButton} aria-label="Daily summary">▣</button><button type="button" className={styles.headerButton} aria-label="Refresh dashboard">↻</button><div className={styles.adminChip}><div className={styles.avatar}>SA</div><div><strong>Super Admin</strong><small>Administrator</small></div></div></div>
       </header>
 

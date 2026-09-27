@@ -50,6 +50,7 @@ export class AuthService {
       });
       user = customer?.user || null;
       if (!user && identifier.includes('@')) user = await this.prisma.user.findUnique({ where: { email } });
+      if (!user) user = await this.prisma.user.findFirst({ where: { phone: identifier, role: 'CUSTOMER' } });
     } else {
       user = await this.prisma.user.findUnique({ where: { email } });
     }

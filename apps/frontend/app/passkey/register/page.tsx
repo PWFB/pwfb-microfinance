@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
 import { apiRequest } from "../../../lib/api";
 
-declare global { interface Window { PWFBNative?: { registerPasskey: (replaceExisting: boolean, token: string) => void }; __pwfbNativePasskeyStatus?: (message: string) => void; __pwfbNativePasskeyResult?: (payload: any) => void; } }
+declare global { interface Window { PWFBNative?: { signInWithGoogle?: (loginMode?: string) => void; registerPasskey?: (replaceExisting: boolean, token: string) => void }; __pwfbNativePasskeyStatus?: (message: string) => void; __pwfbNativePasskeyResult?: (payload: any) => void; } }
 
 export default function SecurityPage() {
   const [authEnabled,setAuthEnabled]=useState(false),[authConfigured,setAuthConfigured]=useState(false),[secret,setSecret]=useState(""),[otpauthUri,setOtpauthUri]=useState(""),[code,setCode]=useState(""),[recoveryCodes,setRecoveryCodes]=useState<string[]>([]),[authBusy,setAuthBusy]=useState(false),[passkeyBusy,setPasskeyBusy]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState(""),[nativeApp,setNativeApp]=useState(false),[passkeySupported,setPasskeySupported]=useState(true);

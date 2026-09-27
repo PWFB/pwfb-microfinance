@@ -84,4 +84,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.50 Google authentication fix 2 release build
+# PWFB v1.0.50 Staff and customer web/app login release build

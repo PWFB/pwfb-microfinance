@@ -69,7 +69,6 @@ export default function AtmCardsPage(){
     if(!customerId)return setMessage("Select a customer first.");
     if(!cardholderName.trim())return setMessage("Enter the cardholder name.");
     if(cardNumber&&!/^\d{12,19}$/.test(cardNumber.replace(/\D/g,"")))return setMessage("Enter a valid card number.");
-    if(!/^\d{4}$/.test(cardNumber.replace(/\D/g,""))&&cardNumber)return;
     if(!front&&!back)return setMessage("Attach at least the front or back of the card.");
     setSaving(true);
     try{

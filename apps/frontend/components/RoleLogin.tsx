@@ -54,6 +54,7 @@ export default function RoleLogin() {
   const [googleReady, setGoogleReady] = useState<Record<LoginMode, boolean>>({ SUPER_ADMIN: false, ADMIN: false, STAFF: false, CUSTOMER: false });
   const [selectedMode, setSelectedMode] = useState<LoginMode>("SUPER_ADMIN");
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const selectedCard = cards.find(card => card.mode === selectedMode) ?? cards[0];
 
   const destination = (role?: string) => role === "CUSTOMER" ? "/customer-dashboard" : role === "SUPER_ADMIN" ? "/dashboard" : "/staff-dashboard";
 

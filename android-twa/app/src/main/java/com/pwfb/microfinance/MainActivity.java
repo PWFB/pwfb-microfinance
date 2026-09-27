@@ -21,6 +21,11 @@ import androidx.credentials.CreateCredentialResponse;
 import androidx.credentials.CreatePublicKeyCredentialRequest;
 import androidx.credentials.CreatePublicKeyCredentialResponse;
 import androidx.credentials.CredentialManager;
+import androidx.credentials.GetCredentialException;
+import androidx.credentials.GetCredentialRequest;
+import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.GetPublicKeyCredentialOption;
+import androidx.credentials.PublicKeyCredential;
 import androidx.credentials.CredentialManagerCallback;
 import androidx.credentials.exceptions.CreateCredentialException;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -39,6 +44,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 
 public class MainActivity extends Activity {
     private static final String START_URL = "https://pwfb-frontend.onrender.com/login";
@@ -110,6 +116,79 @@ public class MainActivity extends Activity {
         @JavascriptInterface public void registerPasskey(final boolean replaceExisting, final String token) { runOnUiThread(() -> registerPasskeyOnMainThread(true, token)); }
         @JavascriptInterface public void signInWithGoogle() { runOnUiThread(() -> startNativeGoogleSignIn(null)); }
         @JavascriptInterface public void signInWithGoogle(final String loginMode) { runOnUiThread(() -> startNativeGoogleSignIn(loginMode)); }
+        @JavascriptInterface public void signInWithPasskey() { runOnUiThread(() -> startNativePasskeySignIn("CUSTOMER", "")); }
+        @JavascriptInterface public void signInWithPasskey(final String loginMode, final String identifier) { runOnUiThread(() -> startNativePasskeySignIn(loginMode, identifier)); }
+    }
+
+    private void startNativePasskeySignIn(final String loginMode, final String identifier) {
+        final String mode = loginMode == null || loginMode.trim().isEmpty() ? "CUSTOMER" : loginMode.trim().toUpperCase();
+        final String loginIdentifier = identifier == null ? "" : identifier.trim();
+        new Thread(() -> {
+            try {
+                JSONObject request = new JSONObject();
+                if (loginIdentifier.contains("@")) request.put("email", loginIdentifier);
+                JSONObject options = postPublic("/auth/passkey/login/options", request);
+                GetPublicKeyCredentialOption option = new GetPublicKeyCredentialOption(options.toString(), null, Collections.emptySet());
+                GetCredentialRequest credentialRequest = new GetCredentialRequest.Builder()
+                        .addCredentialOption(option)
+                        .build();
+                runOnUiThread(() -> credentialManager.getCredentialAsync(
+                        this,
+                        credentialRequest,
+                        null,
+                        ContextCompat.getMainExecutor(this),
+                        new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                            @Override public void onResult(GetCredentialResponse response) {
+                                try {
+                                    if (response == null || !(response.getCredential() instanceof PublicKeyCredential)) {
+                                        sendNativePasskeyLoginResult(false, "PWFB did not receive a passkey credential.", null, mode);
+                                        return;
+                                    }
+                                    String authenticationJson = ((PublicKeyCredential) response.getCredential()).getAuthenticationResponseJson();
+                                    new Thread(() -> {
+                                        try {
+                                            JSONObject body = new JSONObject();
+                                            body.put("credential", new JSONObject(authenticationJson));
+                                            body.put("challenge", options.optString("challenge", ""));
+                                            JSONObject result = postPublic("/auth/passkey/login/verify", body);
+                                            String token = result.optString("access_token", "");
+                                            if (token.isEmpty()) throw new Exception("PWFB did not return a login session.");
+                                            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
+                                            sendNativePasskeyLoginResult(true, "Biometric sign-in successful.", result, mode);
+                                        } catch (Exception e) {
+                                            sendNativePasskeyLoginResult(false, e.getMessage() == null ? "Fingerprint / Face Unlock failed." : e.getMessage(), null, mode);
+                                        }
+                                    }).start();
+                                } catch (Exception e) {
+                                    sendNativePasskeyLoginResult(false, e.getMessage() == null ? "Fingerprint / Face Unlock failed." : e.getMessage(), null, mode);
+                                }
+                            }
+                            @Override public void onError(GetCredentialException error) {
+                                String message = error == null ? "Fingerprint / Face Unlock was cancelled." : error.getMessage();
+                                sendNativePasskeyLoginResult(false, message == null ? "Fingerprint / Face Unlock failed." : message, null, mode);
+                            }
+                        }));
+            } catch (Exception e) {
+                sendNativePasskeyLoginResult(false, e.getMessage() == null ? "Fingerprint / Face Unlock is unavailable on this device." : e.getMessage(), null, mode);
+            }
+        }).start();
+    }
+
+    private void sendNativePasskeyLoginResult(boolean ok, String message, JSONObject result, String loginMode) {
+        runOnUiThread(() -> {
+            if (webView == null) return;
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("ok", ok);
+                payload.put("message", message == null ? "" : message);
+                payload.put("loginMode", loginMode == null || loginMode.trim().isEmpty() ? "CUSTOMER" : loginMode);
+                if (result != null) {
+                    payload.put("access_token", result.optString("access_token", ""));
+                    if (result.has("user")) payload.put("user", result.get("user"));
+                }
+                webView.evaluateJavascript("window.__pwfbNativePasskeyResult && window.__pwfbNativePasskeyResult(" + payload.toString() + ")", null);
+            } catch (Exception ignored) {}
+        });
     }
 
     private void startNativeGoogleSignIn(final String loginMode) {
@@ -159,6 +238,7 @@ public class MainActivity extends Activity {
 
     private JSONObject postPublic(String path, JSONObject body) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(API + path).openConnection(); c.setRequestMethod("POST"); c.setDoOutput(true); c.setConnectTimeout(15000); c.setReadTimeout(30000); c.setRequestProperty("Content-Type", "application/json");
+        c.setRequestProperty("Origin", ANDROID_ORIGIN);
         try (OutputStream out = c.getOutputStream()) { out.write(body.toString().getBytes(StandardCharsets.UTF_8)); } return readResponse(c);
     }
 

@@ -69,6 +69,88 @@ export class PaystackService {
     return customer;
   }
 
+  private validateCardInput(card: any) {
+    const number = String(card?.number || '').replace(/\D/g, '');
+    const cvv = String(card?.cvv || '').replace(/\D/g, '');
+    const expiryMonth = String(card?.expiryMonth || '').replace(/\D/g, '');
+    const expiryYear = String(card?.expiryYear || '').replace(/\D/g, '');
+    const cardholderName = String(card?.cardholderName || '').trim();
+    if (!/^\\d{12,19}$/.test(number)) throw new BadRequestException('Enter a valid card number');
+    if (!/^\\d{3,4}$/.test(cvv)) throw new BadRequestException('Enter a valid CVV');
+    const month = Number(expiryMonth);
+    const year = Number(expiryYear);
+    if (!Number.isInteger(month) || month < 1 || month > 12) throw new BadRequestException('Enter a valid expiry month');
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new BadRequestException('Enter a valid expiry year');
+    if (!cardholderName) throw new BadRequestException('Cardholder name is required');
+    return { number, cvv, expiryMonth: String(month).padStart(2, '0'), expiryYear: String(year), cardholderName };
+  }
+
+  async chargeCustomerAtmCard(customerId: string, input: any) {
+    const customer = await this.getCustomer(customerId);
+    if (!customer.email) throw new BadRequestException('Customer email is required for card deposit');
+    const amount = Number(input?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const card = this.validateCardInput(input?.card);
+    const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const data = await this.request('/charge', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: customer.email,
+        amount: Math.round(amount * 100),
+        currency: 'NGN',
+        reference,
+        card: {
+          number: card.number,
+          cvv: card.cvv,
+          expiry_month: card.expiryMonth,
+          expiry_year: card.expiryYear,
+        },
+        metadata: { customerId: customer.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
+      }),
+    });
+    const status = String(data?.data?.status || '').toLowerCase();
+    if (status === 'success') {
+      const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
+      return { ok: true, status: 'success', reference, credited, authorization: data.data?.authorization || null };
+    }
+    return {
+      ok: true,
+      status,
+      reference,
+      message: data?.message || data?.data?.display_text || 'Additional card authorization is required',
+      authorizationUrl: data?.data?.authorization_url || null,
+      authorization: data.data?.authorization || null,
+      otpRequired: ['send_otp', 'send_pin', 'send_phone'].includes(status),
+    };
+  }
+
+  async chargeCustomerWithSavedAuthorization(customerId: string, cardId: string, amount: number) {
+    const customer = await this.getCustomer(customerId);
+    if (!customer.email) throw new BadRequestException('Customer email is required for card deposit');
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const card = await this.prisma.customerAtmCard.findFirst({ where: { id: cardId, customerId } });
+    if (!card) throw new NotFoundException('ATM card not found');
+    if (!card.providerAuthorizationCode) throw new BadRequestException('This attached card has no reusable payment authorization. Enter the card details for the first deposit.');
+    const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const data = await this.request('/charge', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: customer.email,
+        amount: Math.round(numericAmount * 100),
+        currency: 'NGN',
+        reference,
+        authorization_code: card.providerAuthorizationCode,
+        metadata: { customerId: customer.id, cardId: card.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
+      }),
+    });
+    if (String(data?.data?.status || '').toLowerCase() === 'success') {
+      const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
+      return { ok: true, status: 'success', reference, credited };
+    }
+    return { ok: true, status: String(data?.data?.status || '').toLowerCase(), reference, message: data?.message || 'Card authorization requires additional action' };
+  }
+
   async initializeCustomerPayment(customerId: string, amount: number) {
     const customer = await this.getCustomer(customerId);
     if (!customer.email) throw new BadRequestException('Customer email is required for Paystack payment');

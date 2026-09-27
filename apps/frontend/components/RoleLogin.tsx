@@ -153,7 +153,13 @@ export default function RoleLogin() {
       if (!payload?.ok || !payload?.access_token) { setMessage(payload?.message || "Fingerprint / Face Unlock could not be completed."); setLoading(null); return; }
       try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); } catch (error) { setMessage(error instanceof Error ? error.message : "Biometric sign-in failed."); setLoading(null); }
     };
-    const selectedCard = cards.find(card => card.mode === selectedMode) ?? cards[0];
+    return () => {
+      delete window.__pwfbNativeGoogleResult;
+      delete window.__pwfbNativePasskeyResult;
+    };
+  }, [remember]);
+
+  const selectedCard = cards.find(card => card.mode === selectedMode) ?? cards[0];
 
   return (
     <main className="pwfb-login-page">

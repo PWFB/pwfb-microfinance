@@ -1,3 +1,4 @@
+.headingWrap{display:flex;align-items:center;gap:12px;min-width:0}.dashboardBrandMark{width:54px;height:54px;flex:0 0 54px;padding:4px;border:2px solid #f28c18;border-radius:15px;background:#075d2a;box-shadow:0 7px 18px rgba(7,93,42,.16)}.dashboardBrandMark img{display:block;width:100%;height:100%;border-radius:10px}.headingWrap .heading{min-width:0}
 .dashboard { width: 100%; max-width: 1500px; margin: 0 auto; color: #17211b; }
 .header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 4px 2px 18px; }
 .heading h1 { margin: 0; font-size: clamp(24px,2.4vw,34px); line-height: 1.05; font-weight: 900; letter-spacing: -.035em; }.heading p { margin: 7px 0 0; color: #6b776f; font-size: 12px; }.eyebrow { margin: 0 0 6px; color: #0f7b35; font-size: 10px; font-weight: 900; letter-spacing: .13em; }

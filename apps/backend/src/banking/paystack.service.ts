@@ -111,6 +111,9 @@ export class PaystackService {
     const status = String(data?.data?.status || '').toLowerCase();
     if (status === 'success') {
       const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
+      const authorizationCode = String(data.data?.authorization?.authorization_code || '').trim();
+      const cardId = String(input?.cardId || '').trim();
+      if (authorizationCode && cardId) await this.prisma.customerAtmCard.updateMany({ where: { id: cardId, customerId }, data: { providerAuthorizationCode: authorizationCode } });
       return { ok: true, status: 'success', reference, credited, authorization: data.data?.authorization || null };
     }
     return {

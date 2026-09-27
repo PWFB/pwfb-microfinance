@@ -107,10 +107,10 @@ public class MainActivity extends Activity {
 
     public final class NativePasskeyBridge {
         @JavascriptInterface public void registerPasskey(final boolean replaceExisting, final String token) { runOnUiThread(() -> registerPasskeyOnMainThread(true, token)); }
-        @JavascriptInterface public void signInWithGoogle() { runOnUiThread(MainActivity.this::startNativeGoogleSignIn); }
+        @JavascriptInterface public void signInWithGoogle(final String loginMode) { runOnUiThread(() -> startNativeGoogleSignIn(loginMode)); }
     }
 
-    private void startNativeGoogleSignIn() {
+    private void startNativeGoogleSignIn(final String loginMode) {
         new Thread(() -> {
             try {
                 JSONObject config = get("/auth/google/config");
@@ -138,16 +138,16 @@ public class MainActivity extends Activity {
             String idToken = account.getIdToken();
             new Thread(() -> {
                 try {
-                    JSONObject body = new JSONObject(); body.put("credential", idToken);
+                    JSONObject body = new JSONObject(); body.put("credential", idToken); body.put("loginMode", loginMode == null || loginMode.trim().isEmpty() ? "CUSTOMER" : loginMode);
                     JSONObject result = postPublic("/auth/google/android", body);
                     String token = result.optString("access_token", "");
                     if (token.isEmpty()) throw new Exception("PWFB did not return a login session.");
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
-                    sendNativeGoogleResult(true, "Google sign-in successful.", result);
-                } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null); }
+                    sendNativeGoogleResult(true, "Google sign-in successful.", result, loginMode);
+                } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, loginMode); }
             }).start();
-        } catch (ApiException e) { sendNativeGoogleResult(false, "Google sign-in error (code " + e.getStatusCode() + "). Please verify the PWFB Android Google configuration.", null); }
-        catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null); }
+        } catch (ApiException e) { sendNativeGoogleResult(false, "Google sign-in error (code " + e.getStatusCode() + "). Please verify the PWFB Android Google configuration.", null, loginMode); }
+        catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, loginMode); }
     }
 
     private JSONObject get(String path) throws Exception {
@@ -159,7 +159,7 @@ public class MainActivity extends Activity {
         try (OutputStream out = c.getOutputStream()) { out.write(body.toString().getBytes(StandardCharsets.UTF_8)); } return readResponse(c);
     }
 
-    private void sendNativeGoogleResult(boolean ok, String message, JSONObject result) { runOnUiThread(() -> { if (webView == null) return; try { JSONObject payload = new JSONObject(); payload.put("ok", ok); payload.put("message", message == null ? "" : message); if (result != null) { payload.put("access_token", result.optString("access_token", "")); if (result.has("user")) payload.put("user", result.get("user")); } webView.evaluateJavascript("window.__pwfbNativeGoogleResult && window.__pwfbNativeGoogleResult(" + payload.toString() + ")", null); } catch (Exception ignored) {} }); }
+    private void sendNativeGoogleResult(boolean ok, String message, JSONObject result, String loginMode) { runOnUiThread(() -> { if (webView == null) return; try { JSONObject payload = new JSONObject(); payload.put("ok", ok); payload.put("message", message == null ? "" : message); payload.put("loginMode", loginMode == null || loginMode.trim().isEmpty() ? "CUSTOMER" : loginMode); if (result != null) { payload.put("access_token", result.optString("access_token", "")); if (result.has("user")) payload.put("user", result.get("user")); } webView.evaluateJavascript("window.__pwfbNativeGoogleResult && window.__pwfbNativeGoogleResult(" + payload.toString() + ")", null); } catch (Exception ignored) {} }); }
 
     private void registerPasskeyOnMainThread(final boolean replaceExisting, final String token) {
         try {

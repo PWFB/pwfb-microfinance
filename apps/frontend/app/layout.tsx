@@ -5,6 +5,7 @@ import "./sidebar-scroll-fix.css";
 import "./pwfb-brand-overrides.css";
 import type { Metadata } from "next";
 import AppShell from "../components/AppShell";
+import PullToRefresh from "../components/PullToRefresh";
 
 export const metadata: Metadata = {
   title: "PWFB Microfinance",
@@ -32,6 +33,8 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AppShell>{children}</AppShell>
+        <PullToRefresh />
+        <div className="pwfb-bottom-accent" aria-hidden="true" />
         <script
           dangerouslySetInnerHTML={{
             __html: `if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); }); }`,

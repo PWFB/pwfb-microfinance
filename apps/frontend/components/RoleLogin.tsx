@@ -93,7 +93,7 @@ export default function RoleLogin() {
         localStorage.setItem(GOOGLE_NONCE_PREFIX + mode, nonce);
         host.innerHTML = "";
         window.google.accounts.id.initialize({
-          client_id: googleClientId || GOOGLE_CLIENT_ID,
+          client_id: clientId,
           nonce,
           auto_select: false,
           cancel_on_tap_outside: false,
@@ -101,7 +101,7 @@ export default function RoleLogin() {
           context: "signin",
           callback: (response: any) => googleLogin({
             credential: response.credential,
-            client_id: googleClientId || GOOGLE_CLIENT_ID,
+            client_id: clientId,
             nonce: localStorage.getItem(GOOGLE_NONCE_PREFIX + mode) || nonce,
             loginMode: mode,
           }),

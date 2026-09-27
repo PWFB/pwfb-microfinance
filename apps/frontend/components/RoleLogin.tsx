@@ -37,6 +37,7 @@ export default function RoleLogin() {
   const [message, setMessage] = useState("");
   const [nativeApp, setNativeApp] = useState(false);
   const [googleReady, setGoogleReady] = useState<Record<LoginMode, boolean>>({ SUPER_ADMIN: false, STAFF: false, CUSTOMER: false });
+  const [googleClientId, setGoogleClientId] = useState(GOOGLE_CLIENT_ID);
 
   const destination = (role?: string) => role === "CUSTOMER" ? "/customer-dashboard" : role === "SUPER_ADMIN" ? "/dashboard" : "/staff-dashboard";
 
@@ -92,7 +93,7 @@ export default function RoleLogin() {
         localStorage.setItem(GOOGLE_NONCE_PREFIX + mode, nonce);
         host.innerHTML = "";
         window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
+          client_id: googleClientId || GOOGLE_CLIENT_ID,
           nonce,
           auto_select: false,
           cancel_on_tap_outside: false,
@@ -100,7 +101,7 @@ export default function RoleLogin() {
           context: "signin",
           callback: (response: any) => googleLogin({
             credential: response.credential,
-            client_id: GOOGLE_CLIENT_ID,
+            client_id: googleClientId || GOOGLE_CLIENT_ID,
             nonce: localStorage.getItem(GOOGLE_NONCE_PREFIX + mode) || nonce,
             loginMode: mode,
           }),
@@ -114,6 +115,7 @@ export default function RoleLogin() {
         const config = await apiRequest("/auth/google/config", { method: "GET" });
         const clientId = String(config?.client_id || GOOGLE_CLIENT_ID).trim();
         if (!clientId) return;
+        setGoogleClientId(clientId);
         if (window.google?.accounts?.id) { renderGoogle(); return; }
         const script = document.createElement("script");
         script.src = "https://accounts.google.com/gsi/client";

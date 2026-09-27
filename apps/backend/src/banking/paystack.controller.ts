@@ -11,7 +11,7 @@ export class PaystackController {
 
   @Post('banking/customers/:customerId/paystack/card-charge')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF', 'CUSTOMER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'STAFF', 'CUSTOMER')
   chargeAtmCard(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
     if (req.user?.role === 'CUSTOMER' && (!req.user.customerId || req.user.customerId !== customerId)) throw new UnauthorizedException('You can only create payments for your own customer account');
     return this.paystackService.chargeCustomerAtmCard(customerId, body);
@@ -19,7 +19,7 @@ export class PaystackController {
 
   @Post('banking/customers/:customerId/paystack/card-charge-saved')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF', 'CUSTOMER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'STAFF', 'CUSTOMER')
   chargeSavedAtmCard(@Param('customerId') customerId: string, @Body() body: { cardId: string; amount: number }, @Req() req: any) {
     if (req.user?.role === 'CUSTOMER' && (!req.user.customerId || req.user.customerId !== customerId)) throw new UnauthorizedException('You can only create payments for your own customer account');
     return this.paystackService.chargeCustomerWithSavedAuthorization(customerId, String(body?.cardId || ''), body?.amount);
@@ -32,7 +32,7 @@ export class PaystackController {
 
   @Post('banking/customers/:customerId/paystack/initialize')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF', 'CUSTOMER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'STAFF', 'CUSTOMER')
   initializePayment(@Param('customerId') customerId: string, @Body() body: { amount: number }, @Req() req: any) {
     if (req.user?.role === 'CUSTOMER' && (!req.user.customerId || req.user.customerId !== customerId)) throw new UnauthorizedException('You can only create payments for your own customer account');
     return this.paystackService.initializeCustomerPayment(customerId, body?.amount);
@@ -40,7 +40,7 @@ export class PaystackController {
 
   @Post('banking/paystack/verify/:reference')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF', 'CUSTOMER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'STAFF', 'CUSTOMER')
   verifyPayment(@Param('reference') reference: string) { return this.paystackService.verifyAndCredit(reference); }
 
   @Post('webhooks/paystack')

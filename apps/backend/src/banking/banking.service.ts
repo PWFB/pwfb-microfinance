@@ -8,6 +8,36 @@ export class BankingService {
   async searchInstitutions(search?:string){return this.prisma.bankInstitution.findMany({where:{active:true,...(search?{OR:[{name:{contains:search,mode:'insensitive'}},{shortName:{contains:search,mode:'insensitive'}},{code:{contains:search,mode:'insensitive'}}]}:{})},orderBy:{name:'asc'}})}
   async getCustomerAccounts(customerId:string){return this.prisma.customerBankAccount.findMany({where:{customerId},include:{institution:true},orderBy:[{isPrimary:'desc'},{createdAt:'desc'}]})}
   async addCustomerAccount(data:any){const customer=await this.prisma.customer.findUnique({where:{id:data.customerId}});if(!customer)throw new NotFoundException('Customer not found');const institution=await this.prisma.bankInstitution.findUnique({where:{id:data.institutionId}});if(!institution)throw new NotFoundException('Bank or payment institution not found');if(!institution.active)throw new BadRequestException('Bank or payment institution is inactive');if(data.isPrimary)await this.prisma.customerBankAccount.updateMany({where:{customerId:data.customerId},data:{isPrimary:false}});return this.prisma.customerBankAccount.create({data:{customerId:data.customerId,institutionId:data.institutionId,accountNumber:data.accountNumber,accountName:data.accountName,isPrimary:data.isPrimary??false,verifiedAt:data.verifiedAt??null},include:{institution:true}})}
+  async getCustomerAtmCards(customerId:string){
+    const customer=await this.prisma.customer.findUnique({where:{id:customerId},select:{id:true}});
+    if(!customer)throw new NotFoundException('Customer not found');
+    const cards=await this.prisma.customerAtmCard.findMany({where:{customerId},orderBy:{createdAt:'desc'}});
+    return cards.map(({frontImage,backImage,...card})=>({ ...card, hasFrontAttachment:Boolean(frontImage), hasBackAttachment:Boolean(backImage) }));
+  }
+  async getCustomerAtmCardAttachment(customerId:string,cardId:string,side:'front'|'back'){
+    const card=await this.prisma.customerAtmCard.findFirst({where:{id:cardId,customerId}});
+    if(!card)throw new NotFoundException('ATM card not found');
+    const data=side==='front'?card.frontImage:card.backImage;
+    const mime=side==='front'?card.frontMimeType:card.backMimeType;
+    if(!data||!mime)throw new NotFoundException('ATM card attachment not found');
+    return {data:Buffer.from(data).toString('base64'),mimeType:mime};
+  }
+  async addCustomerAtmCard(data:any){
+    const customer=await this.prisma.customer.findUnique({where:{id:data.customerId},select:{id:true}});
+    if(!customer)throw new NotFoundException('Customer not found');
+    const last4=String(data.last4||'').replace(/\D/g,'');
+    if(!/^\d{4}$/.test(last4))throw new BadRequestException('ATM card last 4 digits are required');
+    const cardholderName=String(data.cardholderName||'').trim();
+    if(cardholderName.length<2)throw new BadRequestException('Cardholder name is required');
+    const cleanAttachment=(value:any,mime:any)=>{if(!value)return {data:null,mimeType:null};const raw=String(value).replace(/^data:[^;]+;base64,/,'');const buffer=Buffer.from(raw,'base64');if(!buffer.length||buffer.length>5*1024*1024)throw new BadRequestException('Each ATM card image must be between 1 byte and 5 MB');if(!/^image\/(jpeg|png|webp)$/.test(String(mime||'')))throw new BadRequestException('ATM card attachments must be JPEG, PNG, or WebP images');return {data:buffer,mimeType:String(mime)}};
+    const front=cleanAttachment(data.frontImage,data.frontMimeType); const back=cleanAttachment(data.backImage,data.backMimeType);
+    if(!front.data&&!back.data)throw new BadRequestException('Attach at least the front or back image of the ATM card');
+    const month=data.expiryMonth==null?null:Number(data.expiryMonth), year=data.expiryYear==null?null:Number(data.expiryYear);
+    if(month!==null&&(!Number.isInteger(month)||month<1||month>12))throw new BadRequestException('Expiry month must be 1-12');
+    if(year!==null&&(!Number.isInteger(year)||year<2000||year>2100))throw new BadRequestException('Expiry year is invalid');
+    return this.prisma.customerAtmCard.create({data:{customerId:data.customerId,cardholderName,last4,cardNetwork:String(data.cardNetwork||'').trim()||null,expiryMonth:month,expiryYear:year,status:String(data.status||'ACTIVE').toUpperCase(),frontImage:front.data,frontMimeType:front.mimeType,backImage:back.data,backMimeType:back.mimeType},select:{id:true,customerId:true,cardholderName:true,last4:true,cardNetwork:true,expiryMonth:true,expiryYear:true,status:true,createdAt:true,updatedAt:true}});
+  }
+  async removeCustomerAtmCard(customerId:string,cardId:string){const card=await this.prisma.customerAtmCard.findFirst({where:{id:cardId,customerId}});if(!card)throw new NotFoundException('ATM card not found');await this.prisma.customerAtmCard.delete({where:{id:card.id}});return {message:'ATM card removed'};}
   async getBranchVirtualAccounts(branchId:string){return this.prisma.branchVirtualAccount.findMany({where:{branchId},include:{institution:true,branch:true},orderBy:{createdAt:'desc'}})}
   async generateBranchVirtualAccount(branchId:string,institutionId:string){const branch=await this.prisma.branch.findUnique({where:{id:branchId}});if(!branch)throw new NotFoundException('Branch not found');const institution=await this.prisma.bankInstitution.findUnique({where:{id:institutionId}});if(!institution)throw new NotFoundException('Bank or payment institution not found');if(!institution.active)throw new BadRequestException('Bank or payment institution is inactive');const existing=await this.prisma.branchVirtualAccount.findUnique({where:{branchId_institutionId:{branchId,institutionId}},include:{institution:true,branch:true}});if(existing)return existing;let accountNumber='';do{accountNumber=`9${Date.now().toString().slice(-8)}${Math.floor(Math.random()*10)}`}while(await this.prisma.branchVirtualAccount.findUnique({where:{accountNumber}}));return this.prisma.branchVirtualAccount.create({data:{branchId,institutionId,accountNumber,accountName:`PWFB - ${branch.name}`,isGenerated:true,generatedAt:new Date()},include:{institution:true,branch:true}})}
   private amount(value:any){const n=Number(value);if(!Number.isFinite(n)||n<=0)throw new BadRequestException('Amount must be greater than zero');return Math.round(n*100)/100}

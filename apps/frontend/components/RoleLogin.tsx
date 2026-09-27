@@ -85,7 +85,11 @@ export default function RoleLogin() {
     window.location.assign(destination(role));
   };
 
-  const forgotPassword = () => {\n    setMessage("Password recovery is not configured on this login screen yet. Please contact your PWFB administrator.");\n  };\n\n  const login = async (event: React.FormEvent, mode: LoginMode) => {
+  const forgotPassword = () => {
+    setMessage("Password recovery is not configured on this login screen yet. Please contact your PWFB administrator.");
+  };
+
+  const login = async (event: React.FormEvent, mode: LoginMode) => {
     event.preventDefault(); setMessage(""); setLoading(mode);
     try {
       await completeLogin(await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ identifier: values[mode].trim(), password: passwords[mode], loginMode: mode }) }), mode);

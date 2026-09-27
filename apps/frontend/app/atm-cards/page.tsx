@@ -68,11 +68,14 @@ export default function AtmCardsPage(){
     setMessage("");
     if(!customerId)return setMessage("Select a customer first.");
     if(!cardholderName.trim())return setMessage("Enter the cardholder name.");
+    const normalizedCardNumber=cardNumber.replace(/\D/g,"");
+    if(!/^\d{12,19}$/.test(normalizedCardNumber))return setMessage("Enter the full card number so PWFB can identify the attached card by its last 4 digits.");
+    if(!month||!year)return setMessage("Enter the card expiry month and year.");
     if(cardNumber&&!/^\d{12,19}$/.test(cardNumber.replace(/\D/g,"")))return setMessage("Enter a valid card number.");
     if(!front&&!back)return setMessage("Attach at least the front or back of the card.");
     setSaving(true);
     try{
-      await pwfbApi.banking.addAtmCard(customerId,{cardholderName:cardholderName.trim(),last4:cardNumber.replace(/\D/g,"").slice(-4),cardNetwork:network,expiryMonth:month?Number(month):null,expiryYear:year?Number(year):null,frontImage:front?.data||null,frontMimeType:front?.mime||null,backImage:back?.data||null,backMimeType:back?.mime||null});
+      await pwfbApi.banking.addAtmCard(customerId,{cardholderName:cardholderName.trim(),last4:normalizedCardNumber.slice(-4),cardNetwork:network,expiryMonth:month?Number(month):null,expiryYear:year?Number(year):null,frontImage:front?.data||null,frontMimeType:front?.mime||null,backImage:back?.data||null,backMimeType:back?.mime||null});
       setMessage("ATM card attached successfully. The full card number and CVV were not stored.");
       setCardNumber("");setCvv("");setFront(null);setBack(null);setMonth("");setYear("");
       await loadCards(customerId);

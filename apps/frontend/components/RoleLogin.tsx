@@ -157,7 +157,7 @@ export default function RoleLogin() {
       if (!payload?.ok || !payload?.access_token) { setMessage(payload?.message || "Fingerprint / Face Unlock could not be completed."); setLoading(null); return; }
       try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); } catch (error) { setMessage(error instanceof Error ? error.message : "Biometric sign-in failed."); setLoading(null); }
     };
-    return (
+    return () => {\n      delete window.__pwfbNativeGoogleResult;\n      delete window.__pwfbNativePasskeyResult;\n    };\n  }, []);\n\n  return (
     <main className="pwfb-login-page">
       <header className="pwfb-brand">
         <img src="/pwfb-login-logo.svg" alt="PWFB Microfinance" />

@@ -75,8 +75,8 @@ export class PaystackService {
     const expiryMonth = String(card?.expiryMonth || '').replace(/\D/g, '');
     const expiryYear = String(card?.expiryYear || '').replace(/\D/g, '');
     const cardholderName = String(card?.cardholderName || '').trim();
-    if (!/^\\d{12,19}$/.test(number)) throw new BadRequestException('Enter a valid card number');
-    if (!/^\\d{3,4}$/.test(cvv)) throw new BadRequestException('Enter a valid CVV');
+    if (!/^\d{12,19}$/.test(number)) throw new BadRequestException('Enter a valid card number');
+    if (!/^\d{3,4}$/.test(cvv)) throw new BadRequestException('Enter a valid CVV');
     const month = Number(expiryMonth);
     const year = Number(expiryYear);
     if (!Number.isInteger(month) || month < 1 || month > 12) throw new BadRequestException('Enter a valid expiry month');

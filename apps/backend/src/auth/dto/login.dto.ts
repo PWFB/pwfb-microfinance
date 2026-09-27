@@ -1,9 +1,19 @@
-import { IsEmail, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class LoginDto {
-  @IsEmail()
-  email: string;
+  @IsOptional()
+  @IsString()
+  identifier?: string;
+
+  // Backward compatibility for existing web/app clients.
+  @IsOptional()
+  @IsString()
+  email?: string;
 
   @IsString()
   password: string;
+
+  @IsOptional()
+  @IsIn(['SUPER_ADMIN', 'STAFF', 'CUSTOMER'])
+  loginMode?: 'SUPER_ADMIN' | 'STAFF' | 'CUSTOMER';
 }

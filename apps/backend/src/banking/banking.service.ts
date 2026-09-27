@@ -6,8 +6,9 @@ export class BankingService {
   constructor(private readonly prisma: PrismaService) {}
   async onModuleInit(){await this.ensureAtmCardTable()}
   private async ensureAtmCardTable(){
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CustomerAtmCard" ("id" TEXT PRIMARY KEY,"customerId" TEXT NOT NULL,"cardholderName" TEXT NOT NULL,"last4" TEXT NOT NULL,"cardNetwork" TEXT,"expiryMonth" INTEGER,"expiryYear" INTEGER,"status" TEXT NOT NULL DEFAULT 'ACTIVE',"frontImage" BYTEA,"frontMimeType" TEXT,"backImage" BYTEA,"backMimeType" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CustomerAtmCard" ("id" TEXT PRIMARY KEY,"customerId" TEXT NOT NULL,"cardholderName" TEXT NOT NULL,"last4" TEXT NOT NULL,"cardNetwork" TEXT,"expiryMonth" INTEGER,"expiryYear" INTEGER,"status" TEXT NOT NULL DEFAULT 'ACTIVE',"providerAuthorizationCode" TEXT,"frontImage" BYTEA,"frontMimeType" TEXT,"backImage" BYTEA,"backMimeType" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
     await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CustomerAtmCard_customerId_idx" ON "CustomerAtmCard" ("customerId");`);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "CustomerAtmCard" ADD COLUMN IF NOT EXISTS "providerAuthorizationCode" TEXT;`);
     await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CustomerAtmCard_status_idx" ON "CustomerAtmCard" ("status");`);
   }
   async listInstitutions(){return this.prisma.bankInstitution.findMany({where:{active:true},orderBy:{name:'asc'}})}
@@ -18,7 +19,7 @@ export class BankingService {
     const customer=await this.prisma.customer.findUnique({where:{id:customerId},select:{id:true}});
     if(!customer)throw new NotFoundException('Customer not found');
     const cards=await this.prisma.customerAtmCard.findMany({where:{customerId},orderBy:{createdAt:'desc'}});
-    return cards.map(({frontImage,backImage,...card})=>({ ...card, hasFrontAttachment:Boolean(frontImage), hasBackAttachment:Boolean(backImage) }));
+    return cards.map(({frontImage,backImage,providerAuthorizationCode,...card})=>({ ...card, hasFrontAttachment:Boolean(frontImage), hasBackAttachment:Boolean(backImage), hasReusableAuthorization:Boolean(providerAuthorizationCode) }));
   }
   async getCustomerAtmCardAttachment(customerId:string,cardId:string,side:'front'|'back'){
     const card=await this.prisma.customerAtmCard.findFirst({where:{id:cardId,customerId}});
@@ -41,7 +42,7 @@ export class BankingService {
     const month=data.expiryMonth==null?null:Number(data.expiryMonth), year=data.expiryYear==null?null:Number(data.expiryYear);
     if(month!==null&&(!Number.isInteger(month)||month<1||month>12))throw new BadRequestException('Expiry month must be 1-12');
     if(year!==null&&(!Number.isInteger(year)||year<2000||year>2100))throw new BadRequestException('Expiry year is invalid');
-    return this.prisma.customerAtmCard.create({data:{customerId:data.customerId,cardholderName,last4,cardNetwork:String(data.cardNetwork||'').trim()||null,expiryMonth:month,expiryYear:year,status:String(data.status||'ACTIVE').toUpperCase(),frontImage:front.data,frontMimeType:front.mimeType,backImage:back.data,backMimeType:back.mimeType},select:{id:true,customerId:true,cardholderName:true,last4:true,cardNetwork:true,expiryMonth:true,expiryYear:true,status:true,createdAt:true,updatedAt:true}});
+    return this.prisma.customerAtmCard.create({data:{customerId:data.customerId,cardholderName,last4,cardNetwork:String(data.cardNetwork||'').trim()||null,expiryMonth:month,expiryYear:year,status:String(data.status||'ACTIVE').toUpperCase(),providerAuthorizationCode:String(data.providerAuthorizationCode||'').trim()||null,frontImage:front.data,frontMimeType:front.mimeType,backImage:back.data,backMimeType:back.mimeType},select:{id:true,customerId:true,cardholderName:true,last4:true,cardNetwork:true,expiryMonth:true,expiryYear:true,status:true,createdAt:true,updatedAt:true}});
   }
   async removeCustomerAtmCard(customerId:string,cardId:string){const card=await this.prisma.customerAtmCard.findFirst({where:{id:cardId,customerId}});if(!card)throw new NotFoundException('ATM card not found');await this.prisma.customerAtmCard.delete({where:{id:card.id}});return {message:'ATM card removed'};}
   async getBranchVirtualAccounts(branchId:string){return this.prisma.branchVirtualAccount.findMany({where:{branchId},include:{institution:true,branch:true},orderBy:{createdAt:'desc'}})}

@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -35,7 +36,7 @@ export class CustomersController {
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
-  findAll(@Req() req: any) { return this.customersService.findAll(req.user); }
+  findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')

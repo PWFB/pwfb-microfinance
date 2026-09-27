@@ -14,6 +14,6 @@ export class LoginDto {
   password: string;
 
   @IsOptional()
-  @IsIn(['SUPER_ADMIN', 'STAFF', 'CUSTOMER'])
-  loginMode?: 'SUPER_ADMIN' | 'STAFF' | 'CUSTOMER';
+  @IsIn(['SUPER_ADMIN', 'ADMIN', 'STAFF', 'CUSTOMER'])
+  loginMode?: 'SUPER_ADMIN' | 'ADMIN' | 'STAFF' | 'CUSTOMER';
 }

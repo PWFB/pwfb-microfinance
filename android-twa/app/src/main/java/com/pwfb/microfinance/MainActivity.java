@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
     private void buildWebApp() {
         swipeRefresh = new SwipeRefreshLayout(this); swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); swipeRefresh.setEnabled(true); swipeRefresh.setColorSchemeColors(GREEN, ORANGE); swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE); swipeRefresh.setDistanceToTriggerSync(dp(72)); swipeRefresh.setSlingshotDistance(dp(96));
         webView = new WebView(this); webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); webView.setBackgroundColor(Color.WHITE); webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
-        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.50");
+        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.51");
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) WebSettingsCompat.setWebAuthenticationSupport(s, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.addJavascriptInterface(new NativePasskeyBridge(), "PWFBNative");
@@ -109,7 +109,7 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) { if (swipeRefresh != null) swipeRefresh.setRefreshing(false); continueNativeLogin(view, url); }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) { if (request.isForMainFrame() && swipeRefresh != null) swipeRefresh.setRefreshing(false); }
         });
-        webView.setWebChromeClient(new WebChromeClient()); swipeRefresh.addView(webView); swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); }); swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.getScrollY() > 0); setContentView(swipeRefresh); webView.loadUrl(START_URL);
+        webView.setWebChromeClient(new WebChromeClient()); swipeRefresh.addView(webView); swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); }); swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.canScrollVertically(-1)); setContentView(swipeRefresh); webView.loadUrl(START_URL);
     }
 
     public final class NativePasskeyBridge {

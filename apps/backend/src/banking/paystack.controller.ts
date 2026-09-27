@@ -9,6 +9,22 @@ import { Roles } from '../auth/decorators/roles.decorator';
 export class PaystackController {
   constructor(private readonly paystackService: PaystackService, private readonly branchDvaService: PaystackBranchDvaService) {}
 
+  @Post('banking/customers/:customerId/paystack/card-charge')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF', 'CUSTOMER')
+  chargeAtmCard(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
+    if (req.user?.role === 'CUSTOMER' && (!req.user.customerId || req.user.customerId !== customerId)) throw new UnauthorizedException('You can only create payments for your own customer account');
+    return this.paystackService.chargeCustomerAtmCard(customerId, body);
+  }
+
+  @Post('banking/customers/:customerId/paystack/card-charge-saved')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF', 'CUSTOMER')
+  chargeSavedAtmCard(@Param('customerId') customerId: string, @Body() body: { cardId: string; amount: number }, @Req() req: any) {
+    if (req.user?.role === 'CUSTOMER' && (!req.user.customerId || req.user.customerId !== customerId)) throw new UnauthorizedException('You can only create payments for your own customer account');
+    return this.paystackService.chargeCustomerWithSavedAuthorization(customerId, String(body?.cardId || ''), body?.amount);
+  }
+
   @Post('banking/paystack/test')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN', 'ADMIN')

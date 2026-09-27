@@ -108,7 +108,8 @@ public class MainActivity extends Activity {
 
     public final class NativePasskeyBridge {
         @JavascriptInterface public void registerPasskey(final boolean replaceExisting, final String token) { runOnUiThread(() -> registerPasskeyOnMainThread(true, token)); }
-        @JavascriptInterface public void signInWithGoogle() { runOnUiThread(() -> startNativeGoogleSignIn(null)); }\n        @JavascriptInterface public void signInWithGoogle(final String loginMode) { runOnUiThread(() -> startNativeGoogleSignIn(loginMode)); }
+        @JavascriptInterface public void signInWithGoogle() { runOnUiThread(() -> startNativeGoogleSignIn(null)); }
+        @JavascriptInterface public void signInWithGoogle(final String loginMode) { runOnUiThread(() -> startNativeGoogleSignIn(loginMode)); }
     }
 
     private void startNativeGoogleSignIn(final String loginMode) {

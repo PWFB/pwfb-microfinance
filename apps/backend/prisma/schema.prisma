@@ -124,6 +124,27 @@ model Customer {
   wallet CustomerWallet?
   walletTransactions WalletTransaction[]
   virtualAccounts CustomerVirtualAccount[]
+  atmCards CustomerAtmCard[]
+}
+
+model CustomerAtmCard {
+  id String @id @default(cuid())
+  customerId String
+  cardholderName String
+  last4 String
+  cardNetwork String?
+  expiryMonth Int?
+  expiryYear Int?
+  status String @default("ACTIVE")
+  frontImage Bytes?
+  frontMimeType String?
+  backImage Bytes?
+  backMimeType String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  @@index([customerId])
+  @@index([status])
 }
 
 model Savings {

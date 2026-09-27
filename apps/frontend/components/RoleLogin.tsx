@@ -2,43 +2,177 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import { apiRequest } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { getDashboardPath } from "../lib/role-routing";
 
-const GOOGLE_NONCE_KEY = "pwfb_google_oidc_nonce";
+type LoginMode = "SUPER_ADMIN" | "STAFF" | "CUSTOMER";
+type GooglePayload = { credential: string; client_id: string; nonce: string; loginMode: LoginMode };
+
+declare global {
+  interface Window {
+    google?: any;
+    PWFBNative?: { signInWithGoogle: (loginMode?: string) => void };
+    __pwfbNativeGoogleResult?: (payload: any) => void;
+  }
+}
+
+const GOOGLE_NONCE_PREFIX = "pwfb_google_oidc_nonce_";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
-type Mode = "admin" | "staff" | "customer";
 
-declare global { interface Window { google?: any; PWFBNative?: { signInWithGoogle:()=>void; registerPasskey:(replaceExisting:boolean,token:string)=>void }; __pwfbNativeGoogleResult?: (payload:any)=>void; __pwfbNativePasskeyStatus?: (message:string)=>void; __pwfbNativePasskeyResult?: (payload:any)=>void } }
+const cards: Array<{ mode: LoginMode; title: string; subtitle: string; placeholder: string; icon: string; tone: string }> = [
+  { mode: "SUPER_ADMIN", title: "Super Admin Login", subtitle: "Access the complete system management and administrative controls.", placeholder: "Email Address", icon: "🔐", tone: "admin" },
+  { mode: "STAFF", title: "Staff Login", subtitle: "Access your work dashboard and manage your assigned operations.", placeholder: "Email Address", icon: "👥", tone: "staff" },
+  { mode: "CUSTOMER", title: "Customer Login", subtitle: "Access your account, check your balance, make transactions and more.", placeholder: "Customer ID / Email / Phone Number", icon: "👤", tone: "customer" },
+];
 
-export default function RoleLogin(){
-  const router=useRouter(); const {refreshProfile}=useAuth(); const googleRef=useRef<HTMLDivElement>(null);
-  const [mode,setMode]=useState<Mode>(() => typeof navigator !== "undefined" && /PWFBAndroidApp/i.test(navigator.userAgent) ? "staff" : "admin"); const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [show,setShow]=useState(false); const [loading,setLoading]=useState(false); const [message,setMessage]=useState(""); const [nativeApp,setNativeApp]=useState(false); const [fingerprintReady,setFingerprintReady]=useState(false); const [googleReady,setGoogleReady]=useState(false);
-  const isAdmin=mode==="admin";
-  const isCustomer=mode==="customer";
-  const destination=(role?:string)=>getDashboardPath(role);
-  const allowed=(role?:string)=>isAdmin?role==="SUPER_ADMIN":isCustomer?role==="CUSTOMER":role!=="SUPER_ADMIN"&&role!=="CUSTOMER";
-  const denied=()=>isAdmin?"This account is not a Super Admin account. Use Staff or Customer Login.":isCustomer?"This account is not a Customer account. Use Staff Login.":"This account is not a Staff account. Use Customer or Super Admin Login.";
-  const save=(data:any)=>{if(!data?.access_token)throw new Error(data?.message||"Login failed");const token=String(data.access_token);localStorage.setItem("token",token);sessionStorage.setItem("token",token);localStorage.setItem("access_token",token);sessionStorage.setItem("access_token",token);};
-  const finish=async(data:any)=>{save(data);let role=data.user?.role;if(!role){try{role=(await refreshProfile())?.role}catch{}}if(!allowed(role)){["token","access_token"].forEach(k=>{localStorage.removeItem(k);sessionStorage.removeItem(k)});throw new Error(denied())}window.location.assign(destination(role));};
-  const registerFingerprint=async(token:string)=>{if(window.PWFBNative?.registerPasskey){await new Promise<void>(resolve=>{let done=false;const end=()=>{if(!done){done=true;resolve()}};window.__pwfbNativePasskeyStatus=m=>setMessage(m);window.__pwfbNativePasskeyResult=p=>{setMessage(p?.ok?"Fingerprint saved. You can now use fingerprint next time.":p?.message||"Fingerprint setup was not completed.");end()};window.PWFBNative!.registerPasskey(true,token);setTimeout(end,30000)});return}if(!("credentials"in navigator)||!("PublicKeyCredential"in window))return;try{await apiRequest("/auth/passkey/unregister-all",{method:"POST"});const options=await apiRequest("/auth/passkey/register/options",{method:"POST",body:JSON.stringify({replaceExisting:true})});const credential=await startRegistration({optionsJSON:options});await apiRequest("/auth/passkey/register/verify",{method:"POST",body:JSON.stringify({credential,challenge:options.challenge})});setMessage("Fingerprint saved. You can now use fingerprint next time.")}catch(e:any){setMessage(e?.name==="NotAllowedError"?"Fingerprint setup cancelled. You can register it later from Security.":"Google login succeeded. Fingerprint was not saved yet.")}};
-  const googleFinish=async(data:any)=>{save(data);let role=data.user?.role;if(!role){try{role=(await refreshProfile())?.role}catch{}}if(!allowed(role)){localStorage.removeItem("token");sessionStorage.removeItem("token");throw new Error(denied())}await registerFingerprint(String(data.access_token));window.location.assign(destination(role))};
-  const submit=async(e:React.FormEvent)=>{e.preventDefault();setMessage("");setLoading(true);try{await finish(await apiRequest("/auth/login",{method:"POST",body:JSON.stringify({email:email.trim().toLowerCase(),password})}))}catch(e){setMessage(e instanceof Error?e.message:"Unable to connect to PWFB")}finally{setLoading(false)}};
-  const fingerprint=async()=>{setMessage("");setLoading(true);try{if(!("credentials"in navigator)||!("PublicKeyCredential"in window))throw new Error("Fingerprint sign-in is not available on this device.");const o=await apiRequest("/auth/passkey/login/options",{method:"POST",body:JSON.stringify({})});const c=await startAuthentication({optionsJSON:o});await finish(await apiRequest("/auth/passkey/login/verify",{method:"POST",body:JSON.stringify({credential:c,challenge:o.challenge})}))}catch(e:any){setMessage(e?.name==="NotAllowedError"?"Fingerprint sign-in was cancelled. Try again or use Google.":e instanceof Error?e.message:"Fingerprint sign-in failed.")}finally{setLoading(false)}};
-  const nativeGoogle=()=>{setMessage("");setLoading(true);if(!window.PWFBNative?.signInWithGoogle){setLoading(false);setMessage("Google sign-in is not available here. Use the Google button.");return}window.PWFBNative.signInWithGoogle()};
-  useEffect(()=>{
-    const app=typeof window!=="undefined"&&!!window.PWFBNative;
-    setNativeApp(app);
-    setFingerprintReady(Boolean("credentials"in navigator&&"PublicKeyCredential"in window));
-    if(typeof window!=="undefined"){
-      const requested=new URLSearchParams(window.location.search).get("mode");
-      if(requested==="admin"||requested==="staff"||requested==="customer") setMode(requested);
+export default function RoleLogin() {
+  const router = useRouter();
+  const { refreshProfile } = useAuth();
+  const googleRefs = useRef<Record<LoginMode, HTMLDivElement | null>>({ SUPER_ADMIN: null, STAFF: null, CUSTOMER: null });
+  const [values, setValues] = useState<Record<LoginMode, string>>({ SUPER_ADMIN: "", STAFF: "", CUSTOMER: "" });
+  const [passwords, setPasswords] = useState<Record<LoginMode, string>>({ SUPER_ADMIN: "", STAFF: "", CUSTOMER: "" });
+  const [showPassword, setShowPassword] = useState<Record<LoginMode, boolean>>({ SUPER_ADMIN: false, STAFF: false, CUSTOMER: false });
+  const [remember, setRemember] = useState<Record<LoginMode, boolean>>({ SUPER_ADMIN: true, STAFF: true, CUSTOMER: true });
+  const [loading, setLoading] = useState<LoginMode | null>(null);
+  const [message, setMessage] = useState("");
+  const [nativeApp, setNativeApp] = useState(false);
+  const [googleReady, setGoogleReady] = useState<Record<LoginMode, boolean>>({ SUPER_ADMIN: false, STAFF: false, CUSTOMER: false });
+
+  const destination = (role?: string) => role === "CUSTOMER" ? "/customer-dashboard" : role === "SUPER_ADMIN" ? "/dashboard" : "/staff-dashboard";
+
+  const saveSession = (data: any, mode: LoginMode) => {
+    if (!data?.access_token) throw new Error(data?.message || "Login failed");
+    const token = String(data.access_token);
+    if (remember[mode]) localStorage.setItem("token", token); else localStorage.removeItem("token");
+    sessionStorage.setItem("token", token);
+    localStorage.setItem("access_token", token);
+    sessionStorage.setItem("access_token", token);
+    localStorage.setItem("user", JSON.stringify(data.user || {}));
+    sessionStorage.setItem("user", JSON.stringify(data.user || {}));
+  };
+
+  const completeLogin = async (data: any, mode: LoginMode) => {
+    saveSession(data, mode);
+    const role = data.user?.role || (await refreshProfile())?.role;
+    if ((mode === "SUPER_ADMIN" && role !== "SUPER_ADMIN") || (mode === "STAFF" && role === "SUPER_ADMIN") || (mode === "CUSTOMER" && role !== "CUSTOMER")) {
+      localStorage.removeItem("token"); localStorage.removeItem("access_token"); localStorage.removeItem("user");
+      sessionStorage.removeItem("token"); sessionStorage.removeItem("access_token"); sessionStorage.removeItem("user");
+      throw new Error(mode === "SUPER_ADMIN" ? "This account is not a Super Admin account. Use Staff or Customer Login." : mode === "STAFF" ? "Super Admin accounts must use Super Admin Login." : "This account is not a Customer account. Use Staff or Super Admin Login.");
     }
-    if(app)return;
-    let active=true;const load=async()=>{try{const cfg=await apiRequest("/auth/google/config",{method:"GET"});const clientId=String(cfg?.client_id||GOOGLE_CLIENT_ID).trim();if(!clientId)return;const render=()=>{if(!active||!window.google?.accounts?.id||!googleRef.current)return;const bytes=new Uint8Array(32);crypto.getRandomValues(bytes);const nonce=Array.from(bytes,v=>v.toString(16).padStart(2,"0")).join("");localStorage.setItem(GOOGLE_NONCE_KEY,nonce);googleRef.current.innerHTML="";window.google.accounts.id.initialize({client_id:clientId,nonce,auto_select:false,cancel_on_tap_outside:false,use_fedcm_for_prompt:false,context:"signin",callback:async(r:any)=>{try{await googleFinish(await apiRequest("/auth/google",{method:"POST",body:JSON.stringify({credential:r.credential,client_id:clientId,nonce:localStorage.getItem(GOOGLE_NONCE_KEY)})}));localStorage.removeItem(GOOGLE_NONCE_KEY)}catch(e){setMessage(e instanceof Error?e.message:"Google sign-in failed");setLoading(false)}}});window.google.accounts.id.renderButton(googleRef.current,{type:"standard",theme:"outline",size:"large",text:"signin_with",shape:"rectangular",logo_alignment:"left",width:350});setGoogleReady(true)};if(window.google?.accounts?.id)render();else{const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.async=true;s.defer=true;s.onload=render;document.head.appendChild(s)}}catch{}};load();return()=>{active=false}},[mode]);
-  useEffect(()=>{if(typeof window==="undefined")return;window.__pwfbNativeGoogleResult=async(p)=>{if(!p?.ok||!p?.access_token){setMessage(p?.message||"Google sign-in could not be completed.");setLoading(false);return}try{await googleFinish({access_token:p.access_token,user:p.user})}catch(e){setMessage(e instanceof Error?e.message:"Google sign-in failed");setLoading(false)}};return()=>{delete window.__pwfbNativeGoogleResult}},[mode]);
-  const switchMode=(m:Mode)=>{if(m===mode)return;setMode(m);setPassword("");setMessage("");setGoogleReady(false)};
-  return <main className={`role-login ${mode}`}><div className="login-shell"><aside className="visual"><img className="logo" src="/pwfb-login-logo.svg" alt="PWFB"/><div className="visual-copy"><span>{isAdmin?"PWFB ADMINISTRATION":"PWFB MICROFINANCE"}</span><h1>{isAdmin?<>Control the business.<br/><em>Securely.</em></>:<>Banking made<br/><em>simple.</em></>}</h1><p>{isAdmin?"Private access for Super Admin operations, controls, approvals and oversight.":"Secure access for PWFB staff and customers to manage everyday financial services."}</p></div><div className="trust"><b>● Secure</b><b>● Fast</b><b>● Reliable</b></div></aside><section className="form-card"><div className="mobile-logo"><img src="/pwfb-login-logo.svg" alt="PWFB"/></div><div className="switch" role="tablist"><button type="button" className={isAdmin?"active":""} onClick={()=>switchMode("admin")}>Super Admin</button><button type="button" className={mode==="staff"?"active":""} onClick={()=>switchMode("staff")}>Staff</button><button type="button" className={isCustomer?"active":""} onClick={()=>switchMode("customer")}>Customer</button></div><div className="role-label"><strong>{isAdmin?"SUPER ADMIN LOGIN":isCustomer?"CUSTOMER LOGIN":"STAFF LOGIN"}</strong><small>{isAdmin?"Restricted administration access":isCustomer?"Customer account access":"Employee account access"}</small></div><div className="title"><span>{isAdmin?"ADMINISTRATOR ACCESS":isCustomer?"CUSTOMER ACCESS":"STAFF ACCESS"}</span><h2>{isAdmin?"Super Admin Login":isCustomer?"Customer Login":"Staff Login"}</h2><p>{isAdmin?"Use your Super Admin credentials to enter the administration dashboard.":isCustomer?"Sign in to your PWFB customer account to continue.":"Sign in to your PWFB staff account to continue."}</p></div>{message&&<div className="notice">{message}</div>}<form onSubmit={submit}><label>Email address<input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" autoComplete="username" required/></label><label>Password<div className="pass"><input type={show?"text":"password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" required/><button type="button" onClick={()=>setShow(v=>!v)}>{show?"Hide":"Show"}</button></div></label><button className="submit" disabled={loading}>{loading?"Signing in…":isAdmin?"Enter Super Admin":"Sign in"}</button></form>{isCustomer&&<div className="register">New to PWFB? <button type="button" onClick={()=>router.push("/register")}>Create customer account</button></div>}<div className="or"><i/>OR<i/></div>{nativeApp?<button className="google" type="button" disabled={loading} onClick={nativeGoogle}><b>G</b> Continue with Google</button>:<div className={`google-web ${googleReady?"ready":""}`} ref={googleRef}/>}<button className="fingerprint" type="button" disabled={loading||!fingerprintReady} onClick={fingerprint}><b>⌁</b><span><strong>Use fingerprint</strong><small>{isAdmin?"Super Admin device access":isCustomer?"Customer device access":"Staff device access"}</small></span><em>›</em></button><p className="hint">{isAdmin?"Only Super Admin accounts can enter this access mode.":isCustomer?"Only Customer accounts can enter this access mode.":"Only Staff accounts can enter this access mode."}</p><footer>Perfect Wisdom For Better Ltd · Moving Forward Together For Better Living</footer></section></div><style jsx>{`*{box-sizing:border-box}.role-login{min-height:100dvh;display:grid;place-items:center;padding:28px;background:#f2f7f4;color:#18221d;font-family:Inter,system-ui,sans-serif;transition:background .35s}.login-shell{width:min(1080px,100%);min-height:690px;display:grid;grid-template-columns:46% 54%;background:#fff;border-radius:30px;overflow:hidden;box-shadow:0 28px 80px rgba(5,55,28,.18)}.visual{padding:54px;display:flex;flex-direction:column;color:#fff;position:relative;background:linear-gradient(155deg,#043c21,#087534);transition:background .35s}.role-login.staff .visual{background:linear-gradient(155deg,#087534,#0b8650)}.role-login.customer .visual{background:linear-gradient(155deg,#0b8650,#087534)}.visual:after{content:"";position:absolute;left:0;right:0;bottom:0;height:7px;background:#f47712}.logo{width:270px;background:#fff;border-radius:13px;padding:9px 12px;border-bottom:4px solid #f47712}.visual-copy{margin:auto 0}.visual-copy>span{font-size:11px;letter-spacing:2px;color:#ffb06d;font-weight:900}.visual-copy h1{font-size:48px;line-height:1.02;margin:14px 0;font-weight:900}.visual-copy em{font-style:normal;color:#ffad68}.visual-copy p{max-width:380px;line-height:1.7;color:#dcebe2;font-size:14px}.trust{display:flex;gap:24px;font-size:11px;color:#d5e7db}.form-card{padding:42px 65px;display:flex;flex-direction:column;justify-content:center}.mobile-logo{display:none}.switch{position:relative;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:#edf5f0;border-radius:14px;margin-bottom:18px;overflow:hidden}.switch button{position:relative;z-index:2;height:42px;border:0;background:transparent;color:#647169;font-size:11px;font-weight:900;cursor:pointer}.switch button.active{color:#fff;background:#087534;border-radius:10px;box-shadow:0 5px 14px rgba(8,117,52,.2)}.switch i{display:none;position:absolute;z-index:1;left:4px;top:4px;bottom:4px;width:calc(33.333% - 5px);border-radius:10px;background:#087534;box-shadow:0 5px 14px rgba(8,117,52,.2);transition:transform .35s cubic-bezier(.2,.8,.2,1)}.switch i.staff{transform:translateX(calc(100% + 4px))}.switch i.customer{transform:translateX(calc(200% + 8px))}.role-label{display:flex;align-items:center;gap:10px;margin-bottom:17px;color:#087534}.role-label:before{content:"";width:8px;height:8px;border-radius:50%;background:#f47712;box-shadow:0 0 0 4px #fff1e4}.role-label strong{font-size:11px}.role-label small{color:#8a948e;font-size:10px}.title{margin-bottom:20px}.title span{font-size:10px;letter-spacing:2px;color:#f47712;font-weight:900}.title h2{margin:6px 0;color:#075e2c;font-size:29px}.title p{margin:0;color:#718078;font-size:12px;line-height:1.6}.notice{padding:10px 12px;border-radius:9px;background:#fff3e7;color:#974700;border-left:3px solid #f47712;font-size:11px;margin-bottom:12px}.form-card form{display:grid;gap:14px}.form-card label{font-size:11px;font-weight:800;color:#536059}.form-card label input{display:block;margin-top:6px;width:100%;height:48px;border:1px solid #dbe5df;border-radius:10px;padding:0 13px;outline:none;font-size:13px;background:#fbfdfc}.form-card label input:focus{border-color:#087534;box-shadow:0 0 0 3px #08753412}.pass{position:relative}.pass input{padding-right:58px!important}.pass button{position:absolute;right:8px;top:14px;border:0;background:transparent;color:#f47712;font-size:10px;font-weight:800;cursor:pointer}.submit{height:49px;border:0;border-radius:10px;background:#087534;color:#fff;font-weight:900;border-bottom:4px solid #f47712;cursor:pointer}.submit:disabled{opacity:.65}.register{text-align:center;margin:11px 0 0;color:#718078;font-size:11px}.register button{border:0;background:transparent;color:#087534;font:inherit;font-weight:900;border-bottom:1px solid #f47712;cursor:pointer}.or{display:flex;align-items:center;gap:12px;color:#98a19c;font-size:9px;margin:17px 0 11px}.or i{height:1px;background:#e5ebe7;flex:1}.google,.fingerprint{width:100%;height:50px;border-radius:10px;background:#fff;border:1px solid #dce5df;cursor:pointer}.google{display:flex;align-items:center;justify-content:center;gap:12px;font-size:13px;font-weight:800;color:#27312c}.google b{font-size:20px;color:#4285f4}.google-web{min-height:50px;display:flex;justify-content:center}.google-web:not(.ready){visibility:hidden}.fingerprint{margin-top:10px;display:flex;align-items:center;padding:0 14px;gap:12px;text-align:left;border-bottom:3px solid #f47712}.fingerprint>b{width:32px;height:32px;border-radius:8px;background:#eaf7ef;color:#087534;display:grid;place-items:center;font-size:21px}.fingerprint span{flex:1}.fingerprint strong,.fingerprint small{display:block}.fingerprint strong{font-size:12px}.fingerprint small{font-size:9px;color:#7a857e;margin-top:2px}.fingerprint em{font-style:normal;font-size:23px;color:#087534}.hint{text-align:center;color:#7b867f;font-size:10px;line-height:1.6;margin:10px 0}.hint b{color:#087534}.form-card footer{text-align:center;color:#a0aaa4;font-size:8px;margin-top:8px}@media(max-width:760px){.role-login{padding:0;background:#087534}.login-shell{width:100%;min-height:100dvh;display:block;border-radius:0}.visual{height:145px;padding:20px 24px;align-items:center;justify-content:center}.logo{width:240px}.visual-copy,.trust{display:none}.form-card{min-height:calc(100dvh - 145px);padding:25px 20px 28px;justify-content:flex-start}.mobile-logo{display:none}.switch{margin-bottom:16px}.title h2{font-size:25px}.role-label{margin-bottom:14px}.google,.fingerprint{height:52px}}`}</style></main>;
+    window.location.assign(destination(role));
+  };
+
+  const login = async (event: React.FormEvent, mode: LoginMode) => {
+    event.preventDefault(); setMessage(""); setLoading(mode);
+    try {
+      await completeLogin(await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ identifier: values[mode].trim(), password: passwords[mode], loginMode: mode }) }), mode);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to PWFB"); setLoading(null); }
+  };
+
+  const googleLogin = async (payload: GooglePayload) => {
+    setMessage(""); setLoading(payload.loginMode);
+    try {
+      await completeLogin(await apiRequest("/auth/google", { method: "POST", body: JSON.stringify(payload) }), payload.loginMode);
+      localStorage.removeItem(GOOGLE_NONCE_PREFIX + payload.loginMode);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Google sign-in failed."); setLoading(null); }
+  };
+
+  useEffect(() => {
+    const app = typeof window !== "undefined" && !!window.PWFBNative;
+    setNativeApp(app);
+    if (app) return;
+    let active = true;
+    const renderGoogle = () => {
+      if (!active || !window.google?.accounts?.id) return;
+      cards.forEach(({ mode }) => {
+        const host = googleRefs.current[mode];
+        if (!host) return;
+        const configNonce = new Uint8Array(32); crypto.getRandomValues(configNonce);
+        const nonce = Array.from(configNonce, value => value.toString(16).padStart(2, "0")).join("");
+        localStorage.setItem(GOOGLE_NONCE_PREFIX + mode, nonce);
+        host.innerHTML = "";
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          nonce,
+          auto_select: false,
+          cancel_on_tap_outside: false,
+          use_fedcm_for_prompt: false,
+          context: "signin",
+          callback: (response: any) => googleLogin({
+            credential: response.credential,
+            client_id: GOOGLE_CLIENT_ID,
+            nonce: localStorage.getItem(GOOGLE_NONCE_PREFIX + mode) || nonce,
+            loginMode: mode,
+          }),
+        });
+        window.google.accounts.id.renderButton(host, { type: "standard", theme: "outline", size: "large", text: "continue_with", shape: "rectangular", logo_alignment: "left", width: 360 });
+        setGoogleReady(previous => ({ ...previous, [mode]: true }));
+      });
+    };
+    const load = async () => {
+      try {
+        const config = await apiRequest("/auth/google/config", { method: "GET" });
+        const clientId = String(config?.client_id || GOOGLE_CLIENT_ID).trim();
+        if (!clientId) return;
+        if (window.google?.accounts?.id) { renderGoogle(); return; }
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true; script.defer = true; script.onload = renderGoogle;
+        document.head.appendChild(script);
+      } catch {}
+    };
+    load();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.__pwfbNativeGoogleResult = async (payload) => {
+      const mode = (payload?.loginMode || "CUSTOMER") as LoginMode;
+      if (!payload?.ok || !payload?.access_token) { setMessage(payload?.message || "Google sign-in could not be completed."); setLoading(null); return; }
+      try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); }
+      catch (error) { setMessage(error instanceof Error ? error.message : "Google sign-in failed."); setLoading(null); }
+    };
+    return () => { delete window.__pwfbNativeGoogleResult; };
+  }, [remember]);
+
+  const nativeGoogle = (mode: LoginMode) => {
+    setMessage(""); setLoading(mode);
+    if (!window.PWFBNative?.signInWithGoogle) { setLoading(null); setMessage("Google sign-in is not available here. Use the Google button."); return; }
+    window.PWFBNative.signInWithGoogle(mode);
+  };
+
+  const forgotPassword = () => setMessage("Password reset is available through PWFB account support. Please contact your branch or administrator.");
+
+  return (
+    <main className="pwfb-login-page">
+      <div className="pwfb-login-brand"><img src="/pwfb-login-logo.svg" alt="PWFB Microfinance" /><p>Empowering People <b>•</b> Building Better Futures</p></div>
+      {message && <div className="pwfb-login-notice" role="alert">{message}</div>}
+      <section className="pwfb-login-grid">
+        {cards.map(card => (
+          <article className={`pwfb-login-card ${card.tone}`} key={card.mode}>
+            <div className="pwfb-card-icon">{card.icon}</div>
+            <h1>{card.title}</h1>
+            <p className="pwfb-card-subtitle">{card.subtitle}</p>
+            <form onSubmit={event => login(event, card.mode)}>
+              <label><span>{card.mode === "CUSTOMER" ? "Customer Login ID" : "Email Address"}</span><div className="pwfb-input"><b>♙</b><input value={values[card.mode]} onChange={e => setValues(v => ({ ...v, [card.mode]: e.target.value }))} placeholder={card.placeholder} type={card.mode === "CUSTOMER" ? "text" : "email"} autoComplete="username" required /></div></label>
+              <label><span>Password</span><div className="pwfb-input"><b>▣</b><input value={passwords[card.mode]} onChange={e => setPasswords(v => ({ ...v, [card.mode]: e.target.value }))} placeholder="Password" type={showPassword[card.mode] ? "text" : "password"} autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(v => ({ ...v, [card.mode]: !v[card.mode] }))}>{showPassword[card.mode] ? "Hide" : "◉"}</button></div></label>
+              <div className="pwfb-options"><label className="remember"><input type="checkbox" checked={remember[card.mode]} onChange={e => setRemember(v => ({ ...v, [card.mode]: e.target.checked }))} /> <span>Remember me</span></label><button type="button" onClick={forgotPassword}>Forgot password?</button></div>
+              <button className="pwfb-login-submit" disabled={loading !== null}>{loading === card.mode ? "Signing in…" : "Login →"}</button>
+            </form>
+            <div className="pwfb-divider"><i /><span>Other Login Options</span><i /></div>
+            {nativeApp ? <button className="pwfb-google-native" type="button" disabled={loading !== null} onClick={() => nativeGoogle(card.mode)}><strong>G</strong> Continue with Google</button> : <div className={`pwfb-google-web ${googleReady[card.mode] ? "ready" : ""}`} ref={node => { googleRefs.current[card.mode] = node; }} />}
+            {card.mode === "SUPER_ADMIN" && <div className="pwfb-alt-grid"><button type="button" onClick={() => document.querySelector<HTMLInputElement>("input[placeholder='Email Address']")?.focus()}><b>👥</b><span><strong>Staff Login</strong><small>For employees</small></span></button><button type="button" onClick={() => document.querySelector<HTMLInputElement>("input[placeholder='Customer ID / Email / Phone Number']")?.focus()}><b>👤</b><span><strong>Customer Login</strong><small>For existing customers</small></span></button></div>}
+            {card.mode === "STAFF" && <div className="pwfb-help"><span>Not a staff member?</span><button type="button" onClick={() => document.querySelector<HTMLInputElement>("input[placeholder='Customer ID / Email / Phone Number']")?.focus()}>Customer Login →</button></div>}
+            {card.mode === "CUSTOMER" && <div className="pwfb-help customer-help"><span><strong>New customer?</strong><small>Register for a PWFB customer account.</small></span><button type="button" onClick={() => router.push("/register")}>Create Account →</button></div>}
+            <footer>🔒 PWFB Microfinance<br /><small>Secure • Reliable • Trusted</small></footer>
+          </article>
+        ))}
+      </section>
+      <p className="pwfb-login-footer">Perfect Wisdom For Better Ltd · Moving Forward Together For Better Living</p>
+      <style jsx>{`
+        *{box-sizing:border-box}.pwfb-login-page{min-height:100dvh;padding:24px 18px 30px;background:linear-gradient(135deg,#fff7ec 0%,#f5fbf7 50%,#f1f8ff 100%);font-family:Inter,system-ui,sans-serif;color:#193027}.pwfb-login-brand{text-align:center;margin:0 auto 20px}.pwfb-login-brand img{width:min(290px,68vw);max-height:88px;object-fit:contain}.pwfb-login-brand p{margin:7px 0 0;color:#52635a;font-size:13px}.pwfb-login-brand b{color:#f28c18;margin:0 5px}.pwfb-login-grid{width:min(1480px,100%);margin:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;align-items:stretch}.pwfb-login-card{position:relative;min-width:0;padding:27px 28px 20px;border:1px solid rgba(18,80,45,.12);border-radius:20px;background:rgba(255,255,255,.91);box-shadow:0 15px 42px rgba(19,76,45,.10);overflow:hidden}.pwfb-login-card:before{content:"";position:absolute;left:0;right:0;top:0;height:7px;background:#f28c18}.pwfb-login-card.staff:before{background:#16804a}.pwfb-login-card.customer:before{background:#247ab6}.pwfb-card-icon{width:64px;height:64px;margin:2px auto 9px;display:grid;place-items:center;border-radius:18px;background:#eef8f1;color:#087534;font-size:31px}.pwfb-login-card.admin .pwfb-card-icon{background:#fff1df;color:#f28c18}.pwfb-login-card.customer .pwfb-card-icon{background:#edf6ff;color:#247ab6}.pwfb-login-card h1{text-align:center;margin:0;color:#075e2c;font-size:26px;letter-spacing:-.035em}.pwfb-login-card.customer h1{color:#176e9f}.pwfb-card-subtitle{min-height:44px;margin:8px auto 21px;max-width:390px;text-align:center;color:#617068;font-size:13px;line-height:1.5}.pwfb-login-card form{display:grid;gap:13px}.pwfb-login-card form>label>span{display:block;margin:0 0 5px;color:#53635b;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.pwfb-input{height:51px;display:flex;align-items:center;gap:9px;padding:0 12px;border:1px solid #d7e2dc;border-radius:10px;background:#fff}.pwfb-input:focus-within{border-color:#0b7b3d;box-shadow:0 0 0 3px rgba(11,123,61,.09)}.pwfb-input>b{color:#087534;font-size:17px}.pwfb-input input{width:100%;height:100%;min-width:0;border:0;outline:0;background:transparent;font-size:13px;color:#20322a}.pwfb-input button{border:0;background:transparent;color:#718078;font-size:11px;cursor:pointer}.pwfb-options{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px}.pwfb-options button{border:0;background:transparent;color:#087534;font-weight:800;cursor:pointer}.remember{display:flex!important;align-items:center;gap:6px!important;color:#53635b!important;font-size:10px!important;text-transform:none!important;letter-spacing:0!important;font-weight:500!important;margin:0!important}.remember input{accent-color:#087534}.pwfb-login-submit{height:51px;border:0;border-radius:10px;background:#087f46;color:#fff;font-size:15px;font-weight:900;box-shadow:0 8px 17px rgba(8,127,70,.18);cursor:pointer}.pwfb-login-submit:disabled{opacity:.65;cursor:wait}.pwfb-divider{display:flex;align-items:center;gap:10px;margin:17px 0 10px;color:#76827c;font-size:10px;white-space:nowrap}.pwfb-divider i{height:1px;flex:1;background:#e0e8e3}.pwfb-google-web{min-height:44px;display:flex;justify-content:center;overflow:hidden}.pwfb-google-web:not(.ready){visibility:hidden}.pwfb-google-native{width:100%;height:45px;display:flex;align-items:center;justify-content:center;gap:10px;border:1px solid #d9e2dd;border-radius:9px;background:#fff;color:#27352e;font-size:12px;font-weight:800;cursor:pointer}.pwfb-google-native strong{font-size:20px;color:#4285f4}.pwfb-alt-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.pwfb-alt-grid button{min-height:68px;display:flex;align-items:center;gap:8px;padding:9px;border:1px solid #edf0ee;border-radius:10px;background:#fffaf3;color:#18372a;text-align:left;cursor:pointer}.pwfb-alt-grid button:last-child{background:#f6fbff}.pwfb-alt-grid b{font-size:19px}.pwfb-alt-grid span strong,.pwfb-alt-grid span small{display:block}.pwfb-alt-grid strong{font-size:10px}.pwfb-alt-grid small{margin-top:2px;color:#7b8780;font-size:9px}.pwfb-help{margin-top:12px;padding:12px;border:1px solid #e0eee5;border-radius:11px;background:#f5fbf7;text-align:center;color:#53635b;font-size:10px}.pwfb-help button{display:block;width:100%;margin-top:8px;height:37px;border:1px solid #17834b;border-radius:8px;background:#fff;color:#087534;font-size:11px;font-weight:900;cursor:pointer}.pwfb-help.customer-help{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;background:#f4f9fd;border-color:#dfeef8}.pwfb-help.customer-help span strong,.pwfb-help.customer-help span small{display:block}.pwfb-help.customer-help span small{margin-top:3px;color:#718078}.pwfb-help.customer-help button{width:auto;padding:0 11px;margin:0;white-space:nowrap}.pwfb-login-card footer{text-align:center;margin-top:17px;padding-top:12px;border-top:1px solid #edf1ee;color:#087534;font-size:10px;font-weight:800}.pwfb-login-card footer small{display:block;margin-top:3px;color:#8a958f;font-weight:500}.pwfb-login-notice{width:min(900px,100%);margin:0 auto 15px;padding:11px 14px;border-left:4px solid #f28c18;border-radius:9px;background:#fff4e8;color:#754000;font-size:11px}.pwfb-login-footer{text-align:center;margin:17px 0 0;color:#8a958f;font-size:10px}@media(max-width:1050px){.pwfb-login-grid{grid-template-columns:1fr;max-width:650px}.pwfb-login-card{padding:25px 24px}.pwfb-card-subtitle{min-height:auto}}@media(max-width:560px){.pwfb-login-page{padding:14px 10px 24px}.pwfb-login-brand{margin-bottom:13px}.pwfb-login-brand img{width:245px}.pwfb-login-brand p{font-size:11px}.pwfb-login-grid{gap:12px}.pwfb-login-card{padding:22px 16px 17px;border-radius:17px}.pwfb-login-card h1{font-size:23px}.pwfb-card-subtitle{font-size:12px}.pwfb-alt-grid{grid-template-columns:1fr}.pwfb-help.customer-help{align-items:flex-start;flex-direction:column}.pwfb-help.customer-help button{width:100%}}
+      `}</style>
+    </main>
+  );
 }

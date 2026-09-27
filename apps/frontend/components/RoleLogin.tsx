@@ -448,14 +448,14 @@ export default function RoleLogin() {
         .pwfb-helper-card strong{font-size:10px;color:#174c36}
         .pwfb-helper-card span{margin-top:2px;font-size:8px;line-height:1.4;color:#6e7d75}
         .pwfb-helper-card button{grid-column:1 / -1;height:40px;border:1px solid #247db6;border-radius:9px;background:#fff;color:#247db6;font-size:10px;font-weight:900;cursor:pointer}
-        .pwfb-security-note{margin:11px 0 0;color:#89958e;text-align:center;font-size:8px;line-height:1.45}
+        .pwfb-security-note{margin:11px 0 0;color:#89958e;text-align:center;font-size:8px;line-height:1.45}\n        .pwfb-login-card:after{content:"";display:block;height:5px;margin:14px -18px -16px;border-radius:0 0 16px 16px;background:linear-gradient(90deg,#f47712 0 50%,#087534 50% 100%)}\n        .pwfb-login-footer{position:relative;padding-top:12px}\n        .pwfb-login-footer:before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:76px;height:3px;border-radius:99px;background:linear-gradient(90deg,#f47712 0 50%,#087534 50% 100%)}\n        .pwfb-login-footer span{display:inline-flex;align-items:center;gap:6px}\n        .pwfb-login-footer span:before,.pwfb-login-footer span:after{content:"";width:22px;height:2px;border-radius:99px}\n        .pwfb-login-footer span:before{background:#f47712}.pwfb-login-footer span:after{background:#087534}
         .pwfb-login-footer{display:flex;flex-direction:column;align-items:center;gap:3px;margin-top:13px;color:#7c8983;font-size:9px}
         .pwfb-login-footer strong{color:#087534;font-size:10px}
         @media(max-width:520px){
           .pwfb-login-page{padding:12px 8px 22px}
           .pwfb-brand img{width:min(300px,86vw)}
           .pwfb-brand p{font-size:10px}
-          .pwfb-login-card{padding:15px 12px 14px}
+          .pwfb-login-card{padding:15px 12px 14px}\n          .pwfb-login-card:after{margin-left:-12px;margin-right:-12px;margin-bottom:-14px}
           .pwfb-role-hero h1{font-size:22px}
           .pwfb-role-hero p{font-size:11px}
           .pwfb-biometric-row{grid-template-columns:1fr 82px}

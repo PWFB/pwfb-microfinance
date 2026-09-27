@@ -364,7 +364,7 @@ export default function RoleLogin() {
         <span>Secure · Reliable · Trusted</span>
       </footer>
 
-      <style jsx>{\`
+      <style jsx>{`
         *{box-sizing:border-box}
         .pwfb-login-page{min-height:100dvh;padding:18px 12px 28px;background:radial-gradient(circle at 12% 4%,rgba(255,161,45,.16),transparent 27%),radial-gradient(circle at 90% 12%,rgba(39,141,83,.12),transparent 30%),linear-gradient(145deg,#fffaf1 0%,#f6fbf8 48%,#eef7ff 100%);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#173d2b}
         .pwfb-brand{width:min(600px,100%);margin:0 auto 14px;text-align:center}
@@ -456,7 +456,7 @@ export default function RoleLogin() {
           .pwfb-biometric strong{font-size:9px}
           .pwfb-helper-actions>button{min-width:130px}
         }
-      \`}</style>
+      `}</style>
     </main>
   );
 }

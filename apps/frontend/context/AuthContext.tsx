@@ -17,7 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function refreshProfile(): Promise<AuthUser | null> {
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token");
+    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
     if (!token) { setUser(null); setLoading(false); return null; }
     try {
       let profile = await apiRequest("/auth/profile");

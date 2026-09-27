@@ -200,10 +200,7 @@ export default function RoleLogin() {
                   }}
                 >
                   <span className="pwfb-option-icon"><RoleIcon mode={card.mode} /></span>
-                  <span className="pwfb-option-copy">
-                    <strong>{card.title}</strong>
-                    <small>{card.subtitle}</small>
-                  </span>
+                  <span className="pwfb-option-copy"><strong>{card.title}</strong></span>
                   {selectedMode === card.mode && <b className="pwfb-option-check">✓</b>}
                 </button>
               ))}

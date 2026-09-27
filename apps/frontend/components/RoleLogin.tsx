@@ -83,7 +83,7 @@ export default function RoleLogin() {
     setNativeApp(app);
     if (app) return;
     let active = true;
-    const renderGoogle = () => {
+    const renderGoogle = (clientId: string) => {
       if (!active || !window.google?.accounts?.id) return;
       cards.forEach(({ mode }) => {
         const host = googleRefs.current[mode];
@@ -116,10 +116,10 @@ export default function RoleLogin() {
         const clientId = String(config?.client_id || GOOGLE_CLIENT_ID).trim();
         if (!clientId) return;
         setGoogleClientId(clientId);
-        if (window.google?.accounts?.id) { renderGoogle(); return; }
+        if (window.google?.accounts?.id) { renderGoogle(clientId); return; }
         const script = document.createElement("script");
         script.src = "https://accounts.google.com/gsi/client";
-        script.async = true; script.defer = true; script.onload = renderGoogle;
+        script.async = true; script.defer = true; script.onload = () => renderGoogle(clientId);
         document.head.appendChild(script);
       } catch {}
     };

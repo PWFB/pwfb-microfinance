@@ -13,6 +13,12 @@ const operations: Operation[] = ["deposit", "cash-withdraw", "bank-withdraw", "t
 
 function unwrap<T = any>(value: any): T[] { return Array.isArray(value) ? value : Array.isArray(value?.data) ? value.data : []; }
 function customerName(customer: Customer) { return customer.name || [customer.firstName, customer.lastName].filter(Boolean).join(" ") || customer.id; }
+const fallbackBanks: Bank[] = [
+ {code:"999992",name:"OPay",shortName:"OPay",provider:"PAYSTACK"},
+ {code:"999991",name:"PalmPay",shortName:"PalmPay",provider:"PAYSTACK"},
+ {code:"090405",name:"Moniepoint Microfinance Bank",shortName:"Moniepoint",provider:"PAYSTACK"},
+ {code:"090267",name:"Kuda Microfinance Bank",shortName:"Kuda",provider:"PAYSTACK"},
+];
 
 export default function BankingPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -50,7 +56,7 @@ export default function BankingPage() {
     if (selected && operations.includes(selected)) setOperation(selected);
     Promise.all([pwfbApi.customers.search(), pwfbApi.banking.institutions()]).then(([customerData, bankData]) => {
       setCustomers(unwrap<Customer>(customerData));
-      setBanks(unwrap<any>(bankData).map((bank: any) => ({ code: String(bank.code ?? bank.bankCode ?? ""), name: String(bank.name ?? bank.bankName ?? bank.institutionName ?? ""), shortName: bank.shortName, provider: bank.provider })).filter((bank: Bank) => bank.code && bank.name));
+      {const loaded=unwrap<any>(bankData).map((bank:any)=>({code:String(bank.code??bank.bankCode??""),name:String(bank.name??bank.bankName??bank.institutionName??""),shortName:bank.shortName,provider:String(bank.provider||"").toUpperCase()})).filter((bank:Bank)=>bank.code&&bank.name);const merged=new Map<string,Bank>();[...loaded,...fallbackBanks].forEach((b)=>{const key=b.code||b.name.toLowerCase();if(!merged.has(key))merged.set(key,b)});setBanks([...merged.values()].sort((a,b)=>a.name.localeCompare(b.name)));}
     }).catch(() => setMessage("Some banking reference data could not be loaded."));
   }, []);
 
@@ -84,6 +90,12 @@ export default function BankingPage() {
     setAccountNumber(value.replace(/\D/g, "").slice(0, 10));
     clearVerification();
   }
+
+  useEffect(() => {
+    if (!bankCode || !/^\d{10}$/.test(accountNumber) || !bankProvider) return;
+    const timer = window.setTimeout(() => { void verifyAccount(); }, 450);
+    return () => window.clearTimeout(timer);
+  }, [bankCode, accountNumber, bankProvider]);
 
   async function verifyAccount() {
     if (!bankCode) return setMessage("Select the destination bank first.");

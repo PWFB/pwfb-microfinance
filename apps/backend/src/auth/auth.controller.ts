@@ -31,13 +31,13 @@ export class AuthController {
   googleConfig() { return this.authService.googleConfig(); }
 
   @Post('google')
-  googleLogin(@Body() body: { credential: string; client_id?: string; nonce?: string }, @Headers('origin') origin?: string) {
-    return this.authService.googleLogin(body?.credential, origin, body?.client_id, body?.nonce);
+  googleLogin(@Body() body: { credential: string; client_id?: string; nonce?: string; loginMode?: string }, @Headers('origin') origin?: string) {
+    return this.authService.googleLogin(body?.credential, origin, body?.client_id, body?.nonce, body?.loginMode);
   }
 
   @Post('google/android')
-  googleAndroidLogin(@Body() body: { credential: string }) {
-    return this.authService.googleLogin(body?.credential, 'android-app', undefined, undefined);
+  googleAndroidLogin(@Body() body: { credential: string; loginMode?: string }) {
+    return this.authService.googleLogin(body?.credential, 'android-app', undefined, undefined, body?.loginMode);
   }
 
   @Post('2fa/verify')

@@ -60,6 +60,7 @@ public class MainActivity extends Activity {
     private boolean nativeLoginRedirected;
     private CredentialManager credentialManager;
     private GoogleSignInClient googleClient;
+    private String pendingGoogleLoginMode = "CUSTOMER";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this); super.onCreate(savedInstanceState);
@@ -111,6 +112,7 @@ public class MainActivity extends Activity {
     }
 
     private void startNativeGoogleSignIn(final String loginMode) {
+        pendingGoogleLoginMode = loginMode == null || loginMode.trim().isEmpty() ? "CUSTOMER" : loginMode;
         new Thread(() -> {
             try {
                 JSONObject config = get("/auth/google/config");
@@ -130,7 +132,7 @@ public class MainActivity extends Activity {
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != GOOGLE_REQUEST) return;
-        if (googleClient == null) { sendNativeGoogleResult(false, "Google sign-in session is unavailable.", null); return; }
+        if (googleClient == null) { sendNativeGoogleResult(false, "Google sign-in session is unavailable.", null, pendingGoogleLoginMode); return; }
         try {
             Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
             GoogleSignInAccount account = task.getResult(ApiException.class);
@@ -138,15 +140,15 @@ public class MainActivity extends Activity {
             String idToken = account.getIdToken();
             new Thread(() -> {
                 try {
-                    JSONObject body = new JSONObject(); body.put("credential", idToken); body.put("loginMode", loginMode == null || loginMode.trim().isEmpty() ? "CUSTOMER" : loginMode);
+                    JSONObject body = new JSONObject(); body.put("credential", idToken); body.put("loginMode", pendingGoogleLoginMode);
                     JSONObject result = postPublic("/auth/google/android", body);
                     String token = result.optString("access_token", "");
                     if (token.isEmpty()) throw new Exception("PWFB did not return a login session.");
                     getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
-                    sendNativeGoogleResult(true, "Google sign-in successful.", result, loginMode);
-                } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, loginMode); }
+                    sendNativeGoogleResult(true, "Google sign-in successful.", result, pendingGoogleLoginMode);
+                } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, pendingGoogleLoginMode); }
             }).start();
-        } catch (ApiException e) { sendNativeGoogleResult(false, "Google sign-in error (code " + e.getStatusCode() + "). Please verify the PWFB Android Google configuration.", null, loginMode); }
+        } catch (ApiException e) { sendNativeGoogleResult(false, "Google sign-in error (code " + e.getStatusCode() + "). Please verify the PWFB Android Google configuration.", null, pendingGoogleLoginMode); }
         catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, loginMode); }
     }
 

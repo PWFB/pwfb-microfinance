@@ -11,7 +11,7 @@ type GooglePayload = { credential: string; client_id: string; nonce: string; log
 declare global {
   interface Window {
     google?: any;
-    PWFBNative?: { signInWithGoogle: (loginMode?: string) => void };
+    PWFBNative?: { signInWithGoogle: (loginMode?: string) => void; registerPasskey?: (replaceExisting: boolean, token: string) => void };
     __pwfbNativeGoogleResult?: (payload: any) => void;
   }
 }

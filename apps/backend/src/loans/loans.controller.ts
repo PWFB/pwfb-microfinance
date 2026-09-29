@@ -25,7 +25,7 @@ export class LoansController {
   constructor(private readonly loansService: LoansService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER')
   create(@Body() createLoanDto: CreateLoanDto, @Req() req: any) {
     return this.loansService.create(createLoanDto, req.user);
   }

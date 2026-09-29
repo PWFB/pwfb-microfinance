@@ -24,9 +24,39 @@ export class CustomersService {
       if (dto.groupId) { const group = await tx.clientGroup.findUnique({ where: { id: dto.groupId } }); if (!group) throw new BadRequestException('Client group not found'); if (group.branchId && group.branchId !== staff.branchId) throw new BadRequestException('Client group belongs to another branch'); }
       const customer = await tx.customer.create({ data: { id: customerId, firstName: dto.firstName, middleName: dto.middleName?.trim() || undefined, lastName: dto.lastName, email, phone: dto.phone, address: dto.address, dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined, branch: { connect: { id: staff.branchId } }, assignedStaff: { connect: { id: staff.id } }, ...(dto.groupId ? { clientGroup: { connect: { id: dto.groupId } } } : {}) } });
       const user = await tx.user.create({ data: { email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, role: 'CUSTOMER', customer: { connect: { id: customer.id } } } });
-      return { customer, user };
+
+      const feeItems = [
+        { amount: Number(dto.registrationFee || 0), label: 'Customer Registration Fee' },
+        { amount: Number(dto.clientCardFee || 0), label: 'Client Card Fee' },
+        { amount: Number(dto.otherFee || 0), label: 'Other Registration Fee' },
+      ].filter((item) => Number.isFinite(item.amount) && item.amount > 0);
+
+      if (feeItems.length) {
+        const period = await tx.financialPeriod.findFirst({
+          where: { status: 'OPEN' },
+          orderBy: { startDate: 'desc' },
+        });
+        if (!period) throw new BadRequestException('No open financial period is available for collecting registration fees');
+
+        for (const item of feeItems) {
+          await tx.dailyCollection.create({
+            data: {
+              periodId: period.id,
+              branchId: staff.branchId,
+              staffId: staff.id,
+              customerId: customer.id,
+              type: 'OTHER',
+              amount: item.amount,
+              notes: item.label,
+              reference: `REG-${customer.id}`,
+            },
+          });
+        }
+      }
+
+      return { customer, user, feeItems };
     });
-    return { message: 'Client created successfully', client: { id: result.customer.id, customerId: result.customer.id, firstName: result.customer.firstName, middleName: result.customer.middleName, lastName: result.customer.lastName, email: result.customer.email, branchId: result.customer.branchId, assignedStaffId: result.customer.assignedStaffId, groupId: result.customer.groupId }, login: { email, temporaryPassword } };
+    return { message: 'Client created successfully', client: { id: result.customer.id, customerId: result.customer.id, firstName: result.customer.firstName, middleName: result.customer.middleName, lastName: result.customer.lastName, email: result.customer.email, branchId: result.customer.branchId, assignedStaffId: result.customer.assignedStaffId, groupId: result.customer.groupId }, initialFees: result.feeItems, login: { email, temporaryPassword } };
   }
 
   async findMe(authUser: any) { if (!authUser?.id) throw new UnauthorizedException('Authentication required'); const user = await this.prisma.user.findUnique({ where: { id: authUser.id }, include: { customer: { include: { savings: true, loans: true, transactions: true, branch: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } } } }); if (!user?.customer) throw new NotFoundException('Customer profile not found'); return user.customer; }

@@ -44,6 +44,25 @@ export class StaffScopeService {
     return { branchId: scope.staff.branchId };
   }
 
+  async assertBranchAccess(authUser: any, branchId: string) {
+    const scope = await this.get(authUser);
+    if (scope.global) return;
+
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        ...(scope.role === 'REGIONAL_MANAGER' ? { regionId: scope.staff.regionId } : {}),
+        ...(scope.role === 'DIVISIONAL_MANAGER' ? { divisionId: scope.staff.divisionId } : {}),
+        ...(scope.role === 'AREA_MANAGER' ? { areaId: scope.staff.areaId } : {}),
+        ...(['BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'STAFF'].includes(scope.role) ? { id: scope.staff.branchId } : {}),
+      },
+      select: { id: true },
+    });
+
+    if (!branch) throw new ForbiddenException('You do not have access to this branch');
+    return branch;
+  }
+
   async loanWhere(authUser: any) {
     const customer = await this.customerWhere(authUser);
     return Object.keys(customer).length ? { customer } : {};

@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  IsNumber,
 } from 'class-validator';
 
 export class CreateCustomerDto {
@@ -35,4 +36,16 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   groupId?: string;
+
+  @IsOptional()
+  @IsNumber()
+  registrationFee?: number;
+
+  @IsOptional()
+  @IsNumber()
+  clientCardFee?: number;
+
+  @IsOptional()
+  @IsNumber()
+  otherFee?: number;
 }

@@ -10,7 +10,6 @@ export function getDashboardPath(role?: string): string {
     case "STAFF":
       return "/staff-field";
 
-    case "STAFF":
     case "ADMIN":
     case "REGIONAL_MANAGER":
     case "DIVISIONAL_MANAGER":
@@ -20,7 +19,6 @@ export function getDashboardPath(role?: string): string {
     case "TELLER":
     case "AUDITOR":
     case "MONITORING_TEAM":
-    case "COLLECTOR":
       return "/staff-dashboard";
 
     case "CUSTOMER":

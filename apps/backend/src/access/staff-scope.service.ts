@@ -11,6 +11,7 @@ const ROLE_LEVELS: Record<string, string> = {
   LOAN_OFFICER: 'branch',
   TELLER: 'branch',
   STAFF: 'branch',
+  COLLECTOR: 'branch',
 };
 
 @Injectable()
@@ -37,11 +38,28 @@ export class StaffScopeService {
     const scope = await this.get(authUser);
     if (scope.global) return {};
 
+    // Field staff only work with clients they personally registered/own.
+    if (['CREDIT_OFFICER', 'COLLECTOR', 'STAFF'].includes(scope.role)) {
+      return { assignedStaffId: scope.staff.id };
+    }
+
     const level = ROLE_LEVELS[scope.role];
     if (level === 'region') return { branch: { regionId: scope.staff.regionId } };
     if (level === 'division') return { branch: { divisionId: scope.staff.divisionId } };
     if (level === 'area') return { branch: { areaId: scope.staff.areaId } };
     return { branchId: scope.staff.branchId };
+  }
+
+  async collectionWhere(authUser: any) {
+    const scope = await this.get(authUser);
+    if (scope.global) return {};
+
+    if (['CREDIT_OFFICER', 'COLLECTOR', 'STAFF'].includes(scope.role)) {
+      return { staffId: scope.staff.id };
+    }
+
+    const customer = await this.customerWhere(authUser);
+    return Object.keys(customer).length ? { customer } : { branchId: scope.staff.branchId };
   }
 
   async assertBranchAccess(authUser: any, branchId: string) {
@@ -54,7 +72,7 @@ export class StaffScopeService {
         ...(scope.role === 'REGIONAL_MANAGER' ? { regionId: scope.staff.regionId } : {}),
         ...(scope.role === 'DIVISIONAL_MANAGER' ? { divisionId: scope.staff.divisionId } : {}),
         ...(scope.role === 'AREA_MANAGER' ? { areaId: scope.staff.areaId } : {}),
-        ...(['BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'STAFF'].includes(scope.role) ? { id: scope.staff.branchId } : {}),
+        ...(['BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'STAFF', 'COLLECTOR'].includes(scope.role) ? { id: scope.staff.branchId } : {}),
       },
       select: { id: true },
     });
@@ -68,25 +86,14 @@ export class StaffScopeService {
     return Object.keys(customer).length ? { customer } : {};
   }
 
-  /**
-   * Staff visibility follows the organizational hierarchy and includes
-   * historical assignments, so managers can see staff who previously
-   * worked within their region/division/area/branch.
-   */
   async staffWhere(authUser: any) {
     const scope = await this.get(authUser);
     if (scope.global) return {};
 
     const level = ROLE_LEVELS[scope.role];
-    if (level === 'region') {
-      return { OR: [{ regionId: scope.staff.regionId }, { assignments: { some: { regionId: scope.staff.regionId } } }] };
-    }
-    if (level === 'division') {
-      return { OR: [{ divisionId: scope.staff.divisionId }, { assignments: { some: { divisionId: scope.staff.divisionId } } }] };
-    }
-    if (level === 'area') {
-      return { OR: [{ areaId: scope.staff.areaId }, { assignments: { some: { areaId: scope.staff.areaId } } }] };
-    }
+    if (level === 'region') return { OR: [{ regionId: scope.staff.regionId }, { assignments: { some: { regionId: scope.staff.regionId } } }] };
+    if (level === 'division') return { OR: [{ divisionId: scope.staff.divisionId }, { assignments: { some: { divisionId: scope.staff.divisionId } } }] };
+    if (level === 'area') return { OR: [{ areaId: scope.staff.areaId }, { assignments: { some: { areaId: scope.staff.areaId } } }] };
     return { OR: [{ branchId: scope.staff.branchId }, { assignments: { some: { branchId: scope.staff.branchId } } }] };
   }
 

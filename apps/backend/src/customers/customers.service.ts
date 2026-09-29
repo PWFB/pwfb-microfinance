@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -45,13 +45,7 @@ export class CustomersService {
 
     const scope = await this.scope.get(authUser);
     if (!scope.global) {
-      const allowedBranches = await this.prisma.branch.findMany({
-        where: (await this.scope.customerWhere(authUser)) as any,
-        select: { id: true },
-      });
-      if (!allowedBranches.some((branch) => branch.id === targetBranchId)) {
-        throw new ForbiddenException('You cannot move a customer outside your authorized branch scope');
-      }
+      await this.scope.assertBranchAccess(authUser, targetBranchId);
     }
 
     let assignedStaff: { id: string; branchId: string } | null = null;

@@ -45,7 +45,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-            - name: Build Docker image
+      - name: Build Docker image
         run: |
           IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
           docker build \

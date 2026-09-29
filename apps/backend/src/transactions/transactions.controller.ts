@@ -10,18 +10,25 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
+
   @Post()
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'TELLER')
   create(@Body() dto: CreateTransactionDto, @Req() req: any) { return this.transactionsService.create(dto, req.user); }
+
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'TELLER', 'AUDITOR')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'TELLER', 'AUDITOR', 'CREDIT_OFFICER', 'COLLECTOR', 'STAFF')
   findAll(@Req() req: any) { return this.transactionsService.findAll(req.user); }
+
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'TELLER', 'AUDITOR')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'TELLER', 'AUDITOR', 'CREDIT_OFFICER', 'COLLECTOR', 'STAFF')
   findOne(@Param('id') id: string, @Req() req: any) { return this.transactionsService.findOne(id, req.user); }
+
+  // Staff/field officers intentionally have no write route here.
+  // Transfer/deposit transactions are system-generated and remain read-only to them.
   @Patch(':id')
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'TELLER')
   update(@Param('id') id: string, @Body() dto: UpdateTransactionDto, @Req() req: any) { return this.transactionsService.update(id, dto, req.user); }
+
   @Delete(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
   remove(@Param('id') id: string, @Req() req: any) { return this.transactionsService.remove(id, req.user); }

@@ -6,7 +6,9 @@ export function getDashboardPath(role?: string): string {
       return "/dashboard";
 
     case "CREDIT_OFFICER":
-      return "/credit-officer";
+    case "COLLECTOR":
+    case "STAFF":
+      return "/staff-field";
 
     case "STAFF":
     case "ADMIN":

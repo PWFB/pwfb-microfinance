@@ -5,12 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class BankingService {
   constructor(private readonly prisma: PrismaService) {}
   async onModuleInit(){await this.ensureAtmCardTable()}
-  private async ensureAtmCardTable(){
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "CustomerAtmCard" ("id" TEXT PRIMARY KEY,"customerId" TEXT NOT NULL,"cardholderName" TEXT NOT NULL,"last4" TEXT NOT NULL,"cardNetwork" TEXT,"expiryMonth" INTEGER,"expiryYear" INTEGER,"status" TEXT NOT NULL DEFAULT 'ACTIVE',"providerAuthorizationCode" TEXT,"frontImage" BYTEA,"frontMimeType" TEXT,"backImage" BYTEA,"backMimeType" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP);`);
-    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CustomerAtmCard_customerId_idx" ON "CustomerAtmCard" ("customerId");`);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "CustomerAtmCard" ADD COLUMN IF NOT EXISTS "providerAuthorizationCode" TEXT;`);
-    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "CustomerAtmCard_status_idx" ON "CustomerAtmCard" ("status");`);
-  }
+  private async ensureAtmCardTable(){ /* CustomerAtmCard is owned by Prisma migrations. */ }
   async listInstitutions(){return this.prisma.bankInstitution.findMany({where:{active:true},orderBy:{name:'asc'}})}
   async searchInstitutions(search?:string){return this.prisma.bankInstitution.findMany({where:{active:true,...(search?{OR:[{name:{contains:search,mode:'insensitive'}},{shortName:{contains:search,mode:'insensitive'}},{code:{contains:search,mode:'insensitive'}}]}:{})},orderBy:{name:'asc'}})}
   async getCustomerAccounts(customerId:string){return this.prisma.customerBankAccount.findMany({where:{customerId},include:{institution:true},orderBy:[{isPrimary:'desc'},{createdAt:'desc'}]})}

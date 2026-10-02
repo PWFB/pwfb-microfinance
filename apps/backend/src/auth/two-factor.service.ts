@@ -10,12 +10,7 @@ export class TwoFactorService {
 
   constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
 
-  private async ensureTables() {
-    if (this.tablesReady) return;
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserAuthenticator" ("userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE, "secretEnc" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT FALSE, "recoveryCodes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserTwoFactorSession" ("tokenHash" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE, "verifiedUntil" TIMESTAMP(3) NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-    this.tablesReady = true;
-  }
+  private async ensureTables() { if (this.tablesReady) return; this.tablesReady = true; }
 
   private encryptionKey() {
     const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET;

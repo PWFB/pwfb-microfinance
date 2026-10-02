@@ -12,8 +12,9 @@
     "test": "jest",
     "prisma:generate": "prisma generate",
     "prisma:format": "prisma format",
-    "prisma:push": "prisma db push --schema=prisma/schema.prisma --accept-data-loss",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema=prisma/schema.prisma",
+    "prisma:migrate:status": "prisma migrate status --schema=prisma/schema.prisma"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

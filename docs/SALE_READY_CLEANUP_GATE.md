@@ -2,6 +2,25 @@
 
 This document is the release gate for the PWFB Sale-Ready Edition. The application is not considered ready for sale until every required gate below is verified.
 
+## Current cleanup phase tracker
+
+| Phase | Area | Status |
+|---|---|---|
+| PHASE 1 | Root/build/deployment | ✅ Started |
+| PHASE 2 | Database/schema | 🔄 |
+| PHASE 3 | Backend/API | 🔄 |
+| PHASE 4 | Authentication/security | 🔄 |
+| PHASE 5 | Financial workflows | ⏳ |
+| PHASE 6 | Frontend/UI/routes | ⏳ |
+| PHASE 7 | Banking/ATM/Paystack | ⏳ |
+| PHASE 8 | Android production | ⏳ |
+| PHASE 9 | Full regression testing | ⏳ |
+| PHASE 10 | Buyer package evidence | 🔄 |
+| PHASE 11 | Final release candidate | ⏳ |
+| PHASE 12 | Sale preparation | ⏳ |
+
+Status is deliberately not marked complete until there is repository/test/deployment evidence for that phase.
+
 ## 1. Repository and root
 - [ ] One canonical root workflow builds backend and frontend.
 - [ ] Root `npm ci` succeeds from a clean checkout.

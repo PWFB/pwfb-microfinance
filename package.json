@@ -2,34 +2,34 @@
   "name": "pwfb-microfinance",
   "version": "0.1.0",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "npm run start:dev --workspace=backend",
-    "build": "npm run build --workspace=backend",
-    "build:pwfb": "npm run build --workspace=backend",
-    "test": "npm run test --workspace=backend"
+    "dev:backend": "npm run start:dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=pwfb-frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "build:frontend": "npm run build --workspace=pwfb-frontend",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:pwfb": "npm run build",
+    "test:backend": "npm run test --workspace=backend",
+    "test:frontend": "npm run test --workspace=pwfb-frontend",
+    "test": "npm run test:backend && npm run test:frontend",
+    "prisma:validate": "npm exec --workspace=backend -- prisma validate --schema=prisma/schema.prisma",
+    "prisma:format:check": "npm exec --workspace=backend -- prisma format --check",
+    "check": "npm run prisma:validate && npm run prisma:format:check && npm run build && npm run test"
   },
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": {"node": ">=20"},
   "allowScripts": {
     "unrs-resolver@1.12.2": true,
     "@prisma/client@6.19.3": true,
     "@prisma/engines@6.19.3": true,
     "esbuild@0.28.1": true,
     "prisma@6.19.3": true,
-    "sharp@0.34.5": true
+    "sharp@0.35.3": true
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
     "@prisma/engines": "^6.19.3",
     "prisma": "^6.19.3"
   },
-  "overrides": {
-    "postcss": "8.5.26",
-    "sharp": "0.35.3"
-  }
+  "overrides": {"postcss": "8.5.26", "sharp": "0.35.3"}
 }

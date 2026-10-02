@@ -24,6 +24,8 @@ jobs:
         run: npm ci
       - name: Validate Prisma schema
         run: npm run prisma:validate
+      - name: Verify migration status
+        run: npm exec --workspace=backend -- prisma migrate status --schema=prisma/schema.prisma
       - name: Check Prisma formatting
         run: npm run prisma:format:check
       - name: Build backend and frontend

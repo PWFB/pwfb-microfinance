@@ -7,15 +7,7 @@ const LOAN_TYPES = ['Loan','Daily Loan','Weekly Loan','Individual Loan','Monthly
 @Injectable()
 export class LoansService {
  constructor(private readonly prisma: PrismaService) {}
- private async ensureLoanTables(){
-  await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PWFBLoanRate" ("id" TEXT PRIMARY KEY, "loanType" TEXT UNIQUE NOT NULL, "interestRate" DOUBLE PRECISION NOT NULL DEFAULT 0, "active" BOOLEAN NOT NULL DEFAULT TRUE, "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-  await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PWFBLoanMeta" ("loanId" TEXT PRIMARY KEY, "loanType" TEXT, "duration" DOUBLE PRECISION, "repaymentFrequency" TEXT, "purpose" TEXT, "interestAmount" DOUBLE PRECISION, "totalRepayment" DOUBLE PRECISION, "installmentAmount" DOUBLE PRECISION, "passportPhoto" TEXT, "disbursementDestination" TEXT, "verifiedNameMatchCount" DOUBLE PRECISION, "disbursementAccountVerified" BOOLEAN NOT NULL DEFAULT FALSE, "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-  await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PWFBRepaymentAllocation" ("repaymentId" TEXT PRIMARY KEY,"principalPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,"interestPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,"createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "disbursementDestination" TEXT`);
-  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "verifiedNameMatchCount" DOUBLE PRECISION`);
-  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "disbursementAccountVerified" BOOLEAN NOT NULL DEFAULT FALSE`);
-  for(const type of LOAN_TYPES) await this.prisma.$executeRawUnsafe(`INSERT INTO "PWFBLoanRate" ("id","loanType","interestRate") VALUES ($1,$2,0) ON CONFLICT ("loanType") DO NOTHING`,`rate_${type.toLowerCase().replace(/[^a-z0-9]+/g,'_')}`,type);
- }
+ private async ensureLoanTables(){ /* Loan support tables are owned by Prisma migrations. */ }
  private async meta(id:string){await this.ensureLoanTables();const rows=await this.prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,id);return rows[0]??null;}
  private async withMeta<T extends {id:string;amount:number;interestRate:number|null;repayments?:{amount:number}[]}>(loan:T){
   const meta=await this.meta(loan.id);

@@ -6,11 +6,9 @@ function getAllowedOrigins(): Set<string> {
     .split(',')
     .map((value) => value.trim().replace(/\/$/, ''))
     .filter(Boolean);
-  const defaults = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'https://pwfb-frontend.onrender.com',
-  ];
+  const defaults = process.env.NODE_ENV === 'production'
+    ? ['https://pwfb-frontend.onrender.com']
+    : ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://pwfb-frontend.onrender.com'];
   return new Set([...defaults, ...configured]);
 }
 

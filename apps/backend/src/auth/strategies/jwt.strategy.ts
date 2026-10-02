@@ -13,7 +13,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'pwfb-secret-key',
+      secretOrKey: process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'pwfb-test-only-secret' : (() => { throw new Error('JWT_SECRET must be configured before JwtStrategy starts'); })()),
       passReqToCallback: true,
     });
   }
@@ -40,8 +40,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     let twoFactorRequired = false;
     try {
-      await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserTwoFactorSession" ("tokenHash" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE, "verifiedUntil" TIMESTAMP(3) NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-      await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserAuthenticator" ("userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE, "secretEnc" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT FALSE, "recoveryCodes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
       const authenticator = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(`SELECT "enabled" FROM "UserAuthenticator" WHERE "userId" = $1 LIMIT 1`, user.id);
       if (authenticator[0]?.enabled) {
         const authHeader = String(request?.headers?.authorization || '');

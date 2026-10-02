@@ -12,7 +12,7 @@ export class CustomersService {
 
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.prisma.user.findUnique({ where: { email } })) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
-  private generateTemporaryPassword() { return `PWFB-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; }
+  private generateTemporaryPassword() { return `PWFB-${randomBytes(4).toString('hex').toUpperCase()}-${1000 + (randomBytes(2).readUInt16BE(0) % 9000)}`; }
   private async generateCustomerId() { const count = await this.prisma.customer.count(); let number = count + 1; let customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; while (await this.prisma.customer.findUnique({ where: { id: customerId } })) { number++; customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; } return customerId; }
 
   async create(dto: CreateCustomerDto, authUser: any) {

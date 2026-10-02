@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     rootDir: .
-    buildCommand: npm install && npm run build --workspace=backend
+    buildCommand: npm ci && npm run build:backend
     startCommand: npm run start:prod --workspace=backend
     healthCheckPath: /health
     autoDeploy: true
@@ -13,8 +13,7 @@ services:
     name: pwfb-frontend
     runtime: node
     plan: starter
-    rootDir: apps/frontend
-    # Ensure devDependencies are installed during build (Tailwind/PostCSS needed by Next build)
-    buildCommand: NPM_CONFIG_PRODUCTION=false npm install && npm run build
-    startCommand: npm run start
+    rootDir: .
+    buildCommand: npm ci && npm run build:frontend
+    startCommand: npm run start --workspace=pwfb-frontend
     autoDeploy: true

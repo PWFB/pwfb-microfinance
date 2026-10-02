@@ -9,26 +9,25 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import './auth-passkey.extension';
 import './auth-customer-link.extension';
 
+const jwtSecret =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'test' ? 'pwfb-test-only-secret' : undefined);
+
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET must be configured before the authentication module starts');
+}
+
 @Module({
   imports: [
     PrismaModule,
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'pwfb-secret-key',
-      signOptions: {
-        expiresIn: '1d',
-      },
+      secret: jwtSecret,
+      signOptions: { expiresIn: '1d' },
     }),
   ],
   controllers: [AuthController],
-  providers: [
-    AuthService,
-    TwoFactorService,
-    JwtStrategy,
-  ],
-  exports: [
-    AuthService,
-    TwoFactorService,
-  ],
+  providers: [AuthService, TwoFactorService, JwtStrategy],
+  exports: [AuthService, TwoFactorService],
 })
 export class AuthModule {}

@@ -10,6 +10,10 @@ describe('SavingsService', () => {
     customer: {
       findUnique: jest.fn(),
     },
+    $transaction: jest.fn(async (callback: any) => callback(prisma)),
+    transaction: {
+      create: jest.fn(),
+    },
     savings: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -157,7 +161,7 @@ describe('SavingsService', () => {
     const existing = {
       id: 'savings-1',
       customerId: 'customer-1',
-      amount: 5000,
+      amount: 0,
     };
 
     const deleted = {

@@ -4,6 +4,9 @@ import { LoansService } from './loans.service';
 describe('LoansController', () => {
   let controller: LoansController;
   let service: jest.Mocked<LoansService>;
+  const permissions = { assert: jest.fn().mockResolvedValue(undefined) };
+  const loanDisbursementService = {} as any;
+  const externalBankTransferService = {} as any;
 
   beforeEach(() => {
     service = {
@@ -14,7 +17,12 @@ describe('LoansController', () => {
       remove: jest.fn(),
     } as unknown as jest.Mocked<LoansService>;
 
-    controller = new LoansController(service);
+    controller = new LoansController(
+      service,
+      loanDisbursementService,
+      externalBankTransferService,
+      permissions as any,
+    );
   });
 
   it('should be defined', () => {
@@ -36,7 +44,8 @@ describe('LoansController', () => {
 
     service.create.mockResolvedValue(result as any);
 
-    await expect(controller.create(dto)).resolves.toBe(result);
+    await expect(controller.create(dto, { user: { role: 'CREDIT_OFFICER' } } as any)).resolves.toBe(result);
+    expect(permissions.assert).toHaveBeenCalledWith('CREDIT_OFFICER', 'LOAN_CREATE');
     expect(service.create).toHaveBeenCalledWith(dto);
   });
 

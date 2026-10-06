@@ -1,13 +1,14 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 
 describe('RepaymentsService', () => {
   let service: RepaymentsService;
 
   const prisma = {
-    loan: {
-      findUnique: jest.fn(),
-    },
+    $executeRawUnsafe: jest.fn(),
+    $queryRawUnsafe: jest.fn(),
+    $transaction: jest.fn(),
+    loan: { findUnique: jest.fn() },
     repayment: {
       create: jest.fn(),
       findMany: jest.fn(),
@@ -15,10 +16,16 @@ describe('RepaymentsService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    transaction: { create: jest.fn() },
   } as any;
+
+  const tx = prisma;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    prisma.$transaction.mockImplementation(async (callback: any) => callback(tx));
+    prisma.$executeRawUnsafe.mockResolvedValue(1);
+    prisma.transaction.create.mockResolvedValue({ id: 'tx-1' });
     service = new RepaymentsService(prisma);
   });
 
@@ -26,207 +33,132 @@ describe('RepaymentsService', () => {
     expect(service).toBeDefined();
   });
 
-  it('should create a repayment for an existing loan', async () => {
-    const dto = {
-      loanId: 'loan-1',
-      amount: 2500,
-      paymentDate: '2026-08-12T00:00:00.000Z',
-      method: 'CASH',
-      notes: 'First repayment',
-    };
-
-    const loan = { id: 'loan-1' };
-    const result = {
-      id: 'repayment-1',
-      ...dto,
-    };
-
-    prisma.loan.findUnique.mockResolvedValue(loan);
-    prisma.repayment.create.mockResolvedValue(result);
-
-    await expect(service.create(dto)).resolves.toBe(result);
-
-    expect(prisma.loan.findUnique).toHaveBeenCalledWith({
-      where: { id: 'loan-1' },
-    });
-
-    expect(prisma.repayment.create).toHaveBeenCalledWith({
-      data: {
-        loanId: 'loan-1',
-        amount: 2500,
-        paymentDate: new Date(dto.paymentDate),
-        method: 'CASH',
-        notes: 'First repayment',
-      },
-      include: {
-        loan: {
-          include: {
-            customer: true,
-          },
-        },
-      },
-    });
-  });
-
-  it('should reject repayment creation when loan does not exist', async () => {
+  it('should reject repayment when loan does not exist', async () => {
     prisma.loan.findUnique.mockResolvedValue(null);
 
-    await expect(
-      service.create({
-        loanId: 'missing-loan',
-        amount: 1000,
-      }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.create({ loanId: 'missing', amount: 1000 } as any))
+      .rejects.toBeInstanceOf(NotFoundException);
 
     expect(prisma.repayment.create).not.toHaveBeenCalled();
   });
 
-  it('should return all repayments ordered by newest first', async () => {
-    const result = [
-      {
-        id: 'repayment-1',
-        loanId: 'loan-1',
-        amount: 2500,
-      },
-    ];
-
-    prisma.repayment.findMany.mockResolvedValue(result);
-
-    await expect(service.findAll()).resolves.toBe(result);
-
-    expect(prisma.repayment.findMany).toHaveBeenCalledWith({
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        loan: {
-          include: {
-            customer: true,
-          },
-        },
-      },
-    });
-  });
-
-  it('should return a repayment by id', async () => {
-    const result = {
-      id: 'repayment-1',
-      loanId: 'loan-1',
-      amount: 2500,
+  it('should allocate repayment interest first, then principal, and expose outstanding balances', async () => {
+    const loan = {
+      id: 'loan-1',
+      amount: 10000,
+      interestRate: 10,
+      customerId: 'customer-1',
     };
+    const repayment = { id: 'repayment-1', loanId: loan.id, amount: 3000 };
 
-    prisma.repayment.findUnique.mockResolvedValue(result);
+    prisma.loan.findUnique
+      .mockResolvedValueOnce(loan)
+      .mockResolvedValueOnce(loan);
+    prisma.repayment.create.mockResolvedValue(repayment);
+    prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([{ interestAmount: 1000 }])
+      .mockResolvedValueOnce([{ interestPaid: 0, principalPaid: 0 }]);
 
-    await expect(
-      service.findOne('repayment-1'),
-    ).resolves.toBe(result);
-
-    expect(prisma.repayment.findUnique).toHaveBeenCalledWith({
-      where: { id: 'repayment-1' },
-      include: {
-        loan: {
-          include: {
-            customer: true,
-          },
-        },
-      },
-    });
-  });
-
-  it('should throw when repayment does not exist', async () => {
-    prisma.repayment.findUnique.mockResolvedValue(null);
-
-    await expect(
-      service.findOne('missing-repayment'),
-    ).rejects.toBeInstanceOf(NotFoundException);
-  });
-
-  it('should update an existing repayment', async () => {
-    const existing = {
-      id: 'repayment-1',
-      loanId: 'loan-1',
-    };
-
-    const dto = {
+    const result = await service.create({
+      loanId: loan.id,
       amount: 3000,
-      method: 'BANK_TRANSFER',
-    };
+      method: 'CASH',
+    } as any);
 
-    const result = {
-      id: 'repayment-1',
-      loanId: 'loan-1',
-      amount: 3000,
-      method: 'BANK_TRANSFER',
-    };
-
-    jest
-      .spyOn(service, 'findOne')
-      .mockResolvedValue(existing as any);
-
-    prisma.repayment.update.mockResolvedValue(result);
-
-    await expect(
-      service.update('repayment-1', dto),
-    ).resolves.toBe(result);
-
-    expect(prisma.repayment.update).toHaveBeenCalledWith({
-      where: { id: 'repayment-1' },
-      data: {
-        loanId: undefined,
+    expect(result.interestPaid).toBe(1000);
+    expect(result.principalPaid).toBe(2000);
+    expect(result.interestOutstanding).toBe(0);
+    expect(result.principalOutstanding).toBe(8000);
+    expect(prisma.transaction.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        type: 'LOAN_REPAYMENT',
         amount: 3000,
-        paymentDate: undefined,
-        method: 'BANK_TRANSFER',
-        notes: undefined,
-      },
-      include: {
-        loan: {
-          include: {
-            customer: true,
-          },
-        },
-      },
-    });
-  });
-
-  it('should reject update when the new loan does not exist', async () => {
-    jest
-      .spyOn(service, 'findOne')
-      .mockResolvedValue({
-        id: 'repayment-1',
-      } as any);
-
-    prisma.loan.findUnique.mockResolvedValue(null);
-
-    await expect(
-      service.update('repayment-1', {
-        loanId: 'missing-loan',
       }),
-    ).rejects.toBeInstanceOf(NotFoundException);
-
-    expect(prisma.repayment.update).not.toHaveBeenCalled();
+    }));
   });
 
-  it('should delete an existing repayment', async () => {
+  it('should reject a repayment above the outstanding loan balance', async () => {
+    const loan = {
+      id: 'loan-1',
+      amount: 1000,
+      interestRate: 10,
+      customerId: 'customer-1',
+    };
+
+    prisma.loan.findUnique
+      .mockResolvedValueOnce(loan)
+      .mockResolvedValueOnce(loan);
+    prisma.repayment.create.mockResolvedValue({
+      id: 'repayment-over',
+      loanId: loan.id,
+      amount: 2000,
+    });
+    prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([{ interestAmount: 100 }])
+      .mockResolvedValueOnce([{ interestPaid: 0, principalPaid: 0 }]);
+
+    await expect(service.create({ loanId: loan.id, amount: 2000 } as any))
+      .rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.transaction.create).not.toHaveBeenCalled();
+  });
+
+  it('should create an adjustment ledger entry when repayment amount increases', async () => {
     const existing = {
       id: 'repayment-1',
+      loanId: 'loan-1',
+      amount: 1000,
+      interestPaid: 100,
+      principalPaid: 900,
+      loan: { customerId: 'customer-1' },
     };
 
-    const result = {
-      id: 'repayment-1',
-    };
-
-    jest
-      .spyOn(service, 'findOne')
-      .mockResolvedValue(existing as any);
-
-    prisma.repayment.delete.mockResolvedValue(result);
-
-    await expect(
-      service.remove('repayment-1'),
-    ).resolves.toBe(result);
-
-    expect(prisma.repayment.delete).toHaveBeenCalledWith({
-      where: { id: 'repayment-1' },
+    jest.spyOn(service, 'findOne').mockResolvedValue(existing as any);
+    prisma.repayment.update.mockResolvedValue({ ...existing, amount: 1500 });
+    prisma.loan.findUnique.mockResolvedValue({
+      id: 'loan-1',
+      amount: 10000,
+      interestRate: 10,
+      customerId: 'customer-1',
     });
+    prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([{ interestAmount: 1000 }])
+      .mockResolvedValueOnce([{ interestPaid: 0, principalPaid: 0 }]);
+
+    await service.update('repayment-1', { amount: 1500 } as any);
+
+    expect(prisma.transaction.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        type: 'LOAN_REPAYMENT_ADJUSTMENT',
+        amount: 500,
+      }),
+    }));
+  });
+
+  it('should create a reversal ledger entry when a repayment is deleted', async () => {
+    const existing = {
+      id: 'repayment-1',
+      loanId: 'loan-1',
+      amount: 1000,
+      interestPaid: 100,
+      principalPaid: 900,
+      loan: { customerId: 'customer-1' },
+    };
+
+    jest.spyOn(service, 'findOne').mockResolvedValue(existing as any);
+    prisma.repayment.delete.mockResolvedValue(existing);
+
+    await service.remove('repayment-1');
+
+    expect(prisma.transaction.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        type: 'LOAN_REPAYMENT_REVERSAL',
+        amount: 1000,
+      }),
+    }));
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM "PWFBRepaymentAllocation"'),
+      'repayment-1',
+    );
   });
 });

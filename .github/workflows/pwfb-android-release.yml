@@ -50,7 +50,7 @@ jobs:
             -PPWFB_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
             -PPWFB_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD }}"
       - name: Verify version
-        run: grep -q "versionCode 51" android-twa/app/build.gradle && grep -q "versionName '1.0.51'" android-twa/app/build.gradle
+        run: grep -q "versionCode 52" android-twa/app/build.gradle && grep -q "versionName '1.0.52'" android-twa/app/build.gradle
       - name: Verify signed APK
         run: test -s android-twa/app/build/outputs/apk/release/app-release.apk
       - name: Verify signed AAB

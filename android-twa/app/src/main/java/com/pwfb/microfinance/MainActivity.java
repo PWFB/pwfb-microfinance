@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
     private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final String PREFS = "pwfb_app_auth";
     private static final String TOKEN = "access_token";
-    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU";
+    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU";
     private static final int GOOGLE_REQUEST = 9101;
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private static final int GREEN = Color.rgb(8, 117, 52);
@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
     private void buildWebApp() {
         swipeRefresh = new SwipeRefreshLayout(this); swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); swipeRefresh.setEnabled(true); swipeRefresh.setColorSchemeColors(GREEN, ORANGE); swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE); swipeRefresh.setDistanceToTriggerSync(dp(72)); swipeRefresh.setSlingshotDistance(dp(96));
         webView = new WebView(this); webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); webView.setBackgroundColor(Color.WHITE); webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
-        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.51");
+        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.52");
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) WebSettingsCompat.setWebAuthenticationSupport(s, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.addJavascriptInterface(new NativePasskeyBridge(), "PWFBNative");

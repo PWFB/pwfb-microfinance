@@ -50,7 +50,7 @@ jobs:
             -PPWFB_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
             -PPWFB_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD }}"
       - name: Verify version
-        run: grep -q "versionCode 54" android-twa/app/build.gradle && grep -q "versionName '1.0.54'" android-twa/app/build.gradle && grep -q "PWFBAndroidApp/1.0.54" android-twa/app/src/main/java/com/pwfb/microfinance/MainActivity.java
+        run: grep -q "versionCode 55" android-twa/app/build.gradle && grep -q "versionName '1.0.55'" android-twa/app/build.gradle && grep -q "PWFBAndroidApp/1.0.55" android-twa/app/src/main/java/com/pwfb/microfinance/MainActivity.java
       - name: Verify signed APK
         run: test -s android-twa/app/build/outputs/apk/release/app-release.apk
       - name: Verify signed AAB
@@ -58,24 +58,24 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.54-staff-customer-login-signed-apk
+          name: pwfb-microfinance-v1.0.55-staff-customer-login-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.54-staff-customer-login-signed-aab
+          name: pwfb-microfinance-v1.0.55-staff-customer-login-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.54
-          name: PWFB Microfinance v1.0.54 — Staff + Customer Web/App Login
+          tag_name: v1.0.55
+          name: PWFB Microfinance v1.0.55 — Staff + Customer Web/App Login
           body: |
-            PWFB Microfinance Android application v1.0.54.
+            PWFB Microfinance Android application v1.0.55.
 
-            Fixes native Google sign-in so the Android app requests an ID token for the PWFB backend/server OAuth client. The release also restores reliable pull-to-refresh behavior and keeps the PWFB orange/green bottom brand accent consistent across WebView and web.
+            Replaces the legacy Google Sign-In activity flow with Android Credential Manager + Google ID token authentication for a clean independent Google Sign-In test.
             Signed APK is provided for Android installation and signed AAB for Google Play.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
@@ -86,4 +86,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.54 Staff and customer web/app login release build
+# PWFB v1.0.55 Staff and customer web/app login release build

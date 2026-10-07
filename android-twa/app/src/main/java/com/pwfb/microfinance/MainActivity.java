@@ -24,6 +24,7 @@ import androidx.credentials.CredentialManager;
 import androidx.credentials.exceptions.GetCredentialException;
 import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
+import androidx.credentials.Credential;
 import androidx.credentials.GetPublicKeyCredentialOption;
 import androidx.credentials.PublicKeyCredential;
 import androidx.credentials.CredentialManagerCallback;
@@ -31,12 +32,8 @@ import androidx.credentials.exceptions.CreateCredentialException;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
-import com.google.android.gms.auth.api.signin.GoogleSignIn;
-import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
-import com.google.android.gms.auth.api.signin.GoogleSignInClient;
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.common.api.ApiException;
-import com.google.android.gms.tasks.Task;
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption;
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -65,8 +62,7 @@ public class MainActivity extends Activity {
     private String pendingNativeToken;
     private boolean nativeLoginRedirected;
     private CredentialManager credentialManager;
-    private GoogleSignInClient googleClient;
-    private String pendingGoogleLoginMode = "CUSTOMER";
+        private String pendingGoogleLoginMode = "CUSTOMER";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         SplashScreen.installSplashScreen(this); super.onCreate(savedInstanceState);
@@ -99,7 +95,7 @@ public class MainActivity extends Activity {
     private void buildWebApp() {
         swipeRefresh = new SwipeRefreshLayout(this); swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); swipeRefresh.setEnabled(true); swipeRefresh.setColorSchemeColors(GREEN, ORANGE); swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE); swipeRefresh.setDistanceToTriggerSync(dp(72)); swipeRefresh.setSlingshotDistance(dp(96));
         webView = new WebView(this); webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); webView.setBackgroundColor(Color.WHITE); webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
-        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.54");
+        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.55");
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) WebSettingsCompat.setWebAuthenticationSupport(s, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.addJavascriptInterface(new NativePasskeyBridge(), "PWFBNative");
@@ -198,39 +194,67 @@ public class MainActivity extends Activity {
                 JSONObject config = get("/auth/google/config");
                 String clientId = config.optString("server_client_id", "").trim();
                 if (clientId.isEmpty()) clientId = config.optString("client_id", "").trim();
-                if (clientId.isEmpty()) clientId = config.optString("client_id", "").trim();
                 if (clientId.isEmpty()) throw new Exception("Google sign-in is not configured on the PWFB server.");
-                GoogleSignInOptions options = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestIdToken(clientId).requestEmail().build();
-                googleClient = GoogleSignIn.getClient(this, options);
-                runOnUiThread(() -> googleClient.signOut().addOnCompleteListener(task -> {
-                    try { startActivityForResult(googleClient.getSignInIntent(), GOOGLE_REQUEST); }
-                    catch (Exception e) { sendNativeGoogleResult(false, "Google sign-in could not start.", null, pendingGoogleLoginMode); }
-                }));
-            } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in is unavailable." : e.getMessage(), null, pendingGoogleLoginMode); }
+
+                GetGoogleIdOption googleIdOption = new GetGoogleIdOption.Builder()
+                        .setServerClientId(clientId)
+                        .setFilterByAuthorizedAccounts(false)
+                        .setAutoSelectEnabled(false)
+                        .build();
+
+                GetCredentialRequest request = new GetCredentialRequest.Builder()
+                        .addCredentialOption(googleIdOption)
+                        .build();
+
+                runOnUiThread(() -> credentialManager.getCredentialAsync(
+                        this,
+                        request,
+                        null,
+                        ContextCompat.getMainExecutor(this),
+                        new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
+                            @Override public void onResult(GetCredentialResponse response) {
+                                try {
+                                    Credential credential = response == null ? null : response.getCredential();
+                                    if (credential == null) throw new Exception("Google did not return a credential.");
+                                    if (!GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(credential.getType())) {
+                                        throw new Exception("PWFB received an unsupported Google credential.");
+                                    }
+                                    GoogleIdTokenCredential googleCredential =
+                                            GoogleIdTokenCredential.createFrom(credential.getData());
+                                    String idToken = googleCredential.getIdToken();
+                                    if (idToken == null || idToken.trim().isEmpty()) {
+                                        throw new Exception("Google did not return a secure ID token.");
+                                    }
+                                    new Thread(() -> completeNativeGoogleLogin(idToken)).start();
+                                } catch (Exception e) {
+                                    sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, pendingGoogleLoginMode);
+                                }
+                            }
+
+                            @Override public void onError(GetCredentialException error) {
+                                String message = error == null ? "Google sign-in was cancelled or unavailable." : error.getMessage();
+                                sendNativeGoogleResult(false, message == null ? "Google sign-in failed." : message, null, pendingGoogleLoginMode);
+                            }
+                        }));
+            } catch (Exception e) {
+                sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in is unavailable." : e.getMessage(), null, pendingGoogleLoginMode);
+            }
         }).start();
     }
 
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != GOOGLE_REQUEST) return;
-        if (googleClient == null) { sendNativeGoogleResult(false, "Google sign-in session is unavailable.", null, pendingGoogleLoginMode); return; }
+    private void completeNativeGoogleLogin(String idToken) {
         try {
-            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
-            GoogleSignInAccount account = task.getResult(ApiException.class);
-            if (account == null || account.getIdToken() == null) throw new Exception("Google did not return a secure ID token.");
-            String idToken = account.getIdToken();
-            new Thread(() -> {
-                try {
-                    JSONObject body = new JSONObject(); body.put("credential", idToken); body.put("loginMode", pendingGoogleLoginMode);
-                    JSONObject result = postPublic("/auth/google/android", body);
-                    String token = result.optString("access_token", "");
-                    if (token.isEmpty()) throw new Exception("PWFB did not return a login session.");
-                    getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
-                    sendNativeGoogleResult(true, "Google sign-in successful.", result, pendingGoogleLoginMode);
-                } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, pendingGoogleLoginMode); }
-            }).start();
-        } catch (ApiException e) { sendNativeGoogleResult(false, "Google sign-in error (code " + e.getStatusCode() + "). Please verify the PWFB Android Google configuration.", null, pendingGoogleLoginMode); }
-        catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, pendingGoogleLoginMode); }
+            JSONObject body = new JSONObject();
+            body.put("credential", idToken);
+            body.put("loginMode", pendingGoogleLoginMode);
+            JSONObject result = postPublic("/auth/google/android", body);
+            String token = result.optString("access_token", "");
+            if (token.isEmpty()) throw new Exception("PWFB did not return a login session.");
+            getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
+            sendNativeGoogleResult(true, "Google sign-in successful.", result, pendingGoogleLoginMode);
+        } catch (Exception e) {
+            sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in failed." : e.getMessage(), null, pendingGoogleLoginMode);
+        }
     }
 
     private JSONObject get(String path) throws Exception {

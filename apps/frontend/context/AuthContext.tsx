@@ -59,11 +59,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const nativeApp = /PWFBAndroidApp/i.test(ua);
     if (nativeApp) {
-      window.location.href = "pwfb://open-app?logout=1&url=" + encodeURIComponent("https://pwfb-frontend.onrender.com/login");
+      window.location.href = "pwfb://open-app?logout=1&url=" + encodeURIComponent("https://pwfb-microfinance-1.onrender.com/login");
       window.setTimeout(() => router.replace("/login"), 700);
       return;
     }
-    window.location.assign("https://pwfb-frontend.onrender.com/login");
+    window.location.assign("https://pwfb-microfinance-1.onrender.com/login");
   }
 
   useEffect(() => { refreshProfile().catch(() => undefined); }, [pathname]);

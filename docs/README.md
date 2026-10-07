@@ -2,9 +2,7 @@
 
 ## Purpose
 
-This documentation describes the PWFB Microfinance administration platform,
-its operational modules, user roles, security controls, deployment structure,
-and procedures for operating the production system.
+This documentation describes the PWFB Microfinance administration platform, its operational modules, user roles, security controls, deployment structure, and procedures for operating the production system.
 
 ## Platform Modules
 
@@ -22,15 +20,17 @@ and procedures for operating the production system.
 
 ## Administration
 
-The Super Admin is responsible for system administration, user access,
-operational oversight, configuration, and monitoring.
+The Super Admin is responsible for system administration, user access, operational oversight, configuration, and monitoring.
 
 ## Production
 
 Frontend:
-https://pwfb-frontend.onrender.com
+https://pwfb-microfinance-1.onrender.com
 
-The production frontend is deployed through Render from the main branch.
+Backend/API:
+https://pwfb-backend.onrender.com
+
+The production services are deployed through Render from the main branch.
 
 ## Documentation Index
 
@@ -40,3 +40,4 @@ The production frontend is deployed through Render from the main branch.
 - [Security](SECURITY.md)
 - [Deployment](DEPLOYMENT.md)
 - [Production Checklist](PRODUCTION-CHECKLIST.md)
+- [Pre-Sale Readiness](PRE-SALE-READINESS.md)

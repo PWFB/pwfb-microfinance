@@ -167,7 +167,7 @@ The production frontend is deployed through Render.
 
 Production frontend:
 
-https://pwfb-frontend.onrender.com
+https://pwfb-microfinance-1.onrender.com
 
 The production deployment is connected to the project's main Git branch.
 

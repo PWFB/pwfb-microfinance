@@ -12,6 +12,8 @@ describe('LoansService', () => {
       customer: {
         findUnique: jest.fn(),
       },
+      $executeRawUnsafe: jest.fn(),
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       loan: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -24,6 +26,8 @@ describe('LoansService', () => {
     service = new LoansService(
       prisma as PrismaService,
     );
+    jest.spyOn(service as any, 'withMeta').mockImplementation(async (loan: any) => loan);
+    prisma.$queryRawUnsafe.mockResolvedValue([{ interestRate: 0 }]);
   });
 
   it('should be defined', () => {
@@ -62,18 +66,19 @@ describe('LoansService', () => {
       },
     });
 
-    expect(prisma.loan.create).toHaveBeenCalledWith({
-      data: {
+    expect(prisma.loan.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
         customerId: 'customer-1',
         amount: 100000,
         interestRate: 10,
         status: 'PENDING',
-      },
-      include: {
+      }),
+      include: expect.objectContaining({
         customer: true,
         repayments: true,
-      },
-    });
+        guarantors: true,
+      }),
+    }));
   });
 
   it('should reject loan creation when customer does not exist', async () => {

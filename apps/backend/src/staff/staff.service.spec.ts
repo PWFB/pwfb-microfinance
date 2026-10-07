@@ -18,7 +18,22 @@ describe('StaffService', () => {
         count: jest.fn().mockResolvedValue(0),
     } as unknown as jest.Mocked<StaffRepository>;
 
-    service = new StaffService(repository);
+    service = new StaffService(
+      repository,
+      { $executeRawUnsafe: jest.fn(), $queryRawUnsafe: jest.fn() } as any,
+      { } as any,
+    );
+    jest.spyOn(service, 'getBvnVerification').mockResolvedValue({
+      verified: true,
+      pending: false,
+      reference: 'BVN-REF-1',
+      firstName: 'John',
+      middleName: '',
+      lastName: 'Doe',
+      fullName: 'John Doe',
+      status: 'COMPLETED',
+      message: '',
+    } as any);
   });
 
   it('should be defined', () => {
@@ -35,6 +50,7 @@ describe('StaffService', () => {
       department: 'dept-1',
       position: 'Officer',
       branch: 'branch-1',
+      bvnVerificationReference: 'BVN-REF-1',
     };
 
     const staff = { id: 'staff-1', ...dto };

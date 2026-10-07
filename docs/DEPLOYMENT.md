@@ -10,7 +10,7 @@ The production branch is `main`.
 
 ## Frontend
 
-Production frontend: https://pwfb-frontend.onrender.com
+Production frontend: https://pwfb-microfinance-1.onrender.com
 
 The frontend is deployed through Render from the `main` branch.
 

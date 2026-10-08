@@ -15,6 +15,7 @@ function date(x: Row) { const v = x.createdAt || x.paymentDate || x.date || x.up
 function csvEscape(v: any) { return `"${String(v ?? "").replace(/"/g, '""')}"`; }
 
 const financialActions = [
+  { title: "Financial Portal", description: "Payroll, bank schedules and co-operative ledger", href: "/financial-portal", icon: "▤", tone: "green" },
   { title: "Customer Deposit", description: "Deposit funds into a customer wallet", href: "/banking?operation=deposit", icon: "↓", tone: "green" },
   { title: "Customer Withdrawal", description: "Withdraw funds with balance controls", href: "/banking?operation=withdraw", icon: "↑", tone: "orange" },
   { title: "Bank Transfer", description: "Send funds to a verified bank account", href: "/banking?operation=bank-transfer", icon: "↗", tone: "green" },

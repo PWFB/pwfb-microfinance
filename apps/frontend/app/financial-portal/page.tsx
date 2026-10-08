@@ -77,7 +77,7 @@ export default function FinancialPortalPage() {
   const [loading, setLoading] = useState(true);
   const [apiError, setApiError] = useState("");
 
-  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "https://pwfb-backend.onrender.com").replace(/\\/$/, "");
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "https://pwfb-microfinance.onrender.com").replace(/\/$/, "");
 
   useEffect(() => {
     let cancelled = false;

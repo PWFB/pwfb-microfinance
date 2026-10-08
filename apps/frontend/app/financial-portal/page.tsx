@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type PayrollRow = {
   region: string; branch: string; name: string; gra: string;
@@ -71,15 +71,49 @@ export default function FinancialPortalPage() {
   const [tab, setTab] = useState<"payroll" | "transport" | "coop">("payroll");
   const [region, setRegion] = useState("ALL");
   const [query, setQuery] = useState("");
+  const [payrollDataLive, setPayrollDataLive] = useState<PayrollRow[]>([]);
+  const [transportDataLive, setTransportDataLive] = useState<TransportRow[]>([]);
+  const [coopDataLive, setCoopDataLive] = useState<CoopRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState("");
+
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || "https://pwfb-backend.onrender.com").replace(/\\/$/, "");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLiveData() {
+      try {
+        setLoading(true); setApiError("");
+        const [payrollRes, disbursementRes, coopRes] = await Promise.all([
+          fetch(`${apiBase}/financial-portal/payroll`, { credentials: "include" }),
+          fetch(`${apiBase}/financial-portal/disbursements`, { credentials: "include" }),
+          fetch(`${apiBase}/financial-portal/cooperative`, { credentials: "include" }),
+        ]);
+        if (!payrollRes.ok || !disbursementRes.ok || !coopRes.ok) throw new Error("Financial portal API unavailable");
+        const [payroll, disbursements, cooperative] = await Promise.all([payrollRes.json(), disbursementRes.json(), coopRes.json()]);
+        if (cancelled) return;
+        setPayrollDataLive(payroll.map((r: any) => ({ region:r.region, branch:r.branch, name:r.name, gra:r.staffNumber || "", gross:Number(r.gross||0), bonus:Number(r.allowances||0), coopS:0, coopL:0, dev:0, tax:0, offline:0, others:Number(r.deductions||0), advance:0 })));
+        setTransportDataLive(disbursements.map((r: any) => ({ code:r.bankCode||"", bank:r.bankName||"", acc:r.accountNumber||"", name:r.accountName||"", amount:Number(r.amount||0), narration:r.narration||"", ref:r.reference||"" })));
+        setCoopDataLive(cooperative.map((r: any) => ({ name:r.name, aprSav:Number(r.savingsBalance||0), mayColl:0, mayWT:0, aprLoan:Number(r.loanIssued||0), mayLoanColl:0, mayLoanPaid:Number(r.loanPaid||0) })));
+      } catch (e) { if (!cancelled) setApiError("Live data is unavailable. Showing local preview data."); }
+      finally { if (!cancelled) setLoading(false); }
+    }
+    loadLiveData();
+    return () => { cancelled = true; };
+  }, [apiBase]);
+
+  const activePayroll = payrollDataLive.length ? payrollDataLive : payrollData;
+  const activeTransport = transportDataLive.length ? transportDataLive : transportData;
+  const activeCoop = coopDataLive.length ? coopDataLive : coopData;
 
   const filteredPayroll = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return payrollData.filter((row) => {
+    return activePayroll.filter((row) => {
       const regionMatch = region === "ALL" || row.region === region;
       const textMatch = !q || Object.values(row).join(" ").toLowerCase().includes(q);
       return regionMatch && textMatch;
     });
-  }, [region, query]);
+  }, [region, query, activePayroll]);
 
   const payrollTotals = useMemo(() => filteredPayroll.reduce((t, row) => {
     const totalDed = row.coopS + row.coopL + row.dev + row.tax + row.offline + row.others + row.advance;
@@ -104,10 +138,10 @@ export default function FinancialPortalPage() {
       });
     } else if (tab === "transport") {
       headers = ["Bank Code","Destination Bank","Account No","Account Name","Amount","Narration","Ref"];
-      rows = transportData.map((r) => [r.code,r.bank,r.acc,r.name,r.amount,r.narration,r.ref]);
+      rows = activeTransport.map((r) => [r.code,r.bank,r.acc,r.name,r.amount,r.narration,r.ref]);
     } else {
       headers = ["Member Name","April Sav. Bal","May S. Coll","May Sav. WT","Sav. Bal","April Loan Bal","May Loan Collec","May Loan Paid","Loan Bal"];
-      rows = coopData.map((r) => [r.name,r.aprSav,r.mayColl,r.mayWT,r.aprSav+r.mayColl-r.mayWT,r.aprLoan,r.mayLoanColl,r.mayLoanPaid,r.aprLoan+r.mayLoanColl-r.mayLoanPaid]);
+      rows = activeCoop.map((r) => [r.name,r.aprSav,r.mayColl,r.mayWT,r.aprSav+r.mayColl-r.mayWT,r.aprLoan,r.mayLoanColl,r.mayLoanPaid,r.aprLoan+r.mayLoanColl-r.mayLoanPaid]);
     }
 
     const csv = [headers, ...rows].map((r) => r.map(csvEscape).join(",")).join("\n");
@@ -144,7 +178,7 @@ export default function FinancialPortalPage() {
         ))}
       </nav>
 
-      <section className="portal-toolbar">
+      {apiError && <div style={{maxWidth:"1440px",margin:"10px auto",padding:"9px 13px",borderRadius:"8px",background:"#fff7ed",color:"#9a3412",fontSize:"11px",fontWeight:700}}>{apiError}</div>}\n      <section className="portal-toolbar">
         <label className="portal-search">
           <span>⌕</span>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search staff, account, or branch..." />
@@ -164,7 +198,7 @@ export default function FinancialPortalPage() {
         <section className="portal-card">
           <div className="portal-card-header">
             <h2>Monthly Payroll Management (DM 1 &amp; DM 2)</h2>
-            <span>August 2026</span>
+            <span>{loading ? "Loading live data..." : apiError ? "Preview / API unavailable" : "LIVE DATABASE"}</span>
           </div>
           <div className="portal-table-wrap">
             <table className="portal-table payroll-table">
@@ -203,7 +237,7 @@ export default function FinancialPortalPage() {
           <div className="portal-table-wrap">
             <table className="portal-table">
               <thead><tr>{["Bank Code","Destination Bank","Account No","Account Name","Amount (₦)","Narration","Ref"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-              <tbody>{transportData.map((r) => <tr key={r.ref}>
+              <tbody>{activeTransport.map((r) => <tr key={r.ref}>
                 <td className="mono">{r.code}</td><td><b>{r.bank}</b></td><td className="mono">{r.acc}</td><td><b className="dark">{r.name}</b></td>
                 <td className="amount-green">{money(r.amount)}</td><td>{r.narration}</td><td className="mono center">{r.ref}</td>
               </tr>)}</tbody>
@@ -222,14 +256,14 @@ export default function FinancialPortalPage() {
           <div className="portal-table-wrap">
             <table className="portal-table">
               <thead><tr>{["Member Name","April Sav. Bal (1)","May S. Coll (2)","May Sav. WT (3)","Sav. Bal (4=1+2-3)","April Loan Bal (5)","May Loan Collec (6)","May Loan Paid (7)","Loan Bal (8=5+6-7)"].map((h) => <th key={h}>{h}</th>)}</tr></thead>
-              <tbody>{coopData.map((r) => {
+              <tbody>{activeCoop.map((r) => {
                 const sav = r.aprSav + r.mayColl - r.mayWT;
                 const loan = r.aprLoan + r.mayLoanColl - r.mayLoanPaid;
                 return <tr key={r.name}><td><b className="dark">{r.name}</b></td><td>{money(r.aprSav)}</td><td>{money(r.mayColl)}</td><td>{money(r.mayWT)}</td><td className="net">{money(sav)}</td><td>{money(r.aprLoan)}</td><td>{money(r.mayLoanColl)}</td><td>{money(r.mayLoanPaid)}</td><td className="loan">{money(loan)}</td></tr>;
               })}</tbody>
               <tfoot><tr>
                 <td>Total Portfolio</td>
-                <td>{money(coopData.reduce((s,r)=>s+r.aprSav,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.mayColl,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.mayWT,0))}</td>
+                <td>{money(activeCoop.reduce((s,r)=>s+r.aprSav,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.mayColl,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.mayWT,0))}</td>
                 <td>{money(coopData.reduce((s,r)=>s+r.aprSav+r.mayColl-r.mayWT,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.aprLoan,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.mayLoanColl,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.mayLoanPaid,0))}</td><td>{money(coopData.reduce((s,r)=>s+r.aprLoan+r.mayLoanColl-r.mayLoanPaid,0))}</td>
               </tr></tfoot>
             </table>

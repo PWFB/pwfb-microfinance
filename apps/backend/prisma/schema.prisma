@@ -353,6 +353,7 @@ model Staff {
   area Area? @relation(fields: [areaId], references: [id], onDelete: SetNull)
   customers Customer[] @relation("StaffCustomers")
   payrollItems PayrollItem[]
+  salaryDisbursements SalaryDisbursement[]
   collections DailyCollection[]
   assignments StaffAssignment[]
   @@index([branchId])
@@ -423,6 +424,7 @@ model Payroll {
   period FinancialPeriod @relation(fields: [periodId], references: [id])
   branch Branch? @relation(fields: [branchId], references: [id])
   items PayrollItem[]
+  salaryDisbursements SalaryDisbursement[]
   @@index([periodId])
   @@index([branchId])
 }
@@ -441,6 +443,33 @@ model PayrollItem {
   staff Staff @relation(fields: [staffId], references: [id])
   @@unique([payrollId, staffId])
   @@index([staffId])
+}
+
+model SalaryDisbursement {
+  id String @id @default(cuid())
+  staffId String
+  payrollId String?
+  bankCode String
+  bankName String
+  accountNumber String
+  accountName String
+  amount Float
+  narration String?
+  reference String
+  batchReference String?
+  status String @default("SCHEDULED")
+  scheduledDate DateTime @default(now())
+  paidAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  staff Staff @relation(fields: [staffId], references: [id])
+  payroll Payroll? @relation(fields: [payrollId], references: [id], onDelete: SetNull)
+  @@unique([reference])
+  @@index([staffId])
+  @@index([payrollId])
+  @@index([batchReference])
+  @@index([status])
+  @@index([scheduledDate])
 }
 
 model CashbookEntry {

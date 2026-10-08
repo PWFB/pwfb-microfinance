@@ -5,6 +5,32 @@ import { PrismaService } from '../prisma/prisma.service';
 export class FinancialPortalService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async onModuleInit() {
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "SalaryDisbursement" (
+      "id" TEXT PRIMARY KEY,
+      "staffId" TEXT NOT NULL,
+      "payrollId" TEXT,
+      "bankCode" TEXT NOT NULL,
+      "bankName" TEXT NOT NULL,
+      "accountNumber" TEXT NOT NULL,
+      "accountName" TEXT NOT NULL,
+      "amount" DOUBLE PRECISION NOT NULL,
+      "narration" TEXT,
+      "reference" TEXT NOT NULL UNIQUE,
+      "batchReference" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'SCHEDULED',
+      "scheduledDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "paidAt" TIMESTAMP(3),
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );`);
+    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalaryDisbursement_staffId_idx" ON "SalaryDisbursement" ("staffId");`);
+    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalaryDisbursement_payrollId_idx" ON "SalaryDisbursement" ("payrollId");`);
+    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalaryDisbursement_batchReference_idx" ON "SalaryDisbursement" ("batchReference");`);
+    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalaryDisbursement_status_idx" ON "SalaryDisbursement" ("status");`);
+    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalaryDisbursement_scheduledDate_idx" ON "SalaryDisbursement" ("scheduledDate");`);
+  }
+
   async payroll(periodId?: string, branchId?: string, query?: string) {
     const payrolls = await this.prisma.payroll.findMany({
       where: { ...(periodId ? { periodId } : {}), ...(branchId ? { branchId } : {}) },

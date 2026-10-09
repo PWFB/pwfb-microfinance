@@ -10,7 +10,7 @@ import androidx.browser.customtabs.CustomTabsIntent;
 
 public class RefreshReceiver extends BroadcastReceiver {
     public static final String ACTION_REFRESH = "com.pwfb.microfinance.ACTION_REFRESH";
-    private static final String START_URL = "https://pwfb-frontend.onrender.com/";
+    private static final String START_URL = "https://pwfb-microfinance-1.onrender.com/";
 
     public static PendingIntent createPendingIntent(Context context) {
         Intent intent = new Intent(context, RefreshReceiver.class);

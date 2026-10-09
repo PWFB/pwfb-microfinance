@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '../ai/ai-http.util';
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -89,7 +90,7 @@ export class BalmzReceiptService {
     const imageUrl = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
     const prompt = `You are BALMZ AI, a conservative payment-receipt verification engine for PWFB Microfinance. Inspect the uploaded payment slip image. Do not guess unreadable values. Extract only visible information. Determine whether the receipt itself says successful, failed, pending, reversed, declined, or unknown. Return ONLY valid JSON with this exact shape: {"paymentStatus":"successful|failed|pending|reversed|declined|unknown","amount":number|null,"currency":string|null,"reference":string|null,"date":string|null,"sender":string|null,"receiver":string|null,"bankOrProvider":string|null,"confidence":number,"reasons":[string]}. A receipt image alone is not proof that money settled; database reconciliation will be used separately.`;
 
-    const response = await fetch('https://api.openai.com/v1/responses', {
+    const response = await fetchWithTimeout('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
@@ -100,7 +101,7 @@ export class BalmzReceiptService {
 
     if (!response.ok) {
       const detail = await response.text();
-      throw new ServiceUnavailableException(`BALMZ AI receipt provider error: ${detail.slice(0, 300)}`);
+      throw new ServiceUnavailableException('BALMZ AI receipt provider is temporarily unavailable. Please try again shortly.');
     }
 
     const payload = await response.json();

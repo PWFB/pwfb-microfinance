@@ -1,11 +1,27 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
+function getCorsOrigins() {
+  const configured = (process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (configured.length) return configured;
+  if (process.env.NODE_ENV !== 'production') {
+    return ['http://localhost:3000', 'http://localhost:3001'];
+  }
+  return [
+    process.env.FRONTEND_URL || 'https://pwfb-microfinance-1.onrender.com',
+    'https://pwfb-frontend.onrender.com',
+  ].filter(Boolean);
+}
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors({
-    origin: true,
+    origin: getCorsOrigins(),
     credentials: true,
   });
 

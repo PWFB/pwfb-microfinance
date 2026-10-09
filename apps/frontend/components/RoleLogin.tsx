@@ -196,9 +196,8 @@ export default function RoleLogin() {
         <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with PWFB.</p>
       </section>
 
-      {message && <div className="pwfb-login-notice" role="alert">{message}</div>}
-
       <section className={"pwfb-login-shell " + selectedCard.tone}>
+        {message && <div className="pwfb-login-notice" role="alert">{message}</div>}
         <div className="pwfb-role-selector">
           <button
             type="button"

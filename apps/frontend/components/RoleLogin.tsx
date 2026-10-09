@@ -171,9 +171,33 @@ export default function RoleLogin() {
         <p>Empowering People · Building Better Futures</p>
       </header>
 
-      {message && <div className="pwfb-login-notice" role="alert">{message}</div>}
+      <section className="pwfb-login-story" aria-label="About PWFB Microfinance">
+        <div className="pwfb-story-kicker"><span /> FINANCIAL SERVICES, MADE CLEAR</div>
+        <h2>Build your future with <em>confidence.</em></h2>
+        <p className="pwfb-story-copy">A simpler way to access your PWFB account, follow your savings, and manage your financial activities securely.</p>
+        <div className="pwfb-story-art" aria-hidden="true">
+          <div className="pwfb-art-orbit pwfb-art-orbit-one" />
+          <div className="pwfb-art-orbit pwfb-art-orbit-two" />
+          <div className="pwfb-art-glow" />
+          <div className="pwfb-art-card">
+            <div className="pwfb-art-card-top"><span className="pwfb-art-mark">P</span><span className="pwfb-art-chip" /></div>
+            <small>PWFB FINANCIAL SERVICES</small>
+            <strong>Your goals.<br />Your next chapter.</strong>
+            <div className="pwfb-art-card-bottom"><span>SECURE ACCESS</span><span>✦</span></div>
+          </div>
+          <div className="pwfb-art-float pwfb-art-float-top"><span>✓</span><div><b>Secure access</b><small>Protected sign-in</small></div></div>
+          <div className="pwfb-art-float pwfb-art-float-bottom"><span>↗</span><div><b>Move forward</b><small>Manage your account</small></div></div>
+        </div>
+        <div className="pwfb-story-features">
+          <div><span className="pwfb-feature-icon">₦</span><span><b>Savings & deposits</b><small>Keep track of your activity</small></span></div>
+          <div><span className="pwfb-feature-icon">↗</span><span><b>Loans & repayments</b><small>Follow your loan journey</small></span></div>
+          <div><span className="pwfb-feature-icon">⌑</span><span><b>Security first</b><small>Sign in with trusted methods</small></span></div>
+        </div>
+        <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with PWFB.</p>
+      </section>
 
       <section className={"pwfb-login-shell " + selectedCard.tone}>
+        {message && <div className="pwfb-login-notice" role="alert">{message}</div>}
         <div className="pwfb-role-selector">
           <button
             type="button"

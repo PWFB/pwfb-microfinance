@@ -58,7 +58,7 @@ describe('LoansService', () => {
     prisma.customer.findUnique.mockResolvedValue(customer);
     prisma.loan.create.mockResolvedValue(result);
 
-    await expect(service.create(dto)).resolves.toBe(result);
+    await expect(service.create(dto)).resolves.toEqual(result);
 
     expect(prisma.customer.findUnique).toHaveBeenCalledWith({
       where: {
@@ -107,7 +107,7 @@ describe('LoansService', () => {
 
     prisma.loan.findMany.mockResolvedValue(result);
 
-    await expect(service.findAll()).resolves.toBe(result);
+    await expect(service.findAll()).resolves.toEqual(result);
 
     expect(prisma.loan.findMany).toHaveBeenCalledWith({
       orderBy: {
@@ -132,16 +132,21 @@ describe('LoansService', () => {
 
     await expect(
       service.findOne('loan-1'),
-    ).resolves.toBe(result);
+    ).resolves.toEqual(result);
 
     expect(prisma.loan.findUnique).toHaveBeenCalledWith({
       where: {
         id: 'loan-1',
       },
-      include: {
-        customer: true,
+      include: expect.objectContaining({
+        customer: expect.objectContaining({
+          include: expect.objectContaining({
+            bankAccounts: expect.any(Object),
+          }),
+        }),
         repayments: true,
-      },
+        guarantors: true,
+      }),
     });
   });
 
@@ -180,7 +185,7 @@ describe('LoansService', () => {
 
     await expect(
       service.update('loan-1', dto),
-    ).resolves.toBe(updatedLoan);
+    ).resolves.toEqual(updatedLoan);
 
     expect(prisma.loan.update).toHaveBeenCalledWith({
       where: {
@@ -230,7 +235,7 @@ describe('LoansService', () => {
 
     await expect(
       service.remove('loan-1'),
-    ).resolves.toBe(existingLoan);
+    ).resolves.toEqual(existingLoan);
 
     expect(prisma.loan.delete).toHaveBeenCalledWith({
       where: {

@@ -110,13 +110,16 @@ describe('LoansService', () => {
     await expect(service.findAll()).resolves.toEqual(result);
 
     expect(prisma.loan.findMany).toHaveBeenCalledWith({
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        customer: true,
+      orderBy: { createdAt: 'desc' },
+      include: expect.objectContaining({
+        customer: expect.objectContaining({
+          include: expect.objectContaining({
+            bankAccounts: expect.any(Object),
+          }),
+        }),
         repayments: true,
-      },
+        guarantors: true,
+      }),
     });
   });
 
@@ -200,6 +203,7 @@ describe('LoansService', () => {
       include: {
         customer: true,
         repayments: true,
+        guarantors: true,
       },
     });
   });

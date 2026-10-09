@@ -81,7 +81,7 @@ describe('BranchController', () => {
     ).toBe(result);
 
     expect(service.update).toHaveBeenCalledWith(
-      1,
+      '1',
       dto,
     );
   });

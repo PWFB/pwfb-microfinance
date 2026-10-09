@@ -1,5 +1,5 @@
-const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-frontend.onrender.com';
-const DEFAULT_PRODUCTION_RP_ID = 'pwfb-frontend.onrender.com';
+const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-microfinance-1.onrender.com';
+const DEFAULT_PRODUCTION_RP_ID = 'pwfb-microfinance-1.onrender.com';
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
 const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';

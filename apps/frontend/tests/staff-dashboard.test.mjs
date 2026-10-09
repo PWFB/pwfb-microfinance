@@ -24,10 +24,13 @@ test("staff dashboard contains required quick actions", () => {
   }
 });
 
-test("staff dashboard loads staff profile and loan data", () => {
+test("staff dashboard loads staff profile and loan data through the shared authenticated API client", () => {
+  const apiPath = path.resolve(process.cwd(), "lib/api.ts");
+  const apiSource = fs.readFileSync(apiPath, "utf8");
   assert.ok(source.includes("/auth/profile"));
   assert.ok(source.includes("/loans"));
-  assert.ok(source.includes("Authorization"));
+  assert.ok(apiSource.includes("Authorization"));
+  assert.ok(apiSource.includes('headers.set("Authorization", `Bearer ${token}`)'));
   assert.ok(source.includes("activeLoans"));
   assert.ok(source.includes("totalPortfolio"));
 });

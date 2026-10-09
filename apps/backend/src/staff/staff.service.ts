@@ -7,14 +7,14 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 import { StaffFilterDto } from './dto/staff-filter.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 
 @Injectable()
 export class StaffService {
   constructor(private readonly staffRepository: StaffRepository, private readonly prisma: PrismaService, private readonly paystack: PaystackService) {}
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.staffRepository.emailExists(email)) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
-  private generateTemporaryPassword() { return `PWFB-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; }
+  private generateTemporaryPassword() { return `PWFB-${randomBytes(4).toString('hex').toUpperCase()}-${randomInt(1000, 10000)}`; }
   private async generateStaffId() { const count = await this.staffRepository.count(); let number = count + 1; let staffId = `PWFB-STF-${String(number).padStart(4, '0')}`; while (await this.staffRepository.staffIdExists(staffId)) { number++; staffId = `PWFB-STF-${String(number).padStart(4, '0')}`; } return staffId; }
   private hashBvn(bvn: string) { return createHash('sha256').update(String(bvn).replace(/\D/g, '')).digest('hex'); }
 

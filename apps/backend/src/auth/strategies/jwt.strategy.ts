@@ -1,9 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { createHash } from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
+
+const jwtSecret =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'test'
+    ? 'pwfb-test-only-secret'
+    : 'pwfb-development-only-secret');
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -13,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'pwfb-secret-key',
+      secretOrKey: jwtSecret,
       passReqToCallback: true,
     });
   }
@@ -53,7 +59,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         twoFactorRequired = !verified.length;
       }
     } catch {
-      // Keep normal authentication available if the optional 2FA tables cannot be checked.
+      // Do not allow authentication to bypass 2FA when its enforcement state is unknown.
+      throw new ServiceUnavailableException('Authentication security checks are temporarily unavailable.');
     }
 
     return {

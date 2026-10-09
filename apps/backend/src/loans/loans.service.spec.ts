@@ -12,6 +12,8 @@ describe('LoansService', () => {
       customer: {
         findUnique: jest.fn(),
       },
+      $executeRawUnsafe: jest.fn(),
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       loan: {
         create: jest.fn(),
         findMany: jest.fn(),
@@ -24,6 +26,8 @@ describe('LoansService', () => {
     service = new LoansService(
       prisma as PrismaService,
     );
+    jest.spyOn(service as any, 'withMeta').mockImplementation(async (loan: any) => loan);
+    prisma.$queryRawUnsafe.mockResolvedValue([{ interestRate: 0 }]);
   });
 
   it('should be defined', () => {
@@ -54,7 +58,7 @@ describe('LoansService', () => {
     prisma.customer.findUnique.mockResolvedValue(customer);
     prisma.loan.create.mockResolvedValue(result);
 
-    await expect(service.create(dto)).resolves.toBe(result);
+    await expect(service.create(dto)).resolves.toEqual(result);
 
     expect(prisma.customer.findUnique).toHaveBeenCalledWith({
       where: {
@@ -62,18 +66,19 @@ describe('LoansService', () => {
       },
     });
 
-    expect(prisma.loan.create).toHaveBeenCalledWith({
-      data: {
+    expect(prisma.loan.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
         customerId: 'customer-1',
         amount: 100000,
         interestRate: 10,
         status: 'PENDING',
-      },
-      include: {
+      }),
+      include: expect.objectContaining({
         customer: true,
         repayments: true,
-      },
-    });
+        guarantors: true,
+      }),
+    }));
   });
 
   it('should reject loan creation when customer does not exist', async () => {
@@ -102,16 +107,19 @@ describe('LoansService', () => {
 
     prisma.loan.findMany.mockResolvedValue(result);
 
-    await expect(service.findAll()).resolves.toBe(result);
+    await expect(service.findAll()).resolves.toEqual(result);
 
     expect(prisma.loan.findMany).toHaveBeenCalledWith({
-      orderBy: {
-        createdAt: 'desc',
-      },
-      include: {
-        customer: true,
+      orderBy: { createdAt: 'desc' },
+      include: expect.objectContaining({
+        customer: expect.objectContaining({
+          include: expect.objectContaining({
+            bankAccounts: expect.any(Object),
+          }),
+        }),
         repayments: true,
-      },
+        guarantors: true,
+      }),
     });
   });
 
@@ -127,16 +135,21 @@ describe('LoansService', () => {
 
     await expect(
       service.findOne('loan-1'),
-    ).resolves.toBe(result);
+    ).resolves.toEqual(result);
 
     expect(prisma.loan.findUnique).toHaveBeenCalledWith({
       where: {
         id: 'loan-1',
       },
-      include: {
-        customer: true,
+      include: expect.objectContaining({
+        customer: expect.objectContaining({
+          include: expect.objectContaining({
+            bankAccounts: expect.any(Object),
+          }),
+        }),
         repayments: true,
-      },
+        guarantors: true,
+      }),
     });
   });
 
@@ -175,7 +188,7 @@ describe('LoansService', () => {
 
     await expect(
       service.update('loan-1', dto),
-    ).resolves.toBe(updatedLoan);
+    ).resolves.toEqual(updatedLoan);
 
     expect(prisma.loan.update).toHaveBeenCalledWith({
       where: {
@@ -190,6 +203,7 @@ describe('LoansService', () => {
       include: {
         customer: true,
         repayments: true,
+        guarantors: true,
       },
     });
   });
@@ -225,7 +239,7 @@ describe('LoansService', () => {
 
     await expect(
       service.remove('loan-1'),
-    ).resolves.toBe(existingLoan);
+    ).resolves.toEqual(existingLoan);
 
     expect(prisma.loan.delete).toHaveBeenCalledWith({
       where: {

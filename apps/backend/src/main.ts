@@ -18,6 +18,10 @@ function getCorsOrigins() {
 }
 
 async function bootstrap() {
+  if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET?.trim()) {
+    throw new Error('JWT_SECRET must be configured before starting PWFB in production.');
+  }
+
   const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors({

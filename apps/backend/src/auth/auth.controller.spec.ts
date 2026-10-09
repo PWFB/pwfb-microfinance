@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { TwoFactorService } from './two-factor.service';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -13,6 +14,7 @@ describe('AuthController', () => {
           provide: AuthService,
           useValue: {},
         },
+        { provide: TwoFactorService, useValue: {} },
       ],
     }).compile();
 

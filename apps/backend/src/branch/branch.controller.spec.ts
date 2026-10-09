@@ -61,7 +61,7 @@ describe('BranchController', () => {
     service.findOne.mockReturnValue(result as any);
 
     expect(controller.findOne('1')).toBe(result);
-    expect(service.findOne).toHaveBeenCalledWith(1);
+    expect(service.findOne).toHaveBeenCalledWith('1');
   });
 
   it('should update a branch', () => {
@@ -94,6 +94,6 @@ describe('BranchController', () => {
     service.remove.mockReturnValue(result);
 
     expect(controller.remove('1')).toBe(result);
-    expect(service.remove).toHaveBeenCalledWith(1);
+    expect(service.remove).toHaveBeenCalledWith('1');
   });
 });

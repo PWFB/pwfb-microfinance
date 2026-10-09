@@ -10,11 +10,15 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      DATABASE_URL: postgresql://pwfb_ci:pwfb_ci@localhost:5432/pwfb_ci
 
     steps:
       - name: Checkout repository
@@ -26,33 +30,39 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install locked dependencies
+        run: npm ci
 
-      - name: Run PWFB Build System
+      - name: Validate Prisma schema
+        run: npx prisma validate --schema=apps/backend/prisma/schema.prisma
+
+      - name: Build backend
         run: npm run build:pwfb
 
+      - name: Test backend
+        run: npm run test --workspace=backend -- --runInBand
+
+      - name: Test frontend
+        run: npm run test --workspace=pwfb-frontend
+
+      - name: Build frontend
+        run: npm run build:frontend
+
+      - name: Build backend Docker image
+        run: |
+          IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
+          docker build -f docker/Dockerfile.backend -t "$IMAGE_NAME" .
+
       - name: Login to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
-        run: |
-          IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
-          docker build \
-            -f docker/Dockerfile.backend \
-            -t "$IMAGE_NAME" .
-
-      - name: Push Docker image
+      - name: Push backend Docker image
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
           docker push "$IMAGE_NAME"
-
-      - name: Upload release package
-        uses: actions/upload-artifact@v4
-        with:
-          name: pwfb-release
-          path: release

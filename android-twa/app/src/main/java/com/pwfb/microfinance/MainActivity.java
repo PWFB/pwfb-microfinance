@@ -47,15 +47,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 public class MainActivity extends Activity {
-    private static final String START_URL = "https://pwfb-frontend.onrender.com/login";
-    private static final String DASHBOARD_URL = "https://pwfb-frontend.onrender.com/dashboard";
-    private static final String API = "https://pwfb-backend.onrender.com";
+    private static final String START_URL = "https://pwfb-microfinance-staging.onrender.com";
+    private static final String DASHBOARD_URL = "https://pwfb-microfinance-staging.onrender.com/dashboard";
+    private static final String API = "https://pwfb-backend-staging.onrender.com";
     private static final String SCHEME = "pwfb";
     private static final String OPEN_APP_HOST = "open-app";
     private static final String OPEN_CHROME_HOST = "open-chrome";
     private static final String PREFS = "pwfb_app_auth";
     private static final String TOKEN = "access_token";
-    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU";
+    private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU";
     private static final int GOOGLE_REQUEST = 9101;
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private static final int GREEN = Color.rgb(8, 117, 52);
@@ -99,7 +99,7 @@ public class MainActivity extends Activity {
     private void buildWebApp() {
         swipeRefresh = new SwipeRefreshLayout(this); swipeRefresh.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); swipeRefresh.setEnabled(true); swipeRefresh.setColorSchemeColors(GREEN, ORANGE); swipeRefresh.setProgressBackgroundColorSchemeColor(Color.WHITE); swipeRefresh.setDistanceToTriggerSync(dp(72)); swipeRefresh.setSlingshotDistance(dp(96));
         webView = new WebView(this); webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1)); webView.setBackgroundColor(Color.WHITE); webView.setOverScrollMode(View.OVER_SCROLL_IF_CONTENT_SCROLLS);
-        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.51");
+        WebSettings s = webView.getSettings(); s.setJavaScriptEnabled(true); s.setDomStorageEnabled(true); s.setDatabaseEnabled(true); s.setLoadsImagesAutomatically(true); s.setBuiltInZoomControls(false); s.setDisplayZoomControls(false); s.setSupportMultipleWindows(false); s.setJavaScriptCanOpenWindowsAutomatically(false); s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW); s.setUserAgentString(s.getUserAgentString() + " PWFBAndroidApp/1.0.54");
         if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_AUTHENTICATION)) WebSettingsCompat.setWebAuthenticationSupport(s, WebSettingsCompat.WEB_AUTHENTICATION_SUPPORT_FOR_APP);
         CookieManager.getInstance().setAcceptCookie(true); CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         webView.addJavascriptInterface(new NativePasskeyBridge(), "PWFBNative");
@@ -198,6 +198,7 @@ public class MainActivity extends Activity {
                 JSONObject config = get("/auth/google/config");
                 String clientId = config.optString("server_client_id", "").trim();
                 if (clientId.isEmpty()) clientId = config.optString("client_id", "").trim();
+                if (clientId.isEmpty()) clientId = config.optString("client_id", "").trim();
                 if (clientId.isEmpty()) throw new Exception("Google sign-in is not configured on the PWFB server.");
                 GoogleSignInOptions options = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).requestIdToken(clientId).requestEmail().build();
                 googleClient = GoogleSignIn.getClient(this, options);
@@ -248,7 +249,7 @@ public class MainActivity extends Activity {
         try {
             if (webView == null) return;
             Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
-            if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) { sendNativePasskeyResult(false, "PWFB native passkey registration is only available on the PWFB application domain.", null); return; }
+            if (!"pwfb-microfinance-staging.onrender.com".equalsIgnoreCase(current.getHost())) { sendNativePasskeyResult(false, "PWFB native passkey registration is only available on the PWFB application domain.", null); return; }
             if (token == null || token.trim().isEmpty()) { sendNativePasskeyResult(false, "Your PWFB login session is missing. Please sign in again before registering your fingerprint.", null); return; }
             getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, token).apply();
             sendNativePasskeyStatus("Save your PWFB fingerprint now…");
@@ -297,7 +298,7 @@ public class MainActivity extends Activity {
 
     private void continueNativeLogin(WebView view, String url) {
         if (nativeLoginRedirected || pendingNativeToken == null || pendingNativeToken.trim().isEmpty()) return;
-        Uri current = Uri.parse(url == null ? "" : url); if (!"pwfb-frontend.onrender.com".equalsIgnoreCase(current.getHost())) return; if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
+        Uri current = Uri.parse(url == null ? "" : url); if (!"pwfb-microfinance-staging.onrender.com".equalsIgnoreCase(current.getHost())) return; if (!"/".equals(current.getPath()) && !"/login".equals(current.getPath())) return;
         nativeLoginRedirected = true; String token = escapeJs(pendingNativeToken); getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(TOKEN, pendingNativeToken).apply();
         view.evaluateJavascript("window.localStorage.setItem('token','" + token + "');window.sessionStorage.setItem('token','" + token + "');window.localStorage.setItem('access_token','" + token + "');window.sessionStorage.setItem('access_token','" + token + "');window.location.replace('" + DASHBOARD_URL + "?nativeApp=1');", null);
     }
@@ -308,7 +309,7 @@ public class MainActivity extends Activity {
     private boolean handleAppIntent(Intent intent) {
         if (isLogoutIntent(intent)) { clearNativeAuth(); pendingNativeToken = null; nativeLoginRedirected = false; resetWebSession(); launchNativeAuth(); return true; }
         Uri data = intent == null ? null : intent.getData(); if (data == null || !SCHEME.equalsIgnoreCase(data.getScheme())) return false;
-        if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) { String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) target = START_URL; try { Uri targetUri = Uri.parse(target); if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) { if ("pwfb-frontend.onrender.com".equalsIgnoreCase(targetUri.getHost())) { String token = extractTokenFromAppIntent(intent); if (token != null && !token.trim().isEmpty()) { pendingNativeToken = token; nativeLoginRedirected = false; } if (webView != null) webView.loadUrl(targetUri.toString()); } else if (webView != null) webView.loadUrl(START_URL); } } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); } return true; }
+        if (OPEN_APP_HOST.equalsIgnoreCase(data.getHost())) { String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) target = START_URL; try { Uri targetUri = Uri.parse(target); if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) { if ("pwfb-microfinance-staging.onrender.com".equalsIgnoreCase(targetUri.getHost())) { String token = extractTokenFromAppIntent(intent); if (token != null && !token.trim().isEmpty()) { pendingNativeToken = token; nativeLoginRedirected = false; } if (webView != null) webView.loadUrl(targetUri.toString()); } else if (webView != null) webView.loadUrl(START_URL); } } catch (Exception ignored) { if (webView != null) webView.loadUrl(START_URL); } return true; }
         if (OPEN_CHROME_HOST.equalsIgnoreCase(data.getHost())) { String target = data.getQueryParameter("url"); if (target == null || target.trim().isEmpty()) target = START_URL; try { Uri targetUri = Uri.parse(target); if ("http".equalsIgnoreCase(targetUri.getScheme()) || "https".equalsIgnoreCase(targetUri.getScheme())) { Intent chromeIntent = new Intent(Intent.ACTION_VIEW, targetUri); chromeIntent.setPackage("com.android.chrome"); try { startActivity(chromeIntent); } catch (Exception chromeUnavailable) { startActivity(new Intent(Intent.ACTION_VIEW, targetUri)); } } } catch (Exception ignored) {} return true; }
         return true;
     }

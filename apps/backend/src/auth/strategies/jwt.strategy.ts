@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { createHash } from 'crypto';
@@ -59,7 +59,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         twoFactorRequired = !verified.length;
       }
     } catch {
-      // Keep normal authentication available if the optional 2FA tables cannot be checked.
+      // Do not allow authentication to bypass 2FA when its enforcement state is unknown.
+      throw new ServiceUnavailableException('Authentication security checks are temporarily unavailable.');
     }
 
     return {

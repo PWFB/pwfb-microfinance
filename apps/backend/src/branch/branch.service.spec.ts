@@ -1,119 +1,98 @@
+import { NotFoundException } from '@nestjs/common';
 import { BranchService } from './branch.service';
 
 describe('BranchService', () => {
   let service: BranchService;
+  let prisma: any;
 
   beforeEach(() => {
-    service = new BranchService();
+    prisma = {
+      branch: {
+        create: jest.fn(),
+        findMany: jest.fn(),
+        findUnique: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
+      },
+      branchVirtualAccount: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn(),
+        create: jest.fn(),
+      },
+      bankInstitution: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    service = new BranchService(prisma);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  it('should create a branch', () => {
-    const dto = {
-      name: 'Main Branch',
-      code: 'MAIN',
-      address: 'Lagos',
-      phone: '08000000000',
-      manager: 'Manager One',
-    };
+  it('should create a branch and return the persisted record', async () => {
+    const dto = { name: 'Main Branch', address: 'Ibadan' };
+    const branch = { id: 'branch-1', ...dto, branchAccounts: [], area: null, customers: [], staff: [] };
+    prisma.branch.create.mockResolvedValue({ id: 'branch-1', ...dto });
+    prisma.branch.findUnique.mockResolvedValue(branch);
 
-    const result = service.create(dto);
-
-    expect(result).toMatchObject({
-      id: 1,
-      ...dto,
-    });
-
-    expect(result.createdAt).toBeInstanceOf(Date);
+    await expect(service.create(dto as any)).resolves.toEqual(branch);
+    expect(prisma.branch.create).toHaveBeenCalledWith({ data: dto });
+    expect(prisma.branch.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'branch-1' },
+    }));
   });
 
-  it('should return all branches', () => {
-    service.create({ name: 'Main Branch' });
-    service.create({ name: 'Ikeja Branch' });
+  it('should return branches newest first with their account institutions', async () => {
+    const branches = [{ id: 'branch-1', name: 'Main Branch', branchAccounts: [] }];
+    prisma.branch.findMany.mockResolvedValue(branches);
 
-    const result = service.findAll();
-
-    expect(result).toHaveLength(2);
-    expect(result[0].name).toBe('Main Branch');
-    expect(result[1].name).toBe('Ikeja Branch');
-  });
-
-  it('should return a branch by id', () => {
-    const branch = service.create({
-      name: 'Main Branch',
-    });
-
-    expect(
-      service.findOne(branch.id),
-    ).toBe(branch);
-  });
-
-  it('should return undefined for a missing branch', () => {
-    expect(
-      service.findOne(999),
-    ).toBeUndefined();
-  });
-
-  it('should update an existing branch', () => {
-    const branch = service.create({
-      name: 'Main Branch',
-    });
-
-    const result = service.update(
-      branch.id,
-      {
-        name: 'Updated Main Branch',
-        phone: '08111111111',
-      },
-    );
-
-    expect(result).toMatchObject({
-      id: branch.id,
-      name: 'Updated Main Branch',
-      phone: '08111111111',
+    await expect(service.findAll()).resolves.toBe(branches);
+    expect(prisma.branch.findMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: 'desc' },
+      include: { branchAccounts: { include: { institution: true } } },
     });
   });
 
-  it('should return not found when updating a missing branch', () => {
-    expect(
-      service.update(999, {
-        name: 'Missing Branch',
-      }),
-    ).toEqual({
-      message: 'Branch not found',
+  it('should throw when a branch does not exist', async () => {
+    prisma.branch.findUnique.mockResolvedValue(null);
+    await expect(service.findOne('missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('should update an existing branch', async () => {
+    const branch = { id: 'branch-1', name: 'Old Name', branchAccounts: [], area: null, customers: [], staff: [] };
+    const updated = { ...branch, name: 'New Name' };
+    prisma.branch.findUnique.mockResolvedValue(branch);
+    prisma.branch.update.mockResolvedValue(updated);
+
+    await expect(service.update('branch-1', { name: 'New Name' } as any)).resolves.toBe(updated);
+    expect(prisma.branch.update).toHaveBeenCalledWith({
+      where: { id: 'branch-1' },
+      data: { name: 'New Name' },
+      include: { branchAccounts: { include: { institution: true } } },
     });
   });
 
-  it('should delete an existing branch', () => {
-    const branch = service.create({
-      name: 'Main Branch',
-    });
+  it('should delete an existing branch', async () => {
+    prisma.branch.findUnique.mockResolvedValue({ id: 'branch-1', name: 'Main Branch', branchAccounts: [], area: null, customers: [], staff: [] });
+    prisma.branch.delete.mockResolvedValue({ id: 'branch-1' });
 
-    expect(
-      service.remove(branch.id),
-    ).toEqual({
-      message: 'Branch deleted successfully',
-    });
-
-    expect(
-      service.findOne(branch.id),
-    ).toBeUndefined();
+    await expect(service.remove('branch-1')).resolves.toEqual({ message: 'Branch deleted successfully' });
+    expect(prisma.branch.delete).toHaveBeenCalledWith({ where: { id: 'branch-1' } });
   });
 
-  it('should keep other branches when deleting one', () => {
-    const first = service.create({
-      name: 'Main Branch',
+  it('should report when branches need virtual-account provisioning', async () => {
+    prisma.branch.findMany.mockResolvedValue([
+      { id: 'branch-1', name: 'Main Branch', branchAccounts: [] },
+    ]);
+    await expect(service.provisionVirtualAccounts()).resolves.toEqual({
+      totalBranches: 1,
+      provisioned: [{
+        branchId: 'branch-1',
+        branchName: 'Main Branch',
+        virtualAccount: null,
+        requiresPaystackProvisioning: true,
+      }],
     });
-
-    const second = service.create({
-      name: 'Ikeja Branch',
-    });
-
-    service.remove(first.id);
-
-    expect(service.findAll()).toEqual([second]);
   });
 });

@@ -1,5 +1,6 @@
 import { SavingsController } from './savings.controller';
 import { SavingsService } from './savings.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 describe('SavingsController', () => {
   let controller: SavingsController;
@@ -14,7 +15,7 @@ describe('SavingsController', () => {
       remove: jest.fn(),
     } as unknown as jest.Mocked<SavingsService>;
 
-    controller = new SavingsController(service);
+    controller = new SavingsController(service, { assert: jest.fn().mockResolvedValue(undefined) } as unknown as PermissionsService);
   });
 
   it('should be defined', () => {
@@ -32,7 +33,7 @@ describe('SavingsController', () => {
 
     service.create.mockResolvedValue(result as any);
 
-    await expect(controller.create(dto)).resolves.toBe(result);
+    await expect(controller.create({ user: { role: 'ADMIN' } } as any, dto)).resolves.toBe(result);
     expect(service.create).toHaveBeenCalledWith(dto);
   });
 
@@ -78,7 +79,7 @@ describe('SavingsController', () => {
     service.update.mockResolvedValue(result as any);
 
     await expect(
-      controller.update('saving-1', dto),
+      controller.update({ user: { role: 'ADMIN' } } as any, 'saving-1', dto),
     ).resolves.toBe(result);
 
     expect(service.update).toHaveBeenCalledWith(

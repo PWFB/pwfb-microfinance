@@ -1,5 +1,6 @@
 import { LoansController } from './loans.controller';
 import { LoansService } from './loans.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 describe('LoansController', () => {
   let controller: LoansController;
@@ -14,7 +15,7 @@ describe('LoansController', () => {
       remove: jest.fn(),
     } as unknown as jest.Mocked<LoansService>;
 
-    controller = new LoansController(service);
+    controller = new LoansController(service, {} as any, {} as any, { assert: jest.fn().mockResolvedValue(undefined) } as unknown as PermissionsService);
   });
 
   it('should be defined', () => {
@@ -36,7 +37,7 @@ describe('LoansController', () => {
 
     service.create.mockResolvedValue(result as any);
 
-    await expect(controller.create(dto)).resolves.toBe(result);
+    await expect(controller.create(dto, { user: { role: 'ADMIN' } } as any)).resolves.toBe(result);
     expect(service.create).toHaveBeenCalledWith(dto);
   });
 

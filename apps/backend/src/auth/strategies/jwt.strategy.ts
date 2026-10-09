@@ -5,6 +5,12 @@ import { createHash } from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
+const jwtSecret =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'test'
+    ? 'pwfb-test-only-secret'
+    : 'pwfb-development-only-secret');
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -13,7 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'pwfb-secret-key',
+      secretOrKey: jwtSecret,
       passReqToCallback: true,
     });
   }

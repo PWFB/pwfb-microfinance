@@ -12,6 +12,8 @@ describe('ReportsService', () => {
       loan: { count: jest.fn(), aggregate: jest.fn() },
       transaction: { count: jest.fn(), aggregate: jest.fn() },
       repayment: { count: jest.fn(), aggregate: jest.fn() },
+      dailyCollection: { count: jest.fn(), aggregate: jest.fn() },
+      cashbookEntry: { aggregate: jest.fn() },
     };
 
     service = new ReportsService(
@@ -45,6 +47,11 @@ describe('ReportsService', () => {
     prisma.repayment.aggregate.mockResolvedValue({
       _sum: { amount: 40000 },
     });
+    prisma.dailyCollection.count.mockResolvedValue(2);
+    prisma.dailyCollection.aggregate.mockResolvedValue({ _sum: { amount: 12000 } });
+    prisma.cashbookEntry.aggregate
+      .mockResolvedValueOnce({ _sum: { amount: 20000 } })
+      .mockResolvedValueOnce({ _sum: { amount: 5000 } });
 
     await expect(service.getSummary()).resolves.toEqual({
       customers: { count: 10 },
@@ -52,6 +59,8 @@ describe('ReportsService', () => {
       loans: { count: 4, amount: 100000 },
       transactions: { count: 20, amount: 75000 },
       repayments: { count: 3, amount: 40000 },
+      collections: { count: 2, amount: 12000 },
+      cashbook: { cashIn: 20000, cashOut: 5000, net: 15000 },
       portfolio: { amount: 150000 },
     });
   });
@@ -62,6 +71,7 @@ describe('ReportsService', () => {
     prisma.loan.count.mockResolvedValue(0);
     prisma.transaction.count.mockResolvedValue(0);
     prisma.repayment.count.mockResolvedValue(0);
+    prisma.dailyCollection.count.mockResolvedValue(0);
 
     prisma.savings.aggregate.mockResolvedValue({
       _sum: { amount: null },
@@ -75,6 +85,10 @@ describe('ReportsService', () => {
     prisma.repayment.aggregate.mockResolvedValue({
       _sum: { amount: null },
     });
+    prisma.dailyCollection.aggregate.mockResolvedValue({ _sum: { amount: null } });
+    prisma.cashbookEntry.aggregate
+      .mockResolvedValueOnce({ _sum: { amount: null } })
+      .mockResolvedValueOnce({ _sum: { amount: null } });
 
     await expect(service.getSummary()).resolves.toEqual({
       customers: { count: 0 },
@@ -82,6 +96,8 @@ describe('ReportsService', () => {
       loans: { count: 0, amount: 0 },
       transactions: { count: 0, amount: 0 },
       repayments: { count: 0, amount: 0 },
+      collections: { count: 0, amount: 0 },
+      cashbook: { cashIn: 0, cashOut: 0, net: 0 },
       portfolio: { amount: 0 },
     });
   });

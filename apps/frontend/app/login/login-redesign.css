@@ -3,7 +3,7 @@
   display:grid!important;
   grid-template-columns:minmax(0,1fr) minmax(410px,500px)!important;
   grid-template-rows:auto minmax(0,1fr) auto!important;
-  grid-template-areas:"brand notice" "story shell" "footer shell"!important;
+  grid-template-areas:"brand shell" "story shell" "footer footer"!important;
   align-items:center!important;
   column-gap:clamp(42px,7vw,112px)!important;
   row-gap:12px!important;

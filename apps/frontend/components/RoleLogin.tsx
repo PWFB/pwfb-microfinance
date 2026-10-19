@@ -140,9 +140,12 @@ export default function RoleLogin() {
       try {
         const config = await apiRequest("/auth/google/config", { method: "GET" });
         const clientId = String(config?.client_id || GOOGLE_CLIENT_ID).trim();
-        if (!clientId) return;
+        if (!clientId) {
+          setGoogleError("Google sign-in is not configured for this environment.");
+          return;
+        }
         if (window.google?.accounts?.id) { renderGoogle(clientId); return; }
-        const script = document.createElement("script"); script.src = "https://accounts.google.com/gsi/client"; script.async = true; script.defer = true; script.onload = () => renderGoogle(clientId); document.head.appendChild(script);
+        const script = document.createElement("script"); script.src = "https://accounts.google.com/gsi/client"; script.async = true; script.defer = true; script.onload = () => renderGoogle(clientId); script.onerror = () => { if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration."); }; document.head.appendChild(script);
       } catch (error) {
         if (active) setGoogleError(error instanceof Error ? error.message : "Google sign-in could not be initialized. Please try again later.");
       }

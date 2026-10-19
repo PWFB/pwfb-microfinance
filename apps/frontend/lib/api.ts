@@ -30,11 +30,17 @@ function tokenExpiry(token: string | null) {
 
 function getStoredToken() {
   if (typeof window === "undefined") return null;
-  const localToken = localStorage.getItem("token");
-  const sessionToken = sessionStorage.getItem("token");
-  if (!localToken) return sessionToken;
-  if (!sessionToken) return localToken;
-  return tokenExpiry(sessionToken) >= tokenExpiry(localToken) ? sessionToken : localToken;
+  try {
+    const localToken = window.localStorage.getItem("token");
+    const sessionToken = window.sessionStorage.getItem("token");
+    if (!localToken) return sessionToken;
+    if (!sessionToken) return localToken;
+    return tokenExpiry(sessionToken) >= tokenExpiry(localToken) ? sessionToken : localToken;
+  } catch {
+    // Some private browsing modes or embedded webviews deny storage access.
+    // Let public endpoints (including Google config) continue without a saved token.
+    return null;
+  }
 }
 
 async function request(endpoint: string, options: RequestInit = {}) {

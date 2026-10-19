@@ -52,6 +52,7 @@ export default function RoleLogin() {
   const [message, setMessage] = useState("");
   const [nativeApp, setNativeApp] = useState(false);
   const [googleReady, setGoogleReady] = useState<Record<LoginMode, boolean>>({ SUPER_ADMIN: false, ADMIN: false, STAFF: false, CUSTOMER: false });
+  const [googleError, setGoogleError] = useState("");
   const [selectedMode, setSelectedMode] = useState<LoginMode>("SUPER_ADMIN");
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const selectedCard = cards.find(card => card.mode === selectedMode) ?? cards[0];
@@ -142,7 +143,9 @@ export default function RoleLogin() {
         if (!clientId) return;
         if (window.google?.accounts?.id) { renderGoogle(clientId); return; }
         const script = document.createElement("script"); script.src = "https://accounts.google.com/gsi/client"; script.async = true; script.defer = true; script.onload = () => renderGoogle(clientId); document.head.appendChild(script);
-      } catch {}
+      } catch (error) {
+        if (active) setGoogleError(error instanceof Error ? error.message : "Google sign-in could not be initialized. Please try again later.");
+      }
     };
     load(); return () => { active = false; };
   }, []);
@@ -343,7 +346,9 @@ export default function RoleLogin() {
               <div
                 className={"pwfb-google-web " + (googleReady[selectedCard.mode] ? "ready" : "")}
                 ref={node => { googleRefs.current[selectedCard.mode] = node; }}
-              />
+              >
+                {!googleReady[selectedCard.mode] && <span className="pwfb-google-status">{googleError || "Loading Google sign-in…"}</span>}
+              </div>
             )}
           </div>
 
@@ -460,7 +465,8 @@ export default function RoleLogin() {
         .pwfb-google-native{min-height:54px;border:1px solid #d9e2dd;border-radius:11px;background:#fff;color:#26342e;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:900;cursor:pointer}
         .pwfb-google-native strong{color:#4285f4;font-size:18px}
         .pwfb-google-web{min-height:54px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-        .pwfb-google-web:not(.ready){visibility:hidden}
+        .pwfb-google-web:not(.ready){visibility:visible;min-width:150px;min-height:54px}
+        .pwfb-google-status{font-size:11px;line-height:1.35;text-align:center;color:#596960;padding:8px}
         .pwfb-helper-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
         .pwfb-helper-actions>button{flex:1;min-width:145px;min-height:52px;border:1px solid #e1e9e4;border-radius:11px;background:#fffaf3;color:#165038;display:grid;grid-template-columns:24px 1fr;grid-template-rows:auto auto;column-gap:6px;align-items:center;text-align:left;padding:7px 10px;cursor:pointer}
         .pwfb-helper-actions>button>span{grid-row:1 / span 2;align-self:center;font-size:19px;color:#087534}

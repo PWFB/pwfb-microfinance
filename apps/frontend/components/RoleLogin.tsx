@@ -123,6 +123,7 @@ export default function RoleLogin() {
     if (app) return;
     let active = true;
     const renderGoogle = (clientId: string) => {
+      try {
       if (!active || !window.google?.accounts?.id) return;
       cards.forEach(({ mode }) => {
         const host = googleRefs.current[mode];
@@ -135,6 +136,9 @@ export default function RoleLogin() {
         window.google.accounts.id.renderButton(host, { type: "standard", theme: "outline", size: "large", text: "continue_with", shape: "rectangular", logo_alignment: "left", width: Math.min(360, Math.max(220, host.clientWidth || 280)) });
         setGoogleReady(previous => ({ ...previous, [mode]: true }));
       });
+      } catch (error) {
+        if (active) setGoogleError(error instanceof Error ? error.message : "Google sign-in could not be initialized. Please try again later.");
+      }
     };
     const load = async () => {
       try {

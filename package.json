@@ -12,6 +12,7 @@
     "build:pwfb": "npm run build --workspace=backend",
     "build:frontend": "npm run build --prefix apps/frontend",
     "start:frontend": "npm run start --prefix apps/frontend",
+    "start:prod": "npm run start:prod --workspace=backend",
     "test": "npm run test --workspace=backend"
   },
   "engines": {

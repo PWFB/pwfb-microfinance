@@ -132,7 +132,7 @@ export default function RoleLogin() {
         localStorage.setItem(GOOGLE_NONCE_PREFIX + mode, nonce);
         host.innerHTML = "";
         window.google.accounts.id.initialize({ client_id: clientId, nonce, auto_select: false, cancel_on_tap_outside: false, use_fedcm_for_prompt: false, context: "signin", callback: (response: any) => googleLogin({ credential: response.credential, client_id: clientId, nonce: localStorage.getItem(GOOGLE_NONCE_PREFIX + mode) || nonce, loginMode: mode }) });
-        window.google.accounts.id.renderButton(host, { type: "standard", theme: "outline", size: "large", text: "continue_with", shape: "rectangular", logo_alignment: "left", width: 360 });
+        window.google.accounts.id.renderButton(host, { type: "standard", theme: "outline", size: "large", text: "continue_with", shape: "rectangular", logo_alignment: "left", width: Math.min(360, Math.max(220, host.clientWidth || 280)) });
         setGoogleReady(previous => ({ ...previous, [mode]: true }));
       });
     };
@@ -459,7 +459,7 @@ export default function RoleLogin() {
         .pwfb-login-submit:disabled,.pwfb-biometric:disabled,.pwfb-google-native:disabled{opacity:.6;cursor:wait}
         .pwfb-divider{display:flex;align-items:center;gap:10px;margin:16px 0 10px;color:#89958e;font-size:9px}
         .pwfb-divider:before,.pwfb-divider:after{content:"";height:1px;background:#e1e9e4;flex:1}
-        .pwfb-biometric-row{display:grid;grid-template-columns:1fr 92px;gap:8px}
+        .pwfb-biometric-row{display:grid;grid-template-columns:minmax(0,1fr);gap:8px}
         .pwfb-biometric{min-height:54px;border:1px solid #d9e7df;border-radius:11px;background:#f5faf7;display:flex;align-items:center;gap:9px;padding:8px 10px;text-align:left;color:#183127;cursor:pointer}
         .bio-icon{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:50%;background:#087534;color:#fff;font-size:15px}
         .pwfb-biometric strong,.pwfb-biometric small{display:block}
@@ -467,8 +467,8 @@ export default function RoleLogin() {
         .pwfb-biometric small{margin-top:2px;color:#7a8780;font-size:8px}
         .pwfb-google-native{min-height:54px;border:1px solid #d9e2dd;border-radius:11px;background:#fff;color:#26342e;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:900;cursor:pointer}
         .pwfb-google-native strong{color:#4285f4;font-size:18px}
-        .pwfb-google-web{min-height:54px;display:flex;align-items:center;justify-content:center;overflow:hidden}
-        .pwfb-google-web:not(.ready){visibility:visible;min-width:150px;min-height:54px}
+        .pwfb-google-web{width:100%;min-width:0;min-height:54px;display:flex;align-items:center;justify-content:center;overflow:visible}
+        .pwfb-google-web:not(.ready){visibility:visible;width:100%;min-width:0;min-height:54px}
         .pwfb-google-status{font-size:11px;line-height:1.35;text-align:center;color:#596960;padding:8px}
         .pwfb-helper-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
         .pwfb-helper-actions>button{flex:1;min-width:145px;min-height:52px;border:1px solid #e1e9e4;border-radius:11px;background:#fffaf3;color:#165038;display:grid;grid-template-columns:24px 1fr;grid-template-rows:auto auto;column-gap:6px;align-items:center;text-align:left;padding:7px 10px;cursor:pointer}

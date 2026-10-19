@@ -149,13 +149,28 @@ export default function RoleLogin() {
           return;
         }
         if (window.google?.accounts?.id) { renderGoogle(clientId); return; }
-        const script = document.createElement("script"); script.src = "https://accounts.google.com/gsi/client"; script.async = true; script.defer = true; script.onload = () => renderGoogle(clientId); script.onerror = () => { if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration."); }; document.head.appendChild(script);
+        const scriptUrl = "https://accounts.google.com/gsi/client";
+        const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+        const onLoad = () => renderGoogle(clientId);
+        const onError = () => { if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration."); };
+        if (existingScript) {
+          existingScript.addEventListener("load", onLoad, { once: true });
+          existingScript.addEventListener("error", onError, { once: true });
+        } else {
+          const script = document.createElement("script");
+          script.src = scriptUrl;
+          script.async = true;
+          script.defer = true;
+          script.addEventListener("load", onLoad, { once: true });
+          script.addEventListener("error", onError, { once: true });
+          document.head.appendChild(script);
+        }
       } catch (error) {
         if (active) setGoogleError(error instanceof Error ? error.message : "Google sign-in could not be initialized. Please try again later.");
       }
     };
     load(); return () => { active = false; };
-  }, [selectedMode, nativeApp]);
+  }, [selectedMode]);
 
   useEffect(() => {
     window.__pwfbNativeGoogleResult = async (payload) => {

@@ -17,7 +17,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   async function refreshProfile(): Promise<AuthUser | null> {
-    const token = localStorage.getItem("token") || sessionStorage.getItem("token") || localStorage.getItem("access_token") || sessionStorage.getItem("access_token");
+    let token: string | null = null;
+    try {
+      token = window.localStorage.getItem("token") || window.sessionStorage.getItem("token") || window.localStorage.getItem("access_token") || window.sessionStorage.getItem("access_token");
+    } catch {
+      // A browser that blocks storage should still be able to display the public login page.
+    }
     if (!token) { setUser(null); setLoading(false); return null; }
     try {
       let profile = await apiRequest("/auth/profile");
@@ -39,7 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return currentUser;
     } catch (error) {
       if (error instanceof Error && error.message.includes("Two-factor authentication is required")) throw error;
-      localStorage.removeItem("token"); localStorage.removeItem("access_token"); localStorage.removeItem("user"); localStorage.removeItem("pwfb_google_oidc_nonce"); sessionStorage.removeItem("token"); sessionStorage.removeItem("access_token"); sessionStorage.removeItem("user"); sessionStorage.removeItem("pwfb_google_oidc_nonce"); setUser(null); return null;
+      try {
+        for (const storage of [window.localStorage, window.sessionStorage]) {
+          for (const key of ["token", "access_token", "user", "pwfb_google_oidc_nonce"]) storage.removeItem(key);
+        }
+      } catch { /* Storage may be unavailable in a restricted browser context. */ }
+      setUser(null); return null;
     } finally { setLoading(false); }
   }
 

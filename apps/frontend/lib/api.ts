@@ -1,5 +1,5 @@
 const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
-const PRODUCTION_API_URL = "https://pwfb-backend.onrender.com";
+const PRODUCTION_API_URL = "https://pwfb-backend-1.onrender.com";
 const API_URL = (CONFIGURED_API_URL || PRODUCTION_API_URL).replace(/\/$/, "");
 
 function absorbNativeAppToken() {

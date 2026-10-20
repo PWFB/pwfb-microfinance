@@ -12,7 +12,8 @@ function getCorsOrigins() {
     return ['http://localhost:3000', 'http://localhost:3001'];
   }
   return [
-    process.env.FRONTEND_URL || 'https://pwfb-microfinance-1.onrender.com',
+    process.env.FRONTEND_URL || 'https://pwfb-microfinance-965u.onrender.com',
+    'https://pwfb-microfinance-1.onrender.com',
     'https://pwfb-frontend.onrender.com',
   ].filter(Boolean);
 }

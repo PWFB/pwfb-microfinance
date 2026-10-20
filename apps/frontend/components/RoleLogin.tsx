@@ -142,14 +142,42 @@ export default function RoleLogin() {
     };
     const load = async () => {
       try {
-        const config = await apiRequest("/auth/google/config", { method: "GET" });
-        const clientId = String(config?.client_id || GOOGLE_CLIENT_ID).trim();
+        // Use the public frontend client ID immediately. Do not make the Google
+        // button wait for a backend config request that may be slow or unreachable.
+        let clientId = GOOGLE_CLIENT_ID.trim();
         if (!clientId) {
-          setGoogleError("Google sign-in is not configured for this environment.");
+          const config = await Promise.race([
+            apiRequest("/auth/google/config", { method: "GET" }),
+            new Promise<never>((_, reject) => window.setTimeout(
+              () => reject(new Error("Google configuration request timed out. Please check the PWFB API URL.")),
+              10000
+            ))
+          ]);
+          clientId = String(config?.client_id || "").trim();
+        }
+        if (!clientId) {
+          if (active) setGoogleError("Google sign-in is not configured for this environment.");
           return;
         }
         if (window.google?.accounts?.id) { renderGoogle(clientId); return; }
-        const script = document.createElement("script"); script.src = "https://accounts.google.com/gsi/client"; script.async = true; script.defer = true; script.onload = () => renderGoogle(clientId); script.onerror = () => { if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration."); }; document.head.appendChild(script);
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        const scriptTimeout = window.setTimeout(() => {
+          if (active && !window.google?.accounts?.id) {
+            setGoogleError("Google sign-in is taking too long to load. Check your connection or content blockers.");
+          }
+        }, 12000);
+        script.onload = () => {
+          window.clearTimeout(scriptTimeout);
+          renderGoogle(clientId);
+        };
+        script.onerror = () => {
+          window.clearTimeout(scriptTimeout);
+          if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration.");
+        };
+        document.head.appendChild(script);
       } catch (error) {
         if (active) setGoogleError(error instanceof Error ? error.message : "Google sign-in could not be initialized. Please try again later.");
       }

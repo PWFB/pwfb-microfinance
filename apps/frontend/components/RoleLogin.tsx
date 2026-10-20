@@ -350,10 +350,11 @@ export default function RoleLogin() {
                 <span>Google</span>
               </button>
             ) : (
-              <div
-                className={"pwfb-google-web " + (googleReady[selectedCard.mode] ? "ready" : "")}
-                ref={node => { googleRefs.current[selectedCard.mode] = node; }}
-              >
+              <div className={"pwfb-google-web " + (googleReady[selectedCard.mode] ? "ready" : "")}>
+                <div
+                  className="pwfb-google-host"
+                  ref={node => { googleRefs.current[selectedCard.mode] = node; }}
+                />
                 {!googleReady[selectedCard.mode] && <span className="pwfb-google-status">{googleError || "Loading Google sign-in…"}</span>}
               </div>
             )}
@@ -471,7 +472,7 @@ export default function RoleLogin() {
         .pwfb-biometric small{margin-top:2px;color:#7a8780;font-size:8px}
         .pwfb-google-native{min-height:54px;border:1px solid #d9e2dd;border-radius:11px;background:#fff;color:#26342e;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:900;cursor:pointer}
         .pwfb-google-native strong{color:#4285f4;font-size:18px}
-        .pwfb-google-web{width:100%;min-width:0;min-height:54px;display:flex;align-items:center;justify-content:center;overflow:visible}
+        .pwfb-google-web{width:100%;min-width:0;min-height:54px;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:visible}\n        .pwfb-google-host{width:100%;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
         .pwfb-google-web:not(.ready){visibility:visible;width:100%;min-width:0;min-height:54px}
         .pwfb-google-status{font-size:11px;line-height:1.35;text-align:center;color:#596960;padding:8px}
         .pwfb-helper-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}

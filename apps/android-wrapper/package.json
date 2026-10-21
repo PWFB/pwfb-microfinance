@@ -1,0 +1,16 @@
+{
+  "name": "pwfb-microfinance-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Android wrapper for the hosted PWFB Microfinance application",
+  "scripts": {
+    "android:add": "cap add android",
+    "android:sync": "cap sync android",
+    "android:build:debug": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/core": "^7.4.3"
+  }
+}

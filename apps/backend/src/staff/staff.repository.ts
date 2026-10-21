@@ -103,7 +103,7 @@ export class StaffRepository {
     });
   }
 
-  create(data: CreateStaffDto) {
+  create(data: CreateStaffDto & { staffId: string; email: string }) {
     return this.prisma.staff.create({
       data: {
         staffId: data.staffId,

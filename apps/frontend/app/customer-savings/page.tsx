@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
@@ -16,6 +17,7 @@ type Savings = {
 };
 
 export default function CustomerSavingsPage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   const [savings, setSavings] = useState<Savings[]>([]);
@@ -23,7 +25,8 @@ export default function CustomerSavingsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user || user.role !== "CUSTOMER") { router.replace(user ? "/dashboard" : "/login"); return; }
 
     async function loadSavings() {
       try {
@@ -44,7 +47,7 @@ export default function CustomerSavingsPage() {
     }
 
     loadSavings();
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
   const totalSavings = savings.reduce(
     (total, item) =>
@@ -58,7 +61,7 @@ export default function CustomerSavingsPage() {
       maximumFractionDigits: 2,
     })}`;
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !user || user.role !== "CUSTOMER") {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center">
         <p className="text-emerald-700">Loading your savings...</p>

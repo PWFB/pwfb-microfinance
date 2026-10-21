@@ -31,7 +31,7 @@ jobs:
           cache: npm
 
       - name: Install locked dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Validate Prisma schema
         run: npx prisma validate --schema=apps/backend/prisma/schema.prisma

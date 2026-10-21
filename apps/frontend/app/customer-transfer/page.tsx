@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
@@ -10,6 +11,7 @@ type Wallet = {
 };
 
 export default function CustomerTransferPage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -22,7 +24,8 @@ export default function CustomerTransferPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user || user.role !== "CUSTOMER") { router.replace(user ? "/dashboard" : "/login"); return; }
 
     async function loadWallet() {
       try {
@@ -48,7 +51,7 @@ export default function CustomerTransferPage() {
     }
 
     loadWallet();
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
   const money = (value: number) =>
     `₦${Number(value || 0).toLocaleString("en-NG", {
@@ -109,7 +112,7 @@ export default function CustomerTransferPage() {
     }
   }
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !user || user.role !== "CUSTOMER") {
     return (
       <main className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
         <div className="text-center">

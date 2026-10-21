@@ -8,13 +8,6 @@ const modules = [
   ["💳", "Transactions", "View deposits, withdrawals and transfers.", "/transactions"],
 ];
 
-const stats = [
-  ["Total Customers", "2,453", "green"],
-  ["Total Savings", "₦245M", "green"],
-  ["Total Loans", "₦158M", "orange"],
-  ["Transactions", "8,732", "green"],
-];
-
 export default function Home() {
   return (
     <main className={styles.home}>
@@ -75,19 +68,12 @@ export default function Home() {
 
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
-          <p className={styles.sectionEyebrow}>AT A GLANCE</p>
-          <h2>Dashboard Overview</h2>
+          <p className={styles.sectionEyebrow}>LIVE ACCOUNT DATA</p>
+          <h2>See your current PWFB information</h2>
+          <p>Sign in to view live balances, customer records, loans and transactions. This public page does not display sample financial figures.</p>
         </div>
-
-        <div className={styles.statsGrid}>
-          {stats.map(([label, value, tone]) => (
-            <div key={label} className={styles.statCard}>
-              <h3>{label}</h3>
-              <strong className={tone === "orange" ? styles.orangeValue : styles.greenValue}>
-                {value}
-              </strong>
-            </div>
-          ))}
+        <div className={styles.heroActions}>
+          <Link href="/login" className={styles.loginButton}>Open Dashboard</Link>
         </div>
       </section>
 

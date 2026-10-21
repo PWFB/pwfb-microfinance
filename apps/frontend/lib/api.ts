@@ -7,7 +7,11 @@ export async function apiRequest(
   const token =
     typeof window !== "undefined"
       ? localStorage.getItem("token") ||
-        sessionStorage.getItem("token")
+        sessionStorage.getItem("token") ||
+        localStorage.getItem("access_token") ||
+        sessionStorage.getItem("access_token") ||
+        localStorage.getItem("app_token") ||
+        sessionStorage.getItem("app_token")
       : null;
 
   const url = `${API_URL}${endpoint}`;

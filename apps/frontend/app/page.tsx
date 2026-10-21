@@ -1,21 +1,11 @@
 import Link from "next/link";
 import styles from "./home.module.css";
 
-const androidDownloadUrl =
-  "https://github.com/PWFB/pwfb-microfinance/releases/download/v1.0.0/app-release.apk";
-
 const modules = [
   ["👥", "Customers", "Manage customer profiles and KYC.", "/login"],
   ["💰", "Savings", "Create and manage savings accounts.", "/login"],
   ["🏦", "Loans", "Loan applications and approvals.", "/login"],
   ["💳", "Transactions", "View deposits, withdrawals and transfers.", "/login"],
-];
-
-const stats = [
-  ["Total Customers", "2,453", "green"],
-  ["Total Savings", "₦245M", "green"],
-  ["Total Loans", "₦158M", "orange"],
-  ["Transactions", "8,732", "green"],
 ];
 
 export default function Home() {
@@ -59,13 +49,6 @@ export default function Home() {
             <Link href="/register" className={styles.registerButton}>
               Register
             </Link>
-            <a
-              href={androidDownloadUrl}
-              className={styles.downloadButton}
-              download="PWFB-Microfinance-v1.0.0.apk"
-            >
-              Download App
-            </a>
           </div>
         </div>
       </section>
@@ -90,19 +73,12 @@ export default function Home() {
 
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
-          <p className={styles.sectionEyebrow}>AT A GLANCE</p>
-          <h2>Dashboard Overview</h2>
+          <p className={styles.sectionEyebrow}>LIVE ACCOUNT DATA</p>
+          <h2>Your current PWFB dashboard</h2>
+          <p>Sign in to view live balances, customer records, loans and transactions. This public page does not show sample financial totals.</p>
         </div>
-
-        <div className={styles.statsGrid}>
-          {stats.map(([label, value, tone]) => (
-            <div key={label} className={styles.statCard}>
-              <h3>{label}</h3>
-              <strong className={tone === "orange" ? styles.orangeValue : styles.greenValue}>
-                {value}
-              </strong>
-            </div>
-          ))}
+        <div className={styles.heroActions}>
+          <Link href="/login" className={styles.loginButton}>Open Dashboard</Link>
         </div>
       </section>
 

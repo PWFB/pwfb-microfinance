@@ -78,12 +78,19 @@ describe('StaffService', () => {
     );
 
     expect(repository.createWithUser).toHaveBeenCalledWith(
-      dto,
+      expect.objectContaining({
+        staffId: 'ST-001',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john@example.com',
+        branch: 'branch-1',
+      }),
       expect.objectContaining({
         staffId: 'ST-001',
         email: 'john.doe@pwfb.com',
         password: expect.any(String),
       }),
+      undefined,
     );
   });
 

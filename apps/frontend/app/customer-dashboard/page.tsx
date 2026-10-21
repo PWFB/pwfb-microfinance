@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
 
 type Customer = { id: string; firstName?: string; lastName?: string; savings?: any[]; loans?: any[] };
@@ -23,12 +24,16 @@ const navigation = [
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) { router.replace("/login"); return; }
+    if (user.role !== "CUSTOMER") { router.replace("/dashboard"); return; }
     async function loadDashboard() {
       try {
         setLoading(true);
@@ -49,7 +54,7 @@ export default function CustomerDashboardPage() {
       }
     }
     loadDashboard();
-  }, []);
+  }, [authLoading, user, router]);
 
   const money = (value: number) => `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const formatDate = (value?: string) => {
@@ -62,7 +67,7 @@ export default function CustomerDashboardPage() {
   const loanBalance = customer?.loans?.reduce((total, loan) => total + Number(loan.outstandingBalance ?? loan.balance ?? loan.remainingBalance ?? 0), 0) || 0;
   const displayName = [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || "Customer";
 
-  if (loading) return <main className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-emerald-700">Loading your wallet...</p></main>;
+  if (authLoading || loading || !user || user.role !== "CUSTOMER") return <main className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-emerald-700">Checking your secure account...</p></main>;
 
   return (
     <main className="min-h-screen bg-slate-50 pb-24 lg:pb-0">

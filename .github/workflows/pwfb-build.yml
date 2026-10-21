@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - feat/verified-bank-withdrawal
   pull_request:
     branches:
       - main
@@ -33,11 +34,15 @@ jobs:
         run: npm install
 
 
-      - name: Run PWFB Build System
+      - name: Build backend
         run: npm run build:pwfb
+
+      - name: Build frontend
+        run: npm run build:frontend
 
 
       - name: Login to GitHub Container Registry
+        if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -45,7 +50,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
 
-            - name: Build Docker image
+      - name: Build Docker image
+        if: github.ref == 'refs/heads/main'
         run: |
           IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
           docker build \
@@ -53,6 +59,7 @@ jobs:
             -t "$IMAGE_NAME" .
 
       - name: Push Docker image
+        if: github.ref == 'refs/heads/main'
         run: |
           IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
           docker push "$IMAGE_NAME"
@@ -62,3 +69,4 @@ jobs:
         with:
           name: pwfb-release
           path: release
+          if-no-files-found: ignore

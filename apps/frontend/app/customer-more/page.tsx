@@ -17,15 +17,7 @@ const sections = [
       { href: "/customer-loans", icon: "▣", title: "My Loans", description: "Loans and repayment schedule" },
       { href: "/customer-transactions", icon: "☷", title: "Transactions", description: "Deposits, withdrawals and transfers" },
     ],
-  },
-  {
-    title: "Account",
-    items: [
-      { href: "/customer-profile", icon: "👤", title: "My Profile", description: "Personal information and security" },
-      { href: "/customer-notifications", icon: "🔔", title: "Notifications", description: "View your account notifications" },
-      { href: "/customer-settings", icon: "⚙", title: "Settings", description: "Manage your application preferences" },
-    ],
-  },
+  }
 ];
 
 export default function CustomerMorePage() {

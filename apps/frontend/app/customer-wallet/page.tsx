@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
@@ -24,6 +25,7 @@ type VirtualAccount = {
 type Transaction = { id: string; type?: string; amount?: number; description?: string; status?: string; createdAt?: string; created_at?: string };
 
 export default function CustomerWalletPage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [wallet, setWallet] = useState<Wallet | null>(null);
@@ -34,7 +36,8 @@ export default function CustomerWalletPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user || user.role !== "CUSTOMER") { router.replace(user ? "/dashboard" : "/login"); return; }
 
     async function loadWallet() {
       try {
@@ -71,7 +74,7 @@ export default function CustomerWalletPage() {
     }
 
     loadWallet();
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
   const balance = Number(wallet?.balance || 0);
   const currency = wallet?.currency || "NGN";
@@ -88,7 +91,7 @@ export default function CustomerWalletPage() {
     return date.toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
   }
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !user || user.role !== "CUSTOMER") {
     return <main className="min-h-screen bg-slate-50 p-6 pb-24"><div className="mx-auto max-w-2xl"><p className="text-slate-500">Loading your wallet...</p></div></main>;
   }
 

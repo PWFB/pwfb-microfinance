@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 
 const sections = [
@@ -27,7 +29,18 @@ const sections = [
 ];
 
 export default function CustomerMorePage() {
-  const { logout } = useAuth();
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && (!user || user.role !== "CUSTOMER")) {
+      router.replace(user ? "/dashboard" : "/login");
+    }
+  }, [loading, user, router]);
+
+  if (loading || !user || user.role !== "CUSTOMER") {
+    return <main className="min-h-screen bg-slate-50 p-6"><p className="text-emerald-700">Checking your secure account...</p></main>;
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 pb-24">

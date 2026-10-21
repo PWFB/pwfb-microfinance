@@ -36,7 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function refreshProfile() {
     const token =
       localStorage.getItem("token") ||
-      sessionStorage.getItem("token");
+      sessionStorage.getItem("token") ||
+      localStorage.getItem("access_token") ||
+      sessionStorage.getItem("access_token") ||
+      localStorage.getItem("app_token") ||
+      sessionStorage.getItem("app_token");
 
     if (!token) {
       setUser(null);

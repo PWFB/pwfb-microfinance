@@ -48,10 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const profile = await apiRequest("/auth/profile");
       setUser(profile);
     } catch {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
-      sessionStorage.removeItem("token");
-      sessionStorage.removeItem("user");
+      for (const storage of [localStorage, sessionStorage]) {
+        for (const key of ["token", "access_token", "app_token", "user"]) storage.removeItem(key);
+        for (const key of Object.keys(storage)) {
+          if (key.startsWith("pwfb_google_oidc_nonce_")) storage.removeItem(key);
+        }
+      }
       setUser(null);
     } finally {
       setLoading(false);
@@ -59,10 +61,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("user");
+    for (const storage of [localStorage, sessionStorage]) {
+      for (const key of ["token", "access_token", "app_token", "user"]) storage.removeItem(key);
+      for (const key of Object.keys(storage)) {
+        if (key.startsWith("pwfb_google_oidc_nonce_")) storage.removeItem(key);
+      }
+    }
     setUser(null);
     router.replace("/login");
   }

@@ -1,1 +1,57 @@
+.cashbookPage {
+  --cashbook-grid-line: #94a3b8;
+}
 
+.cashbookPage > div > header,
+.cashbookPage > div > section {
+  border-color: #c5d0c9 !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.055);
+}
+
+.cashbookPage table {
+  border-collapse: collapse;
+  border: 1px solid var(--cashbook-grid-line);
+}
+
+.cashbookPage table th,
+.cashbookPage table td {
+  border-color: var(--cashbook-grid-line) !important;
+}
+
+.cashbookPage table thead th {
+  border-width: 1px;
+  border-style: solid;
+}
+
+.cashbookPage tbody tr:not(.font-black):nth-child(even) {
+  background-color: #e9eef0;
+}
+
+.cashbookPage tbody tr:not(.font-black):hover {
+  background-color: #dbe7e1;
+}
+
+.cashbookPage .field input,
+.cashbookPage .field select {
+  border-color: var(--cashbook-grid-line);
+}
+
+.cashbookPage .field input:focus,
+.cashbookPage .field select:focus {
+  border-color: #0f7b45;
+  outline: 2px solid rgba(15, 123, 69, 0.16);
+  outline-offset: 1px;
+}
+
+.cashbookPage .cashbookSuccess {
+  border-color: #16834a !important;
+  background: #e3f5e9;
+  color: #075c32;
+}
+
+@media (max-width: 640px) {
+  .cashbookPage > div > header,
+  .cashbookPage > div > section {
+    border-radius: 14px;
+  }
+}

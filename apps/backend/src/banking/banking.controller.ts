@@ -40,8 +40,8 @@ export class BankingController {
 
   @Get('account-name')
   @Roles(...BANKING_ROLES)
-  nameEnquiry(@Query('bankCode') bankCode: string, @Query('accountNumber') accountNumber: string) {
-    return this.nibssService.nameEnquiry(bankCode, accountNumber);
+  nameEnquiry(@Query('bankCode') bankCode: string, @Query('accountNumber') accountNumber: string, @Query('provider') provider?: string) {
+    return this.externalBankTransferService.nameEnquiry(bankCode, accountNumber, provider);
   }
 
   private assertCustomerAccess(customerId: string, user: any) {

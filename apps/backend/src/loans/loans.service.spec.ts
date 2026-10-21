@@ -107,7 +107,7 @@ describe('LoansService', () => {
 
     prisma.loan.findMany.mockResolvedValue(result);
 
-    await expect(service.findAll()).resolves.toBe(result);
+    await expect(service.findAll()).resolves.toEqual(result);
 
     expect(prisma.loan.findMany).toHaveBeenCalledWith({
       orderBy: {
@@ -139,8 +139,17 @@ describe('LoansService', () => {
         id: 'loan-1',
       },
       include: {
-        customer: true,
+        customer: {
+          include: {
+            bankAccounts: {
+              where: { status: 'ACTIVE' },
+              include: { institution: true },
+              orderBy: { isPrimary: 'desc' },
+            },
+          },
+        },
         repayments: true,
+        guarantors: true,
       },
     });
   });
@@ -193,8 +202,17 @@ describe('LoansService', () => {
         status: undefined,
       },
       include: {
-        customer: true,
+        customer: {
+          include: {
+            bankAccounts: {
+              where: { status: 'ACTIVE' },
+              include: { institution: true },
+              orderBy: { isPrimary: 'desc' },
+            },
+          },
+        },
         repayments: true,
+        guarantors: true,
       },
     });
   });

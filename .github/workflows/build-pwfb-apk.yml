@@ -25,8 +25,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: apps/android-wrapper/package.json
 
       - name: Set up Java
         uses: actions/setup-java@v4

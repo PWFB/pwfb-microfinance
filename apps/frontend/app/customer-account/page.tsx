@@ -26,6 +26,7 @@ export default function CustomerAccountPage() {
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
+  const [accountVerified, setAccountVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -71,8 +72,8 @@ export default function CustomerAccountPage() {
       try {
         const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
         const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
-        if (!verifiedName) throw new Error("The bank did not return a verified account name.");
-        if (!cancelled) { setAccountName(verifiedName); setMessage("Bank account name verified automatically."); }
+        if (!verifiedName || result?.verified !== true) throw new Error("The bank provider did not confirm this account as verified.");
+        if (!cancelled) { setAccountName(verifiedName); setAccountVerified(true); setMessage("Bank account name verified automatically."); }
       } catch (e) {
         if (!cancelled) { setAccountName(""); setError(e instanceof Error ? e.message : "Bank account verification failed."); }
       } finally { if (!cancelled) setVerifying(false); }
@@ -81,15 +82,15 @@ export default function CustomerAccountPage() {
   }, [selectedBank?.code, selectedBank?.provider, accountNumber]);
 
   async function verifyAccount() {
-    setMessage(""); setError(""); setAccountName("");
+    setMessage(""); setError(""); setAccountName(""); setAccountVerified(false);
     if (!selectedBank?.code) { setError("Select a bank first."); return; }
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
     setVerifying(true);
     try {
       const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber);
       const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
-      if (!verifiedName) throw new Error("The bank did not return a verified account name.");
-      setAccountName(verifiedName);
+      if (!verifiedName || result?.verified !== true) throw new Error("The bank provider did not confirm this account as verified.");
+      setAccountName(verifiedName); setAccountVerified(true);
       setMessage("Bank account name verified.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Bank account verification failed.");
@@ -101,7 +102,7 @@ export default function CustomerAccountPage() {
     if (!customer?.id) return;
     if (!selectedBank?.code) { setError("Select a supported bank."); return; }
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
-    if (!accountName.trim()) { setError("Verify the account name before attaching it."); return; }
+    if (!accountName.trim() || !accountVerified) { setError("Complete live bank verification before attaching this account."); return; }
     setSaving(true);
     try {
       await pwfbApi.banking.addCustomerAccount(customer.id, {
@@ -112,7 +113,7 @@ export default function CustomerAccountPage() {
         provider: selectedBank.provider,
       });
       await loadAccounts(customer.id);
-      setBankCode(""); setAccountNumber(""); setAccountName("");
+      setBankCode(""); setAccountNumber(""); setAccountName(""); setAccountVerified(false);
       setMessage("Verified bank account attached to your PWFB wallet.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to attach this bank account.");
@@ -152,9 +153,13 @@ export default function CustomerAccountPage() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-emerald-100 bg-white p-5 shadow-sm">
-          <p className="text-xs font-bold tracking-[.14em] text-emerald-700">BANK ACCOUNT ATTACHMENT</p>
-          <h2 className="mt-1 text-xl font-bold text-slate-900">Attach a verified bank account</h2>
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-medium tracking-wide text-emerald-700">AUTO VERIFIED</p><h2 className="mt-1 text-lg font-semibold text-slate-900">{accountVerified ? "Account verification successful" : "Bank verification status"}</h2><p className="mt-1 text-sm text-slate-500">{accountVerified ? accountName : "Your account status updates after the bank provider confirms the account."}</p></div><span className={`rounded-full px-3 py-1 text-xs font-medium ${accountVerified ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{accountVerified ? "VERIFIED" : "NOT VERIFIED"}</span></div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p className="text-xs font-medium tracking-wide text-emerald-700">BANK ACCOUNT ATTACHMENT</p>
+          <h2 className="mt-1 text-xl font-semibold text-slate-900">Verify Account</h2>
           <p className="mt-1 text-sm leading-6 text-slate-500">Search your bank, enter the 10-digit account number, verify the bank-returned account name, then attach it for withdrawals and bank transfers.</p>
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
@@ -167,8 +172,8 @@ export default function CustomerAccountPage() {
           <input value={verifying ? "Verifying account name..." : accountName} readOnly placeholder="Verify the account before attaching" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3.5 font-semibold text-slate-800 outline-none" />
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <button type="button" onClick={verifyAccount} disabled={verifying || saving} className="rounded-xl border border-emerald-200 bg-white px-5 py-3 text-sm font-bold text-emerald-700 disabled:opacity-50">{verifying ? "Verifying..." : "Verify account"}</button>
-            <button type="button" onClick={attachAccount} disabled={saving || verifying || !accountName} className="rounded-xl bg-[#087534] px-5 py-3 text-sm font-bold text-white disabled:opacity-50">{saving ? "Attaching..." : "Attach to wallet"}</button>
+            <button type="button" onClick={verifyAccount} disabled={verifying || saving} className="rounded-xl border border-emerald-200 bg-white px-5 py-3 text-sm font-medium text-emerald-700 disabled:opacity-50">{verifying ? "Verifying..." : accountVerified ? "Verified Account" : "Verify Account"}</button>
+            <button type="button" onClick={attachAccount} disabled={saving || verifying || !accountName} className="rounded-xl bg-[#087534] px-5 py-3 text-sm font-medium text-white disabled:opacity-50">{saving ? "Attaching..." : "Attach to wallet"}</button>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">PWFB stores the verified bank account reference and account name. Card numbers, CVV and ATM PIN are not collected here.</p>
         </section>

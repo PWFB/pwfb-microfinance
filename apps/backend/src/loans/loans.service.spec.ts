@@ -114,8 +114,17 @@ describe('LoansService', () => {
         createdAt: 'desc',
       },
       include: {
-        customer: true,
+        customer: {
+          include: {
+            bankAccounts: {
+              where: { status: 'ACTIVE' },
+              include: { institution: true },
+              orderBy: { isPrimary: 'desc' },
+            },
+          },
+        },
         repayments: true,
+        guarantors: true,
       },
     });
   });
@@ -202,15 +211,7 @@ describe('LoansService', () => {
         status: undefined,
       },
       include: {
-        customer: {
-          include: {
-            bankAccounts: {
-              where: { status: 'ACTIVE' },
-              include: { institution: true },
-              orderBy: { isPrimary: 'desc' },
-            },
-          },
-        },
+        customer: true,
         repayments: true,
         guarantors: true,
       },

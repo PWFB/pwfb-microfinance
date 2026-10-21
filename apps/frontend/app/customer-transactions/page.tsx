@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
@@ -9,6 +10,7 @@ type Customer = { id: string; firstName?: string; lastName?: string };
 type Transaction = { id: string; type?: string; amount?: number; description?: string; reference?: string; status?: string; createdAt?: string; created_at?: string };
 
 export default function CustomerTransactionsPage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -16,7 +18,8 @@ export default function CustomerTransactionsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user || user.role !== "CUSTOMER") { router.replace(user ? "/dashboard" : "/login"); return; }
     async function loadTransactions() {
       try {
         setLoading(true); setError("");
@@ -30,7 +33,7 @@ export default function CustomerTransactionsPage() {
       } finally { setLoading(false); }
     }
     loadTransactions();
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
   const money = (amount: number) => `₦${Number(amount || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const date = (value?: string) => { if (!value) return "Date unavailable"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Date unavailable" : d.toLocaleString("en-NG", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); };
@@ -41,7 +44,7 @@ export default function CustomerTransactionsPage() {
   const totalIncoming = transactions.filter(t => incoming(t.type)).reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const totalOutgoing = transactions.filter(t => !incoming(t.type)).reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-  if (authLoading || loading) return <main className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-emerald-700">Loading transaction history...</p></main>;
+  if (authLoading || loading || !user || user.role !== "CUSTOMER") return <main className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-emerald-700">Loading transaction history...</p></main>;
 
   return (
     <main className="min-h-screen bg-slate-50 pb-24">

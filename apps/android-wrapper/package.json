@@ -8,6 +8,9 @@
     "android:sync": "cap sync android",
     "android:build:debug": "cd android && ./gradlew assembleDebug"
   },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
     "@capacitor/cli": "^7.4.3",

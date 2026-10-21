@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../lib/api";
+import styles from "./cashbook.module.css";
 
 type Branch={id:string;name:string};
 type Period={id:string;name:string;status?:string};
@@ -124,7 +125,7 @@ export default function CashbookPage(){
       const body:any={periodId,branchId,entryDate:form.entryDate,description:form.description,referenceNo:form.referenceNo,staffId:form.staffId||undefined};
       for(const k of all)body[k]=n(form[k]);
       await apiRequest("/cashbook/daily",{method:"POST",body:JSON.stringify(body)});
-      setMessage("Cashbook row posted successfully.");setForm(blank());await load();
+      setMessage("✓ Cashbook row posted successfully.");setForm(blank());await load();
     }catch(e:any){setError(e?.message||"Unable to post cashbook row");}finally{setSaving(false);}
   }
 
@@ -137,7 +138,7 @@ export default function CashbookPage(){
   const monthPayments=rows.reduce((s,r)=>s+paymentTotal(r),0);
   const monthOther=rows.reduce((s,r)=>s+n(r.otherAfterTotal),0);
 
-  return <main className="min-h-screen bg-slate-100 p-3 text-slate-900 md:p-6">
+  return <main className={`min-h-screen bg-slate-100 p-3 text-slate-900 md:p-6 ${styles.cashbookPage}`}>
     <div className="mx-auto max-w-[1900px]">
       <header className="mb-4 rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -152,7 +153,7 @@ export default function CashbookPage(){
         </div>
       </header>
       {error&&<div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
-      {message&&<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
+      {message&&<div className={`mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-900 ${styles.cashbookSuccess}`}>{message}</div>}
 
       <section className="mb-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
         <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">The input fields follow the same categories and No./N columns as the physical register.</p></div>

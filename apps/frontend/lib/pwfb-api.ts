@@ -57,7 +57,7 @@ export const pwfbApi = {
   banking: {
     institutions: (params?: ApiListParams) => apiRequest(`/banking/institutions${query(params)}`),
     searchInstitutions: (q?: string) => apiRequest(`/banking/institutions/search${query({ q })}`),
-    accountName: (bankCode: string, accountNumber: string) => apiRequest(`/banking/account-name${query({ bankCode, accountNumber })}`),
+    accountName: (bankCode: string, accountNumber: string, provider?: string) => apiRequest(`/banking/account-name${query({ bankCode, accountNumber, provider })}`),
     customerAccounts: (customerId: string) => apiRequest(`/banking/customers/${customerId}/accounts`),
     addCustomerAccount: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/accounts`, { method: "POST", body: JSON.stringify(body) }),
     customerVirtualAccounts: (customerId: string) => apiRequest(`/banking/customers/${customerId}/virtual-accounts`),

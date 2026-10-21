@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
@@ -18,13 +19,15 @@ type Loan = {
 };
 
 export default function CustomerLoansPage() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return;
+    if (!user || user.role !== "CUSTOMER") { router.replace(user ? "/dashboard" : "/login"); return; }
     async function loadLoans() {
       try {
         setLoading(true);
@@ -39,14 +42,14 @@ export default function CustomerLoansPage() {
       }
     }
     loadLoans();
-  }, [authLoading, user]);
+  }, [authLoading, user, router]);
 
   const borrowed = loans.reduce((total, loan) => total + Number(loan.amount ?? loan.principalAmount ?? loan.loanAmount ?? 0), 0);
   const outstanding = loans.reduce((total, loan) => total + Number(loan.outstandingBalance ?? loan.balance ?? loan.remainingBalance ?? 0), 0);
   const activeLoans = loans.filter((loan) => ["active", "approved", "disbursed"].includes((loan.status || "").toLowerCase())).length;
   const money = (value: number) => `₦${Number(value || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-  if (authLoading || loading) {
+  if (authLoading || loading || !user || user.role !== "CUSTOMER") {
     return <main className="min-h-screen bg-slate-50 flex items-center justify-center"><p className="text-emerald-700">Loading your loans...</p></main>;
   }
 

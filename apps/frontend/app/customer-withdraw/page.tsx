@@ -7,7 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
 
 type Wallet = { balance?: number; currency?: string };
-type Institution = { id: string; name?: string; code?: string };
+type Institution = { id: string; name?: string; code?: string; provider?: string };
 
 export default function CustomerWithdrawPage() {
   const router = useRouter();
@@ -60,7 +60,7 @@ export default function CustomerWithdrawPage() {
     setAccountLookupMessage("Verifying account name…");
     const timer = window.setTimeout(async () => {
       try {
-        const result = await pwfbApi.banking.accountName(bank.code!, accountNumber);
+        const result = await pwfbApi.banking.accountName(bank.code!, accountNumber, bank.provider);
         if (cancelled) return;
         const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
         if (!verifiedName) { setAccountName(""); setAccountLookupMessage("Account name could not be verified. Check the bank and account number."); return; }

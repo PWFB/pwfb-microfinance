@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 
 const sections = [
@@ -11,6 +13,7 @@ const sections = [
       { href: "/customer-deposit", icon: "↓", title: "Deposit", description: "Add funds to your PWFB account" },
       { href: "/customer-withdraw", icon: "↑", title: "Withdraw", description: "Withdraw available wallet funds" },
       { href: "/customer-transfer", icon: "↔", title: "Transfer", description: "Send funds to another customer" },
+      { href: "/customer-bank-transfer", icon: "🏦", title: "Bank Transfer", description: "Send funds to a verified bank account" },
       { href: "/customer-savings", icon: "💰", title: "My Savings", description: "Savings balance and history" },
       { href: "/customer-loans", icon: "▣", title: "My Loans", description: "Loans and repayment schedule" },
       { href: "/customer-transactions", icon: "☷", title: "Transactions", description: "Deposits, withdrawals and transfers" },
@@ -19,16 +22,25 @@ const sections = [
   {
     title: "Account",
     items: [
-      { href: "/customer-profile", icon: "👤", title: "My Profile", description: "Personal information and security" },
-      { href: "/customer-notifications", icon: "🔔", title: "Notifications", description: "View your account notifications" },
-      { href: "/customer-settings", icon: "⚙", title: "Settings", description: "Manage your application preferences" },
+      { href: "/customer-account", icon: "👤", title: "My Bank Accounts", description: "View and verify linked bank accounts" },
       { href: "/customer-authenticator", icon: "🔐", title: "Authenticator", description: "Protect your account with Google Authenticator" },
     ],
   },
 ];
 
 export default function CustomerMorePage() {
-  const { logout } = useAuth();
+  const { user, loading, logout } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && (!user || user.role !== "CUSTOMER")) {
+      router.replace(user ? "/dashboard" : "/login");
+    }
+  }, [loading, user, router]);
+
+  if (loading || !user || user.role !== "CUSTOMER") {
+    return <main className="min-h-screen bg-slate-50 p-6"><p className="text-emerald-700">Checking your secure account...</p></main>;
+  }
 
   return (
     <main className="min-h-screen bg-slate-50 pb-24">

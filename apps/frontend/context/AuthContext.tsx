@@ -68,12 +68,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const nativeApp = /PWFBAndroidApp/i.test(ua);
+    // Return to the public frontend root; this deployment does not expose a /login page.
+    const loginUrl = "https://pwfb-microfinance-965u.onrender.com/";
     if (nativeApp) {
-      window.location.href = "pwfb://open-app?logout=1&url=" + encodeURIComponent("https://pwfb-microfinance-1.onrender.com/login");
-      window.setTimeout(() => router.replace("/login"), 700);
+      window.location.href = "pwfb://open-app?logout=1&url=" + encodeURIComponent(loginUrl);
+      window.setTimeout(() => router.replace("/"), 700);
       return;
     }
-    window.location.assign("https://pwfb-microfinance-1.onrender.com/login");
+    window.location.assign(loginUrl);
   }
 
   useEffect(() => { refreshProfile().catch(() => undefined); }, [pathname]);

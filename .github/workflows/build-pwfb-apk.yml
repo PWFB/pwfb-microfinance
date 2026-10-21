@@ -36,8 +36,12 @@ jobs:
         working-directory: apps/android-wrapper
         run: npm install --no-audit --no-fund
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Prepare Android SDK
+        run: |
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> "$GITHUB_ENV"
+          echo "/usr/local/lib/android/sdk/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Generate Android project
         working-directory: apps/android-wrapper

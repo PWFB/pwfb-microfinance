@@ -162,6 +162,30 @@ export class ExternalBankTransferService {
     throw new BadRequestException(`Bank account verification failed. ${failures.join(' | ')}`);
   }
 
+  async checkCustomerBankAccount(customerId: string, bankCode: string, accountNumber: string, providerHint?: string) {
+    const id = String(customerId || '').trim();
+    if (!id) throw new BadRequestException('PWFB customer is required for name verification');
+    const customer = await this.prisma.customer.findUnique({ where: { id }, select: { firstName: true, middleName: true, lastName: true } });
+    if (!customer) throw new NotFoundException('PWFB customer not found');
+    const customerName = [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' ').trim();
+    const result = await this.nameEnquiry(bankCode, accountNumber, providerHint);
+    const accountParts = new Set(this.normalizeName(result.accountName).split(' ').filter(Boolean));
+    const customerParts = new Set(this.normalizeName(customerName).split(' ').filter(Boolean));
+    const matchCount = [...customerParts].filter((part) => accountParts.has(part)).length;
+    const customerNameVerified = Boolean(customerName) && matchCount >= 2;
+    return {
+      ...result,
+      registeredCustomerName: customerName,
+      nameMatchCount: matchCount,
+      nameMatch: customerNameVerified,
+      customerNameVerified,
+      customerNameStatus: customerNameVerified ? 'cust name verified' : 'cust name not verified',
+      eligibleForTransactions: customerNameVerified,
+      verification: customerNameVerified ? 'VERIFIED' : 'NAME_MISMATCH',
+      beneficiaryType: 'PWFB_CUSTOMER',
+    };
+  }
+
   async verifyCustomerBankAccount(customerId: string, bankCode: string, accountNumber: string, providerHint?: string) {
     const id = String(customerId || '').trim();
     if (!id) throw new BadRequestException('PWFB customer is required for name verification');

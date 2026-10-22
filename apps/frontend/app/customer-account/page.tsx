@@ -27,12 +27,14 @@ export default function CustomerAccountPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
   const [accountVerified, setAccountVerified] = useState(false);
+  const [customerNameVerified, setCustomerNameVerified] = useState(false);
+  const [customerNameStatus, setCustomerNameStatus] = useState("cust name not verified");
   const [verifying, setVerifying] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   async function loadAccounts(customerId: string) {
     const result = await pwfbApi.banking.customerAccounts(customerId);
@@ -66,12 +68,15 @@ export default function CustomerAccountPage() {
 
 
   async function verifyAccount() {
-    setMessage(""); setError(""); setAccountName(""); setAccountVerified(false);
+    setMessage(""); setError(""); setAccountName(""); setAccountVerified(false); setCustomerNameVerified(false); setCustomerNameStatus("cust name not verified");
     if (!selectedBank?.code) { setError("Select a bank first."); return; }
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
     setVerifying(true);
     try {
       const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, 'FLUTTERWAVE');
+      const matched = result?.customerNameVerified === true;
+      const matchStatus = String(result?.customerNameStatus || (matched ? 'cust name verified' : 'cust name not verified'));
+      setCustomerNameVerified(matched); setCustomerNameStatus(matchStatus);
       const verifiedName = String(
         result?.accountName ||
         result?.account_name ||
@@ -86,7 +91,8 @@ export default function CustomerAccountPage() {
         throw new Error(detail || "The bank provider did not return a verified account name. Check the selected provider and bank code, then try again.");
       }
       setAccountName(verifiedName); setAccountVerified(true);
-      setMessage("Bank account name verified.");
+      if (matched) setMessage("Bank account and customer name verified.");
+      else setError("cust name not verified. Your bank name must match at least two name components on your PWFB profile.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Bank account verification failed.");
     } finally { setVerifying(false); }
@@ -97,7 +103,7 @@ export default function CustomerAccountPage() {
     if (!customer?.id) return;
     if (!selectedBank?.code) { setError("Select a supported bank."); return; }
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
-    if (!accountName.trim() || !accountVerified) { setError("Complete live bank verification before attaching this account."); return; }
+    if (!accountName.trim() || !accountVerified || !customerNameVerified) { setError("cust name not verified. You cannot attach this account until the name matches your PWFB profile."); return; }
     setSaving(true);
     try {
       await pwfbApi.banking.addCustomerAccount(customer.id, {
@@ -108,7 +114,7 @@ export default function CustomerAccountPage() {
         provider: selectedBank.provider,
       });
       await loadAccounts(customer.id);
-      setBankCode(""); setAccountNumber(""); setAccountName(""); setAccountVerified(false);
+      setBankCode(""); setAccountNumber(""); setAccountName(""); setAccountVerified(false); setCustomerNameVerified(false); setCustomerNameStatus("cust name not verified");
       setMessage("Verified bank account attached to your PWFB wallet.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to attach this bank account.");
@@ -174,13 +180,15 @@ export default function CustomerAccountPage() {
           </div>}
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
-          <div className="mt-2"><BankSearchSelect banks={banks.map(b => ({ code: String(b.code || ""), name: String(b.name || ""), shortName: b.shortName || b.name, provider: b.provider }))} value={bankCode} onChange={(code) => { setBankCode(code); setAccountNumber(""); setAccountName(""); setAccountVerified(false); setError(""); setMessage(""); }} placeholder="Search bank by name or code..." /></div>
+          <div className="mt-2"><BankSearchSelect banks={banks.map(b => ({ code: String(b.code || ""), name: String(b.name || ""), shortName: b.shortName || b.name, provider: b.provider }))} value={bankCode} onChange={(code) => { setBankCode(code); setAccountNumber(""); setAccountName(""); setAccountVerified(false); setCustomerNameVerified(false); setCustomerNameStatus("cust name not verified"); setError(""); setMessage(""); }} placeholder="Search bank by name or code..." /></div>
 
           <label className="mt-4 block text-sm font-semibold text-slate-700">Account number</label>
-          <input value={accountNumber} onChange={e => { setAccountNumber(e.target.value.replace(/\D/g, "").slice(0,10)); setAccountName(""); setAccountVerified(false); setError(""); setMessage(""); }} inputMode="numeric" maxLength={10} placeholder="10-digit account number" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" />
+          <input value={accountNumber} onChange={e => { setAccountNumber(e.target.value.replace(/\D/g, "").slice(0,10)); setAccountName(""); setAccountVerified(false); setCustomerNameVerified(false); setCustomerNameStatus("cust name not verified"); setError(""); setMessage(""); }} inputMode="numeric" maxLength={10} placeholder="10-digit account number" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" />
 
           <label className="mt-4 block text-sm font-semibold text-slate-700">Verified account name</label>
           <input value={verifying ? "Checking with bank provider…" : accountName} readOnly aria-label="Verified bank account name" placeholder="The verified account name will appear here" className={`mt-2 w-full rounded-xl border px-4 py-3.5 font-semibold outline-none ${accountVerified ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-slate-50 text-slate-700"}`} />
+          <p className={`mt-2 text-sm font-bold ${customerNameVerified ? "text-emerald-700" : "text-red-600"}`} aria-live="polite">{customerNameStatus}</p>
+          <button type="button" onClick={verifyAccount} disabled={verifying || saving || !selectedBank?.code || !/^\\d{10}$/.test(accountNumber)} className="mt-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50">{verifying ? "Verifying..." : "Verify Account"}</button>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button type="button" onClick={verifyAccount} disabled={verifying || saving} className="rounded-xl border border-emerald-200 bg-white px-5 py-3 text-sm font-medium text-emerald-700 disabled:opacity-50">{verifying ? "Verifying..." : accountVerified ? "Verified Account" : "Verify Account"}</button>

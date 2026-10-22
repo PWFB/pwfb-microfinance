@@ -48,10 +48,10 @@ export class PaystackService {
         const providerName = String(bank?.name || '').trim();
         // Keep Paystack's actual bank code, but normalize the customer-facing
         // label for OPay instead of inventing or substituting a bank code.
-        const name = /\\bopay\\b/i.test(providerName) ? 'OPAY Digital Service' : providerName;
+        const name = providerName.toLowerCase().includes('opay') ? 'OPAY Digital Service' : providerName;
         return {
           name,
-          shortName: /\\bopay\\b/i.test(providerName) ? 'OPay' : String(bank?.slug || providerName).trim(),
+          shortName: providerName.toLowerCase().includes('opay') ? 'OPay' : String(bank?.slug || providerName).trim(),
           code: String(bank?.code || '').trim(),
           provider: 'PAYSTACK',
         };

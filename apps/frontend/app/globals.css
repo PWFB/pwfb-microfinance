@@ -109,3 +109,19 @@ html[data-theme="dark"] textarea::placeholder { color: #9caf9f !important; opaci
 .pwfb-shell-sidebar-open .pwfb-sidebar { transform: translateX(0) !important; }
 .pwfb-sidebar-close { display: grid !important; place-items: center; flex: 0 0 34px; }
 .pwfb-shell-sidebar-open .pwfb-sidebar-overlay { display: block !important; position: fixed !important; inset: 0 !important; z-index: 59 !important; width: 100%; height: 100%; background: rgba(0,0,0,.42) !important; }
+
+
+/* Desktop drawer reliability: explicit open-state selectors and visible toggle above the header. */
+.pwfb-shell { position: relative; }
+.pwfb-topbar { position: sticky; z-index: 70 !important; }
+.pwfb-menu-button { display: grid !important; visibility: visible !important; opacity: 1 !important; cursor: pointer; position: relative; z-index: 71; }
+.pwfb-shell.pwfb-shell-sidebar-closed > .pwfb-sidebar { transform: translateX(-105%) !important; visibility: hidden; pointer-events: none; }
+.pwfb-shell.pwfb-shell-sidebar-open > .pwfb-sidebar { transform: translateX(0) !important; visibility: visible !important; pointer-events: auto !important; }
+.pwfb-shell.pwfb-shell-sidebar-open > .pwfb-sidebar-overlay { display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; }
+.pwfb-sidebar { transition: transform .24s ease, visibility .24s ease !important; }
+.pwfb-sidebar-close { display: grid !important; visibility: visible !important; opacity: 1 !important; cursor: pointer; }
+@media (min-width: 801px) {
+  .pwfb-topbar-left { min-width: 0; }
+  .pwfb-menu-button { flex: 0 0 40px; }
+  .pwfb-content { width: 100%; }
+}

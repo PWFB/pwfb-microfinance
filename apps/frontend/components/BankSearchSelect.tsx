@@ -10,10 +10,6 @@ type Bank = {
 };
 
 const BUILTIN_BANKS: Bank[] = [
-  {code:"999992",name:"OPay",shortName:"OPay",provider:"PAYSTACK"},
-  {code:"999991",name:"PalmPay",shortName:"PalmPay",provider:"PAYSTACK"},
-  {code:"090405",name:"Moniepoint Microfinance Bank",shortName:"Moniepoint",provider:"PAYSTACK"},
-  {code:"090267",name:"Kuda Microfinance Bank",shortName:"Kuda",provider:"PAYSTACK"},
 ];
 
 type Props = {
@@ -42,7 +38,7 @@ function score(bank: Bank, query: string) {
 }
 
 export default function BankSearchSelect({banks,value,onChange,placeholder="Search bank by name…",disabled,search,onSearch}:Props){
-  const [open,setOpen]=useState(false); const [query,setQuery]=useState(search??""); const root=useRef<HTMLDivElement>(null); const availableBanks=useMemo(()=>{const merged=new Map<string,Bank>();[...banks,...BUILTIN_BANKS].forEach(bank=>{if(bank?.code&&!merged.has(bank.code))merged.set(bank.code,bank)});return [...merged.values()]},[banks]); const displayName=(bank:Bank)=>bank.code==="999992"?"Opay Digital Services":bank.name; const displayBanks=availableBanks.map(bank=>({...bank,name:displayName(bank)})); const selected=displayBanks.find(bank=>bank.code===value);
+  const [open,setOpen]=useState(false); const [query,setQuery]=useState(search??""); const root=useRef<HTMLDivElement>(null); const availableBanks=useMemo(()=>{const merged=new Map<string,Bank>();[...banks,...BUILTIN_BANKS].forEach(bank=>{if(bank?.code&&!merged.has(bank.code))merged.set(bank.code,bank)});return [...merged.values()]},[banks]); const displayName=(bank:Bank)=>bank.name; const displayBanks=availableBanks.map(bank=>({...bank,name:displayName(bank)})); const selected=displayBanks.find(bank=>bank.code===value);
   useEffect(()=>{if(search!==undefined)setQuery(search);},[search]);
   useEffect(()=>{const close=(event:MouseEvent)=>{if(root.current&&!root.current.contains(event.target as Node))setOpen(false)};document.addEventListener("mousedown",close);return()=>document.removeEventListener("mousedown",close)},[]);
   const results=useMemo(()=>{const list=displayBanks.map(bank=>({bank,score:score(bank,query)}));if(!query.trim())return list.sort((a,b)=>a.bank.name.localeCompare(b.bank.name,undefined,{sensitivity:"base"})).slice(0,50).map(item=>item.bank);return list.filter(item=>item.score>=0).sort((a,b)=>b.score-a.score||a.bank.name.localeCompare(b.bank.name,undefined,{sensitivity:"base"})).slice(0,20).map(item=>item.bank)},[availableBanks,query]);

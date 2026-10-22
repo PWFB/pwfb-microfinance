@@ -163,7 +163,7 @@ export default function CustomerAccountPage() {
           <p className="mt-1 text-sm leading-6 text-slate-500">Search your bank, enter the 10-digit account number, verify the bank-returned account name, then attach it for withdrawals and bank transfers.</p>
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
-          <div className="mt-2"><BankSearchSelect banks={banks.map(b => ({ code: String(b.code || ""), name: String(b.name || ""), shortName: b.shortName || b.name }))} value={bankCode} onChange={(code) => { setBankCode(code); setAccountNumber(""); setAccountName(""); setAccountVerified(false); setError(""); setMessage(""); }} placeholder="Search bank by name or code..." /></div>
+          <div className="mt-2"><BankSearchSelect banks={banks.map(b => ({ code: String(b.code || ""), name: String(b.name || ""), shortName: b.shortName || b.name, provider: b.provider }))} value={bankCode} onChange={(code) => { setBankCode(code); setAccountNumber(""); setAccountName(""); setAccountVerified(false); setError(""); setMessage(""); }} placeholder="Search bank by name or code..." /></div>
 
           <label className="mt-4 block text-sm font-semibold text-slate-700">Account number</label>
           <input value={accountNumber} onChange={e => { setAccountNumber(e.target.value.replace(/\D/g, "").slice(0,10)); setAccountName(""); setAccountVerified(false); setError(""); setMessage(""); }} inputMode="numeric" maxLength={10} placeholder="10-digit account number" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" />

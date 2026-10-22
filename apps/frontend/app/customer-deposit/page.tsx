@@ -8,7 +8,7 @@ import { pwfbApi } from "../../lib/pwfb-api";
 import BankSearchSelect from "../../components/BankSearchSelect";
 
 type Wallet = { balance?: number; currency?: string };
-type Institution = { id: string; name?: string; code?: string };
+type Institution = { id: string; name?: string; code?: string; provider?: string };
 type VirtualAccount = { id: string; customerId: string; institutionId: string | null; institutionName: string | null; institutionShortName: string | null; accountNumber: string | null; accountName: string | null; provider: string | null; providerReference: string | null; status: "PENDING" | "ACTIVE" | "FAILED" | "INACTIVE"; requestedAt: string; assignedAt: string | null; failureReason: string | null };
 
 export default function CustomerDepositPage() {
@@ -80,7 +80,7 @@ export default function CustomerDepositPage() {
     if (!selectedBank?.code || !/^\d{10}$/.test(accountNumber.trim())) { setMessage("Select a bank and enter a valid 10-digit funding account number."); return; }
     setAccountVerifying(true);
     try {
-      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber);
+      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
       const name = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
       if (!name) throw new Error("The bank did not return a verified account name.");
       setFundingAccountName(name); setMessage("Funding account verified.");
@@ -136,7 +136,7 @@ export default function CustomerDepositPage() {
       <section className="mt-5 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
         <p className="text-xs font-bold uppercase tracking-[0.14em] text-emerald-600">Bank funding</p><h2 className="mt-1 text-xl font-bold text-slate-900">Where are you sending from?</h2>
         <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
-        <div className="mt-2"><BankSearchSelect banks={institutions.map((bank) => ({ code: String(bank.code || bank.id || ""), name: String(bank.name || ""), shortName: bank.name }))} value={bankId} onChange={(code) => { const bank = institutions.find((item) => String(item.code || item.id) === code); setBankId(bank?.id || ""); setFundingAccountName(""); setMessage(""); }} placeholder="Search bank by name or code…" /></div>
+        <div className="mt-2"><BankSearchSelect banks={institutions.map((bank) => ({ code: String(bank.code || bank.id || ""), name: String(bank.name || ""), shortName: bank.name, provider: bank.provider }))} value={bankId} onChange={(code) => { const bank = institutions.find((item) => String(item.code || item.id) === code); setBankId(bank?.id || ""); setFundingAccountName(""); setMessage(""); }} placeholder="Search bank by name or code…" /></div>
         <label className="mt-4 block text-sm font-semibold text-slate-700">Your funding account number</label><input value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} inputMode="numeric" placeholder="10-digit account number" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-50" />
         <div className="mt-4 rounded-2xl bg-slate-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Verified funding account</p><p className="mt-1 font-bold text-slate-900">{fundingAccountName || "Not verified yet"}</p><button type="button" onClick={verifyFundingAccount} disabled={accountVerifying || !bankId || !/^\d{10}$/.test(accountNumber)} className="mt-3 rounded-xl border border-emerald-200 bg-white px-4 py-2 text-xs font-black text-emerald-700 disabled:opacity-50">{accountVerifying ? "Verifying…" : "Verify Funding Account"}</button></div><label className="mt-4 block text-sm font-semibold text-slate-700">Amount</label><div className="mt-2 flex items-center rounded-2xl border border-slate-200 bg-slate-50 px-4 focus-within:border-emerald-500 focus-within:bg-white"><span className="text-lg font-bold text-emerald-600">₦</span><input type="number" min="1" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full bg-transparent px-3 py-4 text-xl font-semibold outline-none" /></div>
         <label className="mt-4 block text-sm font-semibold text-slate-700">Description <span className="font-normal text-slate-400">(optional)</span></label><input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Deposit description" className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" />

@@ -93,7 +93,7 @@ export class ExternalBankTransferService {
   }
 
   async listInstitutions() {
-    const provider = this.provider();
+    const provider = this.hasFlutterwaveLiveCredentials() ? 'FLUTTERWAVE' : this.provider();
     let providerBanks: any[] = [];
     let localBanks: any[] = [];
     try {

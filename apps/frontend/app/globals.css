@@ -100,3 +100,12 @@ html[data-theme="dark"] textarea::placeholder { color: #9caf9f !important; opaci
 .pwfb-shell-sidebar-open .pwfb-sidebar { transform: translateX(0) !important; }
 .pwfb-shell-sidebar-closed .pwfb-sidebar { transform: translateX(-105%) !important; }
 .pwfb-shell-sidebar-open .pwfb-sidebar-overlay { display: block !important; position: fixed; inset: 0; z-index: 49; border: 0; background: rgba(0,0,0,.42); }
+
+
+/* Final parity fix: the drawer is fixed-position at every breakpoint, never part of dashboard layout. */
+.pwfb-sidebar { position: fixed !important; inset: 0 auto 0 0 !important; z-index: 60 !important; width: min(280px, 88vw) !important; height: 100dvh !important; max-height: 100dvh !important; }
+.pwfb-main { width: 100% !important; min-width: 0 !important; margin-left: 0 !important; }
+.pwfb-shell-sidebar-closed .pwfb-sidebar { transform: translateX(-105%) !important; }
+.pwfb-shell-sidebar-open .pwfb-sidebar { transform: translateX(0) !important; }
+.pwfb-sidebar-close { display: grid !important; place-items: center; flex: 0 0 34px; }
+.pwfb-shell-sidebar-open .pwfb-sidebar-overlay { display: block !important; position: fixed !important; inset: 0 !important; z-index: 59 !important; width: 100%; height: 100%; background: rgba(0,0,0,.42) !important; }

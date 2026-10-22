@@ -197,7 +197,7 @@ export class ExternalBankTransferService {
     const accountParts = new Set(this.normalizeName(result.accountName).split(' ').filter(Boolean));
     const matchCount = [...new Set(this.normalizeName(customerName).split(' ').filter(Boolean))].filter((part) => accountParts.has(part)).length;
     if (matchCount < 2) throw new BadRequestException(`Bank account verification failed: the verified account name (${result.accountName}) does not match at least two names on the PWFB customer profile (${customerName}).`);
-    return { ...result, registeredCustomerName: customerName, nameMatchCount: matchCount, nameMatch: true, verification: 'VERIFIED', beneficiaryType: 'PWFB_CUSTOMER' };
+    return { ...result, registeredCustomerName: customerName, nameMatchCount: matchCount, nameMatch: true, customerNameVerified: true, customerNameStatus: 'cust name verified', eligibleForTransactions: true, verification: 'VERIFIED', beneficiaryType: 'PWFB_CUSTOMER' };
   }
 
   async transferToVerifiedAccount(input: { bankCode: string; accountNumber: string; accountName: string; amount: number; narration: string; reference: string; provider?: string }) {

@@ -72,8 +72,19 @@ export default function CustomerAccountPage() {
     setVerifying(true);
     try {
       const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
-      const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
-      if (!verifiedName || result?.verified !== true) throw new Error("The bank provider did not confirm this account as verified.");
+      const verifiedName = String(
+        result?.accountName ||
+        result?.account_name ||
+        result?.name ||
+        result?.data?.accountName ||
+        result?.data?.account_name ||
+        result?.data?.name ||
+        ""
+      ).trim();
+      if (!verifiedName || result?.verified !== true) {
+        const detail = String(result?.message || result?.data?.message || "").trim();
+        throw new Error(detail || "The bank provider did not return a verified account name. Check the selected provider and bank code, then try again.");
+      }
       setAccountName(verifiedName); setAccountVerified(true);
       setMessage("Bank account name verified.");
     } catch (e) {

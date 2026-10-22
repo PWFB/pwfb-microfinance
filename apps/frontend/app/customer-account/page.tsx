@@ -115,6 +115,14 @@ export default function CustomerAccountPage() {
     } finally { setSaving(false); }
   }
 
+  // Automatically resolve the account name once the selected bank and 10-digit number are complete.
+  // The backend returns a verified provider response; this effect never guesses a name.
+  useEffect(() => {
+    if (!selectedBank?.code || !/^\\d{10}$/.test(accountNumber)) return;
+    const timer = setTimeout(() => { void verifyAccount(); }, 500);
+    return () => clearTimeout(timer);
+  }, [bankCode, accountNumber, banks]);
+
   if (authLoading || loading) return <main className="min-h-screen bg-slate-50 p-6"><p className="text-emerald-700">Loading your account...</p></main>;
   if (!user) return <main className="min-h-screen bg-slate-50 p-6"><p>Please sign in first.</p><Link className="font-semibold text-emerald-700" href="/login">Login</Link></main>;
 

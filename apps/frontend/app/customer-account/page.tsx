@@ -87,7 +87,7 @@ export default function CustomerAccountPage() {
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
     setVerifying(true);
     try {
-      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber);
+      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
       const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
       if (!verifiedName || result?.verified !== true) throw new Error("The bank provider did not confirm this account as verified.");
       setAccountName(verifiedName); setAccountVerified(true);

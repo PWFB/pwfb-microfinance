@@ -110,7 +110,18 @@ export class ExternalBankTransferService {
     } catch {
       localBanks = [];
     }
-    return this.mergeBanks(providerBanks, localBanks, this.fallbackNigeriaBanks);
+    // When the configured provider returns its live institution list, treat it as
+    // authoritative. Merging local rows or fallback entries can reintroduce stale
+    // bank codes (notably digital banks such as OPay) under a different code.
+    if (providerBanks.length > 0) return this.mergeBanks(providerBanks);
+
+    // Only use local/fallback references when the provider list could not be loaded.
+    // These entries are discovery hints, not proof that live verification supports them.
+    return this.mergeBanks(localBanks, this.fallbackNigeriaBanks).map((bank) => ({
+      ...bank,
+      provider: bank.provider || provider,
+      verificationSource: 'FALLBACK',
+    }));
   }
 
   async searchInstitutions(search?: string) {

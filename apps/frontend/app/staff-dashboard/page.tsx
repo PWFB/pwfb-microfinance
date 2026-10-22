@@ -31,16 +31,34 @@ export default function StaffDashboardPage() {
   const [profile, setProfile] = useState<StaffProfile | null>(null);
   const [loans, setLoans] = useState<Loan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
-    Promise.all([
-      apiRequest("/auth/profile").catch(() => null),
-      apiRequest("/loans").catch(() => []),
-    ]).then(([user, loanData]) => {
-      setProfile(user);
-      setLoans(Array.isArray(loanData) ? loanData : []);
-      setLoading(false);
-    });
+    let active = true;
+    async function loadDashboard() {
+      setLoading(true);
+      setLoadError("");
+      try {
+        const [user, loanData] = await Promise.all([
+          apiRequest("/auth/profile"),
+          apiRequest("/loans"),
+        ]);
+        if (!active) return;
+        const profileData = user?.data ?? user?.user ?? user;
+        const loanRows = Array.isArray(loanData) ? loanData
+          : Array.isArray(loanData?.data) ? loanData.data
+          : Array.isArray(loanData?.loans) ? loanData.loans : [];
+        setProfile(profileData ?? null);
+        setLoans(loanRows);
+      } catch (error) {
+        if (!active) return;
+        setLoadError(error instanceof Error ? error.message : "Unable to load staff dashboard data.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    void loadDashboard();
+    return () => { active = false; };
   }, []);
 
   const activeLoans = useMemo(
@@ -82,6 +100,7 @@ export default function StaffDashboardPage() {
         </div>
       </section>
 
+      {loadError && <div role="alert" className="staff-load-error">Dashboard data could not be fully loaded: {loadError}. Please retry after checking your session and connection.</div>}
       <section className="staff-stat-grid" aria-label="Staff overview">
         <article className="staff-stat-card">
           <div className="staff-stat-icon green">▣</div>
@@ -137,6 +156,8 @@ export default function StaffDashboardPage() {
 
       <style jsx>{`
         .staff-dashboard-page { max-width: 1440px; margin: 0 auto; padding: 8px 0 44px; }
+        .staff-load-error { margin: 0 0 16px; padding: 12px 14px; border: 1px solid #f1c7a2; border-radius: 12px; background: #fff7ed; color: #8a3412; font-size: 12px; font-weight: 700; }
+        :global(html[data-theme="dark"]) .staff-load-error { background: #2a1b12; border-color: #74421d; color: #fed7aa; }
         .staff-hero { position: relative; overflow: hidden; display: flex; justify-content: space-between; gap: 28px; padding: 34px; border-radius: 24px; background: linear-gradient(120deg, #075b2b 0%, #0f7b35 62%, #178744 100%); color: white; box-shadow: 0 18px 45px rgba(7,91,43,.16); }
         .staff-hero:after { content: ""; position: absolute; width: 310px; height: 310px; right: -100px; top: -140px; border: 42px solid rgba(242,140,24,.18); border-radius: 50%; }
         .staff-hero-copy, .staff-profile-card { position: relative; z-index: 1; }

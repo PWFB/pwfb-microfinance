@@ -44,12 +44,18 @@ export class PaystackService {
 
     const seen = new Set<string>();
     return allBanks
-      .map((bank: any) => ({
-        name: String(bank?.name || '').trim(),
-        shortName: String(bank?.slug || bank?.name || '').trim(),
-        code: String(bank?.code || '').trim(),
-        provider: 'PAYSTACK',
-      }))
+      .map((bank: any) => {
+        const providerName = String(bank?.name || '').trim();
+        // Keep Paystack's actual bank code, but normalize the customer-facing
+        // label for OPay instead of inventing or substituting a bank code.
+        const name = providerName.toLowerCase().includes('opay') ? 'OPAY Digital Service' : providerName;
+        return {
+          name,
+          shortName: providerName.toLowerCase().includes('opay') ? 'OPay' : String(bank?.slug || providerName).trim(),
+          code: String(bank?.code || '').trim(),
+          provider: 'PAYSTACK',
+        };
+      })
       .filter((bank: any) => {
         if (!bank.name || !bank.code || seen.has(bank.code)) return false;
         seen.add(bank.code);

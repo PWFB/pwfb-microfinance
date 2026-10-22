@@ -71,9 +71,20 @@ export default function CustomerAccountPage() {
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
     setVerifying(true);
     try {
-      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
-      const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
-      if (!verifiedName || result?.verified !== true) throw new Error("The bank provider did not confirm this account as verified.");
+      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, 'FLUTTERWAVE');
+      const verifiedName = String(
+        result?.accountName ||
+        result?.account_name ||
+        result?.name ||
+        result?.data?.accountName ||
+        result?.data?.account_name ||
+        result?.data?.name ||
+        ""
+      ).trim();
+      if (!verifiedName || result?.verified !== true) {
+        const detail = String(result?.message || result?.data?.message || "").trim();
+        throw new Error(detail || "The bank provider did not return a verified account name. Check the selected provider and bank code, then try again.");
+      }
       setAccountName(verifiedName); setAccountVerified(true);
       setMessage("Bank account name verified.");
     } catch (e) {
@@ -103,6 +114,14 @@ export default function CustomerAccountPage() {
       setError(e instanceof Error ? e.message : "Unable to attach this bank account.");
     } finally { setSaving(false); }
   }
+
+  // Automatically resolve the account name once the selected bank and 10-digit number are complete.
+  // The backend returns a verified provider response; this effect never guesses a name.
+  useEffect(() => {
+    if (!selectedBank?.code || !/^\\d{10}$/.test(accountNumber)) return;
+    const timer = setTimeout(() => { void verifyAccount(); }, 500);
+    return () => clearTimeout(timer);
+  }, [bankCode, accountNumber, banks]);
 
   if (authLoading || loading) return <main className="min-h-screen bg-slate-50 p-6"><p className="text-emerald-700">Loading your account...</p></main>;
   if (!user) return <main className="min-h-screen bg-slate-50 p-6"><p>Please sign in first.</p><Link className="font-semibold text-emerald-700" href="/login">Login</Link></main>;

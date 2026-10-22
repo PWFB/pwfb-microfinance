@@ -93,7 +93,7 @@ export class ExternalBankTransferService {
   }
 
   async listInstitutions() {
-    const provider = this.provider();
+    const provider = this.hasFlutterwaveLiveCredentials() ? 'FLUTTERWAVE' : this.provider();
     let providerBanks: any[] = [];
     let localBanks: any[] = [];
     try {
@@ -143,7 +143,8 @@ export class ExternalBankTransferService {
     if (!/^\d{10}$/.test(normalizedAccountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     const requestedProvider = String(providerHint || '').trim().toUpperCase();
     const primaryProvider = this.provider();
-    const providers = requestedProvider && this.providerIsUsable(requestedProvider) ? [requestedProvider] : [primaryProvider];
+    const preferredProvider = this.hasFlutterwaveLiveCredentials() ? 'FLUTTERWAVE' : primaryProvider;
+    const providers = requestedProvider && this.providerIsUsable(requestedProvider) ? [requestedProvider] : [preferredProvider];
     if (providers.some((provider) => !['FLUTTERWAVE', 'PAYSTACK', 'NIBSS'].includes(provider))) throw new BadRequestException('Unsupported bank verification provider');
     const failures: string[] = [];
     for (const provider of providers) {

@@ -64,22 +64,6 @@ export default function CustomerAccountPage() {
   const email = user?.email || customer?.email || "—";
   const phone = customer?.phone || "—";
 
-  useEffect(() => {
-    if (!selectedBank?.code || !/^\d{10}$/.test(accountNumber)) return;
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      setVerifying(true); setError(""); setMessage("");
-      try {
-        const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
-        const verifiedName = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
-        if (!verifiedName || result?.verified !== true) throw new Error("The bank provider did not confirm this account as verified.");
-        if (!cancelled) { setAccountName(verifiedName); setAccountVerified(true); setMessage("Bank account name verified automatically."); }
-      } catch (e) {
-        if (!cancelled) { setAccountName(""); setError(e instanceof Error ? e.message : "Bank account verification failed."); }
-      } finally { if (!cancelled) setVerifying(false); }
-    }, 450);
-    return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [selectedBank?.code, selectedBank?.provider, accountNumber]);
 
   async function verifyAccount() {
     setMessage(""); setError(""); setAccountName(""); setAccountVerified(false);
@@ -157,10 +141,18 @@ export default function CustomerAccountPage() {
           <div className="flex items-center justify-between gap-3"><div><p className="text-xs font-medium tracking-wide text-emerald-700">AUTO VERIFIED</p><h2 className="mt-1 text-lg font-semibold text-slate-900">{accountVerified ? "Account verification successful" : "Bank verification status"}</h2><p className="mt-1 text-sm text-slate-500">{accountVerified ? accountName : "Your account status updates after the bank provider confirms the account."}</p></div><span className={`rounded-full px-3 py-1 text-xs font-medium ${accountVerified ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"}`}>{accountVerified ? "VERIFIED" : "NOT VERIFIED"}</span></div>
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-medium tracking-wide text-emerald-700">BANK ACCOUNT ATTACHMENT</p>
-          <h2 className="mt-1 text-xl font-semibold text-slate-900">Verify Account</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-500">Search your bank, enter the 10-digit account number, verify the bank-returned account name, then attach it for withdrawals and bank transfers.</p>
+        <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm ring-1 ring-emerald-50">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-xs font-bold tracking-wide text-emerald-700">LIVE BANK NAME ENQUIRY</p>
+              <h2 className="mt-1 text-xl font-bold text-slate-900">Verify Account</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">Select the bank, enter its 10-digit account number, then verify. PWFB displays the account name returned by the selected bank provider.</p>
+            </div>
+            <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${accountVerified ? "bg-emerald-100 text-emerald-800" : verifying ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>{accountVerified ? "VERIFIED" : verifying ? "CHECKING…" : "NOT VERIFIED"}</span>
+          </div>
+          {selectedBank && <div className="mt-4 grid grid-cols-2 gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+            <div><p className="text-xs text-slate-500">Selected bank</p><p className="mt-1 text-sm font-bold text-slate-900">{selectedBank.name}</p></div>
+            <div><p className="text-xs text-slate-500">Provider / bank code</p><p className="mt-1 break-all text-sm font-bold text-slate-900">{selectedBank.provider || "Configured provider"} · {selectedBank.code}</p></div>
+          </div>}
 
           <label className="mt-5 block text-sm font-semibold text-slate-700">Bank</label>
           <div className="mt-2"><BankSearchSelect banks={banks.map(b => ({ code: String(b.code || ""), name: String(b.name || ""), shortName: b.shortName || b.name, provider: b.provider }))} value={bankCode} onChange={(code) => { setBankCode(code); setAccountNumber(""); setAccountName(""); setAccountVerified(false); setError(""); setMessage(""); }} placeholder="Search bank by name or code..." /></div>
@@ -169,7 +161,7 @@ export default function CustomerAccountPage() {
           <input value={accountNumber} onChange={e => { setAccountNumber(e.target.value.replace(/\D/g, "").slice(0,10)); setAccountName(""); setAccountVerified(false); setError(""); setMessage(""); }} inputMode="numeric" maxLength={10} placeholder="10-digit account number" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 outline-none focus:border-emerald-500 focus:bg-white" />
 
           <label className="mt-4 block text-sm font-semibold text-slate-700">Verified account name</label>
-          <input value={verifying ? "Verifying account name..." : accountName} readOnly placeholder="Verify the account before attaching" className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3.5 font-semibold text-slate-800 outline-none" />
+          <input value={verifying ? "Checking with bank provider…" : accountName} readOnly aria-label="Verified bank account name" placeholder="The verified account name will appear here" className={`mt-2 w-full rounded-xl border px-4 py-3.5 font-semibold outline-none ${accountVerified ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-slate-50 text-slate-700"}`} />
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <button type="button" onClick={verifyAccount} disabled={verifying || saving} className="rounded-xl border border-emerald-200 bg-white px-5 py-3 text-sm font-medium text-emerald-700 disabled:opacity-50">{verifying ? "Verifying..." : accountVerified ? "Verified Account" : "Verify Account"}</button>

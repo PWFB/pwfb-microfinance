@@ -100,3 +100,11 @@ test("customer management provides responsive operations, filters, and recovery 
   assert.ok(customerPage.includes("Customer records unavailable"));
   assert.ok(customerPage.includes("Retry"));
 });
+
+
+test("Super Admin operational filters and pagination adapt to narrow screens", () => {
+  const adminPage = fs.readFileSync(path.resolve(process.cwd(), "app/admin-overview/page.tsx"), "utf8");
+  assert.ok(adminPage.includes('gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,150px),1fr))"'));
+  assert.ok(adminPage.includes('flexWrap: "wrap"'));
+  assert.ok(adminPage.includes("Export CSV"));
+});

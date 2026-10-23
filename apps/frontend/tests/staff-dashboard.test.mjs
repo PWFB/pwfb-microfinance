@@ -89,3 +89,14 @@ test("ATM card switching clears stale customer cards and unlink failures are rep
   assert.ok(cardPage.includes('setMessage("Saved card reference unlinked.")'));
   assert.ok(cardPage.includes("Could not unlink this saved card. No local changes were made."));
 });
+
+
+test("customer management provides responsive operations, filters, and recovery feedback", () => {
+  const customerPage = fs.readFileSync(path.resolve(process.cwd(), "app/customers/page.tsx"), "utf8");
+  assert.ok(customerPage.includes("repeat(auto-fit,minmax(140px,1fr))"));
+  assert.ok(customerPage.includes("repeat(auto-fit,minmax(160px,1fr))"));
+  assert.ok(customerPage.includes("Search customer"));
+  assert.ok(customerPage.includes("setView(\"recent\")"));
+  assert.ok(customerPage.includes("Customer records unavailable"));
+  assert.ok(customerPage.includes("Retry"));
+});

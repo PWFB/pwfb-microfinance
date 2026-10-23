@@ -41,13 +41,6 @@ export default function BankingPage() {
   const [reference, setReference] = useState("");
   const [recipientId, setRecipientId] = useState("");
   const [loading, setLoading] = useState(false);
-  const [linkedAccounts, setLinkedAccounts] = useState<any[]>([]);
-  const [linkedLoading, setLinkedLoading] = useState(false);
-  const [attachBankCode, setAttachBankCode] = useState("");
-  const [attachAccountNumber, setAttachAccountNumber] = useState("");
-  const [attachAccountName, setAttachAccountName] = useState("");
-  const [attachVerified, setAttachVerified] = useState(false);
-  const [attachProvider, setAttachProvider] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -62,10 +55,9 @@ export default function BankingPage() {
 
   useEffect(() => {
     if (!customerId) { setWallet(null); setTransactions([]); return; }
-    Promise.all([pwfbApi.banking.customerWallet(customerId), pwfbApi.banking.customerTransactions(customerId), pwfbApi.banking.customerAccounts(customerId)]).then(([nextWallet, nextTransactions, accounts]) => {
+    Promise.all([pwfbApi.banking.customerWallet(customerId), pwfbApi.banking.customerTransactions(customerId)]).then(([nextWallet, nextTransactions]) => {
       setWallet(nextWallet);
       setTransactions(unwrap<Tx>(nextTransactions));
-      setLinkedAccounts(unwrap<any>(accounts));
     }).catch(() => {});
   }, [customerId]);
 
@@ -170,17 +162,6 @@ export default function BankingPage() {
       </div>
       {message&&<div className="pwfb-security-note" style={{marginTop:16}}>{message}</div>}
       <div className="pwfb-deposit-actions"><div className="pwfb-security-note">🔐 <span>Live verification required • The verified name must belong to the exact bank/account number currently entered.</span></div><button type="button" className="pwfb-primary-button" disabled={loading} onClick={submit}>{loading?"Processing…":"Process Operation"}</button></div>
-    </section>
-    <section className="pwfb-panel" style={{marginTop:20}}>
-      <div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">CONNECTED ACCOUNTS</p><h2>Bank / ATM Attachments</h2><p>Attach a verified bank account to this customer wallet for withdrawals and future ATM/card services. Never store a PIN, CVV or full card PAN.</p></div></div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-        <div><label className="pwfb-label">Bank Search</label><BankSearchSelect banks={banks} value={attachBankCode} onChange={(code)=>{setAttachBankCode(code);setAttachVerified(false);setAttachAccountName("");setAttachProvider(String(banks.find(b=>b.code===code)?.provider||"").toUpperCase())}}/></div>
-        <div><label className="pwfb-label">10-digit Account</label><input className="pwfb-input" inputMode="numeric" maxLength={10} value={attachAccountNumber} onChange={e=>{setAttachAccountNumber(e.target.value.replace(/\D/g,"").slice(0,10));setAttachVerified(false)}} placeholder="Account number"/></div>
-        <div><label className="pwfb-label">Verified Name</label><div className="pwfb-verify-field">{attachVerified?attachAccountName:"Not verified"}</div></div>
-        <div style={{display:"flex",alignItems:"end",gap:8}}><button type="button" className="pwfb-primary-button" disabled={!customerId||!attachBankCode||!/^\d{10}$/.test(attachAccountNumber)||linkedLoading} onClick={async()=>{setLinkedLoading(true);setMessage("");try{const r:any=await pwfbApi.banking.accountName(attachBankCode,attachAccountNumber,attachProvider);const name=String(r?.accountName||r?.account_name||"").trim();if(!name)throw new Error("Bank did not return a verified account name.");setAttachAccountName(name);setAttachVerified(true);setMessage("Bank account verified. Click Attach Account to save it.");}catch(e:any){setAttachVerified(false);setMessage(e?.message||"Verification failed.");}finally{setLinkedLoading(false)}}}>{linkedLoading?"Checking…":"Verify"}</button>
-        <button type="button" className="pwfb-primary-button" disabled={!attachVerified||!customerId||linkedLoading} onClick={async()=>{setLinkedLoading(true);try{const institution=banks.find(b=>b.code===attachBankCode);if(!institution)throw new Error("Select a bank.");await pwfbApi.banking.addCustomerAccount(customerId,{institutionId:institution.id||institution.code,accountNumber:attachAccountNumber,accountName:attachAccountName,isPrimary:linkedAccounts.length===0,provider:attachProvider});const a=await pwfbApi.banking.customerAccounts(customerId);setLinkedAccounts(unwrap<any>(a));setAttachAccountNumber("");setAttachAccountName("");setAttachVerified(false);setMessage("Bank / ATM attachment saved.");}catch(e:any){setMessage(e?.message||"Attachment could not be saved.");}finally{setLinkedLoading(false)}}}>Attach Account</button></div>
-      </div>
-      <div style={{marginTop:16,display:"grid",gap:8}}>{linkedAccounts.length===0?<div className="pwfb-security-note">No verified bank/ATM attachment yet.</div>:linkedAccounts.map((a:any)=><div key={a.id} style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"center",border:"1px solid #e2e8f0",borderRadius:12,padding:12}}><div><b>{a.institution?.name||"Bank account"}</b><div style={{fontSize:12,color:"#64748b"}}>{String(a.accountNumber||"").replace(/^(\d{3})\d{4}(\d{3})$/,"$1••••$2")} • {a.accountName||"Verified account"}</div></div><span style={{fontSize:12,fontWeight:800,color:"#047857"}}>{a.isPrimary?"PRIMARY":a.verifiedAt?"VERIFIED":"ACTIVE"}</span></div>)}</div>
     </section>
     <section className="pwfb-panel" style={{marginTop:20}}><div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">ACCOUNT ACTIVITY</p><h2>Recent Transactions</h2></div></div>{transactions.length===0?<p>No transactions found for this customer.</p>:<div style={{overflowX:"auto"}}><table className="pwfb-table"><thead><tr><th>Type</th><th>Reference</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{transactions.slice(0,20).map((tx)=><tr key={tx.id}><td>{tx.type||"—"}</td><td>{tx.reference||tx.id}</td><td>₦{Number(tx.amount||0).toLocaleString()}</td><td>{tx.status||"—"}</td><td>{tx.createdAt||tx.created_at?new Date(tx.createdAt||tx.created_at!).toLocaleString():"—"}</td></tr>)}</tbody></table></div>}</section>
   </main>;

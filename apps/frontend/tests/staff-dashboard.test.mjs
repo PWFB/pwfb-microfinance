@@ -61,3 +61,12 @@ test("ATM card page avoids claiming profile matching verifies card ownership", (
   assert.ok(cardPage.includes("PWFB does not request or store an ATM PIN"));
   assert.ok(cardPage.includes("Unlink card"));
 });
+
+
+test("ATM card page keeps saved cards compact with unlink in the deposit flow", () => {
+  const cardPage = fs.readFileSync(path.resolve(process.cwd(), "app/atm-cards/page.tsx"), "utf8");
+  assert.ok(cardPage.includes("atm-saved-cards"));
+  assert.ok(cardPage.includes("Unlink card"));
+  assert.ok(!cardPage.includes('<h2>Attached Cards</h2>'));
+  assert.ok(cardPage.includes("Continue to Paystack authorization"));
+});

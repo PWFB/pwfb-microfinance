@@ -81,3 +81,11 @@ test("Paystack card attempts cool down after five failures and serialize duplica
   assert.ok(serviceSource.includes("pg_advisory_xact_lock"));
   assert.ok(serviceSource.includes("clearCardAttemptFailures"));
 });
+
+
+test("ATM card switching clears stale customer cards and unlink failures are reported", () => {
+  const cardPage = fs.readFileSync(path.resolve(process.cwd(), "app/atm-cards/page.tsx"), "utf8");
+  assert.ok(cardPage.includes('setCards([])'));
+  assert.ok(cardPage.includes('setMessage("Saved card reference unlinked.")'));
+  assert.ok(cardPage.includes("Could not unlink this saved card. No local changes were made."));
+});

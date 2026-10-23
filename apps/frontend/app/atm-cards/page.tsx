@@ -3,23 +3,11 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
 
-type Customer = { id:string; firstName?:string; lastName?:string; name?:string };
+type Customer = { id:string; firstName?:string; middleName?:string; lastName?:string; name?:string };
 type Card = { id:string; customerId:string; cardholderName:string; last4:string; cardNetwork?:string|null; expiryMonth?:number|null; expiryYear?:number|null; status:string; hasFrontAttachment?:boolean; hasBackAttachment?:boolean; hasReusableAuthorization?:boolean };
 
 const unwrap=(v:any)=>Array.isArray(v)?v:Array.isArray(v?.data)?v.data:Array.isArray(v?.customers)?v.customers:[];
-const fullName=(c:Customer)=>c.name||[c.firstName,c.lastName].filter(Boolean).join(" ")||c.id;
-
-function readImage(file:File){
-  return new Promise<{data:string;mime:string}>((resolve,reject)=>{
-    const allowed=["image/jpeg","image/png","image/webp"];
-    if(!allowed.includes(file.type))return reject(new Error("Use JPEG, PNG, or WebP images."));
-    if(file.size>5*1024*1024)return reject(new Error("Each card image must be 5 MB or smaller."));
-    const reader=new FileReader();
-    reader.onload=()=>resolve({data:String(reader.result),mime:file.type});
-    reader.onerror=()=>reject(new Error("Could not read the image."));
-    reader.readAsDataURL(file);
-  });
-}
+const fullName=(c:Customer)=>c.name||[c.firstName,c.middleName,c.lastName].filter(Boolean).join(" ")||c.id;
 
 export default function AtmCardsPage(){
   const {user,loading:authLoading}=useAuth();
@@ -33,14 +21,13 @@ export default function AtmCardsPage(){
   const [message,setMessage]=useState("");
   const [cardholderName,setCardholderName]=useState("");
   const [cardNumber,setCardNumber]=useState("");
+  const [last4,setLast4]=useState("");
   const [cvv,setCvv]=useState("");
   const [network,setNetwork]=useState("VISA");
   const [month,setMonth]=useState("");
   const [year,setYear]=useState("");
   const [amount,setAmount]=useState("");
   const [selectedCardId,setSelectedCardId]=useState("");
-  const [front,setFront]=useState<any>(null);
-  const [back,setBack]=useState<any>(null);
   const isCustomer=user?.role==="CUSTOMER";
 
   const loadCards=async(id:string)=>{
@@ -52,7 +39,7 @@ export default function AtmCardsPage(){
 
   useEffect(()=>{
     if(!authLoading&&isCustomer)pwfbApi.customers.me().then((v:any)=>{
-      const id=String(v?.id||v?.customerId||v?.data?.id||"");setCustomerId(id);loadCards(id);
+      const profile=v?.data??v;const id=String(profile?.id||profile?.customerId||"");setCustomerId(id);setCardholderName(fullName(profile));loadCards(id);
     }).catch(()=>{});
   },[authLoading,isCustomer]);
 
@@ -67,17 +54,14 @@ export default function AtmCardsPage(){
   const submitAttachment=async()=>{
     setMessage("");
     if(!customerId)return setMessage("Select a customer first.");
-    if(!cardholderName.trim())return setMessage("Enter the cardholder name.");
-    const normalizedCardNumber=cardNumber.replace(/\D/g,"");
-    if(!/^\d{12,19}$/.test(normalizedCardNumber))return setMessage("Enter the full card number so PWFB can identify the attached card by its last 4 digits.");
+    if(!cardholderName.trim())return setMessage("Select a registered customer so PWFB can verify the name.");
+    if(!/^\d{4}$/.test(last4))return setMessage("Enter the last four digits of the ATM card.");
     if(!month||!year)return setMessage("Enter the card expiry month and year.");
-    if(cardNumber&&!/^\d{12,19}$/.test(cardNumber.replace(/\D/g,"")))return setMessage("Enter a valid card number.");
-    if(!front&&!back)return setMessage("Attach at least the front or back of the card.");
     setSaving(true);
     try{
-      await pwfbApi.banking.addAtmCard(customerId,{cardholderName:cardholderName.trim(),last4:normalizedCardNumber.slice(-4),cardNetwork:network,expiryMonth:month?Number(month):null,expiryYear:year?Number(year):null,frontImage:front?.data||null,frontMimeType:front?.mime||null,backImage:back?.data||null,backMimeType:back?.mime||null});
-      setMessage("ATM card attached successfully. The full card number and CVV were not stored.");
-      setCardNumber("");setCvv("");setFront(null);setBack(null);setMonth("");setYear("");
+      await pwfbApi.banking.addAtmCard(customerId,{cardholderName:cardholderName.trim(),last4,cardNetwork:network,expiryMonth:Number(month),expiryYear:Number(year)});
+      setMessage("ATM card attached. Customer name was matched to the registered PWFB profile; no card images, full card number, or CVV were stored.");
+      setLast4("");setCardNumber("");setCvv("");setMonth("");setYear("");
       await loadCards(customerId);
     }catch(e:any){setMessage(e?.message||"ATM card could not be attached.");}
     finally{setSaving(false);}
@@ -112,13 +96,6 @@ export default function AtmCardsPage(){
     finally{setDepositing(false);}
   };
 
-  const openAttachment=async(card:Card,side:"front"|"back")=>{
-    try{
-      const v:any=await pwfbApi.banking.atmAttachment(card.customerId,card.id,side);
-      if(v?.data&&v?.mimeType){const w=window.open();if(w)w.document.write('<img src="data:'+v.mimeType+';base64,'+v.data+'" style="max-width:100%;height:auto" />');}
-    }catch(e:any){setMessage(e?.message||"Attachment could not be opened.");}
-  };
-
   if(authLoading)return <main className="pwfb-content"><p>Checking authentication...</p></main>;
 
   return <main className="pwfb-content"><div className="atm-page">
@@ -128,34 +105,29 @@ export default function AtmCardsPage(){
       {!isCustomer&&<label className="atm-label">Customer search<input className="atm-input" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name or customer ID"/>{customers.length>0&&<div className="atm-results">{customers.slice(0,6).map(c=><button className="atm-result" key={c.id} onClick={()=>{setCustomerId(c.id);setSearch(fullName(c)+" • "+c.id);setCardholderName(fullName(c));loadCards(c.id);}}>{fullName(c)} <small>{c.id}</small></button>)}</div>}</label>}
 
       <div className="atm-fields">
-        <label className="atm-label">Cardholder name<input className="atm-input" value={cardholderName} onChange={e=>setCardholderName(e.target.value)} placeholder="Name printed on card"/></label>
-        <label className="atm-label">Full card number<input className="atm-input" value={cardNumber} maxLength={19} inputMode="numeric" autoComplete="cc-number" onChange={e=>setCardNumber(e.target.value.replace(/\D/g,"").slice(0,19))} placeholder="Card number — not stored"/></label>
-        <label className="atm-label">CVV<input className="atm-input" value={cvv} maxLength={4} inputMode="numeric" autoComplete="cc-csc" type="password" onChange={e=>setCvv(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="3 or 4 digits — never stored"/></label>
+        <label className="atm-label">Verified customer name<input className="atm-input" value={cardholderName} readOnly aria-readonly="true" placeholder="Select a registered PWFB customer"/></label>
+        <label className="atm-label">Last four digits<input className="atm-input" value={last4} maxLength={4} inputMode="numeric" onChange={e=>setLast4(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="1234"/></label>
         <label className="atm-label">Card network<select className="atm-input" value={network} onChange={e=>setNetwork(e.target.value)}><option>VISA</option><option>MASTERCARD</option><option>VERVE</option><option>OTHER</option></select></label>
         <label className="atm-label">Expiry month<input className="atm-input" value={month} maxLength={2} inputMode="numeric" onChange={e=>setMonth(e.target.value.replace(/\D/g,"").slice(0,2))} placeholder="MM"/></label>
         <label className="atm-label">Expiry year<input className="atm-input" value={year} maxLength={4} inputMode="numeric" onChange={e=>setYear(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="YYYY"/></label>
       </div>
 
-      <div className="atm-security"><b>Payment security:</b> CVV and the full card number are used only for Paystack authorization and are not saved in PWFB. After a successful authorization, PWFB may save only the provider's reusable authorization token so the attached card can be charged again without retaining CVV.</div>
-
-      <div className="atm-attachments">
-        <label className="atm-drop"><b>Front attachment</b><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>e.target.files?.[0]&&readImage(e.target.files[0]).then(setFront).catch((e:any)=>setMessage(e.message))}/>{front?<img src={front.data} alt="ATM card front preview"/>:<small>JPEG, PNG or WebP • max 5 MB</small>}</label>
-        <label className="atm-drop"><b>Back attachment</b><input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>e.target.files?.[0]&&readImage(e.target.files[0]).then(setBack).catch((e:any)=>setMessage(e.message))}/>{back?<img src={back.data} alt="ATM card back preview"/>:<small>JPEG, PNG or WebP • max 5 MB</small>}</label>
-      </div>
+      <div className="atm-security"><b>Automatic customer-name verification:</b> the cardholder name is populated from the selected customer's registered PWFB profile and cannot be edited here. Card images are not required. Full card details and CVV are requested only if a first card payment needs provider authorization; they are not stored by PWFB.</div>
       {message&&<p className={message.includes("success")||message.includes("credited")?"atm-ok":"atm-error"}>{message}</p>}
       <button className="atm-submit" disabled={saving} onClick={submitAttachment}>{saving?"Attaching…":"Attach ATM Card"}</button>
     </section>
 
     <section className="atm-panel">
       <h2>Deposit with Attached ATM Card</h2>
+      {!selectedCard?.hasReusableAuthorization&&<div className="atm-fields"><label className="atm-label">Card number (first deposit only)<input className="atm-input" value={cardNumber} maxLength={19} inputMode="numeric" autoComplete="cc-number" onChange={e=>setCardNumber(e.target.value.replace(/\D/g,"").slice(0,19))} placeholder="Card number — not stored"/></label><label className="atm-label">CVV (first deposit only)<input className="atm-input" value={cvv} maxLength={4} inputMode="numeric" autoComplete="cc-csc" type="password" onChange={e=>setCvv(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="3 or 4 digits — never stored"/></label><label className="atm-label">Expiry month<input className="atm-input" value={month} maxLength={2} inputMode="numeric" onChange={e=>setMonth(e.target.value.replace(/\D/g,"").slice(0,2))} placeholder="MM"/></label><label className="atm-label">Expiry year<input className="atm-input" value={year} maxLength={4} inputMode="numeric" onChange={e=>setYear(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="YYYY"/></label></div>}
       <div className="atm-fields">
         <label className="atm-label">Attached card<select className="atm-input" value={selectedCardId} onChange={e=>{setSelectedCardId(e.target.value);const c=cards.find(x=>x.id===e.target.value);if(c){setCardholderName(c.cardholderName);setNetwork(c.cardNetwork||"VISA");}}}><option value="">Select card</option>{cards.map(c=><option key={c.id} value={c.id}>•••• {c.last4} • {c.cardNetwork||"CARD"}{c.hasReusableAuthorization?" • Ready for deposit":""}</option>)}</select></label>
         <label className="atm-label">Deposit amount (NGN)<input className="atm-input" value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0.00"/></label>
       </div>
-      {selectedCard&&!selectedCard.hasReusableAuthorization&&<p className="atm-muted">This attached card has not completed a first card authorization. Enter the full card number, expiry and CVV above for the first deposit. CVV will not be stored.</p>}
+      {selectedCard&&!selectedCard.hasReusableAuthorization&&<p className="atm-muted">This attached card has not completed a first provider authorization. For a first deposit only, enter the card number, expiry and CVV above; these details are used for authorization and are not stored by PWFB.</p>}
       <button className="atm-submit" disabled={depositing||!selectedCard} onClick={deposit}>{depositing?"Processing card payment…":"Deposit with ATM Card"}</button>
     </section>
 
-    <section className="atm-panel"><h2>Attached Cards</h2>{loading?<p>Loading cards…</p>:cards.length===0?<p className="atm-muted">No ATM card attached for the selected customer.</p>:cards.map(card=><div className="atm-card-row" key={card.id}><div><b>{card.cardholderName}</b><div className="atm-muted">{card.cardNetwork||"Card"} •••• {card.last4}{card.expiryMonth&&card.expiryYear?" • "+String(card.expiryMonth).padStart(2,"0")+"/"+card.expiryYear:""} • {card.status}{card.hasReusableAuthorization?" • payment ready":""}</div></div><div className="atm-actions">{card.hasFrontAttachment&&<button onClick={()=>openAttachment(card,"front")}>Front</button>}{card.hasBackAttachment&&<button onClick={()=>openAttachment(card,"back")}>Back</button>}<button className="danger" onClick={async()=>{if(confirm("Remove this ATM card record?")){await pwfbApi.banking.removeAtmCard(card.customerId,card.id);setCards(x=>x.filter(c=>c.id!==card.id));if(selectedCardId===card.id)setSelectedCardId("");}}}>Remove</button></div></div>)}</section>
+    <section className="atm-panel"><h2>Attached Cards</h2>{loading?<p>Loading cards…</p>:cards.length===0?<p className="atm-muted">No ATM card attached for the selected customer.</p>:cards.map(card=><div className="atm-card-row" key={card.id}><div><b>{card.cardholderName}</b><div className="atm-muted">{card.cardNetwork||"Card"} •••• {card.last4}{card.expiryMonth&&card.expiryYear?" • "+String(card.expiryMonth).padStart(2,"0")+"/"+card.expiryYear:""} • {card.status}{card.hasReusableAuthorization?" • payment ready":""}</div></div><div className="atm-actions"><span className="atm-muted">Customer profile name matched</span><button className="danger" onClick={async()=>{if(confirm("Remove this ATM card record?")){await pwfbApi.banking.removeAtmCard(card.customerId,card.id);setCards(x=>x.filter(c=>c.id!==card.id));if(selectedCardId===card.id)setSelectedCardId("");}}}>Remove</button></div></div>)}</section>
   </div></main>;
 }

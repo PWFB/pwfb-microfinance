@@ -30,19 +30,16 @@ export class BankingService {
     return {data:Buffer.from(data).toString('base64'),mimeType:mime};
   }
   async addCustomerAtmCard(data:any){
-    const customer=await this.prisma.customer.findUnique({where:{id:data.customerId},select:{id:true}});
+    const customer=await this.prisma.customer.findUnique({where:{id:data.customerId},select:{id:true,firstName:true,middleName:true,lastName:true}});
     if(!customer)throw new NotFoundException('Customer not found');
     const last4=String(data.last4||'').replace(/\D/g,'');
     if(!/^\d{4}$/.test(last4))throw new BadRequestException('ATM card last 4 digits are required');
-    const cardholderName=String(data.cardholderName||'').trim();
-    if(cardholderName.length<2)throw new BadRequestException('Cardholder name is required');
-    const cleanAttachment=(value:any,mime:any)=>{if(!value)return {data:null,mimeType:null};const raw=String(value).replace(/^data:[^;]+;base64,/,'');const buffer=Buffer.from(raw,'base64');if(!buffer.length||buffer.length>5*1024*1024)throw new BadRequestException('Each ATM card image must be between 1 byte and 5 MB');if(!/^image\/(jpeg|png|webp)$/.test(String(mime||'')))throw new BadRequestException('ATM card attachments must be JPEG, PNG, or WebP images');return {data:buffer,mimeType:String(mime)}};
-    const front=cleanAttachment(data.frontImage,data.frontMimeType); const back=cleanAttachment(data.backImage,data.backMimeType);
-    if(!front.data&&!back.data)throw new BadRequestException('Attach at least the front or back image of the ATM card');
+    const cardholderName=[customer.firstName,customer.middleName,customer.lastName].filter((part:any)=>String(part||'').trim()).join(' ').replace(/\s+/g,' ').trim();
+    if(cardholderName.length<2)throw new BadRequestException('A registered customer name is required before attaching an ATM card');
     const month=data.expiryMonth==null?null:Number(data.expiryMonth), year=data.expiryYear==null?null:Number(data.expiryYear);
     if(month!==null&&(!Number.isInteger(month)||month<1||month>12))throw new BadRequestException('Expiry month must be 1-12');
     if(year!==null&&(!Number.isInteger(year)||year<2000||year>2100))throw new BadRequestException('Expiry year is invalid');
-    return this.prisma.customerAtmCard.create({data:{customerId:data.customerId,cardholderName,last4,cardNetwork:String(data.cardNetwork||'').trim()||null,expiryMonth:month,expiryYear:year,status:String(data.status||'ACTIVE').toUpperCase(),providerAuthorizationCode:String(data.providerAuthorizationCode||'').trim()||null,frontImage:front.data,frontMimeType:front.mimeType,backImage:back.data,backMimeType:back.mimeType},select:{id:true,customerId:true,cardholderName:true,last4:true,cardNetwork:true,expiryMonth:true,expiryYear:true,status:true,createdAt:true,updatedAt:true}});
+    return this.prisma.customerAtmCard.create({data:{customerId:data.customerId,cardholderName,last4,cardNetwork:String(data.cardNetwork||'').trim()||null,expiryMonth:month,expiryYear:year,status:'ACTIVE',providerAuthorizationCode:null,frontImage:null,frontMimeType:null,backImage:null,backMimeType:null},select:{id:true,customerId:true,cardholderName:true,last4:true,cardNetwork:true,expiryMonth:true,expiryYear:true,status:true,createdAt:true,updatedAt:true}});
   }
   async removeCustomerAtmCard(customerId:string,cardId:string){const card=await this.prisma.customerAtmCard.findFirst({where:{id:cardId,customerId}});if(!card)throw new NotFoundException('ATM card not found');await this.prisma.customerAtmCard.delete({where:{id:card.id}});return {message:'ATM card removed'};}
   async getBranchVirtualAccounts(branchId:string){return this.prisma.branchVirtualAccount.findMany({where:{branchId},include:{institution:true,branch:true},orderBy:{createdAt:'desc'}})}

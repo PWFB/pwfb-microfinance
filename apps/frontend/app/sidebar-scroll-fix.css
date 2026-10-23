@@ -29,7 +29,7 @@ html, body { min-height: 100%; }
   /* Mobile: compact floating navigation drawer at the middle-left edge. */
   .pwfb-sidebar {
     position:fixed!important;
-    top:50%!important;
+    top:calc((100dvh - min(64dvh,540px))/2)!important;
     left:0!important;
     bottom:auto!important;
     width:min(72vw,220px)!important;
@@ -37,12 +37,12 @@ html, body { min-height: 100%; }
     max-height:64dvh!important;
     z-index:200!important;
     overflow:hidden!important;
-    transform:translate(-105%,-50%)!important;
+    transform:translateX(-105%)!important;
     transition:transform .22s ease, box-shadow .22s ease!important;
     border-radius:0 14px 14px 0!important;
     box-shadow:0 8px 24px rgba(0,0,0,.25)!important;
   }
-  .pwfb-sidebar.pwfb-sidebar-mobile-open { transform:translate(0,-50%)!important; }
+  .pwfb-sidebar.pwfb-sidebar-mobile-open { top:calc((100dvh - min(64dvh,540px))/2)!important; transform:translateX(0)!important; }
   .pwfb-sidebar-header { flex:0 0 auto!important; }
   .pwfb-nav { overflow-y:auto!important; -webkit-overflow-scrolling:touch!important; touch-action:pan-y!important; }
 

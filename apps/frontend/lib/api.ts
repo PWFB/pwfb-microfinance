@@ -2,10 +2,9 @@ const CONFIGURED_API_URL = process.env.NEXT_PUBLIC_API_URL?.trim();
 const PRODUCTION_API_URL = "https://pwfb-backend-1.onrender.com";
 const STAGING_API_URL = "https://pwfb-backend-staging.onrender.com";
 // Keep the staging frontend isolated even if its Render environment variable is missing.
-const DEFAULT_API_URL = typeof window !== "undefined" && window.location.hostname === "pwfb-microfinance-staging.onrender.com"
-  ? STAGING_API_URL
-  : PRODUCTION_API_URL;
-const API_URL = (CONFIGURED_API_URL || DEFAULT_API_URL).replace(/\/$/, "");
+const IS_STAGING_FRONTEND = typeof window !== "undefined" && window.location.hostname === "pwfb-microfinance-staging.onrender.com";
+// Staging hostname takes priority over env configuration to prevent accidental production API calls.
+const API_URL = (IS_STAGING_FRONTEND ? STAGING_API_URL : CONFIGURED_API_URL || PRODUCTION_API_URL).replace(/\/$/, "");
 
 function absorbNativeAppToken() {
   if (typeof window === "undefined") return;

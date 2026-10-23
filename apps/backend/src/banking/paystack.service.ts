@@ -182,7 +182,10 @@ export class PaystackService {
       }),
       });
     } catch (error) {
-      await this.recordCardAttemptFailure(customerId, cardId);
+      // Do not count missing configuration or transport outages as a failed card attempt.
+      if (error instanceof BadRequestException && !String(error.message).toLowerCase().includes('not configured')) {
+        await this.recordCardAttemptFailure(customerId, cardId);
+      }
       throw error;
     }
     const status = String(data?.data?.status || '').toLowerCase();
@@ -229,7 +232,10 @@ export class PaystackService {
       }),
       });
     } catch (error) {
-      await this.recordCardAttemptFailure(customerId, cardId);
+      // Do not count missing configuration or transport outages as a failed card attempt.
+      if (error instanceof BadRequestException && !String(error.message).toLowerCase().includes('not configured')) {
+        await this.recordCardAttemptFailure(customerId, cardId);
+      }
       throw error;
     }
     const status = String(data?.data?.status || '').toLowerCase();

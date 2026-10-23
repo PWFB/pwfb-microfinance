@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -13,6 +14,66 @@ export class PaystackService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  async onModuleInit() {
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PaystackCardAttemptGuard" (
+      "cardId" TEXT PRIMARY KEY,
+      "customerId" TEXT NOT NULL,
+      "failedAttempts" INTEGER NOT NULL DEFAULT 0,
+      "cooldownUntil" TIMESTAMPTZ,
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+  }
+
+  private async assertCardAttemptAllowed(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "PaystackCardAttemptGuard" SET "failedAttempts"=0, "cooldownUntil"=NULL, "updatedAt"=NOW()
+       WHERE "cardId"=$1 AND "customerId"=$2 AND "cooldownUntil" IS NOT NULL AND "cooldownUntil" <= NOW()`,
+      cardId, customerId,
+    );
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ failedAttempts: number; cooldownUntil: Date | null }>>(
+      `SELECT "failedAttempts", "cooldownUntil" FROM "PaystackCardAttemptGuard" WHERE "cardId"=$1 AND "customerId"=$2 LIMIT 1`,
+      cardId, customerId,
+    );
+    const cooldownUntil = rows[0]?.cooldownUntil ? new Date(rows[0].cooldownUntil) : null;
+    if (cooldownUntil && cooldownUntil.getTime() > Date.now()) {
+      throw new BadRequestException(`Too many failed card-payment attempts. Try again after ${cooldownUntil.toISOString()}.`);
+    }
+  }
+
+  private async recordCardAttemptFailure(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "PaystackCardAttemptGuard" ("cardId","customerId","failedAttempts","cooldownUntil","updatedAt")
+       VALUES ($1,$2,1,NULL,NOW())
+       ON CONFLICT ("cardId") DO UPDATE SET
+         "customerId"=EXCLUDED."customerId",
+         "failedAttempts"=CASE
+           WHEN "PaystackCardAttemptGuard"."cooldownUntil" IS NOT NULL AND "PaystackCardAttemptGuard"."cooldownUntil" <= NOW() THEN 1
+           ELSE "PaystackCardAttemptGuard"."failedAttempts"+1
+         END,
+         "cooldownUntil"=CASE
+           WHEN (CASE
+             WHEN "PaystackCardAttemptGuard"."cooldownUntil" IS NOT NULL AND "PaystackCardAttemptGuard"."cooldownUntil" <= NOW() THEN 1
+             ELSE "PaystackCardAttemptGuard"."failedAttempts"+1
+           END) >= 5 THEN NOW() + INTERVAL '1 hour'
+           ELSE NULL
+         END,
+         "updatedAt"=NOW()`,
+      cardId, customerId,
+    );
+  }
+
+  private async clearCardAttemptFailures(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "PaystackCardAttemptGuard" SET "failedAttempts"=0, "cooldownUntil"=NULL, "updatedAt"=NOW()
+       WHERE "cardId"=$1 AND "customerId"=$2`,
+      cardId, customerId,
+    );
+  }
+
+  private isTerminalCardFailure(status: string) {
+    return ["failed", "rejected", "invalid", "expired", "abandoned", "declined"].includes(status.toLowerCase());
+  }
+
   private getSecretKey() {
     const key = process.env.PAYSTACK_SECRET_KEY?.trim();
     if (!key) throw new BadRequestException('Paystack bank verification is not configured. Add PAYSTACK_SECRET_KEY to the PWFB backend environment.');
@@ -25,6 +86,7 @@ export class PaystackService {
       headers: { Authorization: `Bearer ${this.getSecretKey()}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
     });
     const data = await response.json().catch(() => null);
+    if (response.status >= 500) throw new BadGatewayException(data?.message || 'Paystack is temporarily unavailable');
     if (!response.ok || !data?.status) throw new BadRequestException(data?.message || 'Paystack request failed');
     return data;
   }
@@ -97,8 +159,15 @@ export class PaystackService {
     const amount = Number(input?.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Amount must be greater than zero');
     const card = this.validateCardInput(input?.card);
+    const cardId = String(input?.cardId || '').trim();
+    if (!cardId) throw new BadRequestException('Select a saved card record before starting card authorization');
+    const savedCard = await this.prisma.customerAtmCard.findFirst({ where: { id: cardId, customerId } });
+    if (!savedCard) throw new NotFoundException('ATM card not found for this customer');
+    await this.assertCardAttemptAllowed(customerId, cardId);
     const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
-    const data = await this.request('/charge', {
+    let data: any;
+    try {
+      data = await this.request('/charge', {
       method: 'POST',
       body: JSON.stringify({
         email: customer.email,
@@ -113,15 +182,23 @@ export class PaystackService {
         },
         metadata: { customerId: customer.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
       }),
-    });
+      });
+    } catch (error) {
+      // Do not count missing configuration or transport outages as a failed card attempt.
+      if (error instanceof BadRequestException && !String(error.message).toLowerCase().includes('not configured')) {
+        await this.recordCardAttemptFailure(customerId, cardId);
+      }
+      throw error;
+    }
     const status = String(data?.data?.status || '').toLowerCase();
     if (status === 'success') {
       const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
       const authorizationCode = String(data.data?.authorization?.authorization_code || '').trim();
-      const cardId = String(input?.cardId || '').trim();
-      if (authorizationCode && cardId) await this.prisma.customerAtmCard.updateMany({ where: { id: cardId, customerId }, data: { providerAuthorizationCode: authorizationCode } });
+      if (authorizationCode) await this.prisma.customerAtmCard.updateMany({ where: { id: cardId, customerId }, data: { providerAuthorizationCode: authorizationCode } });
+      await this.clearCardAttemptFailures(customerId, cardId);
       return { ok: true, status: 'success', reference, credited, authorization: data.data?.authorization || null };
     }
+    if (this.isTerminalCardFailure(status)) await this.recordCardAttemptFailure(customerId, cardId);
     return {
       ok: true,
       status,
@@ -140,9 +217,12 @@ export class PaystackService {
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new BadRequestException('Amount must be greater than zero');
     const card = await this.prisma.customerAtmCard.findFirst({ where: { id: cardId, customerId } });
     if (!card) throw new NotFoundException('ATM card not found');
-    if (!card.providerAuthorizationCode) throw new BadRequestException('This attached card has no reusable payment authorization. Enter the card details for the first deposit.');
+    if (!card.providerAuthorizationCode) throw new BadRequestException('This attached card has no reusable payment authorization. Complete a first provider-authorized payment first.');
+    await this.assertCardAttemptAllowed(customerId, cardId);
     const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
-    const data = await this.request('/charge', {
+    let data: any;
+    try {
+      data = await this.request('/charge', {
       method: 'POST',
       body: JSON.stringify({
         email: customer.email,
@@ -152,12 +232,22 @@ export class PaystackService {
         authorization_code: card.providerAuthorizationCode,
         metadata: { customerId: customer.id, cardId: card.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
       }),
-    });
-    if (String(data?.data?.status || '').toLowerCase() === 'success') {
+      });
+    } catch (error) {
+      // Do not count missing configuration or transport outages as a failed card attempt.
+      if (error instanceof BadRequestException && !String(error.message).toLowerCase().includes('not configured')) {
+        await this.recordCardAttemptFailure(customerId, cardId);
+      }
+      throw error;
+    }
+    const status = String(data?.data?.status || '').toLowerCase();
+    if (status === 'success') {
       const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
+      await this.clearCardAttemptFailures(customerId, cardId);
       return { ok: true, status: 'success', reference, credited };
     }
-    return { ok: true, status: String(data?.data?.status || '').toLowerCase(), reference, message: data?.message || 'Card authorization requires additional action' };
+    if (this.isTerminalCardFailure(status)) await this.recordCardAttemptFailure(customerId, cardId);
+    return { ok: true, status, reference, message: data?.message || data?.data?.display_text || 'Card authorization requires additional action', authorizationUrl: data?.data?.authorization_url || null, authorization: data?.data?.authorization || null, otpRequired: ['send_otp', 'send_phone'].includes(status) };
   }
 
   async initializeCustomerPayment(customerId: string, amount: number) {
@@ -224,6 +314,8 @@ export class PaystackService {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
     if (!customer) throw new NotFoundException('Customer not found');
     return this.prisma.$transaction(async (tx) => {
+      // Serialize concurrent webhook/verify requests for the same provider payment before checking idempotency.
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', String(providerReference));
       const duplicate = await tx.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
       if (duplicate) return { ok: true, processed: false, duplicate: true, transactionId: duplicate.id, reference: duplicate.reference };
       const wallet = await tx.customerWallet.upsert({ where: { customerId }, create: { customerId, balance: 0 }, update: {} });
@@ -235,12 +327,15 @@ export class PaystackService {
     });
   }
 
-  async verifyAndCredit(reference: string) {
+  async verifyAndCredit(reference: string, requester?: { role?: string; customerId?: string }) {
     const data = await this.request(`/transaction/verify/${encodeURIComponent(reference)}`);
     if (data.data?.status !== 'success') throw new BadRequestException('Paystack payment is not successful');
     const metadata = data.data.metadata;
-    const customerId = metadata?.customerId;
+    const customerId = String(metadata?.customerId || '');
     if (!customerId) throw new BadRequestException('Paystack payment has no customer ID');
+    if (requester?.role === 'CUSTOMER' && (!requester.customerId || requester.customerId !== customerId)) {
+      throw new UnauthorizedException('You can only verify payments belonging to your own customer account');
+    }
     return this.handleWebhook({ event: 'charge.success', data: data.data });
   }
 

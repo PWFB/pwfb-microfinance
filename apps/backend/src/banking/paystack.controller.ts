@@ -41,7 +41,7 @@ export class PaystackController {
   @Post('banking/paystack/verify/:reference')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'STAFF', 'CUSTOMER')
-  verifyPayment(@Param('reference') reference: string) { return this.paystackService.verifyAndCredit(reference); }
+  verifyPayment(@Param('reference') reference: string, @Req() req: any) { return this.paystackService.verifyAndCredit(reference, req.user); }
 
   @Post('webhooks/paystack')
   async webhook(@Headers('x-paystack-signature') signature: string, @Req() req: any, @Body() body: any) {

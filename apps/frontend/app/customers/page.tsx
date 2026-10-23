@@ -87,7 +87,7 @@ export default function CustomersPage() {
           <h2 style={{ margin: "6px 0 4px", color: "#fff", fontSize: 24 }}>Daily Operations</h2>
           <p style={{ margin: 0, color: "rgba(255,255,255,.78)" }}>Quick access to customer, loan, staff, savings and daily transaction operations.</p>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7,minmax(0,1fr))", gap: 10, padding: "0 20px 20px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, padding: "0 20px 20px" }}>
           {operations.map((item) => (
             <Link key={item.label} href={item.href} style={{ textDecoration: "none", color: "#fff", background: "rgba(255,255,255,.11)", border: "1px solid rgba(255,255,255,.16)", borderRadius: 14, padding: "14px 12px", minHeight: 92, transition: "transform .15s ease,background .15s ease" }}>
               <span style={{ display: "flex", width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 10, background: "rgba(255,255,255,.15)", fontSize: 18, fontWeight: 800 }}>{item.icon}</span>
@@ -98,7 +98,7 @@ export default function CustomersPage() {
         </div>
       </section>
 
-      <section className="pwfb-stat-grid" style={{ gridTemplateColumns: "repeat(4,minmax(0,1fr))", marginBottom: 18 }}>
+      <section className="pwfb-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", marginBottom: 18 }}>
         <div className="pwfb-stat-card"><span>Total Customers</span><strong>{loading ? "—" : customers.length.toLocaleString()}</strong><small>All registered customers</small></div>
         <div className="pwfb-stat-card"><span>Active</span><strong>{loading ? "—" : active.toLocaleString()}</strong><small>Currently active profiles</small></div>
         <div className="pwfb-stat-card pwfb-stat-orange"><span>Inactive</span><strong>{loading ? "—" : (customers.length - active).toLocaleString()}</strong><small>Require attention</small></div>
@@ -110,7 +110,7 @@ export default function CustomersPage() {
           <div><h2>Customer workspace</h2><p>Find a customer quickly or switch between the main directory and recent records.</p></div>
           <span className="pwfb-record-count" style={{ background: "#e9f7ef", color: "#126b35", borderRadius: 999, padding: "8px 12px", fontWeight: 800, whiteSpace: "nowrap" }}>{filtered.length} matching</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 190px auto", gap: 12, alignItems: "end", padding: "0 18px 18px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, alignItems: "end", padding: "0 18px 18px" }}>
           <label style={{ fontWeight: 700, color: "#126b35" }}>Search customer<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, phone, email or customer ID" style={{ display: "block", width: "100%", marginTop: 7, padding: "12px 13px", border: "1px solid #d0d5dd", borderRadius: 11, boxSizing: "border-box" }} /></label>
           <label style={{ fontWeight: 700, color: "#126b35" }}>Status<select value={status} onChange={(e) => setStatus(e.target.value)} style={{ display: "block", width: "100%", marginTop: 7, padding: "12px 13px", border: "1px solid #d0d5dd", borderRadius: 11, background: "#fff", boxSizing: "border-box" }}><option value="all">All customers</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
           <div style={{ display: "flex", gap: 7 }}><button type="button" onClick={() => setView("directory")} style={{ padding: "11px 14px", borderRadius: 10, border: "1px solid #d0d5dd", background: view === "directory" ? "#e9f7ef" : "#fff", color: "#126b35", fontWeight: 800 }}>Directory</button><button type="button" onClick={() => setView("recent")} style={{ padding: "11px 14px", borderRadius: 10, border: "1px solid #d0d5dd", background: view === "recent" ? "#e9f7ef" : "#fff", color: "#126b35", fontWeight: 800 }}>Recent</button></div>

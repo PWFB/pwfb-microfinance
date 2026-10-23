@@ -306,6 +306,8 @@ export class PaystackService {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
     if (!customer) throw new NotFoundException('Customer not found');
     return this.prisma.$transaction(async (tx) => {
+      // Serialize concurrent webhook/verify requests for the same provider payment before checking idempotency.
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', String(providerReference));
       const duplicate = await tx.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
       if (duplicate) return { ok: true, processed: false, duplicate: true, transactionId: duplicate.id, reference: duplicate.reference };
       const wallet = await tx.customerWallet.upsert({ where: { customerId }, create: { customerId, balance: 0 }, update: {} });

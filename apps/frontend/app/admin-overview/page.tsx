@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 
 type Row = Record<string, any>;
@@ -31,10 +31,10 @@ const financialActions = [
 ];
 
 export default function AdminOverviewPage() {
-  const [data, setData] = useState<Data>(empty); const [loading, setLoading] = useState(true); const [section, setSection] = useState<keyof Data>("customers");
+  const [data, setData] = useState<Data>(empty); const [loading, setLoading] = useState(true); const requestId = useRef(0); const [section, setSection] = useState<keyof Data>("customers");
   const [search, setSearch] = useState(""); const [type, setType] = useState(""); const [from, setFrom] = useState(""); const [to, setTo] = useState(""); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(50); const [pagination, setPagination] = useState({ page: 1, pageSize: 50, total: 0, totalPages: 1 }); const [error, setError] = useState("");
 
-  async function load(nextPage = page) { setLoading(true); setError(""); try { const qs = new URLSearchParams({ section, search, type, from, to, page: String(nextPage), pageSize: String(pageSize) }); const result = await (await import("../../lib/api")).apiRequest(`/reports/operations?${qs.toString()}`); setData({ ...empty, ...result }); setPagination(result.pagination || { page: nextPage, pageSize, total: 0, totalPages: 1 }); } catch (e: any) { setError(e?.message || "Unable to load operational data."); } finally { setLoading(false); } }
+  async function load(nextPage = page) { const request = ++requestId.current; setLoading(true); setError(""); try { const qs = new URLSearchParams({ section, search, type, from, to, page: String(nextPage), pageSize: String(pageSize) }); const result = await (await import("../../lib/api")).apiRequest(`/reports/operations?${qs.toString()}`); if (request !== requestId.current) return; setData({ ...empty, ...result }); setPagination(result.pagination || { page: nextPage, pageSize, total: 0, totalPages: 1 }); } catch (e: any) { if (request === requestId.current) setError(e?.message || "Unable to load operational data."); } finally { if (request === requestId.current) setLoading(false); } }
   useEffect(() => { load(page); }, [section, type, from, to, pageSize, page]);
   useEffect(() => { const t = setTimeout(() => load(1), 350); return () => clearTimeout(t); }, [search]);
 

@@ -19,6 +19,7 @@ export default function AtmCardsPage(){
   const [saving,setSaving]=useState(false);
   const [depositing,setDepositing]=useState(false);
   const [message,setMessage]=useState("");
+  const [authorizationUrl,setAuthorizationUrl]=useState("");
   const [cardholderName,setCardholderName]=useState("");
   const [cardNumber,setCardNumber]=useState("");
   const [last4,setLast4]=useState("");
@@ -71,6 +72,7 @@ export default function AtmCardsPage(){
 
   const deposit=async()=>{
     setMessage("");
+    setAuthorizationUrl("");
     if(!customerId)return setMessage("Select a customer first.");
     const numeric=Number(amount);
     if(!Number.isFinite(numeric)||numeric<=0)return setMessage("Enter a valid deposit amount.");
@@ -88,13 +90,16 @@ export default function AtmCardsPage(){
         result=await pwfbApi.banking.chargeAtmCard(customerId,{amount:numeric,cardId:selectedCard.id,card:{number,cvv,expiryMonth:String(selectedCard.expiryMonth??month),expiryYear:String(selectedCard.expiryYear??year),cardholderName:selectedCard.cardholderName}});
       }
       if(result?.status==="success"){
-        setMessage("Card deposit authorized and credited to the customer's PWFB wallet.");
+        setMessage("Card deposit authorized and credited to the PWFB wallet.");
+        setAuthorizationUrl("");
         setAmount("");setCvv("");setCardNumber("");
         await loadCards(customerId);
       }else{
-        setMessage(result?.message||"The card provider requires additional authorization. Follow the provider instruction and verify the payment.");
+        const providerUrl=String(result?.authorizationUrl||"");
+        setAuthorizationUrl(providerUrl.startsWith("https://checkout.paystack.com/")?providerUrl:"");
+        setMessage(result?.message||"The card provider requires additional authorization. Complete any provider verification before retrying.");
       }
-    }catch(e:any){setMessage(e?.message||"Card deposit failed. The customer wallet was not credited unless payment was successfully authorized.");}
+    }catch(e:any){setAuthorizationUrl("");setMessage(e?.message||"Card deposit failed. The customer wallet was not credited unless payment was successfully authorized.");}
     finally{setDepositing(false);}
   };
 
@@ -115,7 +120,7 @@ export default function AtmCardsPage(){
       </div>
 
       <div className="atm-security"><b>Customer profile matching:</b> the name comes from the registered PWFB profile and cannot be edited here. Saving the last four digits does not verify card ownership. For a first payment, Paystack may require card details and additional authorization; PWFB does not request or store an ATM PIN.</div>
-      {message&&<p className={message.includes("success")||message.includes("credited")?"atm-ok":"atm-error"}>{message}</p>}
+      {message&&<p className={message.includes("success")||message.includes("credited")?"atm-ok":"atm-error"}>{message}</p>}{authorizationUrl&&<p className="atm-security"><a href={authorizationUrl} target="_blank" rel="noopener noreferrer">Complete secure Paystack authorization</a></p>}
       <button className="atm-submit" disabled={saving} onClick={submitAttachment}>{saving?"Attaching…":"Attach ATM Card"}</button>
     </section>
 

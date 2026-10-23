@@ -71,6 +71,7 @@ test("ATM card page keeps saved cards compact with unlink in the deposit flow", 
   assert.ok(cardPage.includes("Continue to Paystack authorization"));
   assert.ok(cardPage.includes('providerUrl.startsWith("https://checkout.paystack.com/")'));
   assert.ok(cardPage.includes("Complete secure Paystack authorization"));
+  assert.ok(cardPage.includes('message.startsWith("Card reference saved")||message.startsWith("Card deposit authorized")||message.startsWith("Saved card reference unlinked.")'));
 });
 
 

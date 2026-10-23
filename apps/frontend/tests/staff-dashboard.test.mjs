@@ -107,4 +107,6 @@ test("Super Admin operational filters and pagination adapt to narrow screens", (
   assert.ok(adminPage.includes('gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,150px),1fr))"'));
   assert.ok(adminPage.includes('flexWrap: "wrap"'));
   assert.ok(adminPage.includes("Export CSV"));
+  assert.ok(adminPage.includes("Operational data unavailable"));
+  assert.ok(adminPage.includes("onClick={() => void load(page)}"));
 });

@@ -31,9 +31,11 @@ export default function AtmCardsPage(){
   const isCustomer=user?.role==="CUSTOMER";
 
   const loadCards=async(id:string)=>{
-    if(!id)return;
+    if(!id){setCards([]);setSelectedCardId("");return;}
     setLoading(true);
-    try{const nextCards=unwrap(await pwfbApi.banking.atmCards(id));setCards(nextCards);setSelectedCardId(current=>nextCards.some((card:Card)=>card.id===current)?current:nextCards[0]?.id||"");}catch(e:any){setMessage(e?.message||"Could not load ATM cards.");}
+    setCards([]);
+    setSelectedCardId("");
+    try{const nextCards=unwrap(await pwfbApi.banking.atmCards(id));setCards(nextCards);setSelectedCardId(nextCards[0]?.id||"");}catch(e:any){setMessage(e?.message||"Could not load ATM cards.");}
     finally{setLoading(false);}
   };
 
@@ -120,7 +122,7 @@ export default function AtmCardsPage(){
     <section className="atm-panel">
       <h2>Deposit with Attached ATM Card</h2>
       <p className="atm-muted">Select a saved card. Profile matching is not card verification; Paystack confirms payment authorization.</p>
-      {loading?<p>Loading saved cards…</p>:cards.length===0?<p className="atm-muted">No saved card for the selected customer yet.</p>:<div className="atm-saved-cards">{cards.map(card=><div className="atm-card-row" key={card.id}><label className="atm-label" style={{display:"flex",alignItems:"center",gap:10,flex:1}}><input type="radio" name="saved-atm-card" checked={selectedCardId===card.id} onChange={()=>{setSelectedCardId(card.id);setCardholderName(card.cardholderName);setNetwork(card.cardNetwork||"VISA");}}/><span><b>•••• {card.last4} · {card.cardNetwork||"CARD"}</b><span className="atm-muted" style={{display:"block"}}>{card.cardholderName} · {card.hasReusableAuthorization?"Paystack authorization saved":"Authorization required"} · Profile linked</span></span></label><button className="danger" onClick={async()=>{if(confirm("Unlink this saved card reference from the customer profile?")){await pwfbApi.banking.removeAtmCard(card.customerId,card.id);const remaining=cards.filter(c=>c.id!==card.id);setCards(remaining);if(selectedCardId===card.id)setSelectedCardId(remaining[0]?.id||"");}}}>Unlink card</button></div>)}</div>}
+      {loading?<p>Loading saved cards…</p>:cards.length===0?<p className="atm-muted">No saved card for the selected customer yet.</p>:<div className="atm-saved-cards">{cards.map(card=><div className="atm-card-row" key={card.id}><label className="atm-label" style={{display:"flex",alignItems:"center",gap:10,flex:1}}><input type="radio" name="saved-atm-card" checked={selectedCardId===card.id} onChange={()=>{setSelectedCardId(card.id);setCardholderName(card.cardholderName);setNetwork(card.cardNetwork||"VISA");}}/><span><b>•••• {card.last4} · {card.cardNetwork||"CARD"}</b><span className="atm-muted" style={{display:"block"}}>{card.cardholderName} · {card.hasReusableAuthorization?"Paystack authorization saved":"Authorization required"} · Profile linked</span></span></label><button className="danger" disabled={depositing||loading} onClick={async()=>{if(!confirm("Unlink this saved card reference from the customer profile?"))return;setMessage("");try{await pwfbApi.banking.removeAtmCard(card.customerId,card.id);const remaining=cards.filter(c=>c.id!==card.id);setCards(remaining);if(selectedCardId===card.id)setSelectedCardId(remaining[0]?.id||"");setMessage("Saved card reference unlinked.");}catch(e:any){setMessage(e?.message||"Could not unlink this saved card. No local changes were made.");}}}>Unlink card</button></div>)}</div>}
       <div className="atm-fields">
         <label className="atm-label">Deposit amount (NGN)<input className="atm-input" value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0.00"/></label>
       </div>

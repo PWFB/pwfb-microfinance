@@ -109,4 +109,6 @@ test("Super Admin operational filters and pagination adapt to narrow screens", (
   assert.ok(adminPage.includes("Export CSV"));
   assert.ok(adminPage.includes("Operational data unavailable"));
   assert.ok(adminPage.includes("onClick={() => void load(page)}"));
+  assert.ok(adminPage.includes("const request = ++requestId.current"));
+  assert.ok(adminPage.includes("if (request !== requestId.current) return"));
 });

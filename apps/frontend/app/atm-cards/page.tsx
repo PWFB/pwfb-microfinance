@@ -82,7 +82,7 @@ export default function AtmCardsPage(){
         const number=cardNumber.replace(/\D/g,"");
         if(!/^\d{12,19}$/.test(number))throw new Error("Enter the full card number for the first card deposit.");
         if(!/^\d{3,4}$/.test(cvv))throw new Error("Enter the CVV for the card authorization.");
-        if(!month||!year)throw new Error("Enter the card expiry date.");
+        if(!(selectedCard.expiryMonth||month)||!(selectedCard.expiryYear||year))throw new Error("The saved card expiry date is missing. Unlink and attach the card again with its expiry date.");
         result=await pwfbApi.banking.chargeAtmCard(customerId,{amount:numeric,cardId:selectedCard.id,card:{number,cvv,expiryMonth:String(selectedCard.expiryMonth??month),expiryYear:String(selectedCard.expiryYear??year),cardholderName:selectedCard.cardholderName}});
       }
       if(result?.status==="success"){

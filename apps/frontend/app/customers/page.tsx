@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../lib/api";
 
 interface Customer {
@@ -24,23 +24,33 @@ const operations = [
   { label: "Staff", description: "Staff & access", href: "/staff", icon: "♙" },
   { label: "Savings", description: "Savings accounts", href: "/savings", icon: "₦" },
   { label: "Daily Deposits", description: "Today's deposits", href: "/banking?operation=deposit", icon: "↓" },
-  { label: "Daily Withdrawals", description: "Today's withdrawals", href: "/banking?operation=withdraw", icon: "↑" },
+  { label: "Daily Withdrawals", description: "Today's withdrawals", href: "/banking?operation=cash-withdraw", icon: "↑" },
   { label: "Transfer", description: "Customer transfers", href: "/banking?operation=transfer", icon: "⇄" },
 ];
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
   const [view, setView] = useState<"directory" | "recent">("directory");
 
-  useEffect(() => {
-    apiRequest("/customers")
-      .then((d) => setCustomers(Array.isArray(d) ? d : d?.data ?? []))
-      .catch(() => setCustomers([]))
-      .finally(() => setLoading(false));
+  const loadCustomers = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      const d = await apiRequest("/customers");
+      setCustomers(Array.isArray(d) ? d : d?.data ?? []);
+    } catch (error) {
+      setCustomers([]);
+      setLoadError(error instanceof Error ? error.message : "Unable to load customer records.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { void loadCustomers(); }, [loadCustomers]);
 
   const filtered = useMemo(
     () =>
@@ -92,7 +102,7 @@ export default function CustomersPage() {
         <div className="pwfb-stat-card"><span>Total Customers</span><strong>{loading ? "—" : customers.length.toLocaleString()}</strong><small>All registered customers</small></div>
         <div className="pwfb-stat-card"><span>Active</span><strong>{loading ? "—" : active.toLocaleString()}</strong><small>Currently active profiles</small></div>
         <div className="pwfb-stat-card pwfb-stat-orange"><span>Inactive</span><strong>{loading ? "—" : (customers.length - active).toLocaleString()}</strong><small>Require attention</small></div>
-        <div className="pwfb-stat-card"><span>Workspace</span><strong>Live</strong><small>Customer records connected</small></div>
+        <div className="pwfb-stat-card"><span>Workspace</span><strong>{loading ? "Checking" : loadError ? "Unavailable" : "Connected"}</strong><small>{loadError ? "Customer records could not be loaded" : "Customer records connection status"}</small></div>
       </section>
 
       <section className="pwfb-panel" style={{ marginBottom: 18 }}>
@@ -109,7 +119,7 @@ export default function CustomersPage() {
 
       <section className="pwfb-panel">
         <div className="pwfb-panel-header"><div><h2>{view === "directory" ? "Customer Directory" : "Recent Customers"}</h2><p>{view === "directory" ? "Profiles available to authorized staff for customer service and operations." : "Newest customer records first."}</p></div></div>
-        {loading ? <div className="pwfb-empty-state"><div className="pwfb-loading-dot" /><p>Loading customer records...</p></div> : rows.length === 0 ? <div className="pwfb-empty-state"><div className="pwfb-empty-icon">👥</div><h3>No customers found</h3><p>Try changing the search or filters, or add a new customer.</p><Link href="/customers/add" className="pwfb-secondary-button">Add Customer</Link></div> : <div className="pwfb-table-wrap"><table className="pwfb-table"><thead><tr><th>Customer</th><th>Contact</th><th>Customer ID</th><th>Status</th><th>Actions</th></tr></thead><tbody>{rows.map((c) => { const ok = (c.status || "ACTIVE").toUpperCase() === "ACTIVE"; return <tr key={c.id}><td><div className="pwfb-customer-cell"><div className="pwfb-avatar">{initials(c)}</div><div><strong>{fullName(c)}</strong><small>{c.email || "No email provided"}</small></div></div></td><td>{c.phone || "—"}</td><td><code>{c.id}</code></td><td><span className="pwfb-status-badge" style={!ok ? { background: "#f2f4f7", color: "#475467" } : undefined}>{ok ? "Active" : "Inactive"}</span></td><td><div className="pwfb-actions"><Link href={`/customers/view/${c.id}`} className="pwfb-action-view">View</Link><Link href={`/customers/view/${c.id}`} className="pwfb-action-edit">Manage</Link></div></td></tr>; })}</tbody></table></div>}
+        {loading ? <div className="pwfb-empty-state"><div className="pwfb-loading-dot" /><p>Loading customer records...</p></div> : loadError ? <div className="pwfb-empty-state"><div className="pwfb-empty-icon">!</div><h3>Customer records unavailable</h3><p>{loadError}</p><button type="button" className="pwfb-secondary-button" onClick={() => void loadCustomers()}>Retry</button></div> : rows.length === 0 ? <div className="pwfb-empty-state"><div className="pwfb-empty-icon">👥</div><h3>No customers found</h3><p>Try changing the search or filters, or add a new customer.</p><Link href="/customers/add" className="pwfb-secondary-button">Add Customer</Link></div> : <div className="pwfb-table-wrap"><table className="pwfb-table"><thead><tr><th>Customer</th><th>Contact</th><th>Customer ID</th><th>Status</th><th>Actions</th></tr></thead><tbody>{rows.map((c) => { const ok = (c.status || "ACTIVE").toUpperCase() === "ACTIVE"; return <tr key={c.id}><td><div className="pwfb-customer-cell"><div className="pwfb-avatar">{initials(c)}</div><div><strong>{fullName(c)}</strong><small>{c.email || "No email provided"}</small></div></div></td><td>{c.phone || "—"}</td><td><code>{c.id}</code></td><td><span className="pwfb-status-badge" style={!ok ? { background: "#f2f4f7", color: "#475467" } : undefined}>{ok ? "Active" : "Inactive"}</span></td><td><div className="pwfb-actions"><Link href={`/customers/view/${c.id}`} className="pwfb-action-view">View</Link><Link href={`/customers/edit/${c.id}`} className="pwfb-action-edit">Edit</Link></div></td></tr>; })}</tbody></table></div>}
       </section>
 
       <style jsx>{`

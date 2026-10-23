@@ -120,7 +120,7 @@ export default function AtmCardsPage(){
       </div>
 
       <div className="atm-security"><b>Customer profile matching:</b> the name comes from the registered PWFB profile and cannot be edited here. Saving the last four digits does not verify card ownership. For a first payment, Paystack may require card details and additional authorization; PWFB does not request or store an ATM PIN.</div>
-      {message&&<p className={message.includes("success")||message.includes("credited")?"atm-ok":"atm-error"}>{message}</p>}{authorizationUrl&&<p className="atm-security"><a href={authorizationUrl} target="_blank" rel="noopener noreferrer">Complete secure Paystack authorization</a></p>}
+      {message&&<p className={message.startsWith("Card reference saved")||message.startsWith("Card deposit authorized")||message.startsWith("Saved card reference unlinked.")?"atm-ok":"atm-error"}>{message}</p>}{authorizationUrl&&<p className="atm-security"><a href={authorizationUrl} target="_blank" rel="noopener noreferrer">Complete secure Paystack authorization</a></p>}
       <button className="atm-submit" disabled={saving} onClick={submitAttachment}>{saving?"Attaching…":"Attach ATM Card"}</button>
     </section>
 

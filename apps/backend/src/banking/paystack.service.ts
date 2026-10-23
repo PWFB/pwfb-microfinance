@@ -325,12 +325,15 @@ export class PaystackService {
     });
   }
 
-  async verifyAndCredit(reference: string) {
+  async verifyAndCredit(reference: string, requester?: { role?: string; customerId?: string }) {
     const data = await this.request(`/transaction/verify/${encodeURIComponent(reference)}`);
     if (data.data?.status !== 'success') throw new BadRequestException('Paystack payment is not successful');
     const metadata = data.data.metadata;
-    const customerId = metadata?.customerId;
+    const customerId = String(metadata?.customerId || '');
     if (!customerId) throw new BadRequestException('Paystack payment has no customer ID');
+    if (requester?.role === 'CUSTOMER' && (!requester.customerId || requester.customerId !== customerId)) {
+      throw new UnauthorizedException('You can only verify payments belonging to your own customer account');
+    }
     return this.handleWebhook({ event: 'charge.success', data: data.data });
   }
 

@@ -60,7 +60,7 @@ export default function AtmCardsPage(){
     setSaving(true);
     try{
       await pwfbApi.banking.addAtmCard(customerId,{cardholderName:cardholderName.trim(),last4,cardNetwork:network,expiryMonth:Number(month),expiryYear:Number(year)});
-      setMessage("ATM card attached. Customer name was matched to the registered PWFB profile; no card images, full card number, or CVV were stored.");
+      setMessage("Card reference saved against the registered PWFB customer profile. This does not itself verify card ownership or authorize payments; Paystack must authorize the first payment.");
       setLast4("");setCardNumber("");setCvv("");setMonth("");setYear("");
       await loadCards(customerId);
     }catch(e:any){setMessage(e?.message||"ATM card could not be attached.");}
@@ -99,20 +99,20 @@ export default function AtmCardsPage(){
   if(authLoading)return <main className="pwfb-content"><p>Checking authentication...</p></main>;
 
   return <main className="pwfb-content"><div className="atm-page">
-    <header className="atm-header"><div><p className="atm-eyebrow">BANKING • CARD MANAGEMENT</p><h1>ATM Cards</h1><p>Attach customer cards and use a secure Paystack authorization to fund the customer's PWFB wallet.</p></div><div className="atm-mark">ATM</div></header>
+    <header className="atm-header"><div><p className="atm-eyebrow">BANKING • CARD MANAGEMENT</p><h1>ATM Cards</h1><p>Save a card reference and fund the customer's PWFB wallet through Paystack. Card payments may require provider-managed OTP or 3-D Secure.</p></div><div className="atm-mark">ATM</div></header>
 
     <section className="atm-panel">
       {!isCustomer&&<label className="atm-label">Customer search<input className="atm-input" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search name or customer ID"/>{customers.length>0&&<div className="atm-results">{customers.slice(0,6).map(c=><button className="atm-result" key={c.id} onClick={()=>{setCustomerId(c.id);setSearch(fullName(c)+" • "+c.id);setCardholderName(fullName(c));loadCards(c.id);}}>{fullName(c)} <small>{c.id}</small></button>)}</div>}</label>}
 
       <div className="atm-fields">
-        <label className="atm-label">Verified customer name<input className="atm-input" value={cardholderName} readOnly aria-readonly="true" placeholder="Select a registered PWFB customer"/></label>
+        <label className="atm-label">Registered customer name<input className="atm-input" value={cardholderName} readOnly aria-readonly="true" placeholder="Select a registered PWFB customer"/></label>
         <label className="atm-label">Last four digits<input className="atm-input" value={last4} maxLength={4} inputMode="numeric" onChange={e=>setLast4(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="1234"/></label>
         <label className="atm-label">Card network<select className="atm-input" value={network} onChange={e=>setNetwork(e.target.value)}><option>VISA</option><option>MASTERCARD</option><option>VERVE</option><option>OTHER</option></select></label>
         <label className="atm-label">Expiry month<input className="atm-input" value={month} maxLength={2} inputMode="numeric" onChange={e=>setMonth(e.target.value.replace(/\D/g,"").slice(0,2))} placeholder="MM"/></label>
         <label className="atm-label">Expiry year<input className="atm-input" value={year} maxLength={4} inputMode="numeric" onChange={e=>setYear(e.target.value.replace(/\D/g,"").slice(0,4))} placeholder="YYYY"/></label>
       </div>
 
-      <div className="atm-security"><b>Automatic customer-name verification:</b> the cardholder name is populated from the selected customer's registered PWFB profile and cannot be edited here. Card images are not required. Full card details and CVV are requested only if a first card payment needs provider authorization; they are not stored by PWFB.</div>
+      <div className="atm-security"><b>Customer profile matching:</b> the name comes from the registered PWFB profile and cannot be edited here. Saving the last four digits does not verify card ownership. For a first payment, Paystack may require card details and additional authorization; PWFB does not request or store an ATM PIN.</div>
       {message&&<p className={message.includes("success")||message.includes("credited")?"atm-ok":"atm-error"}>{message}</p>}
       <button className="atm-submit" disabled={saving} onClick={submitAttachment}>{saving?"Attaching…":"Attach ATM Card"}</button>
     </section>
@@ -124,10 +124,10 @@ export default function AtmCardsPage(){
         <label className="atm-label">Attached card<select className="atm-input" value={selectedCardId} onChange={e=>{setSelectedCardId(e.target.value);const c=cards.find(x=>x.id===e.target.value);if(c){setCardholderName(c.cardholderName);setNetwork(c.cardNetwork||"VISA");}}}><option value="">Select card</option>{cards.map(c=><option key={c.id} value={c.id}>•••• {c.last4} • {c.cardNetwork||"CARD"}{c.hasReusableAuthorization?" • Ready for deposit":""}</option>)}</select></label>
         <label className="atm-label">Deposit amount (NGN)<input className="atm-input" value={amount} inputMode="decimal" onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,""))} placeholder="0.00"/></label>
       </div>
-      {selectedCard&&!selectedCard.hasReusableAuthorization&&<p className="atm-muted">This attached card has not completed a first provider authorization. For a first deposit only, enter the card number, expiry and CVV above; these details are used for authorization and are not stored by PWFB.</p>}
+      {selectedCard&&!selectedCard.hasReusableAuthorization&&<p className="atm-muted">This saved card has no reusable Paystack authorization yet. A first payment requires provider authorization using the card details above; PWFB does not collect an ATM PIN. After authorization, later deposits may need only an amount, but Paystack can still require OTP or 3-D Secure.</p>}
       <button className="atm-submit" disabled={depositing||!selectedCard} onClick={deposit}>{depositing?"Processing card payment…":"Deposit with ATM Card"}</button>
     </section>
 
-    <section className="atm-panel"><h2>Attached Cards</h2>{loading?<p>Loading cards…</p>:cards.length===0?<p className="atm-muted">No ATM card attached for the selected customer.</p>:cards.map(card=><div className="atm-card-row" key={card.id}><div><b>{card.cardholderName}</b><div className="atm-muted">{card.cardNetwork||"Card"} •••• {card.last4}{card.expiryMonth&&card.expiryYear?" • "+String(card.expiryMonth).padStart(2,"0")+"/"+card.expiryYear:""} • {card.status}{card.hasReusableAuthorization?" • payment ready":""}</div></div><div className="atm-actions"><span className="atm-muted">Customer profile name matched</span><button className="danger" onClick={async()=>{if(confirm("Remove this ATM card record?")){await pwfbApi.banking.removeAtmCard(card.customerId,card.id);setCards(x=>x.filter(c=>c.id!==card.id));if(selectedCardId===card.id)setSelectedCardId("");}}}>Remove</button></div></div>)}</section>
+    <section className="atm-panel"><h2>Attached Cards</h2>{loading?<p>Loading cards…</p>:cards.length===0?<p className="atm-muted">No ATM card attached for the selected customer.</p>:cards.map(card=><div className="atm-card-row" key={card.id}><div><b>{card.cardholderName}</b><div className="atm-muted">{card.cardNetwork||"Card"} •••• {card.last4}{card.expiryMonth&&card.expiryYear?" • "+String(card.expiryMonth).padStart(2,"0")+"/"+card.expiryYear:""} • {card.status}{card.hasReusableAuthorization?" • payment ready":""}</div></div><div className="atm-actions"><span className="atm-muted">Profile name associated</span><button className="danger" onClick={async()=>{if(confirm("Unlink this saved card reference from the customer profile?")){await pwfbApi.banking.removeAtmCard(card.customerId,card.id);setCards(x=>x.filter(c=>c.id!==card.id));if(selectedCardId===card.id)setSelectedCardId("");}}}>Unlink card</button></div></div>)}</section>
   </div></main>;
 }

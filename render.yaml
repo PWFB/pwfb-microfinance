@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     rootDir: .
-    buildCommand: npm install && npm run build --workspace=backend
+    buildCommand: npm install --production=false && npm run build --workspace=backend
     startCommand: npm run start:prod --workspace=backend
     healthCheckPath: /health
     autoDeploy: true

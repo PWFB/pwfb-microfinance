@@ -64,7 +64,7 @@ export default function VirtualAccountPage() {
         {account?.failureReason && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{account.failureReason}</p>}
       </section>
       <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">How to fund your wallet</h2><ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600"><li>Transfer money from your bank to the virtual account number above.</li><li>Use the displayed account name and bank details exactly.</li><li>Wait for Flutterwave to confirm the incoming payment.</li><li>PWFB should credit the wallet only after a verified provider notification is processed.</li></ol></section>
-      <div className="mt-5 grid grid-cols-2 gap-3"><Link href="/banking?operation=withdraw" className="rounded-xl bg-emerald-600 p-4 text-center font-bold text-white">Withdraw</Link><Link href="/banking?operation=transfer" className="rounded-xl border bg-white p-4 text-center font-bold text-slate-800">Transfer</Link></div>
+      <div className="mt-5 grid grid-cols-2 gap-3"><Link href="/banking?operation=cash-withdraw" className="rounded-xl bg-emerald-600 p-4 text-center font-bold text-white">Withdraw</Link><Link href="/banking?operation=transfer" className="rounded-xl border bg-white p-4 text-center font-bold text-slate-800">Transfer</Link></div>
       {creating && <p className="mt-4 text-center text-sm text-slate-500">Creating your real Flutterwave virtual account...</p>}
     </div>
   </main>;

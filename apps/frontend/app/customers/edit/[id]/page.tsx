@@ -12,6 +12,7 @@ export default function EditCustomerPage() {
   const [message, setMessage] = useState("");
   const [form, setForm] = useState({
     firstName: "",
+    middleName: "",
     lastName: "",
     email: "",
     phone: "",
@@ -28,6 +29,7 @@ export default function EditCustomerPage() {
       .then((data) => {
         setForm({
           firstName: data.firstName || "",
+          middleName: data.middleName || "",
           lastName: data.lastName || "",
           email: data.email || "",
           phone: data.phone || "",
@@ -81,6 +83,7 @@ export default function EditCustomerPage() {
 
       <form onSubmit={handleSubmit} style={{ display: "grid", gap: 14 }}>
         <label>First Name<input name="firstName" value={form.firstName} onChange={handleChange} required /></label>
+        <label>Middle Name<input name="middleName" value={form.middleName} onChange={handleChange} /></label>
         <label>Last Name<input name="lastName" value={form.lastName} onChange={handleChange} required /></label>
         <label>Email<input name="email" type="email" value={form.email} onChange={handleChange} /></label>
         <label>Phone<input name="phone" value={form.phone} onChange={handleChange} /></label>

@@ -25,6 +25,11 @@ export default function AddCustomerPage() {
     try {
       const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify(form) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
+      if (!customerId) {
+        setMessage("Customer profile was submitted, but the server response did not include a customer ID. Wallet and virtual-account setup could not be confirmed.");
+        window.setTimeout(() => router.push("/customers"), 1800);
+        return;
+      }
       if (customerId) {
         await pwfbApi.banking.customerWallet(customerId);
         try {
@@ -32,7 +37,7 @@ export default function AddCustomerPage() {
         } catch (virtualAccountError) {
           const reason = virtualAccountError instanceof Error ? virtualAccountError.message : "Virtual account provisioning is pending.";
           setMessage(`Customer profile and wallet created successfully. Virtual account provisioning is pending: ${reason}`);
-          window.setTimeout(() => router.push(`/customers/${customerId}`), 1600);
+          window.setTimeout(() => router.push(`/customers/view/${customerId}`), 1600);
           return;
         }
       }

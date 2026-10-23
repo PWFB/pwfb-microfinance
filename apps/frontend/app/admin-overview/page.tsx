@@ -8,7 +8,7 @@ type Data = { customers: Row[]; staff: Row[]; loans: Row[]; savings: Row[]; depo
 const empty: Data = { customers: [], staff: [], loans: [], savings: [], deposits: [], withdrawals: [], transfers: [] };
 const labels: Record<keyof Data, string> = { customers: "Customers", staff: "Staff", loans: "Loans", savings: "Savings", deposits: "Daily Deposits", withdrawals: "Daily Withdrawals", transfers: "Transfers" };
 const icons: Record<keyof Data, string> = { customers: "👥", staff: "◉", loans: "▣", savings: "₦", deposits: "↓", withdrawals: "↑", transfers: "↔" };
-const operationLinks: Record<keyof Data, string> = { customers: "/customers", staff: "/staff", loans: "/loans", savings: "/savings", deposits: "/banking?operation=deposit", withdrawals: "/banking?operation=withdraw", transfers: "/banking?operation=transfer" };
+const operationLinks: Record<keyof Data, string> = { customers: "/customers", staff: "/staff", loans: "/loans", savings: "/savings", deposits: "/banking?operation=deposit", withdrawals: "/banking?operation=cash-withdraw", transfers: "/banking?operation=transfer" };
 function money(v: any) { return `₦${Number(v || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 function name(x: Row) { return [x.firstName, x.middleName, x.lastName].filter(Boolean).join(" ") || x.name || x.email || x.customer?.firstName || x.id; }
 function date(x: Row) { const v = x.createdAt || x.paymentDate || x.date || x.updatedAt; return v ? new Date(v).toLocaleString("en-NG") : "—"; }
@@ -17,7 +17,7 @@ function csvEscape(v: any) { return `"${String(v ?? "").replace(/"/g, '""')}"`; 
 const financialActions = [
   { title: "Financial Portal", description: "Payroll, bank schedules and co-operative ledger", href: "/financial-portal", icon: "▤", tone: "green" },
   { title: "Customer Deposit", description: "Deposit funds into a customer wallet", href: "/banking?operation=deposit", icon: "↓", tone: "green" },
-  { title: "Customer Withdrawal", description: "Withdraw funds with balance controls", href: "/banking?operation=withdraw", icon: "↑", tone: "orange" },
+  { title: "Customer Withdrawal", description: "Withdraw funds with balance controls", href: "/banking?operation=cash-withdraw", icon: "↑", tone: "orange" },
   { title: "Bank Transfer", description: "Send funds to a verified bank account", href: "/banking?operation=bank-transfer", icon: "↗", tone: "green" },
   { title: "Savings Deposit", description: "Choose a savings account and post a deposit", href: "/savings?operation=deposit", icon: "₦", tone: "green" },
   { title: "Savings Withdrawal", description: "Choose a savings account and post a withdrawal", href: "/savings?operation=withdraw", icon: "₦", tone: "orange" },

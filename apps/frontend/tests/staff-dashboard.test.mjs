@@ -45,3 +45,19 @@ test("staff dashboard has responsive layout rules", () => {
   assert.ok(source.includes("@media (max-width: 1000px)"));
   assert.ok(source.includes("@media (max-width: 650px)"));
 });
+
+
+test("staging frontend defaults to the staging API instead of production", () => {
+  const apiPath = path.resolve(process.cwd(), "lib/api.ts");
+  const apiSource = fs.readFileSync(apiPath, "utf8");
+  assert.ok(apiSource.includes('const STAGING_API_URL = "https://pwfb-backend-staging.onrender.com"'));
+  assert.ok(apiSource.includes('window.location.hostname === "pwfb-microfinance-staging.onrender.com"'));
+  assert.ok(apiSource.includes("CONFIGURED_API_URL || DEFAULT_API_URL"));
+});
+
+test("ATM card page avoids claiming profile matching verifies card ownership", () => {
+  const cardPage = fs.readFileSync(path.resolve(process.cwd(), "app/atm-cards/page.tsx"), "utf8");
+  assert.ok(cardPage.includes("does not itself verify card ownership"));
+  assert.ok(cardPage.includes("PWFB does not request or store an ATM PIN"));
+  assert.ok(cardPage.includes("Unlink card"));
+});

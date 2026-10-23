@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { pwfbApi } from "../../lib/pwfb-api";
 
-type Customer = { id:string; firstName?:string; lastName?:string; name?:string };
+type Customer = { id:string; firstName?:string; middleName?:string; lastName?:string; name?:string };
 type Card = { id:string; customerId:string; cardholderName:string; last4:string; cardNetwork?:string|null; expiryMonth?:number|null; expiryYear?:number|null; status:string; hasFrontAttachment?:boolean; hasBackAttachment?:boolean; hasReusableAuthorization?:boolean };
 
 const unwrap=(v:any)=>Array.isArray(v)?v:Array.isArray(v?.data)?v.data:Array.isArray(v?.customers)?v.customers:[];
-const fullName=(c:Customer)=>c.name||[c.firstName,c.lastName].filter(Boolean).join(" ")||c.id;
+const fullName=(c:Customer)=>c.name||[c.firstName,c.middleName,c.lastName].filter(Boolean).join(" ")||c.id;
 
 export default function AtmCardsPage(){
   const {user,loading:authLoading}=useAuth();

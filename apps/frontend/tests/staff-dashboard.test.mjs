@@ -70,3 +70,14 @@ test("ATM card page keeps saved cards compact with unlink in the deposit flow", 
   assert.ok(!cardPage.includes('<h2>Attached Cards</h2>'));
   assert.ok(cardPage.includes("Continue to Paystack authorization"));
 });
+
+
+test("Paystack card attempts cool down after five failures and serialize duplicate credits", () => {
+  const servicePath = path.resolve(process.cwd(), "../backend/src/banking/paystack.service.ts");
+  const serviceSource = fs.readFileSync(servicePath, "utf8");
+  assert.ok(serviceSource.includes('"failedAttempts"+1'));
+  assert.ok(serviceSource.includes(">= 5"));
+  assert.ok(serviceSource.includes("INTERVAL '1 hour'"));
+  assert.ok(serviceSource.includes("pg_advisory_xact_lock"));
+  assert.ok(serviceSource.includes("clearCardAttemptFailures"));
+});

@@ -245,7 +245,7 @@ export class PaystackService {
       return { ok: true, status: 'success', reference, credited };
     }
     if (this.isTerminalCardFailure(status)) await this.recordCardAttemptFailure(customerId, cardId);
-    return { ok: true, status, reference, message: data?.message || 'Card authorization requires additional action' };
+    return { ok: true, status, reference, message: data?.message || data?.data?.display_text || 'Card authorization requires additional action', authorizationUrl: data?.data?.authorization_url || null, authorization: data?.data?.authorization || null, otpRequired: ['send_otp', 'send_phone'].includes(status) };
   }
 
   async initializeCustomerPayment(customerId: string, amount: number) {

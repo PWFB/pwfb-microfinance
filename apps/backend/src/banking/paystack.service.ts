@@ -13,6 +13,66 @@ export class PaystackService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  async onModuleInit() {
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PaystackCardAttemptGuard" (
+      "cardId" TEXT PRIMARY KEY,
+      "customerId" TEXT NOT NULL,
+      "failedAttempts" INTEGER NOT NULL DEFAULT 0,
+      "cooldownUntil" TIMESTAMPTZ,
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+  }
+
+  private async assertCardAttemptAllowed(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "PaystackCardAttemptGuard" SET "failedAttempts"=0, "cooldownUntil"=NULL, "updatedAt"=NOW()
+       WHERE "cardId"=$1 AND "customerId"=$2 AND "cooldownUntil" IS NOT NULL AND "cooldownUntil" <= NOW()`,
+      cardId, customerId,
+    );
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ failedAttempts: number; cooldownUntil: Date | null }>>(
+      `SELECT "failedAttempts", "cooldownUntil" FROM "PaystackCardAttemptGuard" WHERE "cardId"=$1 AND "customerId"=$2 LIMIT 1`,
+      cardId, customerId,
+    );
+    const cooldownUntil = rows[0]?.cooldownUntil ? new Date(rows[0].cooldownUntil) : null;
+    if (cooldownUntil && cooldownUntil.getTime() > Date.now()) {
+      throw new BadRequestException(`Too many failed card-payment attempts. Try again after ${cooldownUntil.toISOString()}.`);
+    }
+  }
+
+  private async recordCardAttemptFailure(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "PaystackCardAttemptGuard" ("cardId","customerId","failedAttempts","cooldownUntil","updatedAt")
+       VALUES ($1,$2,1,NULL,NOW())
+       ON CONFLICT ("cardId") DO UPDATE SET
+         "customerId"=EXCLUDED."customerId",
+         "failedAttempts"=CASE
+           WHEN "PaystackCardAttemptGuard"."cooldownUntil" IS NOT NULL AND "PaystackCardAttemptGuard"."cooldownUntil" <= NOW() THEN 1
+           ELSE "PaystackCardAttemptGuard"."failedAttempts"+1
+         END,
+         "cooldownUntil"=CASE
+           WHEN (CASE
+             WHEN "PaystackCardAttemptGuard"."cooldownUntil" IS NOT NULL AND "PaystackCardAttemptGuard"."cooldownUntil" <= NOW() THEN 1
+             ELSE "PaystackCardAttemptGuard"."failedAttempts"+1
+           END) >= 5 THEN NOW() + INTERVAL '1 hour'
+           ELSE NULL
+         END,
+         "updatedAt"=NOW()`,
+      cardId, customerId,
+    );
+  }
+
+  private async clearCardAttemptFailures(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "PaystackCardAttemptGuard" SET "failedAttempts"=0, "cooldownUntil"=NULL, "updatedAt"=NOW()
+       WHERE "cardId"=$1 AND "customerId"=$2`,
+      cardId, customerId,
+    );
+  }
+
+  private isTerminalCardFailure(status: string) {
+    return ["failed", "rejected", "invalid", "expired", "abandoned", "declined"].includes(status.toLowerCase());
+  }
+
   private getSecretKey() {
     const key = process.env.PAYSTACK_SECRET_KEY?.trim();
     if (!key) throw new BadRequestException('Paystack bank verification is not configured. Add PAYSTACK_SECRET_KEY to the PWFB backend environment.');
@@ -97,8 +157,15 @@ export class PaystackService {
     const amount = Number(input?.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Amount must be greater than zero');
     const card = this.validateCardInput(input?.card);
+    const cardId = String(input?.cardId || '').trim();
+    if (!cardId) throw new BadRequestException('Select a saved card record before starting card authorization');
+    const savedCard = await this.prisma.customerAtmCard.findFirst({ where: { id: cardId, customerId } });
+    if (!savedCard) throw new NotFoundException('ATM card not found for this customer');
+    await this.assertCardAttemptAllowed(customerId, cardId);
     const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
-    const data = await this.request('/charge', {
+    let data: any;
+    try {
+      data = await this.request('/charge', {
       method: 'POST',
       body: JSON.stringify({
         email: customer.email,
@@ -113,15 +180,20 @@ export class PaystackService {
         },
         metadata: { customerId: customer.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
       }),
-    });
+      });
+    } catch (error) {
+      await this.recordCardAttemptFailure(customerId, cardId);
+      throw error;
+    }
     const status = String(data?.data?.status || '').toLowerCase();
     if (status === 'success') {
       const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
       const authorizationCode = String(data.data?.authorization?.authorization_code || '').trim();
-      const cardId = String(input?.cardId || '').trim();
-      if (authorizationCode && cardId) await this.prisma.customerAtmCard.updateMany({ where: { id: cardId, customerId }, data: { providerAuthorizationCode: authorizationCode } });
+      if (authorizationCode) await this.prisma.customerAtmCard.updateMany({ where: { id: cardId, customerId }, data: { providerAuthorizationCode: authorizationCode } });
+      await this.clearCardAttemptFailures(customerId, cardId);
       return { ok: true, status: 'success', reference, credited, authorization: data.data?.authorization || null };
     }
+    if (this.isTerminalCardFailure(status)) await this.recordCardAttemptFailure(customerId, cardId);
     return {
       ok: true,
       status,
@@ -140,9 +212,12 @@ export class PaystackService {
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new BadRequestException('Amount must be greater than zero');
     const card = await this.prisma.customerAtmCard.findFirst({ where: { id: cardId, customerId } });
     if (!card) throw new NotFoundException('ATM card not found');
-    if (!card.providerAuthorizationCode) throw new BadRequestException('This attached card has no reusable payment authorization. Enter the card details for the first deposit.');
+    if (!card.providerAuthorizationCode) throw new BadRequestException('This attached card has no reusable payment authorization. Complete a first provider-authorized payment first.');
+    await this.assertCardAttemptAllowed(customerId, cardId);
     const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
-    const data = await this.request('/charge', {
+    let data: any;
+    try {
+      data = await this.request('/charge', {
       method: 'POST',
       body: JSON.stringify({
         email: customer.email,
@@ -152,12 +227,19 @@ export class PaystackService {
         authorization_code: card.providerAuthorizationCode,
         metadata: { customerId: customer.id, cardId: card.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
       }),
-    });
-    if (String(data?.data?.status || '').toLowerCase() === 'success') {
+      });
+    } catch (error) {
+      await this.recordCardAttemptFailure(customerId, cardId);
+      throw error;
+    }
+    const status = String(data?.data?.status || '').toLowerCase();
+    if (status === 'success') {
       const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
+      await this.clearCardAttemptFailures(customerId, cardId);
       return { ok: true, status: 'success', reference, credited };
     }
-    return { ok: true, status: String(data?.data?.status || '').toLowerCase(), reference, message: data?.message || 'Card authorization requires additional action' };
+    if (this.isTerminalCardFailure(status)) await this.recordCardAttemptFailure(customerId, cardId);
+    return { ok: true, status, reference, message: data?.message || 'Card authorization requires additional action' };
   }
 
   async initializeCustomerPayment(customerId: string, amount: number) {

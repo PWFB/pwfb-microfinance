@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { BadGatewayException, UnauthorizedException } from '@nestjs/common';
 import { PaystackService } from './paystack.service';
 
 describe('PaystackService payment verification ownership', () => {
@@ -30,6 +30,23 @@ describe('PaystackService payment verification ownership', () => {
       event: 'charge.success',
       data: { status: 'success', metadata: { customerId: 'customer-owner' } },
     });
+  });
+
+
+  it('treats Paystack HTTP 5xx responses as temporary outages', async () => {
+    const service = new PaystackService({} as any);
+    (service as any).getSecretKey = jest.fn().mockReturnValue('test-secret');
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({ message: 'Paystack temporarily unavailable' }),
+    } as Response);
+
+    try {
+      await expect((service as any).request('/charge')).rejects.toBeInstanceOf(BadGatewayException);
+    } finally {
+      fetchSpy.mockRestore();
+    }
   });
 
   it('allows authorized staff roles to verify a successful payment', async () => {

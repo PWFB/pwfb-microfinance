@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Injectable,
   NotFoundException,
@@ -85,6 +86,7 @@ export class PaystackService {
       headers: { Authorization: `Bearer ${this.getSecretKey()}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
     });
     const data = await response.json().catch(() => null);
+    if (response.status >= 500) throw new BadGatewayException(data?.message || 'Paystack is temporarily unavailable');
     if (!response.ok || !data?.status) throw new BadRequestException(data?.message || 'Paystack request failed');
     return data;
   }

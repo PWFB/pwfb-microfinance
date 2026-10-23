@@ -52,7 +52,7 @@ test("staging frontend defaults to the staging API instead of production", () =>
   const apiSource = fs.readFileSync(apiPath, "utf8");
   assert.ok(apiSource.includes('const STAGING_API_URL = "https://pwfb-backend-staging.onrender.com"'));
   assert.ok(apiSource.includes('window.location.hostname === "pwfb-microfinance-staging.onrender.com"'));
-  assert.ok(apiSource.includes("CONFIGURED_API_URL || DEFAULT_API_URL"));
+  assert.ok(apiSource.includes("IS_STAGING_FRONTEND ? STAGING_API_URL : CONFIGURED_API_URL || PRODUCTION_API_URL"));
 });
 
 test("ATM card page avoids claiming profile matching verifies card ownership", () => {

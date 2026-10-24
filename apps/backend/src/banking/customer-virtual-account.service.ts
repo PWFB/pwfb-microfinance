@@ -101,6 +101,123 @@ export class CustomerVirtualAccountService {
     return this.get(customerId);
   }
 
+  /**
+   * Starts customer identity verification from the registration workflow.
+   * BVN is stored only in the existing restricted identity table and is never
+   * returned to the frontend or written to logs.
+   */
+  async startIdentityVerification(customerId: string, input: { bvn: string; bankCode: string; accountNumber: string; consentConfirmed?: boolean }) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, branchId: true, firstName: true, middleName: true, lastName: true, email: true, phone: true, user: { select: { email: true } } },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    let local = await this.prisma.customerVirtualAccount.findFirst({
+      where: { customerId, provider: 'PAYSTACK', status: { in: ['PENDING', 'FAILED', 'ACTIVE'] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const institution = await this.paystackInstitution();
+    if (!local?.consentAt) {
+      if (input?.consentConfirmed !== true) throw new BadRequestException('Confirm the customer’s explicit consent before identity verification and virtual-account assignment');
+      if (local) {
+        local = await this.prisma.customerVirtualAccount.update({ where: { id: local.id }, data: { consentAt: new Date(), institutionId: institution.id, provider: 'PAYSTACK' } });
+      } else {
+        local = await this.prisma.customerVirtualAccount.create({ data: { id: randomUUID(), customerId, institutionId: institution.id, branchId: customer.branchId ?? null, provider: 'PAYSTACK', consentAt: new Date(), status: 'PENDING' } });
+      }
+    }
+    if (local.status === 'ACTIVE' && local.accountNumber) return this.get(customerId);
+    if (local.status === 'PENDING' && local.providerCustomerId && local.failureReason?.includes('Awaiting Paystack identity-validation webhook')) {
+      return this.get(customerId);
+    }
+
+    const bvn = String(input?.bvn || '').replace(/\D/g, '');
+    const bankCode = String(input?.bankCode || '').trim();
+    const accountNumber = String(input?.accountNumber || '').replace(/\D/g, '');
+    if (!/^\d{11}$/.test(bvn)) throw new BadRequestException('BVN must contain exactly 11 digits');
+    if (!bankCode) throw new BadRequestException('Select a valid bank');
+    if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Bank account number must contain exactly 10 digits');
+
+    const email = String(customer.email ?? customer.user?.email ?? '').trim().toLowerCase();
+    if (!email || !email.includes('@')) throw new BadRequestException('A valid customer email is required for Paystack identity verification');
+
+    const bank = await this.prisma.bankInstitution.findFirst({
+      where: { code: bankCode, active: true },
+      select: { id: true, code: true, name: true },
+    });
+    if (!bank) throw new BadRequestException('The selected bank is not active or has no supported bank code');
+
+    const resolved = await this.request(`/bank/resolve?account_number=${encodeURIComponent(accountNumber)}&bank_code=${encodeURIComponent(bankCode)}`);
+    const accountName = String(resolved?.data?.account_name || '').trim();
+    if (!accountName) throw new BadRequestException('Paystack could not verify the bank-account name');
+    const nameTokens = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter((token) => token.length > 1);
+    const customerTokens = new Set(nameTokens([customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' ')));
+    const matchedTokens = nameTokens(accountName).filter((token) => customerTokens.has(token));
+    if (new Set(matchedTokens).size < 2) throw new BadRequestException('The verified bank-account name must match at least two parts of the customer’s legal name');
+
+    let customerCode = String(local.providerCustomerId || '').trim();
+    if (!customerCode) {
+      const created = await this.request('/customer', {
+        email,
+        first_name: customer.firstName,
+        last_name: customer.lastName,
+        phone: customer.phone || undefined,
+        metadata: { pwfbCustomerId: customer.id, provider: 'PAYSTACK_DVA', brand: 'PWFB Microfinance' },
+      });
+      customerCode = String(created?.data?.customer_code || '').trim();
+      if (!customerCode) throw new BadRequestException('Paystack did not return a customer code');
+    }
+
+    const existingBank = await this.prisma.customerBankAccount.findFirst({ where: { customerId, accountNumber } });
+    const hasPrimary = await this.prisma.customerBankAccount.findFirst({ where: { customerId, isPrimary: true } });
+    if (existingBank) {
+      await this.prisma.customerBankAccount.update({
+        where: { id: existingBank.id },
+        data: { institutionId: bank.id, accountName, status: 'ACTIVE', verifiedAt: new Date() },
+      });
+    } else {
+      await this.prisma.customerBankAccount.create({
+        data: { customerId, institutionId: bank.id, accountNumber, accountName, isPrimary: !hasPrimary, status: 'ACTIVE', verifiedAt: new Date() },
+      });
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO customer_identity_verifications (id, customer_id, bvn, bvn_status, updated_at)
+       VALUES ($1, $2, $3, 'PENDING', NOW())
+       ON CONFLICT (customer_id) DO UPDATE SET bvn = EXCLUDED.bvn, bvn_status = 'PENDING',
+       bvn_verified_at = NULL, bvn_overridden_at = NULL, bvn_override_by_user_id = NULL,
+       bvn_override_by_email = NULL, bvn_override_reason = NULL, updated_at = NOW()`,
+      randomUUID(), customerId, bvn,
+    );
+
+    await this.prisma.customerVirtualAccount.update({
+      where: { id: local.id },
+      data: { institutionId: institution.id, provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', failureReason: 'Submitting customer identity verification to Paystack' },
+    });
+
+    try {
+      await this.request('/customer/' + encodeURIComponent(customerCode) + '/identification', {
+        country: 'NG', type: 'bank_account', account_number: accountNumber, bvn, bank_code: bankCode,
+        first_name: customer.firstName, ...(customer.middleName ? { middle_name: customer.middleName } : {}), last_name: customer.lastName,
+      });
+      // Do not overwrite an ACTIVE/assignment-webhook state if Paystack's
+      // webhook arrived before the HTTP response completed.
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: 'PENDING', failureReason: 'Submitting customer identity verification to Paystack' },
+        data: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', failureReason: 'Awaiting Paystack identity-validation webhook before account assignment' },
+      });
+      return this.get(customerId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Paystack identity verification failed';
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: { not: 'ACTIVE' }, failureReason: 'Submitting customer identity verification to Paystack' },
+        data: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'FAILED', failureReason: reason.slice(0, 500) },
+      });
+      await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'FAILED', updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, customerId);
+      throw error;
+    }
+  }
+
   async ensure(customerId: string, institutionId?: string, consentConfirmed = false) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
@@ -210,15 +327,15 @@ export class CustomerVirtualAccountService {
         country: 'NG', type: 'bank_account', account_number: verifiedAccountNumber, bvn, bank_code: bankCode,
         first_name: customer.firstName, ...(customer.middleName ? { middle_name: customer.middleName } : {}), last_name: customer.lastName,
       });
-      await this.prisma.customerVirtualAccount.update({
-        where: { id: local.id },
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: 'PENDING', failureReason: null },
         data: { institutionId: institution.id, branchId: customer.branchId ?? null, provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', consentAt: local.consentAt || new Date(), failureReason: 'Awaiting Paystack identity-validation webhook before account assignment' },
       });
       return this.get(customerId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Paystack DVA assignment failed';
-      await this.prisma.customerVirtualAccount.update({
-        where: { id: local.id },
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: { not: 'ACTIVE' }, failureReason: null },
         data: { provider: 'PAYSTACK', status: 'FAILED', failureReason: reason.slice(0, 500) },
       });
       throw error;
@@ -319,11 +436,18 @@ export class CustomerVirtualAccountService {
 
     if (type === 'customeridentification.failed') {
       const reason = String(data?.reason || 'Paystack customer identity validation failed').slice(0, 500);
+      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode }, select: { customerId: true } });
+      for (const row of rows) {
+        await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'FAILED', updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, row.customerId);
+      }
       await this.prisma.customerVirtualAccount.updateMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, data: { status: 'FAILED', failureReason: reason } });
       return { ok: true, processed: true, status: 'FAILED', stage: 'identity' };
     }
     if (type === 'customeridentification.success') {
       const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, include: { customer: true } });
+      for (const row of rows) {
+        await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'VERIFIED', bvn_verified_at = NOW(), updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, row.customerId);
+      }
       const preferredBank = this.preferredBank();
       let assigned = 0;
       for (const row of rows) {

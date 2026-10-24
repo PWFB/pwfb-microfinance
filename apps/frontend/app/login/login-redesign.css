@@ -136,3 +136,31 @@ a[aria-label="Create a PWFB account"]{top:25px!important;right:clamp(24px,5vw,72
   .pwfb-biometric .bio-icon{width:29px!important;height:29px!important;flex-basis:29px!important}
 }
 @media(prefers-reduced-motion:reduce){.pwfb-login-submit{transition:none!important}}
+
+
+/* Larger, legible LAB MICROFINANCE identity on desktop and mobile */
+.pwfb-brand img { width: min(390px, 100%) !important; max-height: 112px !important; }
+.pwfb-brand p { font-size: 14px !important; font-weight: 600 !important; }
+.pwfb-role-folder-copy strong { font-size: 19px !important; }
+.pwfb-role-hero h1 { font-size: clamp(28px, 3vw, 34px) !important; }
+.pwfb-role-hero p { font-size: 14px !important; line-height: 1.65 !important; }
+.pwfb-login-card form > label > span { font-size: 13px !important; }
+.pwfb-input input { font-size: 16px !important; }
+.pwfb-options { font-size: 13px !important; }
+.pwfb-login-submit { font-size: 17px !important; }
+.pwfb-divider { font-size: 12px !important; }
+.pwfb-biometric strong { font-size: 12px !important; }
+.pwfb-biometric small { font-size: 10px !important; }
+.pwfb-security-note { font-size: 11px !important; }
+.pwfb-login-footer { font-size: 12px !important; }
+.pwfb-login-footer strong { font-size: 14px !important; }
+@media(max-width:820px) {
+ .pwfb-brand img { width: min(340px, 84vw) !important; max-height: 100px !important; }
+ .pwfb-brand p { font-size: 13px !important; }
+ .pwfb-role-hero h1 { font-size: 28px !important; }
+ .pwfb-role-hero p { font-size: 13px !important; }
+ .pwfb-login-card form > label > span { font-size: 12px !important; }
+ .pwfb-options { font-size: 12px !important; }
+ .pwfb-login-footer { font-size: 11px !important; }
+ .pwfb-login-footer strong { font-size: 13px !important; }
+}

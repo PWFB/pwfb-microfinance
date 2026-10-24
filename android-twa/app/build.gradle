@@ -1,11 +1,11 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.lab.microfinance'
+    namespace 'com.pwfb.microfinance'
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.lab.microfinance'
+        applicationId 'com.pwfb.microfinance'
         minSdk 23
         targetSdk 36
         versionCode 51

@@ -68,6 +68,29 @@ async function main() {
     }
   }
 
+  // Recover only the known DVA migration that failed on conditional SQL syntax.
+  // Its columns/table/indexes are idempotent, so the corrected migration can be retried.
+  const recoverableFailures = ['20261024120000_paystack_dva_staff_customer_assignment'];
+  const client = new Client({ connectionString: process.env.DATABASE_URL });
+  await client.connect();
+  let failed = [];
+  try {
+    const exists = await client.query("SELECT to_regclass('public._prisma_migrations') AS migration_table");
+    if (exists.rows[0]?.migration_table) {
+      const rows = await client.query(
+        'SELECT migration_name FROM "_prisma_migrations" WHERE finished_at IS NULL AND rolled_back_at IS NULL AND migration_name = ANY($1::text[])',
+        [recoverableFailures],
+      );
+      failed = rows.rows.map((row) => String(row.migration_name));
+    }
+  } finally {
+    await client.end();
+  }
+  for (const migration of failed) {
+    console.log(`Marking known failed migration ${migration} as rolled back before retry.`);
+    runPrisma(['migrate', 'resolve', '--rolled-back', migration]);
+  }
+
   console.log('Applying pending Prisma migrations.');
   runPrisma(['migrate', 'deploy']);
 }

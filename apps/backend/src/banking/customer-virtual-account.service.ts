@@ -34,6 +34,15 @@ export class CustomerVirtualAccountService {
     return key;
   }
 
+  /** Paystack test-mode DVAs require the test-bank provider slug. Never infer a live bank. */
+  private preferredBank() {
+    const configured = String(process.env.PAYSTACK_DVA_PREFERRED_BANK || '').trim();
+    if (configured) return configured;
+    const key = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
+    if (key.startsWith('sk_test_')) return 'test-bank';
+    throw new BadRequestException('PAYSTACK_DVA_PREFERRED_BANK must be set to an approved Paystack bank slug');
+  }
+
   private async request(path: string, body?: Record<string, unknown>) {
     const response = await fetch(`${this.baseUrl}${path}`, {
       method: body ? 'POST' : 'GET',
@@ -194,8 +203,7 @@ export class CustomerVirtualAccountService {
         });
       }
 
-      const preferredBank = process.env.PAYSTACK_DVA_PREFERRED_BANK?.trim();
-      if (!preferredBank) throw new BadRequestException('PAYSTACK_DVA_PREFERRED_BANK must be set to an approved Paystack bank slug');
+      const preferredBank = this.preferredBank();
       await this.request('/customer/' + encodeURIComponent(customerCode) + '/identification', {
         country: 'NG', type: 'bank_account', account_number: verifiedAccountNumber, bvn, bank_code: bankCode,
         first_name: customer.firstName, ...(customer.middleName ? { middle_name: customer.middleName } : {}), last_name: customer.lastName,
@@ -256,7 +264,7 @@ export class CustomerVirtualAccountService {
       const result = await this.request('/dedicated_account', {
         customer: customerCode,
         country: 'NG',
-        ...(process.env.PAYSTACK_DVA_PREFERRED_BANK?.trim() ? { preferred_bank: process.env.PAYSTACK_DVA_PREFERRED_BANK.trim() } : {}),
+        preferred_bank: this.preferredBank(),
       });
       const dva = result?.data || {};
       const accountNumber = String(dva.account_number || '').trim();
@@ -314,8 +322,7 @@ export class CustomerVirtualAccountService {
     }
     if (type === 'customeridentification.success') {
       const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, include: { customer: true } });
-      const preferredBank = process.env.PAYSTACK_DVA_PREFERRED_BANK?.trim();
-      if (!preferredBank) throw new BadRequestException('PAYSTACK_DVA_PREFERRED_BANK is not configured');
+      const preferredBank = this.preferredBank();
       let assigned = 0;
       for (const row of rows) {
         if (row.failureReason === 'Awaiting Paystack dedicatedaccount.assign.success webhook') continue;

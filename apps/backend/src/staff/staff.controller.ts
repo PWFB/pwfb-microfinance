@@ -19,7 +19,7 @@ export class StaffController {
 
   @Post('bvn/verify')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  initiateBvn(@Body() body: { bvn: string; firstName: string; lastName: string; middleName?: string; bankCode: string; accountNumber: string }) {
+  initiateBvn(@Body() body: { bvn: string; firstName: string; lastName: string; middleName?: string; phone: string; bankCode: string; accountNumber: string }) {
     return this.staffService.initiateBvnVerification(body);
   }
 

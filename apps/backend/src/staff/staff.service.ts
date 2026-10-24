@@ -34,7 +34,7 @@ export class StaffService {
     const lastName = String(input.lastName || '').trim();
     const phone = String(input.phone || '').trim();
     if (!firstName || !lastName) throw new BadRequestException('First name and last name are required');
-    if (!phone || phone.replace(/\\D/g, '').length < 10) throw new BadRequestException('A valid staff phone number is required for Paystack virtual-account assignment');
+    if (!phone || phone.replace(/\D/g, '').length < 10) throw new BadRequestException('A valid staff phone number is required for Paystack virtual-account assignment');
     const account = await this.paystack.resolveAccount(input.bankCode, input.accountNumber);
     const email = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}+kyc${Date.now()}@pwfb.com`;
     const customer = await this.paystack.createCustomer({ email, firstName, lastName, phone });

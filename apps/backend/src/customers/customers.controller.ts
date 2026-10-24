@@ -60,6 +60,12 @@ export class CustomersController {
     return this.customersService.overrideIdentity(id, body?.type, body?.value, body?.reason, req.user);
   }
 
+  @Post(':id/identity/verify')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF')
+  verifyIdentity(@Param('id') id: string, @Body() body: { bvn: string; bankCode: string; accountNumber: string }, @Req() req: any) {
+    return this.customersService.verifyIdentity(id, body, req.user);
+  }
+
   @Delete(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
   remove(@Param('id') id: string) { return this.customersService.remove(id); }

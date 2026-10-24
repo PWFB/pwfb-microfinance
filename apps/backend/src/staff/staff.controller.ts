@@ -39,6 +39,10 @@ export class StaffController {
   @Roles('SUPER_ADMIN', 'ADMIN')
   findAll(@Query() filter: StaffFilterDto) { return this.staffService.findAll(filter); }
 
+  @Get(':id/virtual-account')
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  virtualAccount(@Param('id') id: string) { return this.staffService.virtualAccount(id); }
+
   @Get(':id/assignments')
   @Roles('SUPER_ADMIN', 'ADMIN')
   assignmentHistory(@Param('id') id: string) { return this.staffService.assignmentHistory(id); }

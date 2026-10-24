@@ -83,6 +83,30 @@ describe('CustomerVirtualAccountService', () => {
     expect(prisma.customerVirtualAccount.create).not.toHaveBeenCalled();
   });
 
+  it('keeps a consented DVA request pending while customer KYC details are not verified yet', async () => {
+    prisma.customerVirtualAccount.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    prisma.customerVirtualAccount.create.mockResolvedValue({
+      id: 'pending-va-001',
+      customerId: customer.id,
+      consentAt: new Date(),
+      status: 'PENDING',
+      providerCustomerId: null,
+    });
+    prisma.$queryRawUnsafe.mockResolvedValue([]);
+
+    await service.ensure(customer.id, undefined, true);
+
+    expect(prisma.customerVirtualAccount.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'pending-va-001' },
+      data: expect.objectContaining({
+        status: 'PENDING',
+        failureReason: expect.stringContaining('Awaiting verified customer BVN'),
+      }),
+    }));
+  });
+
   it('rejects provisioning for a customer that does not exist', async () => {
     prisma.customer.findUnique.mockResolvedValue(null);
 

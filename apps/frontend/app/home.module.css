@@ -325,3 +325,78 @@
     width: 100%;
   }
 }
+
+
+/* LAB MICROFINANCE brand hierarchy and responsive readability */
+.header { padding: 18px clamp(18px, 4vw, 56px); background: #064b2b; }
+.brand { gap: 14px; text-decoration: none; flex-shrink: 0; }
+.brandLogo { width: 92px; max-height: 76px; object-fit: contain; }
+.brandText { color: #fff; font-size: clamp(18px, 1.7vw, 25px); font-weight: 900; letter-spacing: -.035em; white-space: nowrap; }
+.nav { gap: clamp(12px, 1.8vw, 25px); }
+.nav a { font-size: 15px; }
+.hero { background: radial-gradient(circle at 82% 12%, rgba(247,195,66,.24), transparent 28%), linear-gradient(125deg,#064b2b 0%,#08723b 64%,#0a5734 100%); }
+.heroInner { width: min(100%, 1100px); padding: clamp(52px, 7vw, 88px) 24px clamp(58px, 7vw, 92px); }
+.heroBrand { max-width: 850px; margin: 0 auto; }
+.heroLogo { width: min(390px, 78vw); margin-bottom: 22px; }
+.eyebrow { font-size: 14px; letter-spacing: .2em; color: #ffe4a0; }
+.heroBrand h1 { margin: 4px 0 0; font-size: clamp(40px, 7.4vw, 82px); line-height: 1.02; font-weight: 950; letter-spacing: -.055em; }
+.tagline { margin: 15px 0 30px; color: #ffe7ad; font-size: clamp(17px, 2.5vw, 24px); font-weight: 700; letter-spacing: .015em; }
+.hero h2 { margin: 0; font-size: clamp(27px, 4vw, 42px); line-height: 1.15; }
+.heroText { max-width: 760px; font-size: clamp(18px, 2.2vw, 23px); }
+.loginButton, .registerButton, .downloadButton { min-height: 58px; min-width: 190px; padding: 0 28px; font-size: 16px; border-radius: 14px; }
+.loginButton { color: #075d2a; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.registerButton { background: #f7c342; color: #183a27; }
+.loginHint { margin: 18px 0 0; color: rgba(255,255,255,.82); font-size: 14px; }
+.section { padding-top: clamp(48px, 6vw, 76px); padding-bottom: 24px; }
+.sectionHeading { max-width: 800px; }
+.sectionEyebrow { font-size: 13px; letter-spacing: .16em; color: #08723b; }
+.sectionHeading h2, .trustSection h2 { font-size: clamp(28px, 4vw, 42px); line-height: 1.15; letter-spacing: -.03em; }
+.sectionHeading > p:last-child, .trustSection p:not(.sectionEyebrow) { color: #52665a; font-size: 17px; line-height: 1.7; }
+.moduleGrid { gap: 22px; }
+.moduleCard { min-height: 250px; padding: 26px; transition: transform .18s ease, box-shadow .18s ease; }
+.moduleCard:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(15,23,42,.1); }
+.moduleIcon { width: 58px; height: 58px; font-size: 28px; }
+.moduleCard h3 { font-size: 23px; }
+.moduleCard p { font-size: 15px; line-height: 1.7; }
+.moduleLink { font-size: 15px; }
+.trustSection { display:flex; align-items:center; justify-content:space-between; gap:32px; width:min(1180px,calc(100% - 48px)); margin:48px auto 64px; padding:clamp(26px,4vw,44px); border:1px solid #dce9df; border-radius:24px; background:linear-gradient(120deg,#edf8f0,#fff9e9); }
+.trustSection > div { max-width:720px; }
+.trustSection h2 { margin:0 0 12px; color:#064b2b; }
+.trustSection p:not(.sectionEyebrow) { margin-bottom:0; }
+.footer { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:14px 18px; padding:26px 20px; background:#064b2b; font-size:14px; }
+.footer img { width:42px; height:42px; object-fit:contain; }
+.footer div { display:flex; flex-direction:column; gap:3px; text-align:left; }
+.footer strong { font-size:18px; letter-spacing:.01em; }
+.footer span { color:#ffe7ad; font-size:12px; }
+.footer small { flex-basis:100%; color:rgba(255,255,255,.75); text-align:center; font-size:12px; }
+@media (max-width: 900px) {
+ .header { gap:16px; }
+ .brandLogo { width:72px; }
+ .brandText { font-size:20px; white-space:normal; }
+ .nav a { font-size:14px; }
+ .trustSection { align-items:flex-start; flex-direction:column; }
+}
+@media (max-width: 640px) {
+ .header { align-items:center; flex-direction:column; padding:16px 14px; }
+ .brand { justify-content:center; }
+ .brandLogo { width:64px; }
+ .brandText { font-size:21px; }
+ .nav { justify-content:flex-start; gap:18px; }
+ .nav a { font-size:14px; }
+ .heroInner { padding:44px 16px 54px; }
+ .heroLogo { width:min(320px,84vw); }
+ .heroBrand h1 { font-size:clamp(35px, 10vw, 48px); }
+ .tagline { font-size:17px; line-height:1.5; }
+ .hero h2 { font-size:30px; }
+ .heroText { font-size:17px; }
+ .heroActions { flex-direction:column; align-items:stretch; }
+ .loginButton,.registerButton,.downloadButton { width:100%; min-height:56px; flex:auto; font-size:16px; }
+ .section { width:calc(100% - 32px); }
+ .sectionHeading h2,.trustSection h2 { font-size:29px; }
+ .sectionHeading > p:last-child,.trustSection p:not(.sectionEyebrow) { font-size:16px; }
+ .moduleGrid { grid-template-columns:1fr; }
+ .moduleCard { min-height:210px; }
+ .trustSection { width:calc(100% - 32px); margin:34px auto 42px; }
+ .footer { flex-direction:column; text-align:center; }
+ .footer div { text-align:center; }
+}

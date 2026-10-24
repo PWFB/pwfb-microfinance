@@ -25,9 +25,9 @@ Bubblewrap produces an App Bundle (`app-release-bundle.aab`) suitable for Play C
 
 ## Play Console
 
-Create the app in Google Play Console as an **Organization** account because PWFB is a financial service. Complete the developer verification, store listing, privacy policy, Data safety, app access/demo credentials and required declarations before submission.
+Create the app in Google Play Console as an **Organization** account because LAB MICROFINANCE is a financial service. Complete the developer verification, store listing, privacy policy, Data safety, app access/demo credentials and required declarations before submission.
 
-Use **Internal testing** first. Do not publish the production release until the PWFB login, customer, savings, loan, staff and transaction workflows have been tested on a real Android device.
+Use **Internal testing** first. Do not publish the production release until the LAB MICROFINANCE login, customer, savings, loan, staff and transaction workflows have been tested on a real Android device.
 
 ## Digital Asset Links
 

@@ -154,4 +154,7 @@ test("management pages receive rounded cards and bold black table columns", () =
   assert.ok(brandCss.includes("border-radius: 19px"));
   assert.ok(brandCss.includes("font-weight: 900 !important"));
   assert.ok(brandCss.includes("color: #171c19"));
+  assert.ok(brandCss.includes(".pwfb-content main .pwfb-stat-card > strong"));
+  assert.ok(brandCss.includes(".pwfb-content main .pwfb-operation-control-card"));
+  assert.ok(brandCss.includes("font-weight: 950 !important"));
 });

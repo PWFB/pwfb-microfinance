@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import { PermissionsService, PERMISSION_KEYS } from './permissions.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -17,13 +17,17 @@ export class PermissionsController {
   }
 
   @Get('wallet')
-  @Roles('SUPER_ADMIN','ADMIN')
+  @Roles('SUPER_ADMIN')
   list() { return this.permissions.list(); }
 
   @Patch('wallet')
-  @Roles('SUPER_ADMIN','ADMIN')
+  @Roles('SUPER_ADMIN')
   async update(@Body() body: { role: string; permission: string; enabled: boolean }) {
-    if (!PERMISSION_KEYS.includes(body.permission as any)) throw new Error('Invalid permission');
-    return this.permissions.set(body.role, body.permission as any, Boolean(body.enabled));
+    const role = String(body?.role || '').trim().toUpperCase();
+    const permission = String(body?.permission || '').trim().toUpperCase();
+    if (!role) throw new BadRequestException('A role is required');
+    if (!PERMISSION_KEYS.includes(permission as any)) throw new BadRequestException('Invalid permission');
+    if (typeof body?.enabled !== 'boolean') throw new BadRequestException('enabled must be a boolean');
+    return this.permissions.set(role, permission as any, body.enabled);
   }
 }

@@ -65,7 +65,12 @@ export default function CustomerAccountPage() {
   const name = [customer?.firstName, customer?.lastName].filter(Boolean).join(" ") || "Customer";
   const email = user?.email || customer?.email || "—";
   const phone = customer?.phone || "—";
-
+  const identity = customer?.identityVerification || {};
+  const isVerifiedStatus = (value: unknown) => ["VERIFIED", "OVERRIDDEN", "SUCCESS", "APPROVED"].includes(String(value || "").toUpperCase());
+  const bvnVerified = isVerifiedStatus(identity.bvnStatus);
+  const ninVerified = isVerifiedStatus(identity.ninStatus);
+  const currentTier = bvnVerified && ninVerified ? 2 : (bvnVerified || ninVerified ? 1 : 0);
+  const tierLabel = currentTier === 0 ? "Verification required" : `Tier ${currentTier}`;
 
   async function verifyAccount() {
     setMessage(""); setError(""); setAccountName(""); setAccountVerified(false); setCustomerNameVerified(false); setCustomerNameStatus("cust name not verified");
@@ -159,6 +164,37 @@ export default function CustomerAccountPage() {
             <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Email</p><p className="mt-1 break-all font-semibold text-slate-800">{email}</p></div>
             <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Phone</p><p className="mt-1 font-semibold text-slate-800">{phone}</p></div>
             <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs text-slate-500">Branch</p><p className="mt-1 break-all font-semibold text-slate-800">{customer?.branchId || "—"}</p></div>
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-sm">
+          <div className="bg-[#064d25] p-5 text-white sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-100">ACCOUNT TIER & LIMITS</p><h2 className="mt-1 text-xl font-extrabold">Your verification level</h2><p className="mt-1 text-sm text-emerald-100">Complete identity checks to request higher transaction limits.</p></div>
+              <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold">{tierLabel}</span>
+            </div>
+          </div>
+          <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5">
+            <div className={`rounded-xl border p-4 ${currentTier === 1 ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-center justify-between gap-2"><h3 className="font-extrabold text-slate-900">Tier 1</h3><span className="text-xs font-bold text-emerald-800">{currentTier === 1 ? "CURRENT" : "LEVEL 1"}</span></div>
+              <p className="mt-2 text-sm text-slate-600">BVN or NIN verified, plus complete basic profile.</p>
+              <dl className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-2"><dt className="text-slate-500">Single deposit cap</dt><dd className="font-bold text-slate-900">₦50,000</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Daily transfer cap</dt><dd className="font-bold text-slate-900">₦50,000</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Wallet balance cap</dt><dd className="font-bold text-slate-900">₦300,000</dd></div></dl>
+            </div>
+            <div className={`rounded-xl border p-4 ${currentTier === 2 ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-center justify-between gap-2"><h3 className="font-extrabold text-slate-900">Tier 2</h3><span className="text-xs font-bold text-emerald-800">{currentTier === 2 ? "CURRENT" : "LEVEL 2"}</span></div>
+              <p className="mt-2 text-sm text-slate-600">BVN and NIN both verified, with identity details matched.</p>
+              <dl className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-2"><dt className="text-slate-500">Single deposit cap</dt><dd className="font-bold text-slate-900">₦100,000</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Daily transfer cap</dt><dd className="font-bold text-slate-900">₦200,000</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Wallet balance cap</dt><dd className="font-bold text-slate-900">₦500,000</dd></div></dl>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-2"><h3 className="font-extrabold text-slate-900">Tier 3</h3><span className="text-xs font-bold text-amber-700">REVIEW REQUIRED</span></div>
+              <p className="mt-2 text-sm text-slate-600">Tier 2 plus valid government ID and recent proof of address, reviewed by PWFB.</p>
+              <dl className="mt-3 space-y-2 text-sm"><div className="flex justify-between gap-2"><dt className="text-slate-500">Deposit cap</dt><dd className="font-bold text-slate-900">Subject to approval</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Daily transfer cap</dt><dd className="font-bold text-slate-900">Up to ₦5,000,000*</dd></div><div className="flex justify-between gap-2"><dt className="text-slate-500">Wallet balance cap</dt><dd className="font-bold text-slate-900">Subject to approval</dd></div></dl>
+            </div>
+          </div>
+          <div className="border-t border-slate-100 px-5 py-4">
+            <p className="text-sm font-bold text-slate-900">Loan eligibility is assessed separately</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">A higher KYC tier does not guarantee a loan. Loan amount and payout depend on verified income, repayment history, affordability, credit assessment, available funds and authorised approval. Your approved offer will be shown in My Loans.</p>
+            <div className="mt-3 flex flex-wrap gap-2"><Link href="/customer-loans" className="rounded-xl bg-[#087534] px-4 py-2.5 text-sm font-bold text-white">View loan eligibility</Link><span className="self-center text-xs text-slate-500">*Provider benchmark only; PWFB limits must be approved and enforced by the backend before use.</span></div>
           </div>
         </section>
 

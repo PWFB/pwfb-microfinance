@@ -81,9 +81,15 @@ export default function CustomerDepositPage() {
     setAccountVerifying(true);
     try {
       const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, selectedBank.provider);
-      const name = String(result?.accountName || result?.name || result?.data?.accountName || result?.data?.name || "").trim();
-      if (!name) throw new Error("The bank did not return a verified account name.");
-      setFundingAccountName(name); setMessage("Funding account verified.");
+      const name = String(result?.accountName || result?.account_name || result?.name || result?.data?.accountName || result?.data?.account_name || result?.data?.name || "").trim();
+      if (!name || result?.verified !== true) {
+        const detail = String(result?.message || result?.data?.message || "").trim();
+        throw new Error(detail || "The bank provider did not confirm this account. Check the selected bank/provider and try again.");
+      }
+      if (result?.customerNameVerified !== true) {
+        throw new Error("The account name could not be matched to your PWFB profile. Please use your own bank account.");
+      }
+      setFundingAccountName(name); setMessage("Bank account and account-holder name verified.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Funding account verification failed."); }
     finally { setAccountVerifying(false); }
   }

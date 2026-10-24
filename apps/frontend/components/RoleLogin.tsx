@@ -12,7 +12,7 @@ type GooglePayload = { credential: string; client_id: string; nonce: string; log
 declare global {
   interface Window {
     google?: any;
-    LAB MICROFINANCENative?: {
+    PWFBNative?: {
       signInWithGoogle?: (loginMode?: string) => void;
       signInWithPasskey?: (loginMode?: string, identifier?: string) => void;
       registerPasskey?: (replaceExisting: boolean, token: string) => void;
@@ -95,7 +95,7 @@ export default function RoleLogin() {
     event.preventDefault(); setMessage(""); setLoading(mode);
     try {
       await completeLogin(await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ identifier: values[mode].trim(), password: passwords[mode], loginMode: mode }) }), mode);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to LAB MICROFINANCE"); setLoading(null); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to PWFB"); setLoading(null); }
   };
 
   const googleLogin = async (payload: GooglePayload) => {
@@ -107,8 +107,8 @@ export default function RoleLogin() {
   const biometricLogin = async (mode: LoginMode) => {
     setMessage(""); setLoading(mode);
     try {
-      if (nativeApp && window.LAB MICROFINANCENative?.signInWithPasskey) {
-        window.LAB MICROFINANCENative.signInWithPasskey(mode, values[mode].trim());
+      if (nativeApp && window.PWFBNative?.signInWithPasskey) {
+        window.PWFBNative.signInWithPasskey(mode, values[mode].trim());
         return;
       }
       const options = await apiRequest("/auth/passkey/login/options", { method: "POST", body: JSON.stringify({ email: values[mode].includes("@") ? values[mode].trim() : undefined }) });
@@ -118,7 +118,7 @@ export default function RoleLogin() {
   };
 
   useEffect(() => {
-    const app = typeof window !== "undefined" && !!window.LAB MICROFINANCENative;
+    const app = typeof window !== "undefined" && !!window.PWFBNative;
     setNativeApp(app);
     if (app) return;
     let active = true;
@@ -219,7 +219,7 @@ export default function RoleLogin() {
           <div className="pwfb-art-glow" />
           <div className="pwfb-art-card">
             <div className="pwfb-art-card-top"><span className="pwfb-art-mark">P</span><span className="pwfb-art-chip" /></div>
-            <small>LAB MICROFINANCE FINANCIAL SERVICES</small>
+            <small>PWFB FINANCIAL SERVICES</small>
             <strong>Your goals.<br />Your next chapter.</strong>
             <div className="pwfb-art-card-bottom"><span>SECURE ACCESS</span><span>✦</span></div>
           </div>
@@ -231,7 +231,7 @@ export default function RoleLogin() {
           <div><span className="pwfb-feature-icon">↗</span><span><b>Loans & repayments</b><small>Follow your loan journey</small></span></div>
           <div><span className="pwfb-feature-icon">⌑</span><span><b>Security first</b><small>Sign in with trusted methods</small></span></div>
         </div>
-        <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with LAB MICROFINANCE.</p>
+        <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with PWFB.</p>
       </section>
 
       <section className={"pwfb-login-shell " + selectedCard.tone}>
@@ -371,7 +371,7 @@ export default function RoleLogin() {
                 disabled={loading !== null}
                 onClick={() => {
                   setLoading(selectedCard.mode);
-                  window.LAB MICROFINANCENative?.signInWithGoogle?.(selectedCard.mode);
+                  window.PWFBNative?.signInWithGoogle?.(selectedCard.mode);
                 }}
               >
                 <strong>G</strong>

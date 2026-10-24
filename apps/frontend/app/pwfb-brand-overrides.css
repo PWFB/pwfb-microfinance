@@ -22,3 +22,70 @@
 [class*="bg-[#075d2a]"]{background-color:#0a5c28!important}
 [class*="bg-[#087534]"]{background-color:#0f7b35!important}
 [class*="hover:bg-[#075d2a]"]:hover{background-color:#0a5c28!important}
+
+
+/* PWFB management surface cleanup: rounded cards, high-contrast data, and calmer tables. */
+.pwfb-content main { color: #111827; }
+.pwfb-content main .pwfb-page-title { color: #111827 !important; font-weight: 900; letter-spacing: -.025em; }
+.pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel, .report-link, .pwfb-banking-operation, .pwfb-operation-control-center) {
+  border-radius: 19px;
+}
+.pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel) {
+  border-color: #e0e6e2;
+  box-shadow: 0 8px 24px rgba(20, 32, 24, .055);
+}
+.pwfb-content main :is(.pwfb-panel-header h2, .report-head h2, .pwfb-operation-control-header h2, h2.section-title, .report-stat strong) {
+  color: #111827 !important;
+  font-weight: 850;
+  letter-spacing: -.015em;
+}
+.pwfb-content main :is(.pwfb-table, table) { width: 100%; border-collapse: separate; border-spacing: 0; }
+.pwfb-content main :is(.pwfb-table, table) thead th {
+  color: #111827 !important;
+  background: #f3f6f4 !important;
+  font-size: 11px;
+  font-weight: 900 !important;
+  letter-spacing: .045em;
+  border-bottom: 1px solid #dfe6e1;
+}
+.pwfb-content main :is(.pwfb-table, table) tbody td {
+  color: #171c19;
+  font-weight: 650;
+  border-bottom: 1px solid #e8ede9;
+}
+.pwfb-content main :is(.pwfb-table, table) tbody tr:nth-child(even) td { background-color: #fbfcfb; }
+.pwfb-content main :is(.pwfb-table, table) tbody tr:hover td { background-color: #fff8ef; }
+.pwfb-content main :is(.pwfb-table, table) th,
+.pwfb-content main :is(.pwfb-table, table) td { padding-top: 13px; padding-bottom: 13px; }
+.pwfb-content main :is(input, select, textarea) { border-radius: 11px; color: #111827; }
+.pwfb-content main :is(.report-link, .pwfb-banking-operation) { transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.pwfb-content main :is(.report-link, .pwfb-banking-operation):hover {
+  border-color: #f28c18;
+  box-shadow: 0 9px 22px rgba(16, 24, 20, .09);
+}
+.pwfb-nav-group { margin-block: 2px; }
+.pwfb-nav-parent {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+.pwfb-nav-link-parent-active {
+  border-color: rgba(242, 140, 24, .32);
+  border-left: 3px solid #f28c18;
+  padding-left: 9px;
+  background: linear-gradient(90deg, rgba(242, 140, 24, .18), rgba(255, 255, 255, .075)) !important;
+}
+.pwfb-subnav { margin-left: 31px; padding-left: 10px; }
+.pwfb-subnav-link { min-height: 34px; border-radius: 9px; font-size: 11px; }
+.pwfb-subnav-link-active {
+  color: #fff !important;
+  background: rgba(255, 255, 255, .12) !important;
+  box-shadow: inset 3px 0 0 #f28c18;
+  font-weight: 850;
+}
+.pwfb-sidebar-status small { text-transform: uppercase; letter-spacing: .09em; }
+@media (max-width: 800px) {
+  .pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel) { border-radius: 16px; }
+  .pwfb-content main :is(.pwfb-table, table) { min-width: 680px; }
+}

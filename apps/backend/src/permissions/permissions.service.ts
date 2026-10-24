@@ -53,9 +53,9 @@ export class PermissionsService {
         "permission" TEXT NOT NULL,
         "enabled" BOOLEAN NOT NULL DEFAULT FALSE,
         "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT "RolePermission_role_permission_key" UNIQUE ("role", "permission")
       )
     `);
+    await this.prisma.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission" ("role", "permission")');
     await this.prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "RolePermission_role_idx" ON "RolePermission" ("role")');
   }
 

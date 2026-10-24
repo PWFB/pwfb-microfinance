@@ -49,6 +49,30 @@ export class CustomersService {
 
   async findAll(authUser?: any, search?: string) { const staff = authUser ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } }) : null; const q = String(search || '').trim(); const where: any = staff ? { assignedStaffId: staff.id } : {}; if (q) { where.OR = [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { id: { contains: q, mode: 'insensitive' } }, { phone: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }]; } return this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } }); }
 
+  async history(id: string, authUser: any) {
+    const customer = await this.findOne(id, authUser);
+    const [ledgerTransactions, walletTransactions] = await Promise.all([
+      this.prisma.transaction.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.walletTransaction.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' } }),
+    ]);
+    const legacy = ledgerTransactions.map((transaction) => ({
+      ...transaction, customer: { id, firstName: customer.firstName, lastName: customer.lastName },
+      source: 'LEDGER', status: 'COMPLETED', provider: null, providerReference: null,
+      reference: null, processedAt: transaction.createdAt, walletBalanceBefore: null, walletBalanceAfter: null,
+    }));
+    const wallet = walletTransactions.map((transaction) => ({
+      id: transaction.id, customerId: transaction.customerId,
+      customer: { id, firstName: customer.firstName, lastName: customer.lastName },
+      type: transaction.type, amount: transaction.amount, description: transaction.description,
+      createdAt: transaction.createdAt, updatedAt: transaction.createdAt, source: 'WALLET',
+      status: transaction.status, provider: transaction.provider, providerReference: transaction.providerReference,
+      reference: transaction.reference, processedAt: transaction.processedAt,
+      walletBalanceBefore: transaction.previousBalance, walletBalanceAfter: transaction.newBalance,
+      branchId: transaction.branchId, staffId: transaction.staffId, failureReason: transaction.failureReason,
+    }));
+    return [...legacy, ...wallet].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
   private maskIdentity(value?: string | null) { if (!value) return null; return `${'•'.repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`; }
   private async getIdentityVerification(customerId: string) { const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT id, bvn, bvn_status AS "bvnStatus", bvn_verified_at AS "bvnVerifiedAt", bvn_overridden_at AS "bvnOverriddenAt", bvn_override_by_email AS "bvnOverrideByEmail", bvn_override_reason AS "bvnOverrideReason", nin, nin_status AS "ninStatus", nin_verified_at AS "ninVerifiedAt", nin_overridden_at AS "ninOverriddenAt", nin_override_by_email AS "ninOverrideByEmail", nin_override_reason AS "ninOverrideReason", created_at AS "createdAt", updated_at AS "updatedAt" FROM customer_identity_verifications WHERE customer_id = $1`, customerId); const row = rows[0]; if (!row) return null; return { id: row.id, bvn: this.maskIdentity(row.bvn), bvnStatus: row.bvnStatus, bvnVerifiedAt: row.bvnVerifiedAt, bvnOverriddenAt: row.bvnOverriddenAt, bvnOverrideByEmail: row.bvnOverrideByEmail, bvnOverrideReason: row.bvnOverrideReason, nin: this.maskIdentity(row.nin), ninStatus: row.ninStatus, ninVerifiedAt: row.ninVerifiedAt, ninOverriddenAt: row.ninOverriddenAt, ninOverrideByEmail: row.ninOverrideByEmail, ninOverrideReason: row.ninOverrideReason, createdAt: row.createdAt, updatedAt: row.updatedAt }; }
 

@@ -1,5 +1,5 @@
 import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type CustomerVirtualAccountView = {
@@ -27,15 +27,6 @@ export class CustomerVirtualAccountService {
   private readonly baseUrl = process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co';
 
   constructor(private readonly prisma: PrismaService) {}
-
-  verifyWebhookSignature(rawBody: Buffer, signature?: string) {
-    const secret = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
-    if (!secret || !signature || !Buffer.isBuffer(rawBody)) return false;
-    const expected = createHmac('sha512', secret).update(rawBody).digest('hex');
-    const a = Buffer.from(expected, 'utf8');
-    const b = Buffer.from(String(signature).trim(), 'utf8');
-    return a.length === b.length && timingSafeEqual(a, b);
-  }
 
   private secret() {
     const key = process.env.PAYSTACK_SECRET_KEY?.trim();

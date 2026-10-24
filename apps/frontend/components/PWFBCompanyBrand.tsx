@@ -1,6 +1,6 @@
 "use client";
 
-export default function PWFBCompanyBrand({
+export default function LABCompanyBrand({
   small = false,
 }: {
   small?: boolean;
@@ -8,7 +8,7 @@ export default function PWFBCompanyBrand({
   return (
     <div
       className={`pwfb-company-brand ${small ? "pwfb-company-brand-small" : ""}`}
-      aria-label="PWFB Microfinance"
+      aria-label="LAB MICROFINANCE"
       style={{ display: "inline-flex", alignItems: "center", gap: small ? 9 : 12, minWidth: 0 }}
     >
       <span
@@ -31,7 +31,7 @@ export default function PWFBCompanyBrand({
           height={small ? 34 : 42}
           viewBox="0 0 100 100"
           role="img"
-          aria-label="PWFB logo"
+          aria-label="LAB MICROFINANCE logo"
         >
           <rect x="5" y="5" width="90" height="90" rx="20" fill="#0f7b35" />
           <path d="M25 27h12v46H25z" fill="#fff" />
@@ -54,7 +54,7 @@ export default function PWFBCompanyBrand({
             whiteSpace: "nowrap",
           }}
         >
-          PWFB
+          LAB
         </strong>
         <span
           style={{

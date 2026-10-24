@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "PWFB Microfinance",
-    short_name: "PWFB",
-    description: "PWFB Microfinance Management System",
+    name: "LAB MICROFINANCE",
+    short_name: "LAB",
+    description: "LAB MICROFINANCE Management System",
     start_url: "/",
     scope: "/",
     display: "standalone",

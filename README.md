@@ -1,2 +1,2 @@
 # pwfb-microfinance
-PWFB Microfinance Platform
+LAB MICROFINANCE Platform

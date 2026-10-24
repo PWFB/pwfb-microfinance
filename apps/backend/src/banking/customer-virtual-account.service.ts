@@ -238,6 +238,7 @@ export class CustomerVirtualAccountService {
     const institution = await this.paystackInstitution();
     let local = await this.prisma.staffVirtualAccount.findUnique({ where: { staffId } });
     if (local?.status === 'ACTIVE' && local.accountNumber) return this.getStaff(staffId);
+    if (local?.status === 'PENDING' && local.failureReason === 'Awaiting Paystack dedicatedaccount.assign.success webhook') return this.getStaff(staffId);
 
     if (!local) {
       local = await this.prisma.staffVirtualAccount.create({
@@ -268,7 +269,11 @@ export class CustomerVirtualAccountService {
       });
       const dva = result?.data || {};
       const accountNumber = String(dva.account_number || '').trim();
-      if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Paystack did not return a valid 10-digit account number');
+      if (!/^\d{10}$/.test(accountNumber)) {
+        // Paystack DVA assignment is asynchronous; do not mark an accepted request failed.
+        await this.prisma.staffVirtualAccount.update({ where: { staffId }, data: { status: 'PENDING', failureReason: 'Awaiting Paystack dedicatedaccount.assign.success webhook' } });
+        return this.getStaff(staffId);
+      }
 
       await this.prisma.staffVirtualAccount.update({
         where: { staffId },
@@ -320,14 +325,21 @@ export class CustomerVirtualAccountService {
       const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, include: { customer: true } });
       const preferredBank = process.env.PAYSTACK_DVA_PREFERRED_BANK?.trim();
       if (!preferredBank) throw new BadRequestException('PAYSTACK_DVA_PREFERRED_BANK is not configured');
+      let assigned = 0;
       for (const row of rows) {
+        if (row.failureReason === 'Awaiting Paystack dedicatedaccount.assign.success webhook') continue;
         const result = await this.request('/dedicated_account', { customer: customerCode, country: 'NG', preferred_bank: preferredBank });
         const dva = result?.data || {};
         const number = String(dva.account_number || '').trim();
-        if (!/^\d{10}$/.test(number)) throw new BadRequestException('Paystack did not return a valid 10-digit account number');
+        if (!/^\d{10}$/.test(number)) {
+          // The API may only acknowledge assignment here; the dedicated-account webhook supplies the account details.
+          await this.prisma.customerVirtualAccount.update({ where: { id: row.id }, data: { status: 'PENDING', failureReason: 'Awaiting Paystack dedicatedaccount.assign.success webhook' } });
+          continue;
+        }
         await this.prisma.customerVirtualAccount.update({ where: { id: row.id }, data: { accountNumber: number, accountName: String(dva.account_name || '').trim() || null, provider: 'PAYSTACK', providerCustomerId: customerCode, providerReference: String(dva.id ?? '').trim() || null, providerBankName: String(dva.bank?.name || '').trim() || null, status: 'ACTIVE', assignedAt: new Date(), failureReason: null } });
+        assigned++;
       }
-      return { ok: true, processed: true, status: rows.length ? 'ACTIVE' : 'NO_MATCHING_PENDING_ACCOUNT', stage: 'identity' };
+      return { ok: true, processed: true, status: assigned ? 'ACTIVE' : rows.length ? 'PENDING' : 'NO_MATCHING_PENDING_ACCOUNT', stage: 'identity' };
     }
 
     if (type === 'dedicatedaccount.assign.failed') {

@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "PWFB Microfinance",
-  "short_name": "PWFB",
-  "description": "PWFB Microfinance Management System",
+  "name": "LAB MICROFINANCE",
+  "short_name": "LAB",
+  "description": "LAB MICROFINANCE Management System",
   "lang": "en-NG",
   "dir": "ltr",
   "start_url": "/dashboard",

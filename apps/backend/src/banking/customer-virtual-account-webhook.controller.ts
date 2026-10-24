@@ -1,15 +1,20 @@
-import { Body, Controller, Headers, Post, Req } from '@nestjs/common';
+import { Body, Controller, Headers, Post, Req, UnauthorizedException } from '@nestjs/common';
+import { CustomerVirtualAccountService } from './customer-virtual-account.service';
 import { CustomerVirtualAccountWebhookService } from './customer-virtual-account-webhook.service';
+import { PaystackService } from '../staff/paystack.service';
 
 /**
- * Provider-neutral webhook boundary plus the real Flutterwave webhook entrypoint.
- *
- * Provider webhooks are not JWT-authenticated. Flutterwave requests are verified
- * with FLUTTERWAVE_WEBHOOK_SECRET_HASH against the exact raw request body.
+ * Provider-neutral webhook boundary plus provider-specific webhook entrypoints.
+ * Provider callbacks are unauthenticated at the JWT layer but must be verified
+ * with the relevant provider signature before any state change is made.
  */
 @Controller('webhooks/virtual-accounts')
 export class CustomerVirtualAccountWebhookController {
-  constructor(private readonly service: CustomerVirtualAccountWebhookService) {}
+  constructor(
+    private readonly service: CustomerVirtualAccountWebhookService,
+    private readonly virtualAccounts: CustomerVirtualAccountService,
+    private readonly paystack: PaystackService,
+  ) {}
 
   @Post('assign')
   assign(
@@ -44,11 +49,26 @@ export class CustomerVirtualAccountWebhookController {
   }
 
   /**
+   * Paystack sends identity-validation and DVA-assignment events asynchronously.
+   * Verify the HMAC against Nest's exact raw request body before processing them.
+   */
+  @Post('paystack')
+  async paystackAssignment(
+    @Headers('x-paystack-signature') signature: string,
+    @Body() body: any,
+    @Req() req: any,
+  ) {
+    const rawBody = req?.rawBody;
+    if (!Buffer.isBuffer(rawBody) || !this.paystack.verifyWebhookSignature(rawBody, signature)) {
+      throw new UnauthorizedException('Invalid Paystack webhook signature');
+    }
+    return this.virtualAccounts.handleAssignmentWebhook(body);
+  }
+
+  /**
    * Flutterwave DVA/static-account credit notification.
-   *
-   * Flutterwave signs the raw request body. The service validates the signature,
-   * accepts only successful NGN credits, resolves the destination virtual
-   * account, and credits the customer's wallet exactly once.
+   * The service validates Flutterwave's signature against the exact raw body,
+   * accepts only successful NGN credits, and credits the wallet exactly once.
    */
   @Post('flutterwave')
   flutterwave(

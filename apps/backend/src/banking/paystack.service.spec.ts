@@ -55,3 +55,35 @@ describe('PaystackService payment verification ownership', () => {
     expect((service as any).handleWebhook).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Paystack staff identity webhook reconciliation', () => {
+  it('marks a matching staff verification failed from the central webhook', async () => {
+    const prisma = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([{ id: 'verification-1' }]),
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+    };
+    const service = new PaystackService(prisma as any);
+
+    const result = await service.handleStaffBvnVerificationWebhook({
+      event: 'customeridentification.failed',
+      data: { customer_code: 'CUS_test_staff', reason: 'Account number or BVN is incorrect' },
+    });
+
+    expect(result).toMatchObject({ ok: true, processed: true, reference: 'CUS_test_staff', status: 'FAILED' });
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE "StaffBvnVerification"'),
+      null, null, null, null, 'FAILED', 'Account number or BVN is incorrect', 'CUS_test_staff',
+    );
+  });
+
+  it('ignores identity events that do not match staff onboarding', async () => {
+    const prisma = { $queryRawUnsafe: jest.fn().mockResolvedValue([]), $executeRawUnsafe: jest.fn() };
+    const service = new PaystackService(prisma as any);
+
+    await expect(service.handleStaffBvnVerificationWebhook({
+      event: 'customeridentification.success',
+      data: { customer_code: 'CUS_regular_customer' },
+    })).resolves.toMatchObject({ ok: true, ignored: true, reason: 'no-matching-staff-verification' });
+    expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled();
+  });
+});

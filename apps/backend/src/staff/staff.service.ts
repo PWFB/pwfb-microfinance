@@ -7,11 +7,12 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 import { StaffFilterDto } from './dto/staff-filter.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
+import { CustomerVirtualAccountService } from '../banking/customer-virtual-account.service';
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 
 @Injectable()
 export class StaffService {
-  constructor(private readonly staffRepository: StaffRepository, private readonly prisma: PrismaService, private readonly paystack: PaystackService) {}
+  constructor(private readonly staffRepository: StaffRepository, private readonly prisma: PrismaService, private readonly paystack: PaystackService, private readonly virtualAccounts: CustomerVirtualAccountService) {}
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.staffRepository.emailExists(email)) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
   private generateTemporaryPassword() { return `PWFB-${randomBytes(4).toString('hex').toUpperCase()}-${randomInt(1000, 10000)}`; }
@@ -26,15 +27,17 @@ export class StaffService {
 
   async paystackBanks() { return this.paystack.listBanks(); }
 
-  async initiateBvnVerification(input: { bvn: string; firstName: string; lastName: string; middleName?: string; bankCode: string; accountNumber: string }) {
+  async initiateBvnVerification(input: { bvn: string; firstName: string; lastName: string; middleName?: string; phone: string; bankCode: string; accountNumber: string }) {
     const bvn = String(input.bvn || '').replace(/\D/g, '');
     if (!/^\d{11}$/.test(bvn)) throw new BadRequestException('BVN must be exactly 11 digits');
     const firstName = String(input.firstName || '').trim();
     const lastName = String(input.lastName || '').trim();
+    const phone = String(input.phone || '').trim();
     if (!firstName || !lastName) throw new BadRequestException('First name and last name are required');
+    if (!phone || phone.replace(/\D/g, '').length < 10) throw new BadRequestException('A valid staff phone number is required for Paystack virtual-account assignment');
     const account = await this.paystack.resolveAccount(input.bankCode, input.accountNumber);
     const email = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}+kyc${Date.now()}@pwfb.com`;
-    const customer = await this.paystack.createCustomer({ email, firstName, lastName });
+    const customer = await this.paystack.createCustomer({ email, firstName, lastName, phone });
     const validation = await this.paystack.validateCustomer({ customerCode: customer.customerCode, bvn, firstName, lastName, middleName: input.middleName?.trim(), accountNumber: account.accountNumber, bankCode: account.bankCode });
     await this.ensureBvnVerificationTable();
     await this.prisma.$executeRawUnsafe(`INSERT INTO "StaffBvnVerification" ("id","reference","bvnHash","requestedFirstName","requestedLastName","status","message") VALUES ($1,$2,$3,$4,$5,'PENDING',$6) ON CONFLICT ("reference") DO UPDATE SET "bvnHash"=EXCLUDED."bvnHash","requestedFirstName"=EXCLUDED."requestedFirstName","requestedLastName"=EXCLUDED."requestedLastName","status"='PENDING',"message"=EXCLUDED."message","updatedAt"=CURRENT_TIMESTAMP`, randomUUID(), customer.customerCode, this.hashBvn(bvn), firstName, lastName, validation.message || 'Paystack BVN and bank-account verification in progress');
@@ -111,13 +114,58 @@ export class StaffService {
     const staffId = createStaffDto.staffId || await this.generateStaffId();
     try {
       const result = await this.staffRepository.createWithUser(registrationData, { staffId, email, password }, undefined);
-      return { message: 'Staff created successfully', staff: result.staff, login: { email, temporaryPassword }, bvn: { verified: true, provider: 'PAYSTACK', reference, legalName: verification.fullName } };
+      // Store verification state without persisting the raw BVN.
+      await this.prisma.staff.update({
+        where: { id: result.staff.id },
+        data: { bvnVerified: true, bvnVerifiedAt: new Date(), bvnVerifiedName: verification.fullName },
+      });
+      let virtualAccount: any = null;
+      let virtualAccountWarning: string | null = null;
+      if (String(result.staff.employmentStatus) === 'ACTIVE') {
+        try {
+          virtualAccount = await this.virtualAccounts.ensureStaff(result.staff.id, reference);
+        } catch (error) {
+          virtualAccountWarning = error instanceof Error ? error.message : 'Paystack staff account assignment is pending';
+          try { virtualAccount = await this.virtualAccounts.getStaff(result.staff.id); } catch { virtualAccount = null; }
+        }
+      } else {
+        // Preserve the verified Paystack customer reference so activation can
+        // provision the DVA later without asking staff to repeat BVN verification.
+        const institution = await this.prisma.bankInstitution.upsert({
+          where: { name: 'Paystack' },
+          update: { active: true, type: 'PAYMENT_PROVIDER', shortName: 'Paystack' },
+          create: { name: 'Paystack', shortName: 'Paystack', type: 'PAYMENT_PROVIDER', active: true },
+        });
+        await this.prisma.staffVirtualAccount.upsert({
+          where: { staffId: result.staff.id },
+          update: { institutionId: institution.id, provider: 'PAYSTACK', providerCustomerCode: reference, status: 'PENDING', failureReason: 'Awaiting staff approval and activation' },
+          create: { id: randomUUID(), staffId: result.staff.id, institutionId: institution.id, provider: 'PAYSTACK', providerCustomerCode: reference, status: 'PENDING', failureReason: 'Awaiting staff approval and activation' },
+        });
+        virtualAccountWarning = 'Account assignment will start after the staff member is approved and activated.';
+      }
+      return { message: 'Staff created successfully', staff: { ...result.staff, bvnVerified: true, bvnVerifiedAt: new Date(), bvnVerifiedName: verification.fullName }, login: { email, temporaryPassword }, bvn: { verified: true, provider: 'PAYSTACK', reference, legalName: verification.fullName }, virtualAccount, virtualAccountWarning };
     } catch (error) { throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create staff'); }
   }
 
   async findAll(filter?: StaffFilterDto) { const staff = await this.staffRepository.findAll(); if (!filter) return staff; return staff.filter((member) => { const departmentMatch = !filter.department || member.department.name === filter.department; const branchMatch = !filter.branch || member.branch.name === filter.branch; const statusMatch = !filter.employmentStatus || member.employmentStatus === filter.employmentStatus; const searchMatch = !filter.search || `${member.firstName} ${member.lastName}`.toLowerCase().includes(filter.search.toLowerCase()); return departmentMatch && branchMatch && statusMatch && searchMatch; }); }
+  virtualAccount(id: string) { return this.virtualAccounts.getStaff(id); }
   findOne(id: string) { return this.staffRepository.findOne(id); }
-  update(id: string, updateStaffDto: UpdateStaffDto) { return this.staffRepository.update(id, updateStaffDto); }
+  async update(id: string, updateStaffDto: UpdateStaffDto) {
+    const updated = await this.staffRepository.update(id, updateStaffDto);
+    // If an approved, BVN-verified employee is activated later, resume the
+    // pending DVA assignment using the provider customer code saved at creation.
+    if (String(updated.employmentStatus) === 'ACTIVE' && updated.bvnVerified) {
+      try {
+        const account = await this.virtualAccounts.getStaff(id);
+        const customerCode = String(account?.providerCustomerCode || '').trim();
+        if (customerCode) await this.virtualAccounts.ensureStaff(id, customerCode);
+      } catch {
+        // Staff activation must remain successful; the virtual-account endpoint
+        // exposes pending/failed state for safe retry and operational follow-up.
+      }
+    }
+    return updated;
+  }
   remove(id: string) { return this.staffRepository.remove(id); }
   assign(id: string, body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) { return this.staffRepository.createAssignment(id, body); }
   assignmentHistory(id: string) { return this.staffRepository.assignmentHistory(id); }

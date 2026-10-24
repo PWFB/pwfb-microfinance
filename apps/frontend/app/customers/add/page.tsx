@@ -15,6 +15,7 @@ export default function AddCustomerPage() {
   const [form, setForm] = useState<CustomerForm>(initialForm);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [virtualAccountConsent, setVirtualAccountConsent] = useState(false);
   const fullName = useMemo(() => [form.firstName, form.middleName, form.lastName].filter(Boolean).join(" "), [form.firstName, form.middleName, form.lastName]);
   const initials = useMemo(() => [form.firstName, form.lastName].filter(Boolean).map((v) => v[0]?.toUpperCase()).join("") || "P", [form.firstName, form.lastName]);
   const completed = [form.firstName, form.lastName, form.phone].filter(Boolean).length;
@@ -23,26 +24,22 @@ export default function AddCustomerPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setLoading(true); setMessage("");
     try {
-      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify(form) });
+      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent }) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
       if (!customerId) {
         setMessage("Customer profile was submitted, but the server response did not include a customer ID. Wallet and virtual-account setup could not be confirmed.");
         window.setTimeout(() => router.push("/customers"), 1800);
         return;
       }
-      if (customerId) {
-        await pwfbApi.banking.customerWallet(customerId);
-        try {
-          await pwfbApi.banking.ensureCustomerVirtualAccount(customerId);
-        } catch (virtualAccountError) {
-          const reason = virtualAccountError instanceof Error ? virtualAccountError.message : "Virtual account provisioning is pending.";
-          setMessage(`Customer profile and wallet created successfully. Virtual account provisioning is pending: ${reason}`);
-          window.setTimeout(() => router.push(`/customers/view/${customerId}`), 1600);
-          return;
-        }
+      const assignedAccounts = Array.isArray(created?.virtualAccounts) ? created.virtualAccounts : [];
+      const activeAccount = assignedAccounts.find((account: any) => account?.provider === "PAYSTACK" && account?.status === "ACTIVE" && account?.accountNumber);
+      if (activeAccount) {
+        setMessage("Customer profile created and Paystack virtual account assigned.");
+      } else {
+        const reason = String(created?.virtualAccountWarning || "Account assignment is waiting for identity verification and Paystack confirmation.");
+        setMessage("Customer profile created. Virtual account is pending. " + reason);
       }
-      setMessage("Customer profile, wallet and virtual account are ready.");
-      window.setTimeout(() => router.push("/customers"), 1100);
+      window.setTimeout(() => router.push("/customers/view/" + customerId), 1600);
     }
     catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create customer."); }
     finally { setLoading(false); }
@@ -85,7 +82,11 @@ export default function AddCustomerPage() {
             <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
             <div className={styles.gridTwo}>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
-              <div className={styles.infoBox}><span>✓</span><div><b>Ready for financial services</b><small>The customer wallet is created automatically and the virtual-account provisioning flow starts after registration.</small></div></div>
+              <div className={styles.infoBox}><span>✓</span><div><b>PWFB Microfinance virtual account</b><small>Paystack assigns the account only after required identity checks and confirmation.</small></div></div>
+              <label className={styles.full} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
+              <input type="checkbox" checked={virtualAccountConsent} onChange={(e) => setVirtualAccountConsent(e.target.checked)} required style={{ width: 18, height: 18, marginTop: 3 }} />
+              <span>I confirm the customer has expressly consented to PWFB Microfinance sharing their details with Paystack for identity validation and dedicated virtual-account creation.</span>
+              </label>
             </div>
           </section>
           {message && <div className={message.includes("successfully") || message.includes("ready") ? styles.success : styles.error}>{message}</div>}

@@ -16,9 +16,10 @@ export class CustomersService {
   private async generateCustomerId() { const count = await this.prisma.customer.count(); let number = count + 1; let customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; while (await this.prisma.customer.findUnique({ where: { id: customerId } })) { number++; customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; } return customerId; }
 
   async create(dto: CreateCustomerDto, authUser: any) {
+    if (dto.virtualAccountConsent !== true) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
     const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id }, include: { branch: true } });
     if (!staff) throw new UnauthorizedException('Staff account is not linked to a staff record');
-    const customerId = await this.generateCustomerId(); const email = await this.generateLoginEmail(dto.firstName, dto.lastName); const temporaryPassword = this.generateTemporaryPassword(); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    const customerId = await this.generateCustomerId(); const email = String(dto.email || '').trim().toLowerCase() || await this.generateLoginEmail(dto.firstName, dto.lastName); const temporaryPassword = this.generateTemporaryPassword(); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         let group: any = null;
@@ -31,7 +32,7 @@ export class CustomersService {
       let virtualAccounts: any[] = [];
       let virtualAccountWarning: string | null = null;
       try {
-        virtualAccounts = await this.customerVirtualAccounts.ensure(result.customer.id);
+        virtualAccounts = await this.customerVirtualAccounts.ensure(result.customer.id, undefined, true);
       } catch (error) {
         virtualAccountWarning = error instanceof Error ? error.message : 'Customer virtual account provisioning is pending';
         try { virtualAccounts = await this.customerVirtualAccounts.list(result.customer.id); } catch { virtualAccounts = []; }

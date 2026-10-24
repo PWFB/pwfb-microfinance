@@ -19,7 +19,7 @@ export class StaffController {
 
   @Post('bvn/verify')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  initiateBvn(@Body() body: { bvn: string; firstName: string; lastName: string; middleName?: string; bankCode: string; accountNumber: string }) {
+  initiateBvn(@Body() body: { bvn: string; firstName: string; lastName: string; middleName?: string; phone: string; bankCode: string; accountNumber: string }) {
     return this.staffService.initiateBvnVerification(body);
   }
 
@@ -38,6 +38,10 @@ export class StaffController {
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN')
   findAll(@Query() filter: StaffFilterDto) { return this.staffService.findAll(filter); }
+
+  @Get(':id/virtual-account')
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  virtualAccount(@Param('id') id: string) { return this.staffService.virtualAccount(id); }
 
   @Get(':id/assignments')
   @Roles('SUPER_ADMIN', 'ADMIN')

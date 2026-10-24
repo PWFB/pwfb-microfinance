@@ -1,7 +1,6 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { FlutterwaveService } from './flutterwave.service';
 
 export type CustomerVirtualAccountView = {
   id: string;
@@ -15,6 +14,8 @@ export type CustomerVirtualAccountView = {
   provider: string | null;
   providerCustomerId?: string | null;
   providerReference: string | null;
+  providerBankName: string | null;
+  brandName: string;
   status: 'PENDING' | 'ACTIVE' | 'FAILED' | 'INACTIVE';
   requestedAt: Date;
   assignedAt: Date | null;
@@ -23,13 +24,52 @@ export type CustomerVirtualAccountView = {
 
 @Injectable()
 export class CustomerVirtualAccountService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly flutterwave: FlutterwaveService,
-  ) {}
+  private readonly baseUrl = process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co';
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  private secret() {
+    const key = process.env.PAYSTACK_SECRET_KEY?.trim();
+    if (!key) throw new BadRequestException('PAYSTACK_SECRET_KEY is not configured');
+    return key;
+  }
+
+  /** Paystack test-mode DVAs require the test-bank provider slug. Never infer a live bank. */
+  private preferredBank() {
+    const key = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
+    // Paystack's documented test-mode DVA provider is test-bank, even if a
+    // production provider slug remains configured in the staging environment.
+    if (key.startsWith('sk_test_')) return 'test-bank';
+    const configured = String(process.env.PAYSTACK_DVA_PREFERRED_BANK || '').trim();
+    if (configured) return configured;
+    throw new BadRequestException('PAYSTACK_DVA_PREFERRED_BANK must be set to an approved Paystack bank slug');
+  }
+
+  private async request(path: string, body?: Record<string, unknown>) {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: body ? 'POST' : 'GET',
+      headers: {
+        Authorization: `Bearer ${this.secret()}`,
+        'Content-Type': 'application/json',
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    const data = await response.json().catch(() => null);
+    if (response.status >= 500) throw new BadGatewayException(data?.message || 'Paystack is temporarily unavailable');
+    if (!response.ok || !data?.status) throw new BadRequestException(data?.message || 'Paystack DVA assignment failed');
+    return data;
+  }
+
+  private async paystackInstitution() {
+    return this.prisma.bankInstitution.upsert({
+      where: { name: 'Paystack' },
+      update: { active: true, type: 'PAYMENT_PROVIDER', shortName: 'Paystack' },
+      create: { name: 'Paystack', shortName: 'Paystack', type: 'PAYMENT_PROVIDER', active: true },
+    });
+  }
 
   private async get(customerId: string): Promise<CustomerVirtualAccountView[]> {
-    return this.prisma.$queryRaw<CustomerVirtualAccountView[]>`
+    return this.prisma.$queryRaw<CustomerVirtualAccountView[]> `
       SELECT
         cva."id",
         cva."customerId",
@@ -42,6 +82,8 @@ export class CustomerVirtualAccountService {
         cva."provider",
         cva."providerCustomerId",
         cva."providerReference",
+        cva."providerBankName",
+        'PWFB Microfinance'::text AS "brandName",
         cva."status",
         cva."requestedAt",
         cva."assignedAt",
@@ -54,151 +96,281 @@ export class CustomerVirtualAccountService {
   }
 
   async list(customerId: string) {
-    const customer = await this.prisma.customer.findUnique({
-      where: { id: customerId },
-      select: { id: true },
-    });
-
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
     if (!customer) throw new NotFoundException('Customer not found');
     return this.get(customerId);
   }
 
-  async ensure(customerId: string, institutionId?: string) {
+  async ensure(customerId: string, institutionId?: string, consentConfirmed = false) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
       select: {
         id: true,
         branchId: true,
         firstName: true,
+        middleName: true,
         lastName: true,
         email: true,
         phone: true,
         user: { select: { email: true } },
       },
     });
-
     if (!customer) throw new NotFoundException('Customer not found');
 
     const requestedInstitution = String(institutionId || '').trim();
-    const institution = requestedInstitution
-      ? await this.prisma.bankInstitution.findFirst({
-          where: {
-            OR: [
-              { id: requestedInstitution },
-              { code: requestedInstitution },
-            ],
-          },
-          select: { id: true, active: true },
-        })
-      : null;
-
-    if (requestedInstitution && !institution) {
-      throw new NotFoundException('Bank or payment institution not found');
-    }
-    if (institution && !institution.active) {
-      throw new BadRequestException('Bank or payment institution is inactive');
+    if (requestedInstitution) {
+      const requested = await this.prisma.bankInstitution.findFirst({
+        where: { OR: [{ id: requestedInstitution }, { code: requestedInstitution }] },
+        select: { id: true, active: true, name: true },
+      });
+      if (!requested) throw new NotFoundException('Bank or payment institution not found');
+      if (!requested.active) throw new BadRequestException('Bank or payment institution is inactive');
+      if (requested.name.toLowerCase() !== 'paystack') {
+        throw new BadRequestException('Automatic customer account assignment is currently configured for Paystack only');
+      }
     }
 
-    const resolvedInstitutionId = institution?.id ?? null;
-
-    // Prefer a live/pending account first. If provisioning previously failed,
-    // reuse that same local row and provider customer ID so retries keep the
-    // same idempotency reference instead of creating duplicate provider records.
+    const institution = await this.paystackInstitution();
     const existing = (await this.prisma.customerVirtualAccount.findFirst({
-      where: {
-        customerId,
-        status: { in: ['PENDING', 'ACTIVE'] },
-      },
+      where: { customerId, provider: 'PAYSTACK', status: { in: ['PENDING', 'ACTIVE'] } },
       orderBy: { createdAt: 'desc' },
     })) ?? (await this.prisma.customerVirtualAccount.findFirst({
-      where: { customerId, status: 'FAILED' },
+      where: { customerId, provider: 'PAYSTACK', status: 'FAILED' },
       orderBy: { createdAt: 'desc' },
     }));
 
-    if (existing?.status === 'ACTIVE' && existing.accountNumber) {
-      return this.get(customerId);
-    }
+    if (existing?.status === 'ACTIVE' && existing.accountNumber) return this.get(customerId);
+    if (existing?.status === 'PENDING' && existing.providerCustomerId) return this.get(customerId);
+    if (!existing && !consentConfirmed) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
+    if (existing && !existing.consentAt && !consentConfirmed) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
 
-    const local = existing
-      ? existing
-      : await this.prisma.customerVirtualAccount.create({
-          data: {
-            id: randomUUID(),
-            customerId,
-            institutionId: resolvedInstitutionId,
-            branchId: customer.branchId ?? null,
-            accountName: `${customer.firstName} ${customer.lastName}`.trim(),
-            status: 'PENDING',
-          },
-        });
+    const local = existing ?? await this.prisma.customerVirtualAccount.create({
+      data: {
+        id: randomUUID(),
+        customerId,
+        institutionId: institution.id,
+        branchId: customer.branchId ?? null,
+        provider: 'PAYSTACK',
+        consentAt: new Date(),
+        status: 'PENDING',
+      },
+    });
 
-    const email = String(customer.email ?? customer.user?.email ?? '').trim();
-    if (!email) {
-      const reason = 'Customer email is required to create a Flutterwave virtual account';
-      await this.prisma.customerVirtualAccount.update({
-        where: { id: local.id },
-        data: { status: 'FAILED', failureReason: reason },
-      });
+    const email = String(customer.email ?? customer.user?.email ?? '').trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      const reason = 'A valid customer email is required for Paystack DVA assignment';
+      await this.prisma.customerVirtualAccount.update({ where: { id: local.id }, data: { provider: 'PAYSTACK', status: 'FAILED', failureReason: reason } });
       throw new BadRequestException(reason);
     }
 
-    const narration = `${customer.firstName} ${customer.lastName}`.trim();
-    const reference = `pwfb-va-${customer.id}-${local.id}`;
-
+    let customerCode = String(local.providerCustomerId || '').trim();
     try {
-      const providerCustomer = local.providerCustomerId
-        ? { id: local.providerCustomerId }
-        : await this.flutterwave.createCustomer({
-            email,
-            firstName: customer.firstName,
-            lastName: customer.lastName,
-            phone: customer.phone,
-          });
-
-      // Persist the provider customer ID immediately. If virtual-account
-      // creation needs a retry, PWFB reuses the same Flutterwave customer
-      // instead of creating duplicate provider customers.
-      if (!local.providerCustomerId) {
+      const identityRows = await this.prisma.$queryRawUnsafe<any[]>(
+        'SELECT civ.bvn, civ.bvn_status AS "bvnStatus", cba."accountNumber" AS "accountNumber", bi.code AS "bankCode" FROM customer_identity_verifications civ JOIN "CustomerBankAccount" cba ON cba."customerId" = civ.customer_id JOIN "BankInstitution" bi ON bi.id = cba."institutionId" WHERE civ.customer_id = $1 AND UPPER(COALESCE(civ.bvn_status, \'\')) IN (\'VERIFIED\', \'APPROVED\') AND cba."verifiedAt" IS NOT NULL AND bi.code IS NOT NULL ORDER BY cba."isPrimary" DESC, cba."updatedAt" DESC LIMIT 1',
+        customer.id,
+      );
+      const identity = identityRows[0];
+      const bvn = String(identity?.bvn || '').replace(/\D/g, '');
+      const verifiedAccountNumber = String(identity?.accountNumber || '').replace(/\D/g, '');
+      const bankCode = String(identity?.bankCode || '').trim();
+      if (!/^\d{11}$/.test(bvn) || !/^\d{10}$/.test(verifiedAccountNumber) || !bankCode) {
+        // Customer registration can finish before KYC/bank verification. Keep the
+        // consented request retryable rather than marking it permanently failed.
+        // A later retry of ensure() will continue once verified identity data exists.
+        const reason = 'Awaiting verified customer BVN and bank-account details before Paystack can assign the virtual account.';
         await this.prisma.customerVirtualAccount.update({
           where: { id: local.id },
-          data: { provider: 'FLUTTERWAVE', providerCustomerId: providerCustomer.id },
+          data: {
+            status: 'PENDING',
+            consentAt: local.consentAt || new Date(),
+            failureReason: reason,
+          },
+        });
+        return this.get(customerId);
+      }
+      if (!customerCode) {
+        const created = await this.request('/customer', {
+          email,
+          first_name: customer.firstName,
+          last_name: customer.lastName,
+          phone: customer.phone || undefined,
+          metadata: { pwfbCustomerId: customer.id, provider: 'PAYSTACK_DVA', brand: 'PWFB Microfinance' },
+        });
+        customerCode = String(created?.data?.customer_code || '').trim();
+        if (!customerCode) throw new BadRequestException('Paystack did not return a customer code');
+        // Save the provider customer code before requesting the account, so a retry reuses it.
+        await this.prisma.customerVirtualAccount.update({
+          where: { id: local.id },
+          data: { institutionId: institution.id, branchId: customer.branchId ?? null, provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', failureReason: null },
         });
       }
 
-      const virtualAccount = await this.flutterwave.createStaticVirtualAccount({
-        customerId: providerCustomer.id,
-        reference,
-        narration,
+      const preferredBank = this.preferredBank();
+      await this.request('/customer/' + encodeURIComponent(customerCode) + '/identification', {
+        country: 'NG', type: 'bank_account', account_number: verifiedAccountNumber, bvn, bank_code: bankCode,
+        first_name: customer.firstName, ...(customer.middleName ? { middle_name: customer.middleName } : {}), last_name: customer.lastName,
       });
-
       await this.prisma.customerVirtualAccount.update({
         where: { id: local.id },
+        data: { institutionId: institution.id, branchId: customer.branchId ?? null, provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', consentAt: local.consentAt || new Date(), failureReason: 'Awaiting Paystack identity-validation webhook before account assignment' },
+      });
+      return this.get(customerId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Paystack DVA assignment failed';
+      await this.prisma.customerVirtualAccount.update({
+        where: { id: local.id },
+        data: { provider: 'PAYSTACK', status: 'FAILED', failureReason: reason.slice(0, 500) },
+      });
+      throw error;
+    }
+  }
+
+  async ensureStaff(staffId: string, verifiedPaystackCustomerCode: string) {
+    const staff = await this.prisma.staff.findUnique({
+      where: { id: staffId },
+      select: { id: true, staffId: true, firstName: true, lastName: true, employmentStatus: true },
+    });
+    if (!staff) throw new NotFoundException('Staff member not found');
+    if (staff.employmentStatus !== 'ACTIVE') throw new BadRequestException('A Paystack account is assigned only after staff approval and activation');
+
+    const customerCode = String(verifiedPaystackCustomerCode || '').trim();
+    if (!customerCode) throw new BadRequestException('Verified Paystack BVN customer reference is required');
+
+    const institution = await this.paystackInstitution();
+    let local = await this.prisma.staffVirtualAccount.findUnique({ where: { staffId } });
+    if (local?.status === 'ACTIVE' && local.accountNumber) return this.getStaff(staffId);
+    if (local?.status === 'PENDING' && local.failureReason === 'Awaiting Paystack dedicatedaccount.assign.success webhook') return this.getStaff(staffId);
+
+    if (!local) {
+      local = await this.prisma.staffVirtualAccount.create({
         data: {
-          institutionId: resolvedInstitutionId ?? local.institutionId,
-          branchId: customer.branchId ?? local.branchId,
-          accountNumber: virtualAccount.accountNumber,
-          accountName: virtualAccount.accountName ?? narration,
-          provider: 'FLUTTERWAVE',
-          providerCustomerId: providerCustomer.id,
-          providerReference: virtualAccount.providerReference,
+          id: randomUUID(),
+          staffId,
+          institutionId: institution.id,
+          provider: 'PAYSTACK',
+          providerCustomerCode: customerCode,
+          status: 'PENDING',
+        },
+      });
+    } else {
+      if (local.providerCustomerCode && local.providerCustomerCode !== customerCode) {
+        throw new BadRequestException('A different verified Paystack customer is already linked to this staff account');
+      }
+      local = await this.prisma.staffVirtualAccount.update({
+        where: { staffId },
+        data: { institutionId: institution.id, provider: 'PAYSTACK', providerCustomerCode: customerCode, status: 'PENDING', failureReason: null },
+      });
+    }
+
+    try {
+      const result = await this.request('/dedicated_account', {
+        customer: customerCode,
+        country: 'NG',
+        preferred_bank: this.preferredBank(),
+      });
+      const dva = result?.data || {};
+      const accountNumber = String(dva.account_number || '').trim();
+      if (!/^\d{10}$/.test(accountNumber)) {
+        // Paystack DVA assignment is asynchronous; do not mark an accepted request failed.
+        await this.prisma.staffVirtualAccount.update({ where: { staffId }, data: { status: 'PENDING', failureReason: 'Awaiting Paystack dedicatedaccount.assign.success webhook' } });
+        return this.getStaff(staffId);
+      }
+
+      await this.prisma.staffVirtualAccount.update({
+        where: { staffId },
+        data: {
+          institutionId: institution.id,
+          accountNumber,
+          accountName: String(dva.account_name || '').trim() || null,
+          bankName: String(dva.bank?.name || '').trim() || null,
+          provider: 'PAYSTACK',
+          providerCustomerCode: customerCode,
+          providerAccountId: String(dva.id ?? '').trim() || null,
           status: 'ACTIVE',
           assignedAt: new Date(),
           failureReason: null,
         },
       });
-
-      return this.get(customerId);
+      return this.getStaff(staffId);
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Flutterwave virtual account creation failed';
-      await this.prisma.customerVirtualAccount.update({
-        where: { id: local.id },
-        data: {
-          provider: 'FLUTTERWAVE',
-          status: 'FAILED',
-          failureReason: reason.slice(0, 500),
-        },
+      const reason = error instanceof Error ? error.message : 'Paystack staff DVA assignment failed';
+      await this.prisma.staffVirtualAccount.update({
+        where: { staffId },
+        data: { status: 'FAILED', failureReason: reason.slice(0, 500) },
       });
       throw error;
     }
+  }
+
+  async getStaff(staffId: string) {
+    const staff = await this.prisma.staff.findUnique({ where: { id: staffId }, select: { id: true } });
+    if (!staff) throw new NotFoundException('Staff member not found');
+    return this.prisma.staffVirtualAccount.findUnique({ where: { staffId }, include: { institution: true } });
+  }
+
+  async handleAssignmentWebhook(event: any) {
+    const type = String(event?.event || '');
+    const data = event?.data || {};
+    if (!['dedicatedaccount.assign.success', 'dedicatedaccount.assign.failed', 'customeridentification.success', 'customeridentification.failed'].includes(type)) {
+      return { ok: true, ignored: true, event: type };
+    }
+    const customerCode = String(data?.customer?.customer_code || data?.customer_code || '').trim();
+    if (!customerCode) return { ok: true, ignored: true, reason: 'missing-customer-code' };
+
+    if (type === 'customeridentification.failed') {
+      const reason = String(data?.reason || 'Paystack customer identity validation failed').slice(0, 500);
+      await this.prisma.customerVirtualAccount.updateMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, data: { status: 'FAILED', failureReason: reason } });
+      return { ok: true, processed: true, status: 'FAILED', stage: 'identity' };
+    }
+    if (type === 'customeridentification.success') {
+      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, include: { customer: true } });
+      const preferredBank = this.preferredBank();
+      let assigned = 0;
+      for (const row of rows) {
+        if (row.failureReason === 'Awaiting Paystack dedicatedaccount.assign.success webhook') continue;
+        const result = await this.request('/dedicated_account', { customer: customerCode, country: 'NG', preferred_bank: preferredBank });
+        const dva = result?.data || {};
+        const number = String(dva.account_number || '').trim();
+        if (!/^\d{10}$/.test(number)) {
+          // The API may only acknowledge assignment here; the dedicated-account webhook supplies the account details.
+          await this.prisma.customerVirtualAccount.update({ where: { id: row.id }, data: { status: 'PENDING', failureReason: 'Awaiting Paystack dedicatedaccount.assign.success webhook' } });
+          continue;
+        }
+        await this.prisma.customerVirtualAccount.update({ where: { id: row.id }, data: { accountNumber: number, accountName: String(dva.account_name || '').trim() || null, provider: 'PAYSTACK', providerCustomerId: customerCode, providerReference: String(dva.id ?? '').trim() || null, providerBankName: String(dva.bank?.name || '').trim() || null, status: 'ACTIVE', assignedAt: new Date(), failureReason: null } });
+        assigned++;
+      }
+      return { ok: true, processed: true, status: assigned ? 'ACTIVE' : rows.length ? 'PENDING' : 'NO_MATCHING_PENDING_ACCOUNT', stage: 'identity' };
+    }
+
+    if (type === 'dedicatedaccount.assign.failed') {
+      const reason = String(data?.reason || 'Paystack DVA assignment failed').slice(0, 500);
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' } },
+        data: { status: 'FAILED', failureReason: reason },
+      });
+      await this.prisma.staffVirtualAccount.updateMany({
+        where: { provider: 'PAYSTACK', providerCustomerCode: customerCode, status: { not: 'ACTIVE' } },
+        data: { status: 'FAILED', failureReason: reason },
+      });
+      return { ok: true, processed: true, status: 'FAILED' };
+    }
+
+    const dva = data?.dedicated_account || data;
+    const accountNumber = String(dva?.account_number || '').trim();
+    if (!/^\d{10}$/.test(accountNumber)) return { ok: true, ignored: true, reason: 'invalid-account-number' };
+    const accountName = String(dva?.account_name || '').trim() || null;
+    const bankName = String(dva?.bank?.name || '').trim() || null;
+    const providerReference = String(dva?.id ?? '').trim() || null;
+    const assignedAt = new Date();
+
+    await this.prisma.customerVirtualAccount.updateMany({
+      where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' } },
+      data: { accountNumber, accountName, providerBankName: bankName, providerReference, status: 'ACTIVE', assignedAt, failureReason: null },
+    });
+    await this.prisma.staffVirtualAccount.updateMany({
+      where: { provider: 'PAYSTACK', providerCustomerCode: customerCode, status: { not: 'ACTIVE' } },
+      data: { accountNumber, accountName, bankName, providerAccountId: providerReference, status: 'ACTIVE', assignedAt, failureReason: null },
+    });
+    return { ok: true, processed: true, status: 'ACTIVE' };
   }
 }

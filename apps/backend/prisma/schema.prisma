@@ -356,6 +356,7 @@ model Staff {
   salaryDisbursements SalaryDisbursement[]
   collections DailyCollection[]
   assignments StaffAssignment[]
+  virtualAccounts StaffVirtualAccount[]
   @@index([branchId])
   @@index([regionId])
   @@index([divisionId])
@@ -546,6 +547,7 @@ model BankInstitution {
   customerAccounts CustomerBankAccount[]
   branchAccounts BranchVirtualAccount[]
   virtualAccounts CustomerVirtualAccount[]
+  staffVirtualAccounts StaffVirtualAccount[]
   @@index([type])
   @@index([active])
 }
@@ -606,6 +608,8 @@ model CustomerVirtualAccount {
   accountName String?
   provider String?
   providerCustomerId String?
+  providerBankName String?
+  consentAt DateTime?
   providerReference String? @unique
   status String @default("PENDING")
   requestedAt DateTime @default(now())
@@ -621,6 +625,28 @@ model CustomerVirtualAccount {
   @@index([branchId])
   @@index([status])
   @@index([providerCustomerId])
+}
+
+model StaffVirtualAccount {
+  id String @id @default(cuid())
+  staffId String @unique
+  institutionId String?
+  accountNumber String? @unique
+  accountName String?
+  bankName String?
+  provider String?
+  providerCustomerCode String? @unique
+  providerAccountId String? @unique
+  status String @default("PENDING")
+  requestedAt DateTime @default(now())
+  assignedAt DateTime?
+  failureReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  staff Staff @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  institution BankInstitution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  @@index([institutionId])
+  @@index([status])
 }
 
 model CustomerWallet {

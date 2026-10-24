@@ -272,6 +272,67 @@ export class PaystackService {
     return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer);
   }
 
+  /**
+   * Reconcile staff BVN verification from the central Paystack webhook URL.
+   * Paystack integrations commonly have one configured webhook URL, so staff
+   * verification must also be handled by /webhooks/paystack rather than relying
+   * on the optional legacy /webhooks/staff/bvn/paystack route.
+   */
+  async handleStaffBvnVerificationWebhook(event: any) {
+    const eventName = String(event?.event || '').trim().toLowerCase();
+    if (!['customeridentification.success', 'customeridentification.failed'].includes(eventName)) {
+      return { ok: true, ignored: true, event: eventName };
+    }
+
+    const data = event?.data || {};
+    const reference = String(data?.customer_code || data?.customerCode || '').trim();
+    if (!reference) return { ok: true, ignored: true, reason: 'missing-customer-code' };
+
+    let rows: any[];
+    try {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        'SELECT id FROM "StaffBvnVerification" WHERE "reference" = $1 LIMIT 1',
+        reference,
+      );
+    } catch (error) {
+      // A customer-identification event may belong to an ordinary customer,
+      // not a staff registration. The customer DVA webhook handler processes it.
+      const message = error instanceof Error ? error.message : '';
+      if (/StaffBvnVerification.*does not exist|relation .* does not exist/i.test(message)) {
+        return { ok: true, ignored: true, reason: 'staff-verification-table-not-present' };
+      }
+      throw error;
+    }
+    if (!rows.length) return { ok: true, ignored: true, reason: 'no-matching-staff-verification' };
+
+    const failed = eventName.endsWith('.failed');
+    let firstName = String(data?.first_name || '').trim();
+    let middleName = String(data?.middle_name || '').trim();
+    let lastName = String(data?.last_name || '').trim();
+    if (!failed) {
+      const payload = await this.request(`/customer/${encodeURIComponent(reference)}`);
+      const customer = payload?.data || {};
+      firstName = String(customer.first_name || firstName).trim();
+      middleName = String(customer.middle_name || middleName).trim();
+      lastName = String(customer.last_name || lastName).trim();
+    }
+    const fullName = [firstName, middleName, lastName].filter(Boolean).join(' ').trim();
+    const message = failed
+      ? String(data?.reason || 'Paystack identity verification failed')
+      : 'Paystack identity verification completed';
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "StaffBvnVerification"
+       SET "firstName"=$1, "middleName"=$2, "lastName"=$3, "fullName"=$4,
+           "status"=$5, "message"=$6, "updatedAt"=CURRENT_TIMESTAMP,
+           "verifiedAt"=CASE WHEN $5='COMPLETED' THEN CURRENT_TIMESTAMP ELSE "verifiedAt" END
+       WHERE "reference"=$7`,
+      firstName || null, middleName || null, lastName || null, fullName || null,
+      failed ? 'FAILED' : 'COMPLETED', message, reference,
+    );
+    return { ok: true, processed: true, reference, status: failed ? 'FAILED' : 'COMPLETED' };
+  }
+
   async handleWebhook(event: any) {
     const eventName = String(event?.event || '').trim().toLowerCase();
     if (eventName.startsWith('transfer.')) {

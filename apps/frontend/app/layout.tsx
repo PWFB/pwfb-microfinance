@@ -8,10 +8,10 @@ import AppShell from "../components/AppShell";
 import PullToRefresh from "../components/PullToRefresh";
 
 export const metadata: Metadata = {
-  title: "PWFB Microfinance",
-  description: "PWFB Microfinance Management System",
+  title: "LAB MICROFINANCE",
+  description: "LAB MICROFINANCE Management System",
   manifest: "/manifest.webmanifest",
-  applicationName: "PWFB Microfinance",
+  applicationName: "LAB MICROFINANCE",
   themeColor: "#0a5c28",
   icons: {
     icon: "/pwfb-app-icon.svg",
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "PWFB Microfinance",
+    title: "LAB MICROFINANCE",
   },
 };
 

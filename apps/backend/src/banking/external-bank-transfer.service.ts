@@ -211,9 +211,9 @@ export class ExternalBankTransferService {
   async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string }) {
     const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
-    const accountNumber = String(input.accountNumber || '').replace(/\\D/g, '');
+    const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
     if (!bankCode) throw new BadRequestException('Bank code is required');
-    if (!/^\\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
+    if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
 
     const verified = await this.verifyCustomerBankAccount(input.customerId, bankCode, accountNumber, input.provider);

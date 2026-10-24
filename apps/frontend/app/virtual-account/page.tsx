@@ -53,19 +53,19 @@ export default function VirtualAccountPage() {
     <div className="mx-auto max-w-2xl px-4 pt-6">
       {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
       <section className="rounded-2xl bg-[#064d25] p-6 text-white shadow-lg">
-        <div className="flex items-center justify-between"><p className="text-xs font-bold tracking-wider text-emerald-100">PWFB REAL VIRTUAL ACCOUNT</p><span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">{active ? "ACTIVE" : account?.status || "PENDING"}</span></div>
+        <div className="flex items-center justify-between"><p className="text-xs font-bold tracking-wider text-emerald-100">PWFB MICROFINANCE VIRTUAL ACCOUNT</p><span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold">{active ? "ACTIVE" : account?.status || "PENDING"}</span></div>
         <p className="mt-7 text-xs text-emerald-100">Account number</p>
         <p className="mt-1 text-2xl font-black tracking-widest">{account?.accountNumber || "Being assigned"}</p>
         {active && <button onClick={copy} className="mt-4 rounded-lg bg-white px-4 py-2 text-sm font-bold text-emerald-800">Copy account number</button>}
       </section>
       <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm">
         <h2 className="font-bold text-slate-900">Account verification</h2>
-        <div className="mt-4 space-y-3 text-sm"><div className="flex justify-between gap-4"><span className="text-slate-500">Bank</span><b>{account?.institutionName || "Flutterwave assigned bank"}</b></div><div className="flex justify-between gap-4"><span className="text-slate-500">Account name</span><b className="text-right">{account?.accountName || "—"}</b></div><div className="flex justify-between gap-4"><span className="text-slate-500">Provider</span><b>{account?.provider || "FLUTTERWAVE"}</b></div><div className="flex justify-between gap-4"><span className="text-slate-500">Status</span><b className={active ? "text-emerald-700" : "text-amber-700"}>{active ? "Verified / Active" : account?.status || "Pending"}</b></div></div>
+        <div className="mt-4 space-y-3 text-sm"><div className="flex justify-between gap-4"><span className="text-slate-500">Bank</span><b>{account?.institutionName || "Paystack-assigned bank"}</b></div><div className="flex justify-between gap-4"><span className="text-slate-500">Account name</span><b className="text-right">{account?.accountName || "—"}</b></div><div className="flex justify-between gap-4"><span className="text-slate-500">Provider</span><b>{account?.provider || "PAYSTACK"}</b></div><div className="flex justify-between gap-4"><span className="text-slate-500">Status</span><b className={active ? "text-emerald-700" : "text-amber-700"}>{active ? "Verified / Active" : account?.status || "Pending"}</b></div></div>
         {account?.failureReason && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{account.failureReason}</p>}
       </section>
-      <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">How to fund your wallet</h2><ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600"><li>Transfer money from your bank to the virtual account number above.</li><li>Use the displayed account name and bank details exactly.</li><li>Wait for Flutterwave to confirm the incoming payment.</li><li>PWFB should credit the wallet only after a verified provider notification is processed.</li></ol></section>
+      <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">How to fund your wallet</h2><ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600"><li>Transfer money from your bank to the virtual account number above.</li><li>Use the displayed account name and bank details exactly.</li><li>Wait for Paystack to confirm the incoming payment.</li><li>PWFB should credit the wallet only after a verified provider notification is processed.</li></ol></section>
       <div className="mt-5 grid grid-cols-2 gap-3"><Link href="/banking?operation=cash-withdraw" className="rounded-xl bg-emerald-600 p-4 text-center font-bold text-white">Withdraw</Link><Link href="/banking?operation=transfer" className="rounded-xl border bg-white p-4 text-center font-bold text-slate-800">Transfer</Link></div>
-      {creating && <p className="mt-4 text-center text-sm text-slate-500">Creating your real Flutterwave virtual account...</p>}
+      {creating && <p className="mt-4 text-center text-sm text-slate-500">Requesting your Paystack virtual account...</p>}
     </div>
   </main>;
 }

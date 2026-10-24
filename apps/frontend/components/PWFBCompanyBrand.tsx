@@ -54,7 +54,7 @@ export default function PWFBCompanyBrand({
             whiteSpace: "nowrap",
           }}
         >
-          PWFB
+          LAB
         </strong>
         <span
           style={{

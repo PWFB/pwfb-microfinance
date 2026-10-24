@@ -49,6 +49,11 @@ export class PaystackController {
     const rawBody = req.rawBody as Buffer | undefined;
     if (!rawBody || !this.paystackService.verifyWebhookSignature(rawBody, signature)) throw new UnauthorizedException('Invalid Paystack webhook signature');
     const event = String(body?.event || '');
+    if (event === 'customeridentification.success' || event === 'customeridentification.failed') {
+      // Update a matching staff onboarding verification record from the same
+      // central webhook. Ordinary customer identity events safely return ignored.
+      await this.paystackService.handleStaffBvnVerificationWebhook(body);
+    }
     const dedicatedAssignment = event.startsWith('dedicatedaccount.') || event === 'customeridentification.success' || event === 'customeridentification.failed';
     const dedicatedDeposit = body?.data?.authorization?.channel === 'dedicated_nuban';
 

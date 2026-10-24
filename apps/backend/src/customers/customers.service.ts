@@ -18,7 +18,7 @@ export class CustomersService {
   async create(dto: CreateCustomerDto, authUser: any) {
     const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id }, include: { branch: true } });
     if (!staff) throw new UnauthorizedException('Staff account is not linked to a staff record');
-    const customerId = await this.generateCustomerId(); const email = await this.generateLoginEmail(dto.firstName, dto.lastName); const temporaryPassword = this.generateTemporaryPassword(); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    const customerId = await this.generateCustomerId(); const email = String(dto.email || '').trim().toLowerCase() || await this.generateLoginEmail(dto.firstName, dto.lastName); const temporaryPassword = this.generateTemporaryPassword(); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         let group: any = null;

@@ -166,11 +166,11 @@ export class CustomerVirtualAccountService {
     if (existingBank) {
       await this.prisma.customerBankAccount.update({
         where: { id: existingBank.id },
-        data: { institutionId: bank.id, accountName, verified: true, verifiedAccountName: accountName, verifiedAt: new Date() },
+        data: { institutionId: bank.id, accountName, status: 'ACTIVE', verifiedAt: new Date() },
       });
     } else {
       await this.prisma.customerBankAccount.create({
-        data: { customerId, institutionId: bank.id, accountNumber, accountName, isPrimary: !hasPrimary, verified: true, verifiedAccountName: accountName, verifiedAt: new Date() },
+        data: { customerId, institutionId: bank.id, accountNumber, accountName, isPrimary: !hasPrimary, status: 'ACTIVE', verifiedAt: new Date() },
       });
     }
 

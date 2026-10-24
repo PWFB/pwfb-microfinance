@@ -171,6 +171,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
   it('restores reserved funds when the provider definitively rejects a transfer', async () => {
     const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
     prisma.customerWallet.findUnique.mockResolvedValue(wallet);
+    currentTxWallet = wallet;
     jest.spyOn(service, 'transferToVerifiedAccount').mockResolvedValue({ status: 'FAILED', providerReference: 'TEST-FAILED-REF' } as any);
 
     const result = await service.transfer({
@@ -195,6 +196,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
   it('keeps funds reserved and does not auto-retry when provider outcome is uncertain', async () => {
     const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
     prisma.customerWallet.findUnique.mockResolvedValue(wallet);
+    currentTxWallet = wallet;
     jest.spyOn(service, 'transferToVerifiedAccount').mockRejectedValue(new Error('network timeout'));
 
     await expect(service.transfer({

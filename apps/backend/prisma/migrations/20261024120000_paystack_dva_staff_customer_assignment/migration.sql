@@ -33,14 +33,9 @@ CREATE INDEX IF NOT EXISTS "StaffVirtualAccount_status_idx" ON "StaffVirtualAcco
 
 DO $ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'StaffVirtualAccount_staffId_fkey' AND conrelid = '"StaffVirtualAccount"'::regclass) THEN
-    ALTER TABLE "StaffVirtualAccount" ADD CONSTRAINT "StaffVirtualAccount_staffId_fkey"
-      FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-  END IF;
-END $;
-
-DO $ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'StaffVirtualAccount_institutionId_fkey' AND conrelid = '"StaffVirtualAccount"'::regclass) THEN
-    ALTER TABLE "StaffVirtualAccount" ADD CONSTRAINT "StaffVirtualAccount_institutionId_fkey"
-      FOREIGN KEY ("institutionId") REFERENCES "BankInstitution"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-  END IF;
-END $;
+    ALTER TABLE "StaffVirtualAccount"
+  ADD CONSTRAINT "StaffVirtualAccount_staffId_fkey"
+  FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "StaffVirtualAccount"
+  ADD CONSTRAINT "StaffVirtualAccount_institutionId_fkey"
+  FOREIGN KEY ("institutionId") REFERENCES "BankInstitution"("id") ON DELETE SET NULL ON UPDATE CASCADE;

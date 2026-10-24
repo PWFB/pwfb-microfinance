@@ -1,5 +1,6 @@
 ALTER TABLE "CustomerVirtualAccount"
-  ADD COLUMN IF NOT EXISTS "providerBankName" TEXT;
+  ADD COLUMN IF NOT EXISTS "providerBankName" TEXT,
+  ADD COLUMN IF NOT EXISTS "consentAt" TIMESTAMP(3);
 
 CREATE TABLE "StaffVirtualAccount" (
   "id" TEXT NOT NULL,

@@ -27,15 +27,17 @@ export class StaffService {
 
   async paystackBanks() { return this.paystack.listBanks(); }
 
-  async initiateBvnVerification(input: { bvn: string; firstName: string; lastName: string; middleName?: string; bankCode: string; accountNumber: string }) {
+  async initiateBvnVerification(input: { bvn: string; firstName: string; lastName: string; middleName?: string; phone: string; bankCode: string; accountNumber: string }) {
     const bvn = String(input.bvn || '').replace(/\D/g, '');
     if (!/^\d{11}$/.test(bvn)) throw new BadRequestException('BVN must be exactly 11 digits');
     const firstName = String(input.firstName || '').trim();
     const lastName = String(input.lastName || '').trim();
+    const phone = String(input.phone || '').trim();
     if (!firstName || !lastName) throw new BadRequestException('First name and last name are required');
+    if (!phone || phone.replace(/\\D/g, '').length < 10) throw new BadRequestException('A valid staff phone number is required for Paystack virtual-account assignment');
     const account = await this.paystack.resolveAccount(input.bankCode, input.accountNumber);
     const email = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}+kyc${Date.now()}@pwfb.com`;
-    const customer = await this.paystack.createCustomer({ email, firstName, lastName });
+    const customer = await this.paystack.createCustomer({ email, firstName, lastName, phone });
     const validation = await this.paystack.validateCustomer({ customerCode: customer.customerCode, bvn, firstName, lastName, middleName: input.middleName?.trim(), accountNumber: account.accountNumber, bankCode: account.bankCode });
     await this.ensureBvnVerificationTable();
     await this.prisma.$executeRawUnsafe(`INSERT INTO "StaffBvnVerification" ("id","reference","bvnHash","requestedFirstName","requestedLastName","status","message") VALUES ($1,$2,$3,$4,$5,'PENDING',$6) ON CONFLICT ("reference") DO UPDATE SET "bvnHash"=EXCLUDED."bvnHash","requestedFirstName"=EXCLUDED."requestedFirstName","requestedLastName"=EXCLUDED."requestedLastName","status"='PENDING',"message"=EXCLUDED."message","updatedAt"=CURRENT_TIMESTAMP`, randomUUID(), customer.customerCode, this.hashBvn(bvn), firstName, lastName, validation.message || 'Paystack BVN and bank-account verification in progress');

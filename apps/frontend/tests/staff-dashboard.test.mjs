@@ -158,3 +158,13 @@ test("management pages receive rounded cards and bold black table columns", () =
   assert.ok(brandCss.includes(".pwfb-content main .pwfb-operation-control-card"));
   assert.ok(brandCss.includes("font-weight: 950 !important"));
 });
+
+
+test("Super Admin financial action cards have consistent hover, keyboard focus, and reduced-motion styling", () => {
+  const brandCss = fs.readFileSync(path.resolve(process.cwd(), "app/pwfb-brand-overrides.css"), "utf8");
+  const adminPage = fs.readFileSync(path.resolve(process.cwd(), "app/admin-overview/page.tsx"), "utf8");
+  assert.ok(adminPage.includes('minHeight: 82'));
+  assert.ok(brandCss.includes('a[style*="min-height: 82px"]'));
+  assert.ok(brandCss.includes(":focus-visible"));
+  assert.ok(brandCss.includes("@media (prefers-reduced-motion: reduce)"));
+});

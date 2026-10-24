@@ -16,8 +16,8 @@ export default function LABCompanyBrand({
         style={{
           display: "grid",
           placeItems: "center",
-          width: small ? 40 : 48,
-          height: small ? 40 : 48,
+          width: small ? 46 : 56,
+          height: small ? 46 : 56,
           flex: "0 0 auto",
           borderRadius: small ? 11 : 13,
           overflow: "hidden",
@@ -27,8 +27,8 @@ export default function LABCompanyBrand({
         }}
       >
         <svg
-          width={small ? 34 : 42}
-          height={small ? 34 : 42}
+          width={small ? 40 : 48}
+          height={small ? 40 : 48}
           viewBox="0 0 100 100"
           role="img"
           aria-label="LAB MICROFINANCE logo"
@@ -48,7 +48,7 @@ export default function LABCompanyBrand({
         <strong
           style={{
             color: "#ffffff",
-            fontSize: small ? 15 : 17,
+            fontSize: small ? 18 : 22,
             fontWeight: 950,
             letterSpacing: ".04em",
             whiteSpace: "nowrap",
@@ -60,7 +60,7 @@ export default function LABCompanyBrand({
           style={{
             marginTop: 3,
             color: "#bfe4ca",
-            fontSize: small ? 8 : 9,
+            fontSize: small ? 10 : 12,
             fontWeight: 750,
             letterSpacing: ".08em",
             whiteSpace: "nowrap",

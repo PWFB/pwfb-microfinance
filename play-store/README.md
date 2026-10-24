@@ -1,10 +1,10 @@
-# PWFB Microfinance — Google Play release
+# LAB MICROFINANCE — Google Play release
 
 The PWFB frontend is prepared as a Progressive Web App and Trusted Web Activity (TWA) for Google Play.
 
 ## App identity
 
-- Name: PWFB Microfinance
+- Name: LAB MICROFINANCE
 - Package ID: `com.pwfb.microfinance`
 - Version: `1.0.0` / versionCode `1`
 - Website: `https://pwfb-frontend.onrender.com`

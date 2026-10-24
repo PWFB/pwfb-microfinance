@@ -58,6 +58,7 @@ describe('CustomerVirtualAccountService', () => {
       staffVirtualAccount: { findUnique: jest.fn(), updateMany: jest.fn() },
       $queryRaw: jest.fn().mockResolvedValue([activeAccount]),
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
     };
     service = new CustomerVirtualAccountService(prisma);
   });

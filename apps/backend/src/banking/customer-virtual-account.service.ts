@@ -159,10 +159,10 @@ export class CustomerVirtualAccountService {
         customer.id,
       );
       const identity = identityRows[0];
-      const bvn = String(identity?.bvn || '').replace(/\\D/g, '');
-      const verifiedAccountNumber = String(identity?.accountNumber || '').replace(/\\D/g, '');
+      const bvn = String(identity?.bvn || '').replace(/\D/g, '');
+      const verifiedAccountNumber = String(identity?.accountNumber || '').replace(/\D/g, '');
       const bankCode = String(identity?.bankCode || '').trim();
-      if (!/^\\d{11}$/.test(bvn) || !/^\\d{10}$/.test(verifiedAccountNumber) || !bankCode) {
+      if (!/^\d{11}$/.test(bvn) || !/^\d{10}$/.test(verifiedAccountNumber) || !bankCode) {
         const reason = 'Verified customer BVN and bank-account details are required before Paystack can assign a virtual account.';
         await this.prisma.customerVirtualAccount.update({ where: { id: local.id }, data: { status: 'FAILED', consentAt: local.consentAt || new Date(), failureReason: reason } });
         throw new BadRequestException(reason);
@@ -305,7 +305,7 @@ export class CustomerVirtualAccountService {
         const result = await this.request('/dedicated_account', { customer: customerCode, country: 'NG', preferred_bank: preferredBank });
         const dva = result?.data || {};
         const number = String(dva.account_number || '').trim();
-        if (!/^\\d{10}$/.test(number)) throw new BadRequestException('Paystack did not return a valid 10-digit account number');
+        if (!/^\d{10}$/.test(number)) throw new BadRequestException('Paystack did not return a valid 10-digit account number');
         await this.prisma.customerVirtualAccount.update({ where: { id: row.id }, data: { accountNumber: number, accountName: String(dva.account_name || '').trim() || null, provider: 'PAYSTACK', providerCustomerId: customerCode, providerReference: String(dva.id ?? '').trim() || null, providerBankName: String(dva.bank?.name || '').trim() || null, status: 'ACTIVE', assignedAt: new Date(), failureReason: null } });
       }
       return { ok: true, processed: true, status: rows.length ? 'ACTIVE' : 'NO_MATCHING_PENDING_ACCOUNT', stage: 'identity' };

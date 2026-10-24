@@ -36,10 +36,12 @@ export class CustomerVirtualAccountService {
 
   /** Paystack test-mode DVAs require the test-bank provider slug. Never infer a live bank. */
   private preferredBank() {
+    const key = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
+    // Paystack's documented test-mode DVA provider is test-bank, even if a
+    // production provider slug remains configured in the staging environment.
+    if (key.startsWith('sk_test_')) return 'test-bank';
     const configured = String(process.env.PAYSTACK_DVA_PREFERRED_BANK || '').trim();
     if (configured) return configured;
-    const key = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
-    if (key.startsWith('sk_test_')) return 'test-bank';
     throw new BadRequestException('PAYSTACK_DVA_PREFERRED_BANK must be set to an approved Paystack bank slug');
   }
 

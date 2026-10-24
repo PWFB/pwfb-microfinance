@@ -159,4 +159,50 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       nameMatch: true,
     });
   });
+  it('restores reserved funds when the provider definitively rejects a transfer', async () => {
+    const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
+    prisma.customerWallet.findUnique.mockResolvedValue(wallet);
+    tx.customerWallet.findUnique.mockResolvedValue(wallet);
+    jest.spyOn(service, 'transferToVerifiedAccount').mockResolvedValue({ status: 'FAILED', providerReference: 'TEST-FAILED-REF' } as any);
+
+    const result = await service.transfer({
+      customerId: 'TEST-CUSTOMER-001', bankCode: '058', accountNumber: '1234567890',
+      amount: 250, provider: 'PAYSTACK',
+    });
+
+    expect(tx.customerWallet.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { balance: 750 },
+    }));
+    expect(tx.customerWallet.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'TEST-WALLET-001' },
+      data: { balance: 1000 },
+    }));
+    expect(tx.walletTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { reference: expect.any(String) },
+      data: expect.objectContaining({ status: 'FAILED' }),
+    }));
+    expect(result.wallet.balance).toBe(1000);
+  });
+
+  it('keeps funds reserved and does not auto-retry when provider outcome is uncertain', async () => {
+    const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
+    prisma.customerWallet.findUnique.mockResolvedValue(wallet);
+    tx.customerWallet.findUnique.mockResolvedValue(wallet);
+    jest.spyOn(service, 'transferToVerifiedAccount').mockRejectedValue(new Error('network timeout'));
+
+    await expect(service.transfer({
+      customerId: 'TEST-CUSTOMER-001', bankCode: '058', accountNumber: '1234567890',
+      amount: 250, provider: 'PAYSTACK',
+    })).rejects.toThrow('status is uncertain');
+
+    expect(tx.customerWallet.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: { balance: 750 },
+    }));
+    expect(tx.walletTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'PROCESSING' }),
+    }));
+    expect(tx.walletTransaction.update).not.toHaveBeenCalled();
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+  });
+
 });

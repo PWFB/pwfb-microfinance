@@ -1,5 +1,4 @@
 const { execFileSync } = require('node:child_process');
-const path = require('node:path');
 const { Client } = require('pg');
 
 const LEGACY_MIGRATIONS = [
@@ -63,7 +62,10 @@ async function main() {
     (!state.migrationTableExists || state.migrationCount === 0);
 
   if (needsBaseline) {
-    console.log('Existing database detected without migration history; recording legacy migrations as applied.');
+    if (process.env.PWFB_BASELINE_EXISTING_SCHEMA !== 'true') {
+      throw new Error('Existing database schema has no Prisma migration history. Set PWFB_BASELINE_EXISTING_SCHEMA=true only for a reviewed existing database before baseline.');
+    }
+    console.log('Existing database detected without migration history; recording legacy migrations as applied. No application tables or rows will be dropped.');
     for (const migration of LEGACY_MIGRATIONS) {
       runPrisma(['migrate', 'resolve', '--applied', migration]);
     }

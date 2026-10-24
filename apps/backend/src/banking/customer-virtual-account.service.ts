@@ -163,9 +163,19 @@ export class CustomerVirtualAccountService {
       const verifiedAccountNumber = String(identity?.accountNumber || '').replace(/\D/g, '');
       const bankCode = String(identity?.bankCode || '').trim();
       if (!/^\d{11}$/.test(bvn) || !/^\d{10}$/.test(verifiedAccountNumber) || !bankCode) {
-        const reason = 'Verified customer BVN and bank-account details are required before Paystack can assign a virtual account.';
-        await this.prisma.customerVirtualAccount.update({ where: { id: local.id }, data: { status: 'FAILED', consentAt: local.consentAt || new Date(), failureReason: reason } });
-        throw new BadRequestException(reason);
+        // Customer registration can finish before KYC/bank verification. Keep the
+        // consented request retryable rather than marking it permanently failed.
+        // A later retry of ensure() will continue once verified identity data exists.
+        const reason = 'Awaiting verified customer BVN and bank-account details before Paystack can assign the virtual account.';
+        await this.prisma.customerVirtualAccount.update({
+          where: { id: local.id },
+          data: {
+            status: 'PENDING',
+            consentAt: local.consentAt || new Date(),
+            failureReason: reason,
+          },
+        });
+        return this.get(customerId);
       }
       if (!customerCode) {
         const created = await this.request('/customer', {

@@ -45,7 +45,7 @@ export class CustomersService {
   async findMe(authUser: any) {
     if (!authUser?.id) throw new UnauthorizedException('Authentication required');
     const user = await this.prisma.user.findUnique({ where: { id: authUser.id }, include: { customer: { include: { savings: true, loans: true, transactions: true, branch: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } } } });
-    if (!user?.customer) throw new NotFoundException('Customer profile not found'); return user.customer;
+    if (!user?.customer) throw new NotFoundException('Customer profile not found'); return { ...user.customer, identityVerification: await this.getIdentityVerification(user.customer.id) };
   }
 
   async findAll(authUser?: any, search?: string) { const staff = authUser ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } }) : null; const q = String(search || '').trim(); const where: any = staff ? { assignedStaffId: staff.id } : {}; if (q) { where.OR = [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { id: { contains: q, mode: 'insensitive' } }, { phone: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }]; } return this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } }); }

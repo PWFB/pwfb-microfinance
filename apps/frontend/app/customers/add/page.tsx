@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { apiRequest } from "../../../lib/api";
 import { pwfbApi } from "../../../lib/pwfb-api";
+import BankSearchSelect from "../../../components/BankSearchSelect";
 import styles from "./page.module.css";
 
 type CustomerForm = { firstName: string; middleName: string; lastName: string; email: string; phone: string; address: string; dateOfBirth: string };
+type BankOption = { code: string; name: string; shortName?: string; provider?: string };
 const initialForm: CustomerForm = { firstName: "", middleName: "", lastName: "", email: "", phone: "", address: "", dateOfBirth: "" };
 
 export default function AddCustomerPage() {
@@ -16,6 +18,18 @@ export default function AddCustomerPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [virtualAccountConsent, setVirtualAccountConsent] = useState(false);
+  const [bvn, setBvn] = useState("");
+  const [bankCode, setBankCode] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [banks, setBanks] = useState<BankOption[]>([]);
+  useEffect(() => {
+    let alive = true;
+    pwfbApi.banking.institutions().then((result: any) => {
+      const list = Array.isArray(result) ? result : result?.data ?? [];
+      if (alive) setBanks(list.filter((bank: any) => bank?.code && bank?.name).map((bank: any) => ({ code: String(bank.code), name: String(bank.name), shortName: bank.shortName, provider: bank.provider })));
+    }).catch(() => { if (alive) setBanks([]); });
+    return () => { alive = false; };
+  }, []);
   const fullName = useMemo(() => [form.firstName, form.middleName, form.lastName].filter(Boolean).join(" "), [form.firstName, form.middleName, form.lastName]);
   const initials = useMemo(() => [form.firstName, form.lastName].filter(Boolean).map((v) => v[0]?.toUpperCase()).join("") || "P", [form.firstName, form.lastName]);
   const completed = [form.firstName, form.lastName, form.phone].filter(Boolean).length;
@@ -31,15 +45,33 @@ export default function AddCustomerPage() {
         window.setTimeout(() => router.push("/customers"), 1800);
         return;
       }
+      const hasIdentityDetails = Boolean(bvn.trim() || bankCode || accountNumber.trim());
+      if (hasIdentityDetails && (!/^\\d{11}$/.test(bvn.replace(/\\D/g, "")) || !bankCode || !/^\\d{10}$/.test(accountNumber.replace(/\\D/g, "")))) {
+        setMessage("To start automatic Paystack assignment, enter all three: 11-digit BVN, bank, and 10-digit bank account number. The customer profile has already been created; open it to complete verification.");
+        window.setTimeout(() => router.push("/customers/view/" + customerId), 2500);
+        return;
+      }
+      let identityResult: any = null;
+      if (hasIdentityDetails) {
+        try {
+          identityResult = await apiRequest(`/customers/${encodeURIComponent(customerId)}/identity/verify`, { method: "POST", body: JSON.stringify({ bvn: bvn.replace(/\\D/g, ""), bankCode, accountNumber: accountNumber.replace(/\\D/g, "") }) });
+        } catch (identityError) {
+          setMessage("Customer profile created, but Paystack identity verification could not be started: " + (identityError instanceof Error ? identityError.message : "Please retry from the customer profile."));
+          window.setTimeout(() => router.push("/customers/view/" + customerId), 2800);
+          return;
+        }
+      }
       const assignedAccounts = Array.isArray(created?.virtualAccounts) ? created.virtualAccounts : [];
       const activeAccount = assignedAccounts.find((account: any) => account?.provider === "PAYSTACK" && account?.status === "ACTIVE" && account?.accountNumber);
       if (activeAccount) {
         setMessage("Customer profile created and Paystack virtual account assigned.");
+      } else if (identityResult) {
+        setMessage("Customer profile created. Paystack identity verification is pending; the virtual account will be assigned automatically after Paystack confirms it.");
       } else {
-        const reason = String(created?.virtualAccountWarning || "Account assignment is waiting for identity verification and Paystack confirmation.");
+        const reason = String(created?.virtualAccountWarning || "Virtual-account assignment is waiting for verified BVN and bank-account details.");
         setMessage("Customer profile created. Virtual account is pending. " + reason);
       }
-      window.setTimeout(() => router.push("/customers/view/" + customerId), 1600);
+      window.setTimeout(() => router.push("/customers/view/" + customerId), 1800);
     }
     catch (error) { setMessage(error instanceof Error ? error.message : "Unable to create customer."); }
     finally { setLoading(false); }
@@ -82,7 +114,10 @@ export default function AddCustomerPage() {
             <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
             <div className={styles.gridTwo}>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
-              <div className={styles.infoBox}><span>✓</span><div><b>PWFB Microfinance virtual account</b><small>Paystack assigns the account only after required identity checks and confirmation.</small></div></div>
+              <label>BVN <small>Needed for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\\D/g, "").slice(0, 11))} placeholder="11-digit BVN" /></label>
+              <div><label>Bank <small>Needed for identity validation</small></label><BankSearchSelect banks={banks} value={bankCode} onChange={setBankCode} disabled={loading} /></div>
+              <label>Bank Account Number <small>10 digits</small><input inputMode="numeric" autoComplete="off" maxLength={10} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\\D/g, "").slice(0, 10))} placeholder="10-digit account number" /></label>
+              <div className={styles.infoBox}><span>✓</span><div><b>PWFB Microfinance virtual account</b><small>With customer consent, Paystack validates the BVN and bank-account details first, then assigns the virtual account after provider confirmation. BVN is not displayed in the account UI.</small></div></div>
               <label className={styles.full} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
               <input type="checkbox" checked={virtualAccountConsent} onChange={(e) => setVirtualAccountConsent(e.target.checked)} required style={{ width: 18, height: 18, marginTop: 3 }} />
               <span>I confirm the customer has expressly consented to PWFB Microfinance sharing their details with Paystack for identity validation and dedicated virtual-account creation.</span>

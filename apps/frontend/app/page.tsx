@@ -13,14 +13,10 @@ export default function Home() {
     <main className={styles.home}>
       <header className={styles.header}>
         <Link href="/" className={styles.brand} aria-label="LAB MICROFINANCE home">
-          <img
-            src="/pwfb-logo.svg"
-            alt="LAB MICROFINANCE"
-            className={styles.brandLogo}
-          />
+          <img src="/pwfb-logo.svg" alt="LAB MICROFINANCE" className={styles.brandLogo} />
+          <span className={styles.brandText}>LAB MICROFINANCE</span>
         </Link>
-
-        <nav className={styles.nav}>
+        <nav className={styles.nav} aria-label="Main navigation">
           <Link href="/login">Dashboard</Link>
           <Link href="/login">Customers</Link>
           <Link href="/login">Savings</Link>
@@ -31,59 +27,55 @@ export default function Home() {
 
       <section className={styles.hero}>
         <div className={styles.heroInner}>
-          <img
-            src="/pwfb-logo.svg"
-            alt="LAB MICROFINANCE"
-            className={styles.heroLogo}
-          />
-          <p className={styles.eyebrow}>PWFB MICROFINANCE</p>
-          <h1>Smart Finance. Better Future.</h1>
-          <p className={styles.heroText}>
-            Secure Savings • Fast Loans • Reliable Transactions
-          </p>
-
-          <div className={styles.heroActions}>
-            <Link href="/login" className={styles.loginButton}>
-              Login
-            </Link>
-            <Link href="/register" className={styles.registerButton}>
-              Register
-            </Link>
+          <div className={styles.heroBrand}>
+            <img src="/pwfb-logo.svg" alt="" className={styles.heroLogo} />
+            <p className={styles.eyebrow}>YOUR FINANCIAL PARTNER</p>
+            <h1>LAB MICROFINANCE</h1>
+            <p className={styles.tagline}>Empowering Dreams • Building Futures</p>
           </div>
+          <h2>Smart Finance. Better Future.</h2>
+          <p className={styles.heroText}>
+            Secure savings, responsible loans and reliable financial services — in one place.
+          </p>
+          <div className={styles.heroActions}>
+            <Link href="/login" className={styles.loginButton}>Login to Your Account</Link>
+            <Link href="/register" className={styles.registerButton}>Get Started</Link>
+          </div>
+          <p className={styles.loginHint}>Existing customers and staff can sign in with their current account.</p>
         </div>
       </section>
 
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
-          <p className={styles.sectionEyebrow}>CORE OPERATIONS</p>
-          <h2>Everything you need to manage PWFB</h2>
+          <p className={styles.sectionEyebrow}>BUILT FOR EVERYDAY FINANCE</p>
+          <h2>Everything you need, in one secure place</h2>
+          <p>Manage your financial operations with clear workflows and account-based information.</p>
         </div>
-
         <div className={styles.moduleGrid}>
           {modules.map(([icon, title, description, href]) => (
-            <Link key={href} href={href} className={styles.moduleCard}>
+            <Link key={title} href={href} className={styles.moduleCard}>
               <span className={styles.moduleIcon}>{icon}</span>
               <h3>{title}</h3>
               <p>{description}</p>
-              <span className={styles.moduleLink}>Open Module →</span>
+              <span className={styles.moduleLink}>Sign in to open →</span>
             </Link>
           ))}
         </div>
       </section>
 
-      <section className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <p className={styles.sectionEyebrow}>LIVE ACCOUNT DATA</p>
-          <h2>Your current PWFB dashboard</h2>
-          <p>Sign in to view live balances, customer records, loans and transactions. This public page does not show sample financial totals.</p>
+      <section className={styles.trustSection}>
+        <div>
+          <p className={styles.sectionEyebrow}>YOUR ACCOUNT STAYS YOURS</p>
+          <h2>Sign in securely. See your real account data.</h2>
+          <p>Balances and transaction details are available after sign-in. This public page does not display sample financial totals.</p>
         </div>
-        <div className={styles.heroActions}>
-          <Link href="/login" className={styles.loginButton}>Open Dashboard</Link>
-        </div>
+        <Link href="/login" className={styles.loginButton}>Open Secure Login →</Link>
       </section>
 
       <footer className={styles.footer}>
-        © {new Date().getFullYear()} LAB MICROFINANCE • Perfect Wisdom For Better Limited
+        <img src="/pwfb-app-icon.svg" alt="" />
+        <div><strong>LAB MICROFINANCE</strong><span>Empowering Dreams • Building Futures</span></div>
+        <small>© {new Date().getFullYear()} LAB MICROFINANCE. All rights reserved.</small>
       </footer>
     </main>
   );

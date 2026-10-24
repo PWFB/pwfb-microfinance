@@ -27,6 +27,19 @@ export default function ViewCustomerPage() {
 
   async function loadCustomer() { if (!id) return; setLoading(true); try { const data = await apiRequest(`/customers/${id}`); setCustomer(data); setForm({ firstName: data.firstName || "", middleName: data.middleName || "", lastName: data.lastName || "", email: data.email || "", phone: data.phone || "", address: data.address || "", dateOfBirth: data.dateOfBirth ? String(data.dateOfBirth).slice(0, 10) : "" }); } catch { setCustomer(null); } finally { setLoading(false); } }
   useEffect(() => { loadCustomer(); }, [id]);
+  useEffect(() => {
+    if (!id || !customer?.virtualAccounts?.some((account) => account.status === "PENDING")) return;
+    const timer = window.setInterval(async () => {
+      try {
+        const latest = await apiRequest(`/customers/${id}`);
+        setCustomer(latest);
+      } catch {
+        // Keep the last known profile visible; the user can still reload manually.
+      }
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [id, customer?.virtualAccounts?.map((account) => account.status + ":" + (account.accountNumber || "")).join("|")]);
+
   function change(e: React.ChangeEvent<HTMLInputElement>) { setForm({ ...form, [e.target.name]: e.target.value }); }
   async function saveProfile(e: React.FormEvent) { e.preventDefault(); setSaving(true); setMessage(""); try { await apiRequest(`/customers/${id}`, { method: "PATCH", body: JSON.stringify(form) }); setMessage("Customer profile updated successfully."); setEditing(false); await loadCustomer(); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to update customer"); } finally { setSaving(false); } }
   async function resetPassword() { if (!window.confirm("Reset this customer's login password? The current password cannot be recovered.")) return; setResetting(true); setMessage(""); try { const result = await apiRequest(`/customers/${id}/reset-password`, { method: "POST" }); setTemporaryPassword(result.temporaryPassword || ""); setMessage("Password reset successfully. Give the temporary password to the customer securely."); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to reset password"); } finally { setResetting(false); } }

@@ -10,6 +10,7 @@ export default function EditCustomerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [identityVerification, setIdentityVerification] = useState<{ bvnStatus?: string; ninStatus?: string; bvn?: string | null; nin?: string | null } | null>(null);
   const [form, setForm] = useState({
     firstName: "",
     middleName: "",
@@ -27,6 +28,7 @@ export default function EditCustomerPage() {
     if (!id) return;
     apiRequest(`/customers/${id}`)
       .then((data) => {
+        setIdentityVerification(data.identityVerification || null);
         setForm({
           firstName: data.firstName || "",
           middleName: data.middleName || "",
@@ -77,7 +79,12 @@ export default function EditCustomerPage() {
     <main style={{ padding: 30, fontFamily: "Arial", maxWidth: 800 }}>
       <p className="pwfb-eyebrow">SUPER ADMIN • CUSTOMER MANAGEMENT</p>
       <h1>Edit Customer</h1>
-      <p>Correct the customer's registered profile and assignment information.</p>
+      <p>Correct the customer's registered profile and assignment information. This page edits customer records only; it does not edit staff records.</p>
+
+      <section style={{ margin: '18px 0', padding: 16, border: '1px solid #ddd', borderRadius: 12 }}>
+        <h2>Customer KYC tier & limits</h2>
+        {(() => { const verified = (status?: string) => ['VERIFIED', 'OVERRIDDEN', 'SUCCESS', 'APPROVED'].includes(String(status || '').toUpperCase()); const bvn = verified(identityVerification?.bvnStatus); const nin = verified(identityVerification?.ninStatus); const tier = bvn && nin ? 'Tier 2 — BVN + NIN verified' : bvn || nin ? 'Tier 1 — one identity verified' : 'Basic profile — identity verification required'; return <><p><strong>Current tier:</strong> {tier}</p><p>BVN: {identityVerification?.bvnStatus || 'NOT_VERIFIED'} {identityVerification?.bvn ? '(' + identityVerification.bvn + ')' : ''}</p><p>NIN: {identityVerification?.ninStatus || 'NOT_VERIFIED'} {identityVerification?.nin ? '(' + identityVerification.nin + ')' : ''}</p><p>Tier 1 reference: single deposit ₦50,000; daily transfer ₦50,000; balance cap ₦300,000.</p><p>Tier 2 reference: single deposit ₦100,000; daily transfer ₦200,000; balance cap ₦500,000.</p><p>Tier 3 requires manual document review and approval before higher limits.</p><small>Identity numbers are masked. These are reference limits only; active caps must be enforced by backend policy. Loan approval is separate and requires credit assessment.</small></>; })()}
+      </section>
 
       {message && <div style={{ margin: "16px 0", padding: 12, border: "1px solid #ccc", borderRadius: 8 }}>{message}</div>}
 

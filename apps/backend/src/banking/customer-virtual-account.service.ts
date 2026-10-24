@@ -106,18 +106,26 @@ export class CustomerVirtualAccountService {
    * BVN is stored only in the existing restricted identity table and is never
    * returned to the frontend or written to logs.
    */
-  async startIdentityVerification(customerId: string, input: { bvn: string; bankCode: string; accountNumber: string }) {
+  async startIdentityVerification(customerId: string, input: { bvn: string; bankCode: string; accountNumber: string; consentConfirmed?: boolean }) {
     const customer = await this.prisma.customer.findUnique({
       where: { id: customerId },
-      select: { id: true, firstName: true, middleName: true, lastName: true, email: true, phone: true, user: { select: { email: true } } },
+      select: { id: true, branchId: true, firstName: true, middleName: true, lastName: true, email: true, phone: true, user: { select: { email: true } } },
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const local = await this.prisma.customerVirtualAccount.findFirst({
-      where: { customerId, provider: 'PAYSTACK', consentAt: { not: null }, status: { in: ['PENDING', 'FAILED', 'ACTIVE'] } },
+    let local = await this.prisma.customerVirtualAccount.findFirst({
+      where: { customerId, provider: 'PAYSTACK', status: { in: ['PENDING', 'FAILED', 'ACTIVE'] } },
       orderBy: { createdAt: 'desc' },
     });
-    if (!local?.consentAt) throw new BadRequestException('Customer consent is required before identity verification and virtual-account assignment');
+    const institution = await this.paystackInstitution();
+    if (!local?.consentAt) {
+      if (input?.consentConfirmed !== true) throw new BadRequestException('Confirm the customer’s explicit consent before identity verification and virtual-account assignment');
+      if (local) {
+        local = await this.prisma.customerVirtualAccount.update({ where: { id: local.id }, data: { consentAt: new Date(), institutionId: institution.id, provider: 'PAYSTACK' } });
+      } else {
+        local = await this.prisma.customerVirtualAccount.create({ data: { id: randomUUID(), customerId, institutionId: institution.id, branchId: customer.branchId ?? null, provider: 'PAYSTACK', consentAt: new Date(), status: 'PENDING' } });
+      }
+    }
     if (local.status === 'ACTIVE' && local.accountNumber) return this.get(customerId);
     if (local.status === 'PENDING' && local.providerCustomerId && local.failureReason?.includes('Awaiting Paystack identity-validation webhook')) {
       return this.get(customerId);
@@ -147,7 +155,6 @@ export class CustomerVirtualAccountService {
     const matchedTokens = nameTokens(accountName).filter((token) => customerTokens.has(token));
     if (new Set(matchedTokens).size < 2) throw new BadRequestException('The verified bank-account name must match at least two parts of the customer’s legal name');
 
-    const institution = await this.paystackInstitution();
     let customerCode = String(local.providerCustomerId || '').trim();
     if (!customerCode) {
       const created = await this.request('/customer', {

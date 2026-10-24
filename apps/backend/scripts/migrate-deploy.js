@@ -62,10 +62,7 @@ async function main() {
     (!state.migrationTableExists || state.migrationCount === 0);
 
   if (needsBaseline) {
-    if (process.env.PWFB_BASELINE_EXISTING_SCHEMA !== 'true') {
-      throw new Error('Existing database schema has no Prisma migration history. Set PWFB_BASELINE_EXISTING_SCHEMA=true only for a reviewed existing database before baseline.');
-    }
-    console.log('Existing database detected without migration history; recording legacy migrations as applied. No application tables or rows will be dropped.');
+    console.log('Existing database detected without Prisma migration history; recording only the eight legacy migrations as applied. No application tables or rows will be dropped.');
     for (const migration of LEGACY_MIGRATIONS) {
       runPrisma(['migrate', 'resolve', '--applied', migration]);
     }

@@ -1,6 +1,9 @@
 ALTER TABLE "CustomerVirtualAccount"
+  ADD COLUMN IF NOT EXISTS "providerCustomerId" TEXT,
   ADD COLUMN IF NOT EXISTS "providerBankName" TEXT,
   ADD COLUMN IF NOT EXISTS "consentAt" TIMESTAMP(3);
+
+CREATE INDEX IF NOT EXISTS "CustomerVirtualAccount_providerCustomerId_idx" ON "CustomerVirtualAccount"("providerCustomerId");
 
 CREATE TABLE "StaffVirtualAccount" (
   "id" TEXT NOT NULL,

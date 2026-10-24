@@ -7,11 +7,12 @@ import { UpdateStaffDto } from './dto/update-staff.dto';
 import { StaffFilterDto } from './dto/staff-filter.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaystackService } from './paystack.service';
+import { CustomerVirtualAccountService } from '../banking/customer-virtual-account.service';
 import { createHash, randomBytes, randomInt, randomUUID } from 'node:crypto';
 
 @Injectable()
 export class StaffService {
-  constructor(private readonly staffRepository: StaffRepository, private readonly prisma: PrismaService, private readonly paystack: PaystackService) {}
+  constructor(private readonly staffRepository: StaffRepository, private readonly prisma: PrismaService, private readonly paystack: PaystackService, private readonly virtualAccounts: CustomerVirtualAccountService) {}
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.staffRepository.emailExists(email)) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
   private generateTemporaryPassword() { return `PWFB-${randomBytes(4).toString('hex').toUpperCase()}-${randomInt(1000, 10000)}`; }
@@ -111,7 +112,24 @@ export class StaffService {
     const staffId = createStaffDto.staffId || await this.generateStaffId();
     try {
       const result = await this.staffRepository.createWithUser(registrationData, { staffId, email, password }, undefined);
-      return { message: 'Staff created successfully', staff: result.staff, login: { email, temporaryPassword }, bvn: { verified: true, provider: 'PAYSTACK', reference, legalName: verification.fullName } };
+      // Store verification state without persisting the raw BVN.
+      await this.prisma.staff.update({
+        where: { id: result.staff.id },
+        data: { bvnVerified: true, bvnVerifiedAt: new Date(), bvnVerifiedName: verification.fullName },
+      });
+      let virtualAccount: any = null;
+      let virtualAccountWarning: string | null = null;
+      if (String(result.staff.employmentStatus) === 'ACTIVE') {
+        try {
+          virtualAccount = await this.virtualAccounts.ensureStaff(result.staff.id, reference);
+        } catch (error) {
+          virtualAccountWarning = error instanceof Error ? error.message : 'Paystack staff account assignment is pending';
+          try { virtualAccount = await this.virtualAccounts.getStaff(result.staff.id); } catch { virtualAccount = null; }
+        }
+      } else {
+        virtualAccountWarning = 'Account assignment will start after the staff member is approved and activated.';
+      }
+      return { message: 'Staff created successfully', staff: { ...result.staff, bvnVerified: true, bvnVerifiedAt: new Date(), bvnVerifiedName: verification.fullName }, login: { email, temporaryPassword }, bvn: { verified: true, provider: 'PAYSTACK', reference, legalName: verification.fullName }, virtualAccount, virtualAccountWarning };
     } catch (error) { throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create staff'); }
   }
 

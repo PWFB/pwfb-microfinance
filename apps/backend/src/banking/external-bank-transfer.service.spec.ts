@@ -46,10 +46,11 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       { transfer: jest.fn(), nameEnquiry: jest.fn(), listBanks: jest.fn() } as any,
       paystack as any,
     );
-    jest.spyOn(service, 'verifyCustomerBankAccount').mockResolvedValue({
+    jest.spyOn(service, 'nameEnquiry').mockResolvedValue({
       accountName: 'TEST BENEFICIARY',
+      accountNumber: '1234567890',
       provider: 'PAYSTACK',
-      customerNameVerified: true,
+      verified: true,
     } as any);
     jest.spyOn(service, 'transferToVerifiedAccount').mockResolvedValue({
       status: 'SUCCESSFUL',
@@ -83,7 +84,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       amount: 0,
     })).rejects.toThrow(BadRequestException);
 
-    expect(service.verifyCustomerBankAccount).not.toHaveBeenCalled();
+    expect(service.nameEnquiry).not.toHaveBeenCalled();
     expect(service.transferToVerifiedAccount).not.toHaveBeenCalled();
   });
 
@@ -100,7 +101,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       provider: 'PAYSTACK',
     })).rejects.toThrow('Insufficient wallet balance');
 
-    expect(service.verifyCustomerBankAccount).toHaveBeenCalled();
+    expect(service.nameEnquiry).toHaveBeenCalled();
     expect(service.transferToVerifiedAccount).not.toHaveBeenCalled();
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
@@ -124,9 +125,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       provider: 'PAYSTACK',
     });
 
-    expect(service.verifyCustomerBankAccount).toHaveBeenCalledWith(
-      'TEST-CUSTOMER-001', '058', '1234567890', 'PAYSTACK',
-    );
+    expect(service.nameEnquiry).toHaveBeenCalledWith('058', '1234567890', 'PAYSTACK');
     expect(service.transferToVerifiedAccount).toHaveBeenCalledWith(expect.objectContaining({
       bankCode: '058',
       accountNumber: '1234567890',
@@ -165,7 +164,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       accountNumber: '1234567890',
       accountName: 'TEST BENEFICIARY',
       verified: true,
-      nameMatch: true,
+      accountNameVerified: true,
     });
   });
   it('restores reserved funds when the provider definitively rejects a transfer', async () => {

@@ -52,7 +52,7 @@ export default function AddCustomerPage() {
         return;
       }
       let identityResult: any = null;
-      if (hasIdentityDetails) {
+      if (normalizedBvn && bankCode && normalizedAccountNumber) {
         try {
           identityResult = await apiRequest(`/customers/${encodeURIComponent(customerId)}/identity/verify`, { method: "POST", body: JSON.stringify({ bvn: bvn.replace(/\D/g, ""), bankCode, accountNumber: accountNumber.replace(/\D/g, "") }) });
         } catch (identityError) {
@@ -114,10 +114,10 @@ export default function AddCustomerPage() {
             <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
             <div className={styles.gridTwo}>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
-              <label>BVN <small>Needed for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="11-digit BVN" /></label>
-              <div><label>Bank <small>Needed for identity validation</small></label><BankSearchSelect banks={banks} value={bankCode} onChange={setBankCode} disabled={loading} /></div>
-              <label>Bank Account Number <small>10 digits</small><input inputMode="numeric" autoComplete="off" maxLength={10} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit account number" /></label>
-              <div className={styles.infoBox}><span>✓</span><div><b>PWFB Microfinance virtual account</b><small>With customer consent, Paystack validates the BVN and bank-account details first, then assigns the virtual account after provider confirmation. BVN is not displayed in the account UI.</small></div></div>
+              <label>BVN <em>*</em> <small>Required for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="11-digit BVN" required /></label>
+              <div><label>Bank <em>*</em> <small>Required for identity validation</small></label><BankSearchSelect banks={banks} value={bankCode} onChange={setBankCode} disabled={loading} /></div>
+              <label>Bank Account Number <em>*</em> <small>Required · 10 digits</small><input inputMode="numeric" autoComplete="off" maxLength={10} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit account number" required /></label>
+              <div className={styles.infoBox}><span>✓</span><div><b>PWFB Microfinance virtual account</b><small>BVN, bank, and account number are required to start verification. Paystack must confirm the identity and assign the account before a real account number can be displayed. BVN is never displayed in the account UI.</small></div></div>
               <label className={styles.full} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
               <input type="checkbox" checked={virtualAccountConsent} onChange={(e) => setVirtualAccountConsent(e.target.checked)} required style={{ width: 18, height: 18, marginTop: 3 }} />
               <span>I confirm the customer has expressly consented to PWFB Microfinance sharing their details with Paystack for identity validation and dedicated virtual-account creation.</span>

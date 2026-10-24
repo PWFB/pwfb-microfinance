@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessScopeService } from '../access/access-scope.service';
 import { LoanDisbursementService } from '../loans/loan-disbursement.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 const PENDING = 'DISBURSEMENT_PENDING_BRANCH_REVIEW';
 
@@ -11,6 +12,7 @@ export class ApprovalsService {
     private readonly prisma: PrismaService,
     private readonly access: AccessScopeService,
     private readonly loanDisbursement: LoanDisbursementService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   private async scope(user: any) { return this.access.getScope(user); }
@@ -74,6 +76,7 @@ export class ApprovalsService {
   private async assertApprover(user: any, loanId: string) {
     const role = String(user?.role || '');
     if (!['SUPER_ADMIN','ADMIN','BRANCH_MANAGER'].includes(role)) throw new ForbiddenException('Only a Branch Manager, Admin or Super Admin can approve disbursement');
+    await this.permissions.assert(role, 'LOAN_DISBURSE');
     await this.access.assertLoan(user, loanId);
     const loan = await this.get(loanId, user);
     if (loan.status !== PENDING) throw new ForbiddenException('This loan is not waiting for approval');

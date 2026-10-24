@@ -91,7 +91,7 @@ export class CustomersService {
 
   async resetPassword(id: string) { const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } }); if (!customer?.user) throw new NotFoundException('Customer login account not found'); const temporaryPassword = `PWFB-${randomBytes(5).toString('hex').toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; await this.prisma.user.update({ where: { id: customer.user.id }, data: { password: await bcrypt.hash(temporaryPassword, 10) } }); return { message: 'Customer password reset successfully', customerId: customer.id, loginEmail: customer.user.email, temporaryPassword, note: 'For security, PWFB never stores or displays the previous plaintext password.' }; }
 
-  async verifyIdentity(customerId: string, input: { bvn: string; bankCode: string; accountNumber: string }, authUser: any) {
+  async verifyIdentity(customerId: string, input: { bvn: string; bankCode: string; accountNumber: string; consentConfirmed?: boolean }, authUser: any) {
     // Enforce the same customer/branch access policy used by the customer profile.
     await this.findOne(customerId, authUser);
     return this.customerVirtualAccounts.startIdentityVerification(customerId, input);

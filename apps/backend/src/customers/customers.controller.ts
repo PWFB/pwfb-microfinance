@@ -47,7 +47,7 @@ export class CustomersController {
   findOne(@Param('id') id: string, @Req() req: any) { return this.customersService.findOne(id, req.user); }
 
   @Patch(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE')
+  @Roles('SUPER_ADMIN', 'ADMIN')
   update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) { return this.customersService.update(id, updateCustomerDto); }
 
   @Post(':id/reset-password')

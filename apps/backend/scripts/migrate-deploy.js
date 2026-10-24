@@ -12,6 +12,9 @@ const LEGACY_MIGRATIONS = [
   '20260916010000_add_branch_closing_financial_locks',
 ];
 
+// This specific additive migration is safe to retry: all table/column/index
+// creation is guarded, and both foreign keys are checked before being added.
+const RETRYABLE_ADDITIVE_MIGRATION = '20261024120000_paystack_dva_staff_customer_assignment';
 const schemaPath = 'prisma/schema.prisma';
 
 function runPrisma(args) {
@@ -42,11 +45,17 @@ async function inspectMigrationHistory() {
     `);
     const migrationTableExists = Boolean(result.rows[0]?.migration_table);
     let migrationCount = 0;
+    let retryableMigrationFailed = false;
     if (migrationTableExists) {
       const count = await client.query('SELECT COUNT(*)::int AS count FROM "_prisma_migrations"');
       migrationCount = Number(count.rows[0]?.count || 0);
+      const failed = await client.query(
+        'SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND finished_at IS NULL AND rolled_back_at IS NULL LIMIT 1',
+        [RETRYABLE_ADDITIVE_MIGRATION],
+      );
+      retryableMigrationFailed = failed.rowCount > 0;
     }
-    return { migrationTableExists, migrationCount, hasExistingTables: Boolean(result.rows[0]?.has_existing_tables) };
+    return { migrationTableExists, migrationCount, hasExistingTables: Boolean(result.rows[0]?.has_existing_tables), retryableMigrationFailed };
   } finally {
     await client.end();
   }
@@ -66,6 +75,14 @@ async function main() {
     for (const migration of LEGACY_MIGRATIONS) {
       runPrisma(['migrate', 'resolve', '--applied', migration]);
     }
+  }
+
+  // Prisma blocks later migrations after a failed migration. Resolve only the
+  // known, additive, idempotent migration above as rolled back, then retry it.
+  // Never auto-resolve an unrelated failed migration.
+  if (state.retryableMigrationFailed) {
+    console.log(`Recovering failed additive migration ${RETRYABLE_ADDITIVE_MIGRATION} for a safe retry.`);
+    runPrisma(['migrate', 'resolve', '--rolled-back', RETRYABLE_ADDITIVE_MIGRATION]);
   }
 
   console.log('Applying pending Prisma migrations.');

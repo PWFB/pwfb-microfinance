@@ -95,7 +95,7 @@ export default function RoleLogin() {
     event.preventDefault(); setMessage(""); setLoading(mode);
     try {
       await completeLogin(await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ identifier: values[mode].trim(), password: passwords[mode], loginMode: mode }) }), mode);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to PWFB"); setLoading(null); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to LAB MICROFINANCE"); setLoading(null); }
   };
 
   const googleLogin = async (payload: GooglePayload) => {
@@ -219,7 +219,7 @@ export default function RoleLogin() {
           <div className="pwfb-art-glow" />
           <div className="pwfb-art-card">
             <div className="pwfb-art-card-top"><span className="pwfb-art-mark">P</span><span className="pwfb-art-chip" /></div>
-            <small>PWFB FINANCIAL SERVICES</small>
+            <small>LAB MICROFINANCE</small>
             <strong>Your goals.<br />Your next chapter.</strong>
             <div className="pwfb-art-card-bottom"><span>SECURE ACCESS</span><span>✦</span></div>
           </div>
@@ -231,7 +231,7 @@ export default function RoleLogin() {
           <div><span className="pwfb-feature-icon">↗</span><span><b>Loans & repayments</b><small>Follow your loan journey</small></span></div>
           <div><span className="pwfb-feature-icon">⌑</span><span><b>Security first</b><small>Sign in with trusted methods</small></span></div>
         </div>
-        <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with PWFB.</p>
+        <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with LAB MICROFINANCE.</p>
       </section>
 
       <section className={"pwfb-login-shell " + selectedCard.tone}>

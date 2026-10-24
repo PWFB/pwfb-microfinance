@@ -58,7 +58,7 @@ describe('StaffService', () => {
       bvnVerificationReference: 'BVN-REF-1',
     };
 
-    const staff = { id: 'staff-1', ...dto };
+    const staff = { id: 'staff-1', employmentStatus: 'ACTIVE', ...dto };
 
     repository.createWithUser.mockResolvedValue({
       staff,

@@ -37,9 +37,14 @@ export default function AddCustomerPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setMessage("");
-    const hasIdentityDetails = Boolean(bvn.trim() || bankCode || accountNumber.trim());
-    if (hasIdentityDetails && (!/^\d{11}$/.test(bvn.replace(/\D/g, "")) || !bankCode || !/^\d{10}$/.test(accountNumber.replace(/\D/g, "")))) {
-      setMessage("To start automatic Paystack assignment, enter all three: 11-digit BVN, bank, and 10-digit bank account number.");
+    const normalizedBvn = bvn.replace(/\D/g, "");
+    const normalizedAccountNumber = accountNumber.replace(/\D/g, "");
+    if (!/^\d{11}$/.test(normalizedBvn) || !bankCode || !/^\d{10}$/.test(normalizedAccountNumber)) {
+      setMessage("Enter the customer's 11-digit BVN, select their bank, and enter their 10-digit bank account number to start virtual-account assignment.");
+      return;
+    }
+    if (!virtualAccountConsent) {
+      setMessage("Customer consent is required before sending identity details to Paystack.");
       return;
     }
     setLoading(true);
@@ -54,7 +59,7 @@ export default function AddCustomerPage() {
       let identityResult: any = null;
       if (normalizedBvn && bankCode && normalizedAccountNumber) {
         try {
-          identityResult = await apiRequest(`/customers/${encodeURIComponent(customerId)}/identity/verify`, { method: "POST", body: JSON.stringify({ bvn: bvn.replace(/\D/g, ""), bankCode, accountNumber: accountNumber.replace(/\D/g, "") }) });
+          identityResult = await apiRequest(`/customers/${encodeURIComponent(customerId)}/identity/verify`, { method: "POST", body: JSON.stringify({ bvn: normalizedBvn, bankCode, accountNumber: normalizedAccountNumber, consentConfirmed: virtualAccountConsent }) });
         } catch (identityError) {
           setMessage("Customer profile created, but Paystack identity verification could not be started: " + (identityError instanceof Error ? identityError.message : "Please retry from the customer profile."));
           window.setTimeout(() => router.push("/customers/view/" + customerId), 2800);

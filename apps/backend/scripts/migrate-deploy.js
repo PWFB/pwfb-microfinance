@@ -12,8 +12,8 @@ const LEGACY_MIGRATIONS = [
   '20260916010000_add_branch_closing_financial_locks',
 ];
 
-// This specific additive migration is safe to retry: all table/column/index
-// creation is guarded, and both foreign keys are checked before being added.
+// This specific additive migration is safe to retry: table/column/index creation
+// is guarded, and the known failed attempt is resolved before retrying its FK statements.
 const RETRYABLE_ADDITIVE_MIGRATION = '20261024120000_paystack_dva_staff_customer_assignment';
 const schemaPath = 'prisma/schema.prisma';
 

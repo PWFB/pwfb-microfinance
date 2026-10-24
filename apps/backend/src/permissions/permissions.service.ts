@@ -40,24 +40,45 @@ const DEFAULTS: Record<string, Record<PermissionKey, boolean>> = {
 export class PermissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  private async tableAvailable() {
-    try { await this.prisma.$queryRawUnsafe('SELECT 1 FROM "RolePermission" LIMIT 1'); return true; }
-    catch { return false; }
+  /**
+   * This table is intentionally managed with SQL because it is not a Prisma
+   * model. Create it before reading or writing so the UI never silently falls
+   * back to defaults while the toggle writes to a missing table.
+   */
+  private async ensureTable() {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "RolePermission" (
+        "id" TEXT PRIMARY KEY,
+        "role" TEXT NOT NULL,
+        "permission" TEXT NOT NULL,
+        "enabled" BOOLEAN NOT NULL DEFAULT FALSE,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "RolePermission_role_permission_key" UNIQUE ("role", "permission")
+      )
+    `);
+    await this.prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "RolePermission_role_idx" ON "RolePermission" ("role")');
   }
 
   async list() {
-    if (!(await this.tableAvailable())) return Object.entries(DEFAULTS).map(([role, permissions]) => ({ role, permissions }));
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ role: string; permission: string; enabled: boolean }>>('SELECT "role", "permission", "enabled" FROM "RolePermission" ORDER BY "role", "permission"');
+    await this.ensureTable();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ role: string; permission: string; enabled: boolean }>>(
+      'SELECT "role", "permission", "enabled" FROM "RolePermission" ORDER BY "role", "permission"',
+    );
     const out: Record<string, any> = JSON.parse(JSON.stringify(DEFAULTS));
-    for (const r of rows) { if (!out[r.role]) out[r.role] = {}; out[r.role][r.permission] = r.enabled; }
+    for (const row of rows) {
+      if (!out[row.role]) out[row.role] = {};
+      out[row.role][row.permission] = row.enabled;
+    }
     return Object.entries(out).map(([role, permissions]) => ({ role, permissions }));
   }
 
   async get(role: string, permission: PermissionKey) {
-    if (await this.tableAvailable()) {
-      const rows = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>('SELECT "enabled" FROM "RolePermission" WHERE "role" = $1 AND "permission" = $2 LIMIT 1', role, permission);
-      if (rows[0]) return rows[0].enabled;
-    }
+    await this.ensureTable();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(
+      'SELECT "enabled" FROM "RolePermission" WHERE "role" = $1 AND "permission" = $2 LIMIT 1',
+      role, permission,
+    );
+    if (rows[0]) return rows[0].enabled;
     return DEFAULTS[role]?.[permission] ?? false;
   }
 
@@ -67,7 +88,13 @@ export class PermissionsService {
   }
 
   async set(role: string, permission: PermissionKey, enabled: boolean) {
-    await this.prisma.$executeRawUnsafe('INSERT INTO "RolePermission" ("id","role","permission","enabled","updatedAt") VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP) ON CONFLICT ("role","permission") DO UPDATE SET "enabled"=$4,"updatedAt"=CURRENT_TIMESTAMP', `rp_${role}_${permission}`, role, permission, enabled);
-    return { role, permission, enabled };
+    await this.ensureTable();
+    await this.prisma.$executeRawUnsafe(
+      'INSERT INTO "RolePermission" ("id","role","permission","enabled","updatedAt") VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP) ON CONFLICT ("role","permission") DO UPDATE SET "enabled"=$4,"updatedAt"=CURRENT_TIMESTAMP',
+      `rp_${role}_${permission}`, role, permission, enabled,
+    );
+    const persisted = await this.get(role, permission);
+    if (persisted !== enabled) throw new Error('Permission change could not be confirmed from the database');
+    return { role, permission, enabled: persisted };
   }
 }

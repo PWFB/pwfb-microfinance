@@ -285,7 +285,7 @@ export class ExternalBankTransferService {
         });
         return { wallet: { ...currentWallet, balance: restoredBalance }, transaction };
       });
-      return { ...reversal, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, nameMatch: true, provider } };
+      return { ...reversal, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, accountNameVerified: true, provider } };
     }
 
     const finalStatus = isSuccess ? 'COMPLETED' : 'PENDING';
@@ -297,7 +297,7 @@ export class ExternalBankTransferService {
       wallet: reservation.wallet,
       transaction,
       provider: providerResult,
-      beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, nameMatch: true, provider },
+      beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, accountNameVerified: true, provider },
     };
   }
 }

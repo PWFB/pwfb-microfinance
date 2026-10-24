@@ -31,12 +31,11 @@ export default function VirtualAccountPage() {
         setLoading(true);
         const customer = await pwfbApi.customers.me();
         setCustomerId(customer.id);
-        let active = await load(customer.id);
-        if (!active || active.status === "FAILED") {
+        let current = await load(customer.id);
+        if (!current || current.status !== "ACTIVE" || !current.accountNumber) {
           setCreating(true);
-          active = (await pwfbApi.banking.ensureCustomerVirtualAccount(customer.id))?.[0] ?? null;
-          if (!active) await load(customer.id);
-          else setAccount(active);
+          await pwfbApi.banking.ensureCustomerVirtualAccount(customer.id);
+          current = await load(customer.id);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unable to load virtual account");

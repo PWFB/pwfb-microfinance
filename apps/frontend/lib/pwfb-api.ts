@@ -20,7 +20,7 @@ function sortBanks(value: any) {
 }
 
 export const pwfbApi = {
-  customers: { me: () => apiRequest("/customers/me"), search: (q?: string) => apiRequest(`/customers${query(q ? { search: q } : undefined)}`) },
+  customers: { me: () => apiRequest("/customers/me"), search: (q?: string) => apiRequest(`/customers${query(q ? { search: q } : undefined)}`), history: (id: string) => apiRequest(`/customers/${encodeURIComponent(id)}/history`) },
   staff: { search: (q?: string) => apiRequest(`/staff${query(q ? { search: q } : undefined)}`), create: (body: unknown) => apiRequest("/staff", { method: "POST", body: JSON.stringify(body) }) },
   transactions: { list: () => apiRequest("/transactions"), get: (id: string) => apiRequest(`/transactions/${id}`), create: (body: unknown) => apiRequest("/transactions", { method: "POST", body: JSON.stringify(body) }), update: (id: string, body: unknown) => apiRequest(`/transactions/${id}`, { method: "PATCH", body: JSON.stringify(body) }), remove: (id: string) => apiRequest(`/transactions/${id}`, { method: "DELETE" }) },
   reports: { summary: () => apiRequest("/reports/summary"), operations: (params?: ApiListParams) => apiRequest(`/reports/operations${query(params)}`) },

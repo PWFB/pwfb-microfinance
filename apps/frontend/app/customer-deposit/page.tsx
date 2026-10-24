@@ -122,7 +122,7 @@ export default function CustomerDepositPage() {
     if (!customerId) { setMessage("Customer account is not available."); return; }
     setSubmitting(true);
     try {
-      const accounts = await pwfbApi.banking.ensureCustomerVirtualAccount(customerId, bankId);
+      const accounts = await pwfbApi.banking.ensureCustomerVirtualAccount(customerId);
       setVirtualAccounts(accounts || []);
       const account = accounts?.[0];
       setSuccess(true);

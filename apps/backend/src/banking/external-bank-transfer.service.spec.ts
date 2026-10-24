@@ -6,13 +6,22 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
   let prisma: any;
   let tx: any;
   let paystack: any;
+  let currentTxWallet: any;
 
   beforeEach(() => {
+    currentTxWallet = null;
     tx = {
       customerWallet: {
-        findUnique: jest.fn(),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'TEST-WITHDRAWAL-001', reference: where.reference, ...data })),
+        findUnique: jest.fn().mockImplementation(async () => currentTxWallet ? { ...currentTxWallet } : null),
+        updateMany: jest.fn().mockImplementation(async ({ where, data }: any) => {
+          if (!currentTxWallet || currentTxWallet.id !== where.id || currentTxWallet.status !== where.status || currentTxWallet.balance < where.balance.gte) return { count: 0 };
+          currentTxWallet = { ...currentTxWallet, ...data };
+          return { count: 1 };
+        }),
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => {
+          currentTxWallet = { ...currentTxWallet, ...data };
+          return { id: where.id, ...currentTxWallet };
+        }),
       },
       walletTransaction: {
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'test-withdrawal', ...data })),
@@ -21,6 +30,9 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
     };
     prisma = {
       customerWallet: { findUnique: jest.fn() },
+      walletTransaction: {
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'test-withdrawal', reference: where.reference, ...data })),
+      },
       $transaction: jest.fn(async (callback: any) => callback(tx)),
     };
     paystack = {
@@ -76,12 +88,9 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
   });
 
   it('rejects insufficient balance before initiating an outbound provider transfer', async () => {
-    prisma.customerWallet.findUnique.mockResolvedValue({
-      id: 'TEST-WALLET-001',
-      customerId: 'TEST-CUSTOMER-001',
-      balance: 50,
-      status: 'ACTIVE',
-    });
+    const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 50, status: 'ACTIVE' };
+    prisma.customerWallet.findUnique.mockResolvedValue(wallet);
+    currentTxWallet = wallet;
 
     await expect(service.transfer({
       customerId: 'TEST-CUSTOMER-001',
@@ -104,7 +113,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       status: 'ACTIVE',
     };
     prisma.customerWallet.findUnique.mockResolvedValue(wallet);
-    tx.customerWallet.findUnique.mockResolvedValue(wallet);
+    currentTxWallet = wallet;
 
     const result = await service.transfer({
       customerId: 'TEST-CUSTOMER-001',

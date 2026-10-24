@@ -38,7 +38,7 @@ export default function AddCustomerPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setMessage("");
     const hasIdentityDetails = Boolean(bvn.trim() || bankCode || accountNumber.trim());
-    if (hasIdentityDetails && (!/^\\d{11}$/.test(bvn.replace(/\\D/g, "")) || !bankCode || !/^\\d{10}$/.test(accountNumber.replace(/\\D/g, "")))) {
+    if (hasIdentityDetails && (!/^\d{11}$/.test(bvn.replace(/\D/g, "")) || !bankCode || !/^\d{10}$/.test(accountNumber.replace(/\D/g, "")))) {
       setMessage("To start automatic Paystack assignment, enter all three: 11-digit BVN, bank, and 10-digit bank account number.");
       return;
     }
@@ -54,7 +54,7 @@ export default function AddCustomerPage() {
       let identityResult: any = null;
       if (hasIdentityDetails) {
         try {
-          identityResult = await apiRequest(`/customers/${encodeURIComponent(customerId)}/identity/verify`, { method: "POST", body: JSON.stringify({ bvn: bvn.replace(/\\D/g, ""), bankCode, accountNumber: accountNumber.replace(/\\D/g, "") }) });
+          identityResult = await apiRequest(`/customers/${encodeURIComponent(customerId)}/identity/verify`, { method: "POST", body: JSON.stringify({ bvn: bvn.replace(/\D/g, ""), bankCode, accountNumber: accountNumber.replace(/\D/g, "") }) });
         } catch (identityError) {
           setMessage("Customer profile created, but Paystack identity verification could not be started: " + (identityError instanceof Error ? identityError.message : "Please retry from the customer profile."));
           window.setTimeout(() => router.push("/customers/view/" + customerId), 2800);
@@ -114,9 +114,9 @@ export default function AddCustomerPage() {
             <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
             <div className={styles.gridTwo}>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
-              <label>BVN <small>Needed for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\\D/g, "").slice(0, 11))} placeholder="11-digit BVN" /></label>
+              <label>BVN <small>Needed for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="11-digit BVN" /></label>
               <div><label>Bank <small>Needed for identity validation</small></label><BankSearchSelect banks={banks} value={bankCode} onChange={setBankCode} disabled={loading} /></div>
-              <label>Bank Account Number <small>10 digits</small><input inputMode="numeric" autoComplete="off" maxLength={10} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\\D/g, "").slice(0, 10))} placeholder="10-digit account number" /></label>
+              <label>Bank Account Number <small>10 digits</small><input inputMode="numeric" autoComplete="off" maxLength={10} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit account number" /></label>
               <div className={styles.infoBox}><span>✓</span><div><b>PWFB Microfinance virtual account</b><small>With customer consent, Paystack validates the BVN and bank-account details first, then assigns the virtual account after provider confirmation. BVN is not displayed in the account UI.</small></div></div>
               <label className={styles.full} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
               <input type="checkbox" checked={virtualAccountConsent} onChange={(e) => setVirtualAccountConsent(e.target.checked)} required style={{ width: 18, height: 18, marginTop: 3 }} />

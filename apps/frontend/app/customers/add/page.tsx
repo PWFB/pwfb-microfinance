@@ -36,19 +36,19 @@ export default function AddCustomerPage() {
   const change = (name: keyof CustomerForm, value: string) => { setForm((current) => ({ ...current, [name]: value })); setMessage(""); };
 
   async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setLoading(true); setMessage("");
+    event.preventDefault(); setMessage("");
+    const hasIdentityDetails = Boolean(bvn.trim() || bankCode || accountNumber.trim());
+    if (hasIdentityDetails && (!/^\\d{11}$/.test(bvn.replace(/\\D/g, "")) || !bankCode || !/^\\d{10}$/.test(accountNumber.replace(/\\D/g, "")))) {
+      setMessage("To start automatic Paystack assignment, enter all three: 11-digit BVN, bank, and 10-digit bank account number.");
+      return;
+    }
+    setLoading(true);
     try {
       const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent }) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
       if (!customerId) {
         setMessage("Customer profile was submitted, but the server response did not include a customer ID. Wallet and virtual-account setup could not be confirmed.");
         window.setTimeout(() => router.push("/customers"), 1800);
-        return;
-      }
-      const hasIdentityDetails = Boolean(bvn.trim() || bankCode || accountNumber.trim());
-      if (hasIdentityDetails && (!/^\\d{11}$/.test(bvn.replace(/\\D/g, "")) || !bankCode || !/^\\d{10}$/.test(accountNumber.replace(/\\D/g, "")))) {
-        setMessage("To start automatic Paystack assignment, enter all three: 11-digit BVN, bank, and 10-digit bank account number. The customer profile has already been created; open it to complete verification.");
-        window.setTimeout(() => router.push("/customers/view/" + customerId), 2500);
         return;
       }
       let identityResult: any = null;

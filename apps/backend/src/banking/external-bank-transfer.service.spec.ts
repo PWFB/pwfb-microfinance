@@ -12,9 +12,11 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       customerWallet: {
         findUnique: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'TEST-WITHDRAWAL-001', reference: where.reference, ...data })),
       },
       walletTransaction: {
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'test-withdrawal', ...data })),
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'test-withdrawal', reference: where.reference, ...data })),
       },
     };
     prisma = {
@@ -135,8 +137,18 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
         previousBalance: 1000,
         newBalance: 750,
         provider: 'PAYSTACK',
-        providerReference: 'TEST-PROVIDER-REF-001',
+        providerReference: expect.any(String),
+        status: 'PROCESSING',
+      }),
+    }));
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.$transaction.mock.calls[0][0]).toBeInstanceOf(Function);
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(tx.walletTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { reference: expect.any(String) },
+      data: expect.objectContaining({
         status: 'COMPLETED',
+        providerReference: 'TEST-PROVIDER-REF-001',
       }),
     }));
     expect(result.wallet.balance).toBe(750);

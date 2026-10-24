@@ -102,7 +102,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
 
     expect(service.verifyCustomerBankAccount).toHaveBeenCalled();
     expect(service.transferToVerifiedAccount).not.toHaveBeenCalled();
-    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('records an accepted provider transfer as a withdrawal and debits the wallet once', async () => {
@@ -153,7 +153,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction.mock.calls[0][0]).toBeInstanceOf(Function);
     expect(prisma.$transaction).toHaveBeenCalled();
-    expect(tx.walletTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
+    expect(prisma.walletTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { reference: expect.any(String) },
       data: expect.objectContaining({
         status: 'COMPLETED',
@@ -171,7 +171,6 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
   it('restores reserved funds when the provider definitively rejects a transfer', async () => {
     const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
     prisma.customerWallet.findUnique.mockResolvedValue(wallet);
-    tx.customerWallet.findUnique.mockResolvedValue(wallet);
     jest.spyOn(service, 'transferToVerifiedAccount').mockResolvedValue({ status: 'FAILED', providerReference: 'TEST-FAILED-REF' } as any);
 
     const result = await service.transfer({
@@ -196,7 +195,6 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
   it('keeps funds reserved and does not auto-retry when provider outcome is uncertain', async () => {
     const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
     prisma.customerWallet.findUnique.mockResolvedValue(wallet);
-    tx.customerWallet.findUnique.mockResolvedValue(wallet);
     jest.spyOn(service, 'transferToVerifiedAccount').mockRejectedValue(new Error('network timeout'));
 
     await expect(service.transfer({

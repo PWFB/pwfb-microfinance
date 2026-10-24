@@ -5,7 +5,7 @@ ALTER TABLE "CustomerVirtualAccount"
 
 CREATE INDEX IF NOT EXISTS "CustomerVirtualAccount_providerCustomerId_idx" ON "CustomerVirtualAccount"("providerCustomerId");
 
-CREATE TABLE "StaffVirtualAccount" (
+CREATE TABLE IF NOT EXISTS "StaffVirtualAccount" (
   "id" TEXT NOT NULL,
   "staffId" TEXT NOT NULL,
   "institutionId" TEXT,
@@ -24,16 +24,23 @@ CREATE TABLE "StaffVirtualAccount" (
   CONSTRAINT "StaffVirtualAccount_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "StaffVirtualAccount_staffId_key" ON "StaffVirtualAccount"("staffId");
-CREATE UNIQUE INDEX "StaffVirtualAccount_accountNumber_key" ON "StaffVirtualAccount"("accountNumber");
-CREATE UNIQUE INDEX "StaffVirtualAccount_providerCustomerCode_key" ON "StaffVirtualAccount"("providerCustomerCode");
-CREATE UNIQUE INDEX "StaffVirtualAccount_providerAccountId_key" ON "StaffVirtualAccount"("providerAccountId");
-CREATE INDEX "StaffVirtualAccount_institutionId_idx" ON "StaffVirtualAccount"("institutionId");
-CREATE INDEX "StaffVirtualAccount_status_idx" ON "StaffVirtualAccount"("status");
+CREATE UNIQUE INDEX IF NOT EXISTS "StaffVirtualAccount_staffId_key" ON "StaffVirtualAccount"("staffId");
+CREATE UNIQUE INDEX IF NOT EXISTS "StaffVirtualAccount_accountNumber_key" ON "StaffVirtualAccount"("accountNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "StaffVirtualAccount_providerCustomerCode_key" ON "StaffVirtualAccount"("providerCustomerCode");
+CREATE UNIQUE INDEX IF NOT EXISTS "StaffVirtualAccount_providerAccountId_key" ON "StaffVirtualAccount"("providerAccountId");
+CREATE INDEX IF NOT EXISTS "StaffVirtualAccount_institutionId_idx" ON "StaffVirtualAccount"("institutionId");
+CREATE INDEX IF NOT EXISTS "StaffVirtualAccount_status_idx" ON "StaffVirtualAccount"("status");
 
-ALTER TABLE "StaffVirtualAccount"
-  ADD CONSTRAINT "StaffVirtualAccount_staffId_fkey"
-  FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "StaffVirtualAccount"
-  ADD CONSTRAINT "StaffVirtualAccount_institutionId_fkey"
-  FOREIGN KEY ("institutionId") REFERENCES "BankInstitution"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+DO $ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'StaffVirtualAccount_staffId_fkey' AND conrelid = '"StaffVirtualAccount"'::regclass) THEN
+    ALTER TABLE "StaffVirtualAccount" ADD CONSTRAINT "StaffVirtualAccount_staffId_fkey"
+      FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $;
+
+DO $ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'StaffVirtualAccount_institutionId_fkey' AND conrelid = '"StaffVirtualAccount"'::regclass) THEN
+    ALTER TABLE "StaffVirtualAccount" ADD CONSTRAINT "StaffVirtualAccount_institutionId_fkey"
+      FOREIGN KEY ("institutionId") REFERENCES "BankInstitution"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $;

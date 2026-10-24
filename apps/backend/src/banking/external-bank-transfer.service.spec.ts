@@ -164,7 +164,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       accountNumber: '1234567890',
       accountName: 'TEST BENEFICIARY',
       verified: true,
-      nameMatch: true,
+      accountNameVerified: true,
     });
   });
   it('restores reserved funds when the provider definitively rejects a transfer', async () => {

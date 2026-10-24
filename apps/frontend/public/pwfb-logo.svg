@@ -1,14 +1,9 @@
 <svg width="620" height="160" viewBox="0 0 620 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
-<title id="title">LAB MICROFINANCE</title><desc id="desc">LAB MICROFINANCE brand logo</desc>
-<g transform="translate(10 12)">
-<circle cx="62" cy="27" r="14" fill="#F47712"/>
-<path d="M62 44C48 36 31 42 25 58c-5 14 2 34 21 48 7-15 12-31 16-48Z" fill="#079447"/>
-<path d="M66 44c12-13 31-14 40-1 8 12 5 30-10 45-9 9-19 15-29 18 2-19 1-41-1-62Z" fill="#4D681F"/>
-<path d="M55 47c-8-8-21-10-31-3-11 8-14 24-7 38 5 10 13 18 25 26-1-17 3-41 13-61Z" fill="#0B8B42"/>
-<path d="M61 46c-5 15-8 30-8 45" stroke="#F47712" stroke-width="7" stroke-linecap="round"/>
-<path d="M46 72c9 9 14 17 15 30" stroke="#F47712" stroke-width="5" stroke-linecap="round"/>
-</g>
-<text x="152" y="73" fill="#F47712" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="900" letter-spacing="-3">LAB</text>
-<text x="275" y="73" fill="#0C5E2D" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="900" letter-spacing="-3"/text>
-
+<title id="title">LAB MICROFINANCE</title>
+<desc id="desc">LAB MICROFINANCE logo</desc>
+<rect x="12" y="12" width="126" height="126" rx="28" fill="#075D2A"/>
+<rect x="22" y="22" width="106" height="106" rx="22" fill="#0F7B35" stroke="#F28C18" stroke-width="3"/>
+<text x="75" y="91" text-anchor="middle" fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif" font-size="39" font-weight="900">LAB</text>
+<text x="158" y="76" fill="#F47712" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="900" letter-spacing="-1">LAB</text>
+<text x="158" y="112" fill="#0C5E2D" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="900" letter-spacing="1">MICROFINANCE</text>
 </svg>

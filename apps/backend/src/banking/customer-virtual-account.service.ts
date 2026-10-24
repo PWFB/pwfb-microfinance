@@ -286,7 +286,7 @@ export class CustomerVirtualAccountService {
   async handleAssignmentWebhook(event: any) {
     const type = String(event?.event || '');
     const data = event?.data || {};
-    if (!['dedicatedaccount.assign.success', 'dedicatedaccount.assign.failed'].includes(type)) {
+    if (!['dedicatedaccount.assign.success', 'dedicatedaccount.assign.failed', 'customeridentification.success', 'customeridentification.failed'].includes(type)) {
       return { ok: true, ignored: true, event: type };
     }
     const customerCode = String(data?.customer?.customer_code || data?.customer_code || '').trim();

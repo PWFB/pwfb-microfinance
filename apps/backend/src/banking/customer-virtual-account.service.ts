@@ -101,13 +101,19 @@ export class CustomerVirtualAccountService {
 
     const resolvedInstitutionId = institution?.id ?? null;
 
-    const existing = await this.prisma.customerVirtualAccount.findFirst({
+    // Prefer a live/pending account first. If provisioning previously failed,
+    // reuse that same local row and provider customer ID so retries keep the
+    // same idempotency reference instead of creating duplicate provider records.
+    const existing = (await this.prisma.customerVirtualAccount.findFirst({
       where: {
         customerId,
         status: { in: ['PENDING', 'ACTIVE'] },
       },
       orderBy: { createdAt: 'desc' },
-    });
+    })) ?? (await this.prisma.customerVirtualAccount.findFirst({
+      where: { customerId, status: 'FAILED' },
+      orderBy: { createdAt: 'desc' },
+    }));
 
     if (existing?.status === 'ACTIVE' && existing.accountNumber) {
       return this.get(customerId);

@@ -125,3 +125,32 @@
   box-shadow: 0 10px 24px rgba(16, 24, 20, .09);
   transform: translateY(-2px);
 }
+
+
+/* Super Admin final pass: align financial quick-action cards with the management system. */
+.pwfb-content main .pwfb-panel a[style*="min-height: 82px"] {
+  border-radius: 16px !important;
+  border-color: #e0e6e2 !important;
+  box-shadow: 0 4px 14px rgba(20, 32, 24, .045) !important;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
+}
+.pwfb-content main .pwfb-panel a[style*="min-height: 82px"]:hover {
+  border-color: #f28c18 !important;
+  background: #fffaf3 !important;
+  box-shadow: 0 9px 22px rgba(16, 24, 20, .09) !important;
+  transform: translateY(-2px);
+}
+.pwfb-content main .pwfb-panel a[style*="min-height: 82px"]:focus-visible {
+  outline: 3px solid rgba(242, 140, 24, .45);
+  outline-offset: 2px;
+}
+.pwfb-content main .pwfb-operation-control-card:focus-visible {
+  outline: 3px solid rgba(242, 140, 24, .55);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pwfb-content main .pwfb-panel a[style*="min-height: 82px"],
+  .pwfb-content main .pwfb-operation-control-card { transition: none; }
+  .pwfb-content main .pwfb-panel a[style*="min-height: 82px"]:hover,
+  .pwfb-content main .pwfb-operation-control-card:hover { transform: none; }
+}

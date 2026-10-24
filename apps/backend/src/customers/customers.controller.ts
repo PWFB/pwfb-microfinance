@@ -62,7 +62,7 @@ export class CustomersController {
 
   @Post(':id/identity/verify')
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF')
-  verifyIdentity(@Param('id') id: string, @Body() body: { bvn: string; bankCode: string; accountNumber: string }, @Req() req: any) {
+  verifyIdentity(@Param('id') id: string, @Body() body: { bvn: string; bankCode: string; accountNumber: string; consentConfirmed?: boolean }, @Req() req: any) {
     return this.customersService.verifyIdentity(id, body, req.user);
   }
 

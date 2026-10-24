@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { apiRequest } from "../../../../lib/api";
 
 interface Customer {
@@ -35,7 +36,7 @@ export default function ViewCustomerPage() {
   return <main style={{ padding: 30, fontFamily: "Arial", maxWidth: 1000 }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
       <div><p className="pwfb-eyebrow">SUPER ADMIN • CUSTOMER PROFILE</p><h1>Customer Profile</h1><p>{fullName} • {customer.id}</p></div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button onClick={() => setEditing((value) => !value)}>{editing ? "Cancel Edit" : "Edit Profile"}</button><button onClick={resetPassword} disabled={resetting}>{resetting ? "Resetting..." : "Reset Password"}</button><button onClick={() => router.push("/customers")}>Back</button></div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Link href={`/transactions?customerId=${encodeURIComponent(String(id))}`} style={{ display: "inline-flex", alignItems: "center", padding: "9px 12px", border: "1px solid #b7dfc5", borderRadius: 8, color: "#126b35", fontWeight: 700, textDecoration: "none" }}>View Client History</Link><button onClick={() => setEditing((value) => !value)}>{editing ? "Cancel Edit" : "Edit Profile"}</button><button onClick={resetPassword} disabled={resetting}>{resetting ? "Resetting..." : "Reset Password"}</button><button onClick={() => router.push("/customers")}>Back</button></div>
     </div>
 
     {message && <div style={{ margin: "16px 0", padding: 12, border: "1px solid #ccc", borderRadius: 8 }}>{message}</div>}

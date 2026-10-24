@@ -216,8 +216,16 @@ export class ExternalBankTransferService {
     if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
 
-    const verified = await this.verifyCustomerBankAccount(input.customerId, bankCode, accountNumber, input.provider);
+    // Interbank beneficiaries are not expected to share the sender's name.
+    // Resolve the destination account with the bank/provider and use that returned
+    // name for confirmation; do not compare it with the PWFB customer's profile.
+    const verified = await this.nameEnquiry(bankCode, accountNumber, input.provider);
     const verifiedAccountName = String(verified.accountName || '').trim();
+    if (!verifiedAccountName) throw new BadRequestException('Destination bank account name could not be verified');
+    const submittedAccountName = String(input.accountName || '').trim();
+    if (submittedAccountName && this.normalizeName(submittedAccountName) !== this.normalizeName(verifiedAccountName)) {
+      throw new BadRequestException('The destination account name changed after verification. Please verify the account again before transferring.');
+    }
     const provider = String(verified.provider || input.provider || this.provider()).trim().toUpperCase();
     const wallet = await this.prisma.customerWallet.findUnique({ where: { customerId: input.customerId } });
     if (!wallet) throw new NotFoundException('Customer wallet not found');

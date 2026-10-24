@@ -23,16 +23,74 @@ export class AuthService {
   }
   async register(dto: RegisterDto) {
     const email = String(dto.email || '').trim().toLowerCase();
-    if (!email || !dto.password) throw new UnauthorizedException('Email and password are required');
+    const firstName = String(dto.firstName || '').trim();
+    const lastName = String(dto.lastName || '').trim();
+    const phone = String(dto.phone || '').trim();
+
+    if (!email || !dto.password || !firstName || !lastName || !phone) {
+      throw new BadRequestException('First name, last name, email, phone and password are required');
+    }
+
+    // Public registration must never create or elevate the configured Super Admin account.
+    const configuredAdminEmail = String(process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
+    if (configuredAdminEmail && email === configuredAdminEmail) {
+      throw new UnauthorizedException('This email is reserved for the configured Super Admin account. Sign in or complete server-side Super Admin setup.');
+    }
+
     const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) throw new UnauthorizedException('User already exists');
+
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    let user = await this.prisma.user.create({ data: { email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, passportPhoto: dto.passportPhoto, role: 'CUSTOMER' } });
-    // The configured Super Admin email is never created as a customer, even when registration is used.
-    user = await this.enforceConfiguredSuperAdmin(user);
+    let user: any;
+
+    try {
+      // Create the customer first, then link the User using the existing schema relation.
+      // One transaction prevents a login account being created without its profile/wallet.
+      user = await this.prisma.$transaction(async (tx) => {
+        const customer = await tx.customer.create({
+          data: {
+            firstName,
+            lastName,
+            email,
+            phone,
+            wallet: { create: {} },
+          },
+        });
+
+        return tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            firstName,
+            lastName,
+            phone,
+            passportPhoto: dto.passportPhoto,
+            role: 'CUSTOMER',
+            customer: { connect: { id: customer.id } },
+          },
+        });
+      });
+    } catch (error) {
+      const code = error && typeof error === 'object' ? (error as { code?: string }).code : undefined;
+      if (code === 'P2002') {
+        throw new UnauthorizedException('An account with this email already exists');
+      }
+      throw error;
+    }
+
     const accessToken = await this.issueToken(user);
     const { password, ...safeUser } = user;
-    return { message: 'Registration successful', access_token: accessToken, user: safeUser };
+    return {
+      message: 'Registration successful',
+      access_token: accessToken,
+      user: safeUser,
+      onboarding: {
+        profileCreated: true,
+        walletCreated: true,
+        virtualAccountStatus: 'NOT_REQUESTED',
+        nextStep: 'Complete identity verification and give explicit consent before requesting a Paystack virtual account.',
+      },
+    };
   }
   async login(dto: LoginDto) {
     const identifier = String(dto.identifier || dto.email || '').trim();

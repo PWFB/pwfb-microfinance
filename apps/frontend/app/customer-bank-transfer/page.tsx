@@ -53,25 +53,28 @@ export default function CustomerBankTransferPage() {
     setAccountName("");
     if (!bankCode || !/^\d{10}$/.test(accountNumber)) return;
     let cancelled = false;
-    setVerifying(true);
-    setMessage("");
-    pwfbApi.banking.accountName(bankCode, accountNumber).then((result: any) => {
-      if (cancelled) return;
-      const name = extractVerifiedAccountName(result);
-      if (!name) throw new Error("The bank did not return a verified account name.");
-      setAccountName(name);
-      setVerified(Boolean(result?.verified ?? true));
-      setMessage(`Bank verified: ${name}`);
-    }).catch((error) => {
-      if (!cancelled) {
-        setAccountName("");
-        setVerified(false);
-        setMessage(error instanceof Error ? error.message : "Account verification failed.");
-      }
-    }).finally(() => {
-      if (!cancelled) setVerifying(false);
-    });
-    return () => { cancelled = true; };
+    const timer = setTimeout(() => {
+      setVerifying(true);
+      setMessage("");
+      pwfbApi.banking.accountName(bankCode, accountNumber).then((result: any) => {
+        if (cancelled) return;
+        const name = extractVerifiedAccountName(result);
+        if (!name || result?.verified !== true) throw new Error("The bank provider did not confirm this account.");
+        if (result?.customerNameVerified !== true) throw new Error("The destination account name could not be matched to your PWFB profile.");
+        setAccountName(name);
+        setVerified(true);
+        setMessage("Bank account and customer name verified: " + name);
+      }).catch((error) => {
+        if (!cancelled) {
+          setAccountName("");
+          setVerified(false);
+          setMessage(error instanceof Error ? error.message : "Account verification failed.");
+        }
+      }).finally(() => {
+        if (!cancelled) setVerifying(false);
+      });
+    }, 450);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [bankCode, accountNumber]);
 
   const customerName = [customer?.firstName, customer?.lastName].filter(Boolean).join(" ");

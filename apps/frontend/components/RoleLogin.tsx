@@ -12,7 +12,7 @@ type GooglePayload = { credential: string; client_id: string; nonce: string; log
 declare global {
   interface Window {
     google?: any;
-    PWFBNative?: {
+    LAB MICROFINANCENative?: {
       signInWithGoogle?: (loginMode?: string) => void;
       signInWithPasskey?: (loginMode?: string, identifier?: string) => void;
       registerPasskey?: (replaceExisting: boolean, token: string) => void;
@@ -88,14 +88,14 @@ export default function RoleLogin() {
   };
 
   const forgotPassword = () => {
-    setMessage("Password recovery is not configured on this login screen yet. Please contact your PWFB administrator.");
+    setMessage("Password recovery is not configured on this login screen yet. Please contact your LAB MICROFINANCE administrator.");
   };
 
   const login = async (event: React.FormEvent, mode: LoginMode) => {
     event.preventDefault(); setMessage(""); setLoading(mode);
     try {
       await completeLogin(await apiRequest("/auth/login", { method: "POST", body: JSON.stringify({ identifier: values[mode].trim(), password: passwords[mode], loginMode: mode }) }), mode);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to PWFB"); setLoading(null); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to connect to LAB MICROFINANCE"); setLoading(null); }
   };
 
   const googleLogin = async (payload: GooglePayload) => {
@@ -107,8 +107,8 @@ export default function RoleLogin() {
   const biometricLogin = async (mode: LoginMode) => {
     setMessage(""); setLoading(mode);
     try {
-      if (nativeApp && window.PWFBNative?.signInWithPasskey) {
-        window.PWFBNative.signInWithPasskey(mode, values[mode].trim());
+      if (nativeApp && window.LAB MICROFINANCENative?.signInWithPasskey) {
+        window.LAB MICROFINANCENative.signInWithPasskey(mode, values[mode].trim());
         return;
       }
       const options = await apiRequest("/auth/passkey/login/options", { method: "POST", body: JSON.stringify({ email: values[mode].includes("@") ? values[mode].trim() : undefined }) });
@@ -118,7 +118,7 @@ export default function RoleLogin() {
   };
 
   useEffect(() => {
-    const app = typeof window !== "undefined" && !!window.PWFBNative;
+    const app = typeof window !== "undefined" && !!window.LAB MICROFINANCENative;
     setNativeApp(app);
     if (app) return;
     let active = true;
@@ -149,7 +149,7 @@ export default function RoleLogin() {
           const config = await Promise.race([
             apiRequest("/auth/google/config", { method: "GET" }),
             new Promise<never>((_, reject) => window.setTimeout(
-              () => reject(new Error("Google configuration request timed out. Please check the PWFB API URL.")),
+              () => reject(new Error("Google configuration request timed out. Please check the LAB MICROFINANCE API URL.")),
               10000
             ))
           ]);
@@ -205,21 +205,21 @@ export default function RoleLogin() {
   return (
     <main className="pwfb-login-page">
       <header className="pwfb-brand">
-        <img src="/pwfb-login-logo.svg" alt="PWFB Microfinance" />
+        <img src="/pwfb-login-logo.svg" alt="LAB MICROFINANCE" />
         <p>Empowering People · Building Better Futures</p>
       </header>
 
-      <section className="pwfb-login-story" aria-label="About PWFB Microfinance">
+      <section className="pwfb-login-story" aria-label="About LAB MICROFINANCE">
         <div className="pwfb-story-kicker"><span /> FINANCIAL SERVICES, MADE CLEAR</div>
         <h2>Build your future with <em>confidence.</em></h2>
-        <p className="pwfb-story-copy">A simpler way to access your PWFB account, follow your savings, and manage your financial activities securely.</p>
+        <p className="pwfb-story-copy">A simpler way to access your LAB MICROFINANCE account, follow your savings, and manage your financial activities securely.</p>
         <div className="pwfb-story-art" aria-hidden="true">
           <div className="pwfb-art-orbit pwfb-art-orbit-one" />
           <div className="pwfb-art-orbit pwfb-art-orbit-two" />
           <div className="pwfb-art-glow" />
           <div className="pwfb-art-card">
             <div className="pwfb-art-card-top"><span className="pwfb-art-mark">P</span><span className="pwfb-art-chip" /></div>
-            <small>PWFB FINANCIAL SERVICES</small>
+            <small>LAB MICROFINANCE FINANCIAL SERVICES</small>
             <strong>Your goals.<br />Your next chapter.</strong>
             <div className="pwfb-art-card-bottom"><span>SECURE ACCESS</span><span>✦</span></div>
           </div>
@@ -231,7 +231,7 @@ export default function RoleLogin() {
           <div><span className="pwfb-feature-icon">↗</span><span><b>Loans & repayments</b><small>Follow your loan journey</small></span></div>
           <div><span className="pwfb-feature-icon">⌑</span><span><b>Security first</b><small>Sign in with trusted methods</small></span></div>
         </div>
-        <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with PWFB.</p>
+        <p className="pwfb-story-footnote"><span>●</span> Your financial journey, with LAB MICROFINANCE.</p>
       </section>
 
       <section className={"pwfb-login-shell " + selectedCard.tone}>
@@ -371,7 +371,7 @@ export default function RoleLogin() {
                 disabled={loading !== null}
                 onClick={() => {
                   setLoading(selectedCard.mode);
-                  window.PWFBNative?.signInWithGoogle?.(selectedCard.mode);
+                  window.LAB MICROFINANCENative?.signInWithGoogle?.(selectedCard.mode);
                 }}
               >
                 <strong>G</strong>
@@ -427,12 +427,12 @@ export default function RoleLogin() {
             </div>
           )}
 
-          <p className="pwfb-security-note">🔒 Biometric data stays on your device. PWFB receives only a secure passkey.</p>
+          <p className="pwfb-security-note">🔒 Biometric data stays on your device. LAB MICROFINANCE receives only a secure passkey.</p>
         </div>
       </section>
 
       <footer className="pwfb-login-footer">
-        <strong>🔒 PWFB Microfinance</strong>
+        <strong>🔒 LAB MICROFINANCE</strong>
         <span>Secure · Reliable · Trusted</span>
       </footer>
 

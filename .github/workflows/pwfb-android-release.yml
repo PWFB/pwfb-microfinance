@@ -1,4 +1,4 @@
-name: PWFB Android Release
+name: LAB MICROFINANCE Android Release
 
 on:
   workflow_dispatch:
@@ -50,7 +50,7 @@ jobs:
             -PPWFB_KEY_ALIAS="${{ secrets.ANDROID_KEY_ALIAS }}" \
             -PPWFB_KEY_PASSWORD="${{ secrets.ANDROID_KEY_PASSWORD }}"
       - name: Verify version
-        run: grep -q "versionCode 51" android-twa/app/build.gradle && grep -q "versionName '1.0.51'" android-twa/app/build.gradle
+        run: grep -q "versionCode 52" android-twa/app/build.gradle && grep -q "versionName '1.0.52'" android-twa/app/build.gradle
       - name: Verify signed APK
         run: test -s android-twa/app/build/outputs/apk/release/app-release.apk
       - name: Verify signed AAB
@@ -58,24 +58,24 @@ jobs:
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.51-staff-customer-login-signed-apk
+          name: lab-microfinance-v1.0.52-staging-signed-apk
           path: android-twa/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
       - name: Upload signed AAB artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pwfb-microfinance-v1.0.51-staff-customer-login-signed-aab
+          name: lab-microfinance-v1.0.52-staging-signed-aab
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.51
-          name: PWFB Microfinance v1.0.51 — Staff + Customer Web/App Login
+          tag_name: v1.0.52
+          name: LAB MICROFINANCE v1.0.52 — Staging Android
           body: |
-            PWFB Microfinance Android application v1.0.51.
+            LAB MICROFINANCE Android application v1.0.52 for the staging service.
 
-            Fixes native Google sign-in so the Android app requests an ID token for the PWFB backend/server OAuth client. The release also restores reliable pull-to-refresh behavior and keeps the PWFB orange/green bottom brand accent consistent across WebView and web.
+            Fixes native Google sign-in so the Android app requests an ID token for the staging backend/server OAuth client. The release also restores reliable pull-to-refresh behavior and keeps the LAB MICROFINANCE orange/green bottom brand accent consistent across WebView and web.
             Signed APK is provided for Android installation and signed AAB for Google Play.
           files: |
             android-twa/app/build/outputs/apk/release/app-release.apk
@@ -86,4 +86,4 @@ jobs:
         if: always()
         run: rm -f android-twa/pwfb-upload-key.jks
 
-# PWFB v1.0.51 Staff and customer web/app login release build
+# LAB MICROFINANCE v1.0.52 staging staff and customer login release build

@@ -62,7 +62,7 @@ export default function AddStaffPage() {
   async function verifyBvn(){
     if(!/^\d{11}$/.test(bvn))return setMessage('Enter a valid 11-digit BVN.');
     if(!form.firstName.trim()||!form.lastName.trim())return setMessage('Enter the staff member’s first and last name.');
-    if(form.phone.replace(/\\D/g,'').length<10)return setMessage('Enter the staff member’s valid phone number before Paystack verification.');
+    if(form.phone.replace(/\D/g,'').length<10)return setMessage('Enter the staff member’s valid phone number before Paystack verification.');
     if(!bankCode)return setMessage('Select the staff member’s bank.');
     if(!/^\d{10}$/.test(accountNumber))return setMessage('Enter a valid 10-digit bank account number.');
     setBusy(true);setMessage('');

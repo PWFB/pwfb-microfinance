@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NibssService } from './nibss.service';
 import { FlutterwaveService } from './flutterwave.service';
@@ -211,30 +211,85 @@ export class ExternalBankTransferService {
   async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string }) {
     const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
-    const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
+    const accountNumber = String(input.accountNumber || '').replace(/\\D/g, '');
     if (!bankCode) throw new BadRequestException('Bank code is required');
-    if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
+    if (!/^\\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
+
     const verified = await this.verifyCustomerBankAccount(input.customerId, bankCode, accountNumber, input.provider);
     const verifiedAccountName = String(verified.accountName || '').trim();
+    const provider = String(verified.provider || input.provider || this.provider()).trim().toUpperCase();
     const wallet = await this.prisma.customerWallet.findUnique({ where: { customerId: input.customerId } });
     if (!wallet) throw new NotFoundException('Customer wallet not found');
     if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
-    if (wallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
-    const provider = String(verified.provider || input.provider || this.provider()).trim().toUpperCase();
+
+    // Reserve the funds and write a PROCESSING ledger entry before calling the
+    // provider. This prevents a successful payout from racing a later wallet debit.
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
-    const providerResult = await this.transferToVerifiedAccount({ bankCode, accountNumber, accountName: verifiedAccountName, amount, narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`, reference: xref, provider });
-    return this.prisma.$transaction(async (tx) => {
+    const reservation = await this.prisma.$transaction(async (tx) => {
       const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
-      if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance after provider acceptance');
+      if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
       const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;
-      const updated = await tx.customerWallet.updateMany({ where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } }, data: { balance: newBalance } });
-      if (updated.count !== 1) throw new BadRequestException('Withdrawal could not be completed because the wallet balance changed');
-      const providerStatus = String((providerResult as any)?.status ?? '').toUpperCase();
-      const transactionStatus = (provider === 'FLUTTERWAVE' || provider === 'PAYSTACK') && providerStatus !== 'SUCCESSFUL' && providerStatus !== 'SUCCESS' ? 'PENDING' : 'COMPLETED';
-      const transaction = await tx.walletTransaction.create({ data: { customerId: input.customerId, type: 'WITHDRAWAL', amount, previousBalance: currentWallet.balance, newBalance, reference: xref, description: input.description || `Bank withdrawal to ${verifiedAccountName}`, provider, providerReference: String((providerResult as any)?.providerReference ?? (providerResult as any)?.transactionReference ?? xref), status: transactionStatus as any, processedAt: transactionStatus === 'COMPLETED' ? new Date() : null } });
-      return { wallet: { ...currentWallet, balance: newBalance }, transaction, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, nameMatch: true, provider } };
+      const updated = await tx.customerWallet.updateMany({
+        where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } },
+        data: { balance: newBalance },
+      });
+      if (updated.count !== 1) throw new BadRequestException('Insufficient wallet balance or wallet changed; retry safely');
+      const transaction = await tx.walletTransaction.create({
+        data: {
+          customerId: input.customerId, type: 'WITHDRAWAL', amount,
+          previousBalance: currentWallet.balance, newBalance, reference: xref,
+          description: input.description || `Bank withdrawal to ${verifiedAccountName}`,
+          provider, providerReference: xref, status: 'PROCESSING',
+        },
+      });
+      return { wallet: { ...currentWallet, balance: newBalance }, transaction };
     });
+
+    let providerResult: any;
+    try {
+      providerResult = await this.transferToVerifiedAccount({
+        bankCode, accountNumber, accountName: verifiedAccountName, amount,
+        narration: input.description || `PWFB withdrawal to ${verifiedAccountName}`,
+        reference: xref, provider,
+      });
+    } catch {
+      // A timeout/error can happen after the provider accepted the payout. Keep
+      // funds reserved and the ledger PROCESSING for reconciliation; never refund
+      // automatically or retry a potentially accepted payout.
+      throw new ServiceUnavailableException(`Bank transfer status is uncertain. Funds remain reserved for reconciliation. Reference: ${xref}`);
+    }
+
+    const providerStatus = String(providerResult?.status ?? '').toUpperCase();
+    const isSuccess = ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'].includes(providerStatus);
+    const isDefinitiveFailure = ['FAILED', 'REJECTED', 'CANCELLED', 'CANCELED'].includes(providerStatus);
+
+    if (isDefinitiveFailure) {
+      const reversal = await this.prisma.$transaction(async (tx) => {
+        const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+        if (!currentWallet) throw new NotFoundException('Customer wallet not found during transfer reversal');
+        const restoredBalance = Math.round((currentWallet.balance + amount) * 100) / 100;
+        await tx.customerWallet.update({ where: { id: currentWallet.id }, data: { balance: restoredBalance } });
+        const transaction = await tx.walletTransaction.update({
+          where: { reference: xref },
+          data: { newBalance: restoredBalance, status: 'FAILED', failureReason: `Provider rejected transfer: ${providerStatus}`, processedAt: new Date() },
+        });
+        return { wallet: { ...currentWallet, balance: restoredBalance }, transaction };
+      });
+      return { ...reversal, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, nameMatch: true, provider } };
+    }
+
+    const finalStatus = isSuccess ? 'COMPLETED' : 'PENDING';
+    const transaction = await this.prisma.walletTransaction.update({
+      where: { reference: xref },
+      data: { status: finalStatus, providerReference: String(providerResult?.providerReference ?? providerResult?.transactionReference ?? xref), processedAt: isSuccess ? new Date() : null },
+    });
+    return {
+      wallet: reservation.wallet,
+      transaction,
+      provider: providerResult,
+      beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, nameMatch: true, provider },
+    };
   }
 }

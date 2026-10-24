@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">LAB MICROFINANCE</string>
-    <string name="asset_statements" translatable="false">[{&quot;include&quot;:&quot;https://pwfb-microfinance-1.onrender.com/.well-known/assetlinks.json&quot;}]</string>
+    <string name="asset_statements" translatable="false">[{&quot;include&quot;:&quot;https://pwfb-microfinance-staging.onrender.com/.well-known/assetlinks.json&quot;}]</string>
 </resources>

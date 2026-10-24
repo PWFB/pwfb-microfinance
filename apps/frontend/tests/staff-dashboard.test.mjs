@@ -115,3 +115,43 @@ test("Super Admin operational filters and pagination adapt to narrow screens", (
   assert.ok(adminPage.includes("const request = ++requestId.current"));
   assert.ok(adminPage.includes("if (request !== requestId.current) return"));
 });
+
+
+test("sidebar navigation routes resolve to pages", () => {
+  const shellPath = path.resolve(process.cwd(), "components/AppShellContent.tsx");
+  const shellSource = fs.readFileSync(shellPath, "utf8");
+  const appRoot = path.resolve(process.cwd(), "app");
+  const routes = [];
+  function walk(directory, route = "") {
+    for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
+      const filePath = path.join(directory, item.name);
+      if (item.isDirectory()) {
+        walk(filePath, route + "/" + item.name);
+      } else if (item.isFile() && item.name === "page.tsx") {
+        routes.push(route || "/");
+      }
+    }
+  }
+  walk(appRoot);
+  const routeMatches = (route, href) => {
+    if (route === href) return true;
+    const pattern = route.split("/").map((part) =>
+      part.startsWith("[") && part.endsWith("]") ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    ).join("/");
+    return new RegExp("^" + pattern + "/?$").test(href);
+  };
+  const links = [...shellSource.matchAll(/href:"([^"]+)"/g)]
+    .map((match) => match[1].split(/[?#]/)[0])
+    .filter(Boolean);
+  for (const href of [...new Set(links)]) {
+    assert.ok(routes.some((route) => routeMatches(route, href)), `Sidebar route has no page: ${href}`);
+  }
+});
+
+test("management pages receive rounded cards and bold black table columns", () => {
+  const brandCss = fs.readFileSync(path.resolve(process.cwd(), "app/pwfb-brand-overrides.css"), "utf8");
+  assert.ok(brandCss.includes("PWFB management surface cleanup"));
+  assert.ok(brandCss.includes("border-radius: 19px"));
+  assert.ok(brandCss.includes("font-weight: 900 !important"));
+  assert.ok(brandCss.includes("color: #171c19"));
+});

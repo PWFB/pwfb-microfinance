@@ -133,7 +133,7 @@ export default function CustomerAccountPage() {
   if (!user) return <main className="min-h-screen bg-slate-50 p-6"><p>Please sign in first.</p><Link className="font-semibold text-emerald-700" href="/login">Login</Link></main>;
 
   return <main className="min-h-screen bg-slate-50 pb-10">
-    <aside className={`fixed inset-y-0 left-0 z-[70] hidden lg:flex flex-col bg-[#064d25] text-white shadow-xl transition-all duration-300 ${sidebarOpen ? "w-52" : "w-[64px]"}`}>
+    <aside className={`fixed inset-y-0 left-0 z-[70] hidden lg:flex flex-col bg-[#064d25] text-white shadow-xl transition-all duration-300 ${sidebarOpen ? "w-52" : "w-14"}`}>
       <div className={`flex h-16 items-center border-b border-white/10 ${sidebarOpen ? "px-3" : "justify-center px-2"}`}>
         <div className={sidebarOpen ? "block min-w-0 flex-1" : "hidden"}><PWFBCompanyBrand small /></div>
         <button type="button" onClick={() => setSidebarOpen(v => !v)} aria-label="Toggle sidebar" className="ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 text-lg font-bold hover:bg-white/20">{sidebarOpen ? "‹" : "›"}</button>
@@ -142,7 +142,7 @@ export default function CustomerAccountPage() {
       <div className={`border-t border-white/10 p-3 ${sidebarOpen ? "block" : "hidden"}`}><p className="text-[10px] text-emerald-100/70">Signed in account</p><p className="mt-1 truncate text-sm font-bold">{name}</p></div>
     </aside>
 
-    <div className={`min-w-0 transition-all duration-300 ${sidebarOpen ? "lg:ml-52" : "lg:ml-[64px]"}`}>
+    <div className={`min-w-0 transition-all duration-300 ${sidebarOpen ? "lg:ml-52" : "lg:ml-14"}`}>
       <header className="sticky top-0 z-40 flex h-14 items-center border-b border-slate-200 bg-white/95 px-4 backdrop-blur">
         <button type="button" onClick={() => setSidebarOpen(v => !v)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-lg text-slate-700 shadow-sm">☰</button>
         <div className="ml-3"><p className="text-[10px] font-semibold text-emerald-700">PWFB CUSTOMER</p><p className="text-sm font-bold text-slate-900">{name}</p></div>
@@ -170,7 +170,7 @@ export default function CustomerAccountPage() {
           <div className="flex items-start justify-between gap-3">
             <div><p className="text-xs font-bold tracking-wide text-emerald-700">LIVE BANK NAME ENQUIRY</p>
               <h2 className="mt-1 text-xl font-bold text-slate-900">Verify Account</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">Select the bank, enter its 10-digit account number, then verify. PWFB displays the account name returned by the selected bank provider.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">Select the bank and enter its 10-digit account number. PWFB automatically displays the account name returned by the selected bank provider.</p>
             </div>
             <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold ${accountVerified ? "bg-emerald-100 text-emerald-800" : verifying ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>{accountVerified ? "VERIFIED" : verifying ? "CHECKING…" : "NOT VERIFIED"}</span>
           </div>
@@ -188,10 +188,9 @@ export default function CustomerAccountPage() {
           <label className="mt-4 block text-sm font-semibold text-slate-700">Verified account name</label>
           <input value={verifying ? "Checking with bank provider…" : accountName} readOnly aria-label="Verified bank account name" placeholder="The verified account name will appear here" className={`mt-2 w-full rounded-xl border px-4 py-3.5 font-semibold outline-none ${accountVerified ? "border-emerald-300 bg-emerald-50 text-emerald-900" : "border-slate-200 bg-slate-50 text-slate-700"}`} />
           <p className={`mt-2 text-sm font-bold ${customerNameVerified ? "text-emerald-700" : "text-red-600"}`} aria-live="polite">{customerNameStatus}</p>
-          <button type="button" onClick={verifyAccount} disabled={verifying || saving || !selectedBank?.code || !/^\\d{10}$/.test(accountNumber)} className="mt-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50">{verifying ? "Verifying..." : "Verify Account"}</button>
+          <p className="mt-2 text-xs text-slate-500" aria-live="polite">{verifying ? "Checking the selected bank automatically…" : accountVerified ? "Bank name returned and verified by the provider." : selectedBank && /^\d{10}$/.test(accountNumber) ? "Automatic verification will retry if the provider is temporarily unavailable." : "Select a bank and enter 10 digits for automatic verification."}</p>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <button type="button" onClick={verifyAccount} disabled={verifying || saving} className="rounded-xl border border-emerald-200 bg-white px-5 py-3 text-sm font-medium text-emerald-700 disabled:opacity-50">{verifying ? "Verifying..." : accountVerified ? "Verified Account" : "Verify Account"}</button>
             <button type="button" onClick={attachAccount} disabled={saving || verifying || !accountName} className="rounded-xl bg-[#087534] px-5 py-3 text-sm font-medium text-white disabled:opacity-50">{saving ? "Attaching..." : "Attach to wallet"}</button>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">PWFB stores the verified bank account reference and account name. Card numbers, CVV and ATM PIN are not collected here.</p>

@@ -73,7 +73,7 @@ export default function CustomerAccountPage() {
     if (!/^\d{10}$/.test(accountNumber)) { setError("Enter a valid 10-digit account number."); return; }
     setVerifying(true);
     try {
-      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber, 'FLUTTERWAVE');
+      const result: any = await pwfbApi.banking.accountName(selectedBank.code, accountNumber);
       const matched = result?.customerNameVerified === true;
       const matchStatus = String(result?.customerNameStatus || (matched ? 'cust name verified' : 'cust name not verified'));
       setCustomerNameVerified(matched); setCustomerNameStatus(matchStatus);

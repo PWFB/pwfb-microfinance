@@ -129,6 +129,18 @@ export class StaffService {
           try { virtualAccount = await this.virtualAccounts.getStaff(result.staff.id); } catch { virtualAccount = null; }
         }
       } else {
+        // Preserve the verified Paystack customer reference so activation can
+        // provision the DVA later without asking staff to repeat BVN verification.
+        const institution = await this.prisma.bankInstitution.upsert({
+          where: { name: 'Paystack' },
+          update: { active: true, type: 'PAYMENT_PROVIDER', shortName: 'Paystack' },
+          create: { name: 'Paystack', shortName: 'Paystack', type: 'PAYMENT_PROVIDER', active: true },
+        });
+        await this.prisma.staffVirtualAccount.upsert({
+          where: { staffId: result.staff.id },
+          update: { institutionId: institution.id, provider: 'PAYSTACK', providerCustomerCode: reference, status: 'PENDING', failureReason: 'Awaiting staff approval and activation' },
+          create: { id: randomUUID(), staffId: result.staff.id, institutionId: institution.id, provider: 'PAYSTACK', providerCustomerCode: reference, status: 'PENDING', failureReason: 'Awaiting staff approval and activation' },
+        });
         virtualAccountWarning = 'Account assignment will start after the staff member is approved and activated.';
       }
       return { message: 'Staff created successfully', staff: { ...result.staff, bvnVerified: true, bvnVerifiedAt: new Date(), bvnVerifiedName: verification.fullName }, login: { email, temporaryPassword }, bvn: { verified: true, provider: 'PAYSTACK', reference, legalName: verification.fullName }, virtualAccount, virtualAccountWarning };
@@ -138,7 +150,22 @@ export class StaffService {
   async findAll(filter?: StaffFilterDto) { const staff = await this.staffRepository.findAll(); if (!filter) return staff; return staff.filter((member) => { const departmentMatch = !filter.department || member.department.name === filter.department; const branchMatch = !filter.branch || member.branch.name === filter.branch; const statusMatch = !filter.employmentStatus || member.employmentStatus === filter.employmentStatus; const searchMatch = !filter.search || `${member.firstName} ${member.lastName}`.toLowerCase().includes(filter.search.toLowerCase()); return departmentMatch && branchMatch && statusMatch && searchMatch; }); }
   virtualAccount(id: string) { return this.virtualAccounts.getStaff(id); }
   findOne(id: string) { return this.staffRepository.findOne(id); }
-  update(id: string, updateStaffDto: UpdateStaffDto) { return this.staffRepository.update(id, updateStaffDto); }
+  async update(id: string, updateStaffDto: UpdateStaffDto) {
+    const updated = await this.staffRepository.update(id, updateStaffDto);
+    // If an approved, BVN-verified employee is activated later, resume the
+    // pending DVA assignment using the provider customer code saved at creation.
+    if (String(updated.employmentStatus) === 'ACTIVE' && updated.bvnVerified) {
+      try {
+        const account = await this.virtualAccounts.getStaff(id);
+        const customerCode = String(account?.providerCustomerCode || '').trim();
+        if (customerCode) await this.virtualAccounts.ensureStaff(id, customerCode);
+      } catch {
+        // Staff activation must remain successful; the virtual-account endpoint
+        // exposes pending/failed state for safe retry and operational follow-up.
+      }
+    }
+    return updated;
+  }
   remove(id: string) { return this.staffRepository.remove(id); }
   assign(id: string, body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) { return this.staffRepository.createAssignment(id, body); }
   assignmentHistory(id: string) { return this.staffRepository.assignmentHistory(id); }

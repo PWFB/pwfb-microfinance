@@ -191,7 +191,7 @@ export default function CustomerAccountPage() {
           <p className="mt-2 text-xs text-slate-500" aria-live="polite">{verifying ? "Checking the selected bank automatically…" : accountVerified ? "Bank name returned and verified by the provider." : selectedBank && /^\d{10}$/.test(accountNumber) ? "Automatic verification will retry if the provider is temporarily unavailable." : "Select a bank and enter 10 digits for automatic verification."}</p>
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-            <button type="button" onClick={attachAccount} disabled={saving || verifying || !accountName} className="rounded-xl bg-[#087534] px-5 py-3 text-sm font-medium text-white disabled:opacity-50">{saving ? "Attaching..." : "Attach to wallet"}</button>
+            <button type="button" onClick={attachAccount} disabled={saving || verifying || !accountName || !accountVerified || !customerNameVerified} className="rounded-xl bg-[#087534] px-5 py-3 text-sm font-medium text-white disabled:opacity-50">{saving ? "Attaching..." : "Attach to wallet"}</button>
           </div>
           <p className="mt-3 text-xs leading-5 text-slate-500">PWFB stores the verified bank account reference and account name. Card numbers, CVV and ATM PIN are not collected here.</p>
         </section>

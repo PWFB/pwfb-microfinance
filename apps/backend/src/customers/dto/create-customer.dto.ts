@@ -3,6 +3,7 @@ import {
   IsEmail,
   IsOptional,
   IsString,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateCustomerDto {
@@ -35,4 +36,7 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   groupId?: string;
+
+  @IsBoolean()
+  virtualAccountConsent: boolean;
 }

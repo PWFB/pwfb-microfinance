@@ -20,8 +20,13 @@ describe('StaffService', () => {
 
     service = new StaffService(
       repository,
-      { $executeRawUnsafe: jest.fn(), $queryRawUnsafe: jest.fn() } as any,
-      { } as any,
+      {
+        $executeRawUnsafe: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        staff: { update: jest.fn().mockResolvedValue({}) },
+      } as any,
+      { isConfigured: jest.fn().mockReturnValue(false) } as any,
+      { ensureStaff: jest.fn(), getStaff: jest.fn() } as any,
     );
     jest.spyOn(service, 'getBvnVerification').mockResolvedValue({
       verified: true,

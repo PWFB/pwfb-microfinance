@@ -1,6 +1,6 @@
 "use client";
 
-export default function PWFBCompanyBrand({
+export default function LABCompanyBrand({
   small = false,
 }: {
   small?: boolean;

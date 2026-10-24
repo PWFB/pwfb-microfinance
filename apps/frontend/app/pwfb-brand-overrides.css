@@ -27,10 +27,10 @@
 /* PWFB management surface cleanup: rounded cards, high-contrast data, and calmer tables. */
 .pwfb-content main { color: #111827; }
 .pwfb-content main .pwfb-page-title { color: #111827 !important; font-weight: 900; letter-spacing: -.025em; }
-.pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel, .report-link, .pwfb-banking-operation, .pwfb-operation-control-center) {
+.pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel, .report-link, .pwfb-banking-operation, .pwfb-operation-control-center, .pwfb-operation-control-card) {
   border-radius: 19px;
 }
-.pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel) {
+.pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel, .pwfb-operation-control-card) {
   border-color: #e0e6e2;
   box-shadow: 0 8px 24px rgba(20, 32, 24, .055);
 }
@@ -88,4 +88,40 @@
 @media (max-width: 800px) {
   .pwfb-content main :is(.pwfb-panel, .pwfb-stat-card, .pwfb-summary-card, .pwfb-card, .report-stat, .report-panel) { border-radius: 16px; }
   .pwfb-content main :is(.pwfb-table, table) { min-width: 680px; }
+}
+
+
+/* Final card polish for staff-facing and Super Admin workspaces. */
+.pwfb-content main .pwfb-stat-card {
+  border-radius: 18px;
+  border-color: #e1e7e3;
+  background: #fff;
+}
+.pwfb-content main .pwfb-stat-card > span {
+  color: #111827;
+  font-weight: 800;
+}
+.pwfb-content main .pwfb-stat-card > strong {
+  color: #050807 !important;
+  font-weight: 950 !important;
+  letter-spacing: -.025em;
+}
+.pwfb-content main .pwfb-stat-card > small { color: #4b5563; font-weight: 600; }
+.pwfb-content main .pwfb-operation-control-card {
+  min-height: 92px;
+  border: 1px solid #e0e6e2;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #fff, #fbfcfb);
+  box-shadow: 0 5px 16px rgba(16, 24, 20, .045);
+}
+.pwfb-content main .pwfb-operation-control-card strong {
+  color: #111827 !important;
+  font-weight: 900 !important;
+}
+.pwfb-content main .pwfb-operation-control-card small { color: #4b5563; }
+.pwfb-content main .pwfb-operation-control-card:hover {
+  border-color: #f28c18;
+  background: linear-gradient(145deg, #fff, #fff8ef);
+  box-shadow: 0 10px 24px rgba(16, 24, 20, .09);
+  transform: translateY(-2px);
 }

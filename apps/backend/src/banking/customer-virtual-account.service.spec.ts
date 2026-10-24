@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import { CustomerVirtualAccountService } from './customer-virtual-account.service';
 
 describe('CustomerVirtualAccountService', () => {
@@ -112,5 +113,36 @@ describe('CustomerVirtualAccountService', () => {
 
     await expect(service.ensure('missing-customer', undefined, true)).rejects.toThrow('Customer not found');
     expect(prisma.customerVirtualAccount.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('CustomerVirtualAccountService Paystack webhook signature', () => {
+  const service = Object.create(CustomerVirtualAccountService.prototype) as CustomerVirtualAccountService;
+  const rawBody = Buffer.from('{"event":"dedicatedaccount.assign.success","data":{}}');
+  const originalSecret = process.env.PAYSTACK_SECRET_KEY;
+
+  afterEach(() => {
+    if (originalSecret === undefined) delete process.env.PAYSTACK_SECRET_KEY;
+    else process.env.PAYSTACK_SECRET_KEY = originalSecret;
+  });
+
+  it('accepts a valid HMAC-SHA512 signature for the exact raw body', () => {
+    process.env.PAYSTACK_SECRET_KEY = 'sk_test_webhook_test_key';
+    const signature = createHmac('sha512', process.env.PAYSTACK_SECRET_KEY).update(rawBody).digest('hex');
+    expect(service.verifyWebhookSignature(rawBody, signature)).toBe(true);
+  });
+
+  it('rejects a tampered body or signature', () => {
+    process.env.PAYSTACK_SECRET_KEY = 'sk_test_webhook_test_key';
+    const signature = createHmac('sha512', process.env.PAYSTACK_SECRET_KEY).update(rawBody).digest('hex');
+    expect(service.verifyWebhookSignature(Buffer.from('{"event":"tampered"}'), signature)).toBe(false);
+    expect(service.verifyWebhookSignature(rawBody, 'invalid')).toBe(false);
+  });
+
+  it('rejects a missing secret or signature', () => {
+    delete process.env.PAYSTACK_SECRET_KEY;
+    expect(service.verifyWebhookSignature(rawBody, 'anything')).toBe(false);
+    process.env.PAYSTACK_SECRET_KEY = 'sk_test_webhook_test_key';
+    expect(service.verifyWebhookSignature(rawBody)).toBe(false);
   });
 });

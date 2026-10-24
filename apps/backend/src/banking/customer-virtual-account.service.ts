@@ -200,15 +200,20 @@ export class CustomerVirtualAccountService {
         country: 'NG', type: 'bank_account', account_number: accountNumber, bvn, bank_code: bankCode,
         first_name: customer.firstName, ...(customer.middleName ? { middle_name: customer.middleName } : {}), last_name: customer.lastName,
       });
-      await this.prisma.customerVirtualAccount.update({
-        where: { id: local.id },
+      // Do not overwrite an ACTIVE/assignment-webhook state if Paystack's
+      // webhook arrived before the HTTP response completed.
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: 'PENDING', failureReason: 'Submitting customer identity verification to Paystack' },
         data: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', failureReason: 'Awaiting Paystack identity-validation webhook before account assignment' },
       });
       return this.get(customerId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Paystack identity verification failed';
-      await this.prisma.customerVirtualAccount.update({ where: { id: local.id }, data: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'FAILED', failureReason: reason.slice(0, 500) } });
-      await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'FAILED', updated_at = NOW() WHERE customer_id = $1`, customerId);
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: { not: 'ACTIVE' }, failureReason: 'Submitting customer identity verification to Paystack' },
+        data: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'FAILED', failureReason: reason.slice(0, 500) },
+      });
+      await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'FAILED', updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, customerId);
       throw error;
     }
   }
@@ -322,15 +327,15 @@ export class CustomerVirtualAccountService {
         country: 'NG', type: 'bank_account', account_number: verifiedAccountNumber, bvn, bank_code: bankCode,
         first_name: customer.firstName, ...(customer.middleName ? { middle_name: customer.middleName } : {}), last_name: customer.lastName,
       });
-      await this.prisma.customerVirtualAccount.update({
-        where: { id: local.id },
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: 'PENDING', failureReason: null },
         data: { institutionId: institution.id, branchId: customer.branchId ?? null, provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', consentAt: local.consentAt || new Date(), failureReason: 'Awaiting Paystack identity-validation webhook before account assignment' },
       });
       return this.get(customerId);
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Paystack DVA assignment failed';
-      await this.prisma.customerVirtualAccount.update({
-        where: { id: local.id },
+      await this.prisma.customerVirtualAccount.updateMany({
+        where: { id: local.id, status: { not: 'ACTIVE' }, failureReason: null },
         data: { provider: 'PAYSTACK', status: 'FAILED', failureReason: reason.slice(0, 500) },
       });
       throw error;

@@ -609,6 +609,7 @@ model CustomerVirtualAccount {
   provider String?
   providerCustomerId String?
   providerBankName String?
+  consentAt DateTime?
   providerReference String? @unique
   status String @default("PENDING")
   requestedAt DateTime @default(now())

@@ -12,10 +12,10 @@ export default function Home() {
   return (
     <main className={styles.home}>
       <header className={styles.header}>
-        <Link href="/" className={styles.brand} aria-label="PWFB Microfinance home">
+        <Link href="/" className={styles.brand} aria-label="LAB MICROFINANCE home">
           <img
             src="/pwfb-logo.svg"
-            alt="PWFB Microfinance"
+            alt="LAB MICROFINANCE"
             className={styles.brandLogo}
           />
         </Link>
@@ -33,7 +33,7 @@ export default function Home() {
         <div className={styles.heroInner}>
           <img
             src="/pwfb-logo.svg"
-            alt="PWFB Microfinance"
+            alt="LAB MICROFINANCE"
             className={styles.heroLogo}
           />
           <p className={styles.eyebrow}>PWFB MICROFINANCE</p>
@@ -83,7 +83,7 @@ export default function Home() {
       </section>
 
       <footer className={styles.footer}>
-        © {new Date().getFullYear()} PWFB Microfinance • Perfect Wisdom For Better Limited
+        © {new Date().getFullYear()} LAB MICROFINANCE • Perfect Wisdom For Better Limited
       </footer>
     </main>
   );

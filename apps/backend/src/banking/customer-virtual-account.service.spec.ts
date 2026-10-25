@@ -202,6 +202,67 @@ describe('CustomerVirtualAccountService', () => {
     }));
   });
 
+  it('does not request a customer DVA from an identity-success webhook without a stored consent timestamp', async () => {
+    const originalSecret = process.env.PAYSTACK_SECRET_KEY;
+    process.env.PAYSTACK_SECRET_KEY = 'sk_test_unit';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: true, data: { account_number: '1234567890' } }),
+    } as Response));
+    prisma.customerVirtualAccount.findMany.mockResolvedValueOnce([]);
+
+    try {
+      await expect(service.handleAssignmentWebhook({
+        event: 'customeridentification.success',
+        data: { customer_code: 'CUS_legacy_without_consent' },
+      })).resolves.toMatchObject({ status: 'NO_MATCHING_PENDING_ACCOUNT' });
+
+      expect(prisma.customerVirtualAccount.findMany).toHaveBeenCalledWith({
+        where: {
+          provider: 'PAYSTACK',
+          providerCustomerId: 'CUS_legacy_without_consent',
+          status: 'PENDING',
+          consentAt: { not: null },
+        },
+        include: { customer: true },
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      if (originalSecret === undefined) delete process.env.PAYSTACK_SECRET_KEY;
+      else process.env.PAYSTACK_SECRET_KEY = originalSecret;
+    }
+  });
+
+  it('only activates customer virtual accounts that have recorded consent', async () => {
+    await service.handleAssignmentWebhook({
+      event: 'dedicatedaccount.assign.success',
+      data: {
+        customer: { customer_code: 'CUS_legacy_without_consent' },
+        dedicated_account: {
+          id: 'provider-account-1',
+          account_number: '1234567890',
+          account_name: 'Test Customer',
+          bank: { name: 'Paystack-Titan' },
+        },
+      },
+    });
+
+    expect(prisma.customerVirtualAccount.updateMany).toHaveBeenCalledWith({
+      where: {
+        provider: 'PAYSTACK',
+        providerCustomerId: 'CUS_legacy_without_consent',
+        status: { not: 'ACTIVE' },
+        consentAt: { not: null },
+      },
+      data: expect.objectContaining({
+        accountNumber: '1234567890',
+        status: 'ACTIVE',
+      }),
+    });
+  });
+
   it('rejects provisioning for a customer that does not exist', async () => {
     prisma.customer.findUnique.mockResolvedValue(null);
 

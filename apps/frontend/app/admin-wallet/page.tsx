@@ -24,10 +24,12 @@ export default function AdminWalletPage() {
 
   async function recordCharge(e: React.FormEvent) {
     e.preventDefault(); setLoading(true); setMessage("");
+    const transactionReference = reference.trim() || `CHG-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    setReference(transactionReference);
     try {
-      await apiRequest("/super-admin/wallet/charges", { method: "POST", body: JSON.stringify({ amount: Number(amount), reference: reference.trim() || undefined, description: description.trim() || undefined }) });
+      await apiRequest("/super-admin/wallet/charges", { method: "POST", body: JSON.stringify({ amount: Number(amount), reference: transactionReference, description: description.trim() || undefined }) });
       setAmount(""); setReference(""); setDescription(""); await load(); setMessage("Charge stored in the Super Admin Charges Wallet.");
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to store charge."); }
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to store charge. Check wallet history before retrying with a new reference."); }
     finally { setLoading(false); }
   }
 

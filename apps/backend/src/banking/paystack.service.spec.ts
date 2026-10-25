@@ -207,6 +207,8 @@ describe('Paystack transfer webhook conflicting status events', () => {
       type: 'WITHDRAWAL',
       status,
       amount: 250,
+      previousBalance: 750,
+      newBalance: 500,
       providerReference: '991',
     };
     const tx = {

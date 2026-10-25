@@ -367,6 +367,8 @@ export class PaystackService {
     const customerId = metadata?.customerId;
     if (!reference || !customerId) throw new BadRequestException('Paystack payment is missing reference or customer ID');
     if (payment?.status !== 'success') return { ok: true, processed: false, message: 'Payment is not successful' };
+    const currency = String(payment?.currency || '').trim().toUpperCase();
+    if (currency !== 'NGN') throw new BadRequestException('Only NGN Paystack wallet payments can be credited');
     const amount = Number(payment.amount) / 100;
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Invalid Paystack payment amount');
     const providerReference = String(payment.id ?? reference);

@@ -33,6 +33,12 @@ These findings come from source inspection only. They are not live penetration-t
 
 **Required evidence to close these items:** tests for cross-staff and cross-branch access, concurrent issue/settle operations, database failure between balance update and transaction insertion, duplicate references, and before/after balance reconciliation. Use staging and synthetic records only; do not use real funds or production secrets.
 
+## Staff Wallet safety change in review
+
+A separate code branch now wraps direct staff-wallet issue and settlement calls in a Prisma database transaction so the row lock, balance update, and ledger insert share one transaction. A focused service test file was added for direct-credit transaction use and insufficient-balance settlement rejection. These tests have been authored but have **not yet been executed** in CI or locally.
+
+As a temporary containment measure, the Staff Wallet controller is restricted to `SUPER_ADMIN` and `ADMIN` roles while branch/staff-scoped authorization is designed and verified. This intentionally reduces access for branch managers and other staff roles until safe scope checks are implemented. Do not merge or deploy without reviewing this product-access tradeoff and running the backend test/build suite.
+
 ## Test execution record
 
 For every test, record date/time (UTC), tester, deployment commit, environment, sanitized evidence reference, actual result, and PASS/FAIL/BLOCKED. Never include BVNs, passwords, tokens, bank account numbers, or provider secrets in evidence.

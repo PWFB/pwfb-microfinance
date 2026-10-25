@@ -179,3 +179,141 @@ describe('CustomerVirtualAccountService', () => {
     expect(prisma.customerVirtualAccount.create).not.toHaveBeenCalled();
   });
 });
+
+describe('CustomerVirtualAccountService dedicated-account deposits', () => {
+  const payment = {
+    event: 'charge.success',
+    data: {
+      id: 98765,
+      reference: 'ps_dva_test_01',
+      status: 'success',
+      currency: 'NGN',
+      amount: 12550,
+      authorization: {
+        channel: 'dedicated_nuban',
+        receiver_bank_account_number: '0123456789',
+      },
+    },
+  };
+
+  function createDepositHarness(options?: { account?: any; duplicate?: any; walletStatus?: string }) {
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      customerWallet: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          customerId: 'customer-1',
+          balance: 100.75,
+          status: options?.walletStatus || 'ACTIVE',
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 226.25, status: 'ACTIVE' }),
+      },
+      walletTransaction: {
+        findFirst: jest.fn().mockResolvedValue(options?.duplicate || null),
+        create: jest.fn().mockResolvedValue({ id: 'txn-1', reference: 'PAYSTACK-DVA-ps_dva_test_01' }),
+      },
+    };
+    const prismaForDeposit = {
+      customerVirtualAccount: {
+        findFirst: jest.fn().mockResolvedValue(options?.account === undefined ? {
+          id: 'cva-1',
+          customerId: 'customer-1',
+          branchId: 'branch-1',
+        } : options.account),
+      },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    return {
+      service: new CustomerVirtualAccountService(prismaForDeposit as any),
+      prismaForDeposit,
+      tx,
+    };
+  }
+
+  it('credits an active customer wallet and records the payment once', async () => {
+    const { service, prismaForDeposit, tx } = createDepositHarness();
+    const result = await service.handleDedicatedDepositWebhook(payment);
+
+    expect(result).toMatchObject({ ok: true, processed: true, matchedCustomerAccount: true });
+    expect(prismaForDeposit.customerVirtualAccount.findFirst).toHaveBeenCalledWith({
+      where: { provider: 'PAYSTACK', accountNumber: '0123456789', status: 'ACTIVE' },
+      select: { id: true, customerId: true, branchId: true },
+    });
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      'PAYSTACK-DVA-98765',
+    );
+    expect(tx.customerWallet.update).toHaveBeenCalledWith({
+      where: { id: 'wallet-1' },
+      data: { balance: 226.25 },
+    });
+    expect(tx.walletTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 'customer-1',
+        type: 'DEPOSIT',
+        amount: 125.5,
+        previousBalance: 100.75,
+        newBalance: 226.25,
+        reference: 'PAYSTACK-DVA-ps_dva_test_01',
+        provider: 'PAYSTACK',
+        providerReference: 'PAYSTACK-DVA-98765',
+        status: 'COMPLETED',
+      }),
+    });
+  });
+
+  it('leaves unmapped dedicated accounts for the branch ledger handler', async () => {
+    const { service, prismaForDeposit } = createDepositHarness({ account: null });
+    await expect(service.handleDedicatedDepositWebhook(payment)).resolves.toMatchObject({
+      ok: true,
+      processed: false,
+      matchedCustomerAccount: false,
+    });
+    expect(prismaForDeposit.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('does not credit duplicate provider events twice', async () => {
+    const { service, tx } = createDepositHarness({
+      duplicate: { id: 'existing-txn', reference: 'PAYSTACK-DVA-ps_dva_test_01' },
+    });
+    await expect(service.handleDedicatedDepositWebhook(payment)).resolves.toMatchObject({
+      ok: true,
+      processed: false,
+      duplicate: true,
+      matchedCustomerAccount: true,
+    });
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+    expect(tx.walletTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects foreign or missing currency for a mapped customer account', async () => {
+    const { service } = createDepositHarness();
+    await expect(service.handleDedicatedDepositWebhook({
+      ...payment,
+      data: { ...payment.data, currency: 'USD' },
+    })).rejects.toThrow('Only NGN Paystack virtual-account deposits can be credited');
+    await expect(service.handleDedicatedDepositWebhook({
+      ...payment,
+      data: { ...payment.data, currency: undefined },
+    })).rejects.toThrow('Only NGN Paystack virtual-account deposits can be credited');
+  });
+
+  it('rejects an inactive customer wallet without recording a deposit', async () => {
+    const { service, tx } = createDepositHarness({ walletStatus: 'SUSPENDED' });
+    await expect(service.handleDedicatedDepositWebhook(payment)).rejects.toThrow('Customer wallet is not active');
+    expect(tx.walletTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it('ignores unrelated events and payment channels', async () => {
+    const { service, prismaForDeposit } = createDepositHarness();
+    await expect(service.handleDedicatedDepositWebhook({
+      event: 'charge.failed',
+      data: payment.data,
+    })).resolves.toMatchObject({ matchedCustomerAccount: false, processed: false });
+    await expect(service.handleDedicatedDepositWebhook({
+      ...payment,
+      data: { ...payment.data, authorization: { channel: 'card' } },
+    })).resolves.toMatchObject({ matchedCustomerAccount: false, processed: false });
+    expect(prismaForDeposit.customerVirtualAccount.findFirst).not.toHaveBeenCalled();
+  });
+});

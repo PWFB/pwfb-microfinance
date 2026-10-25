@@ -241,7 +241,7 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
     });
     expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      'PAYSTACK-DVA-98765',
+      '98765',
     );
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },

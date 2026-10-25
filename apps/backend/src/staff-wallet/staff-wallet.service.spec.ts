@@ -29,18 +29,23 @@ describe('StaffWalletService transaction safety', () => {
     expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('UPDATE staff_wallets'),
       'wallet-1',
-      250,
+      expect.anything(),
     );
+    expect(Number(tx.$executeRawUnsafe.mock.calls.find((call: any[]) => String(call[0]).includes('UPDATE staff_wallets'))[2])).toBe(250);
     expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO staff_wallet_transactions'),
       expect.any(String),
       'wallet-1',
-      250,
-      0,
-      250,
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
       'TEST-REF-1',
       'Field cash issued to staff',
     );
+    const ledgerInsert = tx.$executeRawUnsafe.mock.calls.find((call: any[]) => String(call[0]).includes('INSERT INTO staff_wallet_transactions'));
+    expect(Number(ledgerInsert[3])).toBe(250);
+    expect(Number(ledgerInsert[4])).toBe(0);
+    expect(Number(ledgerInsert[5])).toBe(250);
     expect(result).toEqual({
       staffId: 'staff-1',
       previousBalance: 0,
@@ -99,8 +104,8 @@ describe('StaffWalletService transaction safety', () => {
   it('rounds valid wallet amounts to two decimal places', async () => {
     const prisma: any = {};
     const service = new StaffWalletService(prisma);
-    expect((service as any).amount(12.345)).toBe(12.35);
-    expect((service as any).amount(12.344)).toBe(12.34);
+    expect(Number((service as any).amount(12.345))).toBe(12.35);
+    expect(Number((service as any).amount(12.344))).toBe(12.34);
     expect(() => (service as any).amount(0.001)).toThrow('Wallet amount must be at least ₦0.01');
   });
 });

@@ -145,20 +145,48 @@ export class PaystackBranchDvaService {
     }
     if (type !== 'charge.success') return { ok: true, processed: false, message: 'Event ignored' };
 
-    const accountNumber = String(data?.authorization?.receiver_bank_account_number || '').trim();
-    const channel = String(data?.authorization?.channel || '');
-    if (channel !== 'dedicated_nuban' || !/^\d{10}$/.test(accountNumber)) return { ok: true, processed: false, message: 'Not a PWFB dedicated virtual account transfer' };
-    const amount = Number(data?.amount) / 100;
-    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Invalid Paystack charge amount');
+    const accountNumber = String(data?.authorization?.receiver_bank_account_number || '').replace(/\D/g, '');
+    const channel = String(data?.authorization?.channel || '').trim().toLowerCase();
+    if (channel !== 'dedicated_nuban') return { ok: true, processed: false, message: 'Not a PWFB dedicated virtual account transfer' };
+    if (String(data?.status || '').trim().toLowerCase() !== 'success') {
+      return { ok: true, processed: false, message: 'Paystack payment status is not successful' };
+    }
+    if (String(data?.currency || '').trim().toUpperCase() !== 'NGN') {
+      throw new BadRequestException('Only NGN Paystack branch virtual-account deposits can be recorded');
+    }
+    if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Paystack branch virtual-account number is missing or invalid');
+    const amountMinor = Number(data?.amount);
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) throw new BadRequestException('Invalid Paystack charge amount in minor units');
+    const paymentReference = String(data?.reference || '').trim();
+    const providerTransactionId = String(data?.id ?? '').trim();
+    if (!paymentReference && !providerTransactionId) throw new BadRequestException('Paystack branch deposit is missing a payment reference');
+    const idempotencyKey = providerTransactionId || paymentReference;
+    const amount = amountMinor / 100;
+    const reference = `PAYSTACK-DVA-${idempotencyKey}`;
+
     const account = await this.prisma.$queryRaw<Array<{ branchId: string; status: string }>>`SELECT "branchId", status FROM "BranchVirtualAccount" WHERE "provider"='PAYSTACK' AND "accountNumber"=${accountNumber} LIMIT 1`;
     if (!account[0]) return { ok: true, processed: false, message: 'Dedicated account is not mapped to a PWFB branch' };
     if (account[0].status !== 'ACTIVE') throw new BadRequestException('Mapped PWFB branch virtual account is not active');
-    const providerReference = String(data?.id || data?.reference || accountNumber);
-    const reference = `PAYSTACK-DVA-${providerReference}`;
-    if (await this.prisma.cashbookEntry.findFirst({ where: { reference } })) return { ok: true, processed: false, duplicate: true };
-    const period = await this.prisma.financialPeriod.findFirst({ where: { status: 'OPEN' }, orderBy: { startDate: 'desc' } });
-    if (!period) throw new BadRequestException('No open financial period is available for the Paystack branch deposit');
-    const entry = await this.prisma.cashbookEntry.create({ data: { periodId: period.id, branchId: account[0].branchId, type: 'CASH_IN', amount, reference, description: `Paystack DVA deposit — ${data?.authorization?.sender_name || 'Bank transfer'} — ${accountNumber}` } });
-    return { ok: true, processed: true, entryId: entry.id, branchId: account[0].branchId, amount, accountNumber };
+
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize retries for this provider payment, since CashbookEntry.reference is not unique in the schema.
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', `PAYSTACK-BRANCH-DVA:${idempotencyKey}`);
+      if (await tx.cashbookEntry.findFirst({ where: { reference } })) {
+        return { ok: true, processed: false, duplicate: true, reference };
+      }
+      const period = await tx.financialPeriod.findFirst({ where: { status: 'OPEN' }, orderBy: { startDate: 'desc' } });
+      if (!period) throw new BadRequestException('No open financial period is available for the Paystack branch deposit');
+      const entry = await tx.cashbookEntry.create({
+        data: {
+          periodId: period.id,
+          branchId: account[0].branchId,
+          type: 'CASH_IN',
+          amount,
+          reference,
+          description: `Paystack DVA deposit — ${data?.authorization?.sender_name || 'Bank transfer'} — ${accountNumber}`,
+        },
+      });
+      return { ok: true, processed: true, entryId: entry.id, branchId: account[0].branchId, amount, accountNumber, reference };
+    });
   }
 }

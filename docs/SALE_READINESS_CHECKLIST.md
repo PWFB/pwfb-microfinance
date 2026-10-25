@@ -12,6 +12,16 @@
 - Startup evidence does **not** establish end-to-end workflow correctness.
 - Full end-to-end tests are not yet evidenced by this checklist.
 
+## Wallet modules to verify
+
+The source includes three distinct wallet areas:
+
+1. **Customer Wallet** — customer balance, transaction history, and deposit/withdraw/transfer journeys.
+2. **Staff Wallet** — field cash issued to staff and returned/settled, with staff wallet transactions.
+3. **Super Admin Charges Wallet** — records administrative charges/fee income and associated transactions.
+
+Treat these as three implemented wallet areas in the codebase, not as proof that all wallet flows have passed end-to-end testing. Add wallet-specific evidence for role access, balance updates, transaction history, duplicate submissions, failed operations, reconciliation, and auditability. Do not use real money or production credentials during testing.
+
 ## Test execution record
 
 For every test, record date/time (UTC), tester, deployment commit, environment, sanitized evidence reference, actual result, and PASS/FAIL/BLOCKED. Never include BVNs, passwords, tokens, bank account numbers, or provider secrets in evidence.

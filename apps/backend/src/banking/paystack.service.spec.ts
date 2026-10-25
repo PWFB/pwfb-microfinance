@@ -240,3 +240,114 @@ describe('Paystack transfer webhook conflicting status events', () => {
     expect(tx.walletTransaction.update).not.toHaveBeenCalled();
   });
 });
+
+
+describe('Paystack wallet deposit balance concurrency protection', () => {
+  it('locks and re-reads the shared wallet balance before crediting a successful payment', async () => {
+    const payment = {
+      id: 98765,
+      reference: 'paystack-checkout-100',
+      status: 'success',
+      currency: 'NGN',
+      amount: 10000,
+      metadata: { customerId: 'customer-1' },
+    };
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      walletTransaction: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'wallet-transaction-1', ...data })),
+      },
+      customerWallet: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          customerId: 'customer-1',
+          balance: 50.25,
+          status: 'ACTIVE',
+        }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          customerId: 'customer-1',
+          balance: 80.25,
+          status: 'ACTIVE',
+        }),
+        update: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          customerId: 'customer-1',
+          balance: 180.25,
+          status: 'ACTIVE',
+        }),
+      },
+    };
+    const prisma = {
+      walletTransaction: { findFirst: jest.fn().mockResolvedValue(null) },
+      customer: { findUnique: jest.fn().mockResolvedValue({ id: 'customer-1' }) },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const service = new PaystackService(prisma as any);
+
+    const result = await service.handleWebhook({ event: 'charge.success', data: payment });
+
+    expect(result).toMatchObject({ ok: true, processed: true });
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      1,
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      '98765',
+    );
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'wallet-1',
+    );
+    expect(tx.customerWallet.findUnique).toHaveBeenCalledWith({ where: { id: 'wallet-1' } });
+    expect(tx.customerWallet.update).toHaveBeenCalledWith({
+      where: { id: 'wallet-1' },
+      data: { balance: 180.25 },
+    });
+    expect(tx.walletTransaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: 'customer-1',
+        type: 'DEPOSIT',
+        amount: 100,
+        previousBalance: 80.25,
+        newBalance: 180.25,
+        reference: 'PAY-paystack-checkout-100',
+        providerReference: '98765',
+        status: 'COMPLETED',
+      }),
+    });
+  });
+
+  it('rejects a wallet that is inactive after its row is locked', async () => {
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      walletTransaction: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      customerWallet: {
+        upsert: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 10, status: 'ACTIVE' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 10, status: 'SUSPENDED' }),
+        update: jest.fn(),
+      },
+    };
+    const prisma = {
+      walletTransaction: { findFirst: jest.fn().mockResolvedValue(null) },
+      customer: { findUnique: jest.fn().mockResolvedValue({ id: 'customer-1' }) },
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+    };
+    const service = new PaystackService(prisma as any);
+
+    await expect(service.handleWebhook({
+      event: 'charge.success',
+      data: {
+        id: 98766,
+        reference: 'paystack-checkout-101',
+        status: 'success',
+        currency: 'NGN',
+        amount: 5000,
+        metadata: { customerId: 'customer-1' },
+      },
+    })).rejects.toThrow('Customer wallet is not active');
+
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+    expect(tx.walletTransaction.create).not.toHaveBeenCalled();
+  });
+});

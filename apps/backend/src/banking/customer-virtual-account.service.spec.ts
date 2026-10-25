@@ -148,6 +148,36 @@ describe('CustomerVirtualAccountService', () => {
     expect(prisma.customerVirtualAccount.create).not.toHaveBeenCalled();
   });
 
+  it('requires explicit consent before resuming a pending assignment without a consent record', async () => {
+    prisma.customerVirtualAccount.findFirst.mockResolvedValueOnce({
+      id: 'pending-va-without-consent',
+      customerId: customer.id,
+      status: 'PENDING',
+      providerCustomerId: 'CUS_test',
+      consentAt: null,
+    });
+
+    await expect(service.ensure(customer.id)).rejects.toThrow('consent');
+    expect(prisma.customerVirtualAccount.update).not.toHaveBeenCalled();
+  });
+
+  it('persists explicit consent before returning a pending assignment with a provider customer code', async () => {
+    prisma.customerVirtualAccount.findFirst.mockResolvedValueOnce({
+      id: 'pending-va-without-consent',
+      customerId: customer.id,
+      status: 'PENDING',
+      providerCustomerId: 'CUS_test',
+      consentAt: null,
+    });
+
+    await service.ensure(customer.id, undefined, true);
+
+    expect(prisma.customerVirtualAccount.update).toHaveBeenCalledWith({
+      where: { id: 'pending-va-without-consent' },
+      data: { consentAt: expect.any(Date) },
+    });
+  });
+
   it('keeps a consented DVA request pending while customer KYC details are not verified yet', async () => {
     prisma.customerVirtualAccount.findFirst
       .mockResolvedValueOnce(null)

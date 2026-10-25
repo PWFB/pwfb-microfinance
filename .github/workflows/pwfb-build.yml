@@ -35,6 +35,24 @@ jobs:
       - name: Install locked dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Report dependency audit findings
+        if: always()
+        run: |
+          npm audit --json > /tmp/pwfb-npm-audit.json || true
+          node <<'NODE'
+          const fs = require('node:fs');
+          let report = {};
+          try { report = JSON.parse(fs.readFileSync('/tmp/pwfb-npm-audit.json', 'utf8')); } catch { console.log('npm audit did not return parseable JSON'); process.exit(0); }
+          const counts = report.metadata?.vulnerabilities || {};
+          console.log('Dependency audit counts:', JSON.stringify(counts));
+          for (const [name, item] of Object.entries(report.vulnerabilities || {})) {
+            console.log(`AUDIT ${String(item.severity || 'unknown').toUpperCase()} ${name} range=${item.range || 'unknown'} fixAvailable=${JSON.stringify(item.fixAvailable ?? null)}`);
+            for (const via of (item.via || [])) {
+              if (typeof via === 'object') console.log(`  ADVISORY ${via.title || via.name || 'unknown'} ${via.url || ''}`);
+            }
+          }
+          NODE
+
       - name: Validate Prisma schema
         run: npx prisma validate --schema=apps/backend/prisma/schema.prisma
 

@@ -38,7 +38,9 @@ A read-only inspection was run against the Neon project named `Pwfb-microfinance
 
 Because those financial tables are empty, the read-only check found no existing monetary values to round in this specific Neon branch. This is **not yet proof that the deployed Render service points at the same branch/database**; do not infer that from project name alone. Before migration, confirm the staging/production `DATABASE_URL` target without printing credentials and rerun the audit on that exact target. Do not expose or log connection strings.
 
-This is a read-only snapshot, not a backup or migration test. It does not confirm the database connection configured in Render, the exact live migration history, or whether another project/branch contains financial records.
+The table `public._prisma_migrations` was not present in this inspected database. The repository's `apps/backend/scripts/migrate-deploy.js` checks for this condition and, when existing tables are detected without migration history, records eight listed legacy migrations as applied before running `prisma migrate deploy`. That bootstrap behavior needs to be reviewed for the exact target database before the new precision migration is released; the new migration must not be added under an assumption that the database already has normal Prisma migration history.
+
+This is a read-only snapshot, not a backup or migration test. It does not confirm the database connection configured in Render, whether this branch is the actual deployed `DATABASE_URL` target, or whether another project/branch contains financial records.
 
 ## Decisions before implementation
 

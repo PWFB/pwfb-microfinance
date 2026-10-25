@@ -16,5 +16,5 @@ export class SuperAdminController {
   @Get('staff-stats') staffStats() { return this.superAdminService.staffStats(); }
   @Get('wallet') adminWallet() { return this.superAdminService.adminWallet(); }
   @Get('wallet/transactions') adminWalletTransactions() { return this.superAdminService.adminWalletTransactions(); }
-  @Post('wallet/charges') recordAdminCharge(@Body() body: { amount: number; reference?: string; description?: string }) { return this.superAdminService.recordAdminCharge(body); }
+  @Post('wallet/charges') recordAdminCharge(@Body() body: { amount: number; reference: string; description?: string }) { return this.superAdminService.recordAdminCharge(body); }
 }

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { addMoney, compareMoney, subtractMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
+import { addMoney, compareMoney, moneyToNumber, subtractMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 import { NibssService } from './nibss.service';
 import { FlutterwaveService } from './flutterwave.service';
 import { PaystackService } from './paystack.service';
@@ -211,11 +211,18 @@ export class ExternalBankTransferService {
 
   async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string }) {
     const bankCode = String(input.bankCode || '').trim();
-    const amount = Math.round(Number(input.amount) * 100) / 100;
+    const rawAmount = Number(input.amount);
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
     if (!bankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
-    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
+    if (!Number.isFinite(rawAmount) || rawAmount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
+    let amount: number;
+    try {
+      amount = moneyToNumber(toMoney(rawAmount));
+    } catch {
+      throw new BadRequestException('Transfer amount is outside the supported monetary range');
+    }
+    if (amount <= 0) throw new BadRequestException('Transfer amount must round to at least one kobo');
 
     // Interbank beneficiaries are not expected to share the sender's name.
     // Resolve the destination account with the bank/provider and use that returned

@@ -18,7 +18,7 @@ export class StaffWalletService {
     await this.ready;
   }
 
-  private amount(value: unknown) { const n = Number(value ?? 0); if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Wallet amount must be greater than zero'); return n; }
+  private amount(value: unknown) { const n = Number(value ?? 0); if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Wallet amount must be greater than zero'); const rounded = Math.round((n + Number.EPSILON) * 100) / 100; if (rounded <= 0) throw new BadRequestException('Wallet amount must be at least ₦0.01'); return rounded; }
 
   private async staff(staffId: string, db: any = this.prisma) {
     const rows: any[] = await db.$queryRawUnsafe(`SELECT id, staff_id AS "staffId", branch_id AS "branchId", balance FROM staff_wallets WHERE staff_id=$1`, staffId);

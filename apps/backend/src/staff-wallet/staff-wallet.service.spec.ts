@@ -68,4 +68,12 @@ describe('StaffWalletService transaction safety', () => {
       expect.anything(),
     );
   });
+
+  it('rounds valid wallet amounts to two decimal places', async () => {
+    const prisma: any = {};
+    const service = new StaffWalletService(prisma);
+    expect((service as any).amount(12.345)).toBe(12.35);
+    expect((service as any).amount(12.344)).toBe(12.34);
+    expect(() => (service as any).amount(0.001)).toThrow('Wallet amount must be at least ₦0.01');
+  });
 });

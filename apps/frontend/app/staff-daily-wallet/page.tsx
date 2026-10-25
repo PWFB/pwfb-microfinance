@@ -68,11 +68,13 @@ export default function StaffDailyWalletPage() {
 
   async function issueCash(e: React.FormEvent) {
     e.preventDefault(); setSaving('issue'); setError(''); setMessage('');
+    const transactionReference = reference.trim() || `FIELD-ISSUE-${Date.now()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;
+    setReference(transactionReference);
     try {
       if (!staffId || Number(issueAmount) <= 0) throw new Error('Select staff and enter the cash issued.');
-      await apiRequest('/staff-wallet/issue', { method: 'POST', body: JSON.stringify({ staffId, amount: Number(issueAmount), reference: reference || undefined, description: 'Daily field cash issued' }) });
-      setIssueAmount(''); setMessage('Field cash issued to the staff wallet.'); await load();
-    } catch (e: any) { setError(e?.message || 'Unable to issue field cash.'); }
+      await apiRequest('/staff-wallet/issue', { method: 'POST', body: JSON.stringify({ staffId, amount: Number(issueAmount), reference: transactionReference, description: 'Daily field cash issued' }) });
+      setIssueAmount(''); setReference(''); setMessage('Field cash issued to the staff wallet.'); await load();
+    } catch (e: any) { setError(e?.message || 'Unable to issue field cash. Check the transaction reference before retrying.'); }
     finally { setSaving(''); }
   }
 
@@ -88,11 +90,13 @@ export default function StaffDailyWalletPage() {
 
   async function settleCash(e: React.FormEvent) {
     e.preventDefault(); setSaving('settle'); setError(''); setMessage('');
+    const transactionReference = reference.trim() || `FIELD-SETTLE-${Date.now()}-${Math.random().toString(36).slice(2,8).toUpperCase()}`;
+    setReference(transactionReference);
     try {
       if (!staffId || Number(settleAmount) <= 0) throw new Error('Select staff and enter the amount being returned/settled.');
-      await apiRequest('/staff-wallet/settle', { method: 'POST', body: JSON.stringify({ staffId, amount: Number(settleAmount), reference: reference || undefined, description: 'Daily field cash settlement' }) });
+      await apiRequest('/staff-wallet/settle', { method: 'POST', body: JSON.stringify({ staffId, amount: Number(settleAmount), reference: transactionReference, description: 'Daily field cash settlement' }) });
       setSettleAmount(''); setReference(''); setMessage('Staff cash settlement posted and wallet balance updated.'); await load();
-    } catch (e: any) { setError(e?.message || 'Unable to settle staff cash.'); }
+    } catch (e: any) { setError(e?.message || 'Unable to settle staff cash. Check the transaction reference before retrying.'); }
     finally { setSaving(''); }
   }
 

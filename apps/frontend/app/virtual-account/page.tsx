@@ -13,6 +13,7 @@ export default function VirtualAccountPage() {
   const [account, setAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [virtualAccountConsent, setVirtualAccountConsent] = useState(false);
   const [error, setError] = useState("");
 
   async function load(id: string) {
@@ -26,10 +27,11 @@ export default function VirtualAccountPage() {
 
   async function retryAssignment() {
     if (!customerId || creating) return;
+    if (!virtualAccountConsent) { setError("Please confirm consent before requesting a Paystack virtual account."); return; }
     setCreating(true);
     setError("");
     try {
-      const result = await pwfbApi.banking.ensureCustomerVirtualAccount(customerId);
+      const result = await pwfbApi.banking.ensureCustomerVirtualAccount(customerId, undefined, true);
       const list: Account[] = Array.isArray(result) ? result : result?.data ?? [];
       const selected = list.find((x) => x.status === "ACTIVE" && x.accountNumber) ?? list[0] ?? null;
       if (selected) setAccount(selected);
@@ -49,13 +51,7 @@ export default function VirtualAccountPage() {
         setLoading(true);
         const customer = await pwfbApi.customers.me();
         setCustomerId(customer.id);
-        let active = await load(customer.id);
-        if (!active || active.status === "FAILED") {
-          setCreating(true);
-          active = (await pwfbApi.banking.ensureCustomerVirtualAccount(customer.id))?.[0] ?? null;
-          if (!active) await load(customer.id);
-          else setAccount(active);
-        }
+        await load(customer.id);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Unable to load virtual account");
       } finally { setCreating(false); setLoading(false); }
@@ -83,7 +79,8 @@ export default function VirtualAccountPage() {
         {!active && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-sm font-semibold text-amber-900">{account?.status === "FAILED" ? "Account assignment needs attention" : "Account assignment is not complete"}</p>
           <p className="mt-1 text-xs leading-5 text-amber-800">No account number will be shown until the provider returns one and PWFB saves the assignment. Retrying reuses the existing PWFB request where possible.</p>
-          <button type="button" onClick={retryAssignment} disabled={creating || !customerId} className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{creating ? "Checking assignment…" : "Retry account assignment"}</button>
+          <label className="mt-3 flex items-start gap-2 text-xs leading-5 text-slate-700"><input type="checkbox" checked={virtualAccountConsent} onChange={(event) => setVirtualAccountConsent(event.target.checked)} className="mt-1 h-4 w-4 shrink-0" /><span>I consent to PWFB sharing my identity and verified bank-account details with Paystack to request and assign my dedicated virtual account.</span></label>
+          <button type="button" onClick={retryAssignment} disabled={creating || !customerId || !virtualAccountConsent} className="mt-3 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60">{creating ? "Checking assignment…" : "Request / retry account assignment"}</button>
         </div>}
       </section>
       <section className="mt-5 rounded-2xl border bg-white p-5 shadow-sm"><h2 className="font-bold text-slate-900">How to fund your wallet</h2><ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-slate-600"><li>Transfer money from your bank to the virtual account number above.</li><li>Use the displayed account name and bank details exactly.</li><li>Wait for the displayed account provider to confirm the incoming payment.</li><li>PWFB should credit the wallet only after a verified provider notification is processed.</li></ol></section>

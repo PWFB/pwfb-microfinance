@@ -51,7 +51,185 @@ export class BankingService {
   async getBranchLedger(branchId:string){const branch=await this.prisma.branch.findUnique({where:{id:branchId}});if(!branch)throw new NotFoundException('Branch not found');const entries=await this.prisma.cashbookEntry.findMany({where:{branchId},orderBy:{entryDate:'desc'}});const totalIn=entries.filter(e=>e.type==='CASH_IN').reduce((s,e)=>s+e.amount,0);const totalOut=entries.filter(e=>e.type==='CASH_OUT').reduce((s,e)=>s+e.amount,0);return{branch,entries,totalIn,totalOut,balance:totalIn-totalOut}}
   async getCustomerWallet(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.customerWallet.upsert({where:{customerId},create:{customerId},update:{}})}
   async getCustomerTransactions(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.walletTransaction.findMany({where:{customerId},orderBy:{createdAt:'desc'}})}
-  async deposit(customerId:string,data:any){const amount=this.amount(data.amount);return this.prisma.$transaction(async tx=>{const customer=await tx.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');const wallet=await tx.customerWallet.upsert({where:{customerId},create:{customerId,balance:0},update:{}});if(wallet.status!=='ACTIVE')throw new BadRequestException('Customer wallet is not active');const newBalance=Math.round((wallet.balance+amount)*100)/100;const updatedWallet=await tx.customerWallet.update({where:{id:wallet.id},data:{balance:newBalance}});const provider=String(data.verificationProvider||data.provider||'').trim().toUpperCase()||null; const bankCode=String(data.bankCode||data.bank_code||'').trim()||null; const accountNumber=String(data.accountNumber||'').replace(/\D/g,'')||null; const accountName=String(data.accountName||'').trim()||null; const transaction=await tx.walletTransaction.create({data:{customerId,type:'DEPOSIT',amount,previousBalance:wallet.balance,newBalance,reference:data.reference?.trim()||this.ref('DEP'),description:data.description??(accountName?`Bank deposit from ${accountName}${bankCode?` • ${bankCode}`:''}${accountNumber?` • ${accountNumber}`:''}`:'Wallet deposit'),branchId:data.branchId,staffId:data.staffId,provider,providerReference:data.providerReference||null,status:'COMPLETED',processedAt:new Date()}});return{wallet:updatedWallet,transaction}})}
-  async withdraw(customerId:string,data:any){const amount=this.amount(data.amount);return this.prisma.$transaction(async tx=>{const wallet=await tx.customerWallet.findUnique({where:{customerId}});if(!wallet)throw new NotFoundException('Customer wallet not found');if(wallet.status!=='ACTIVE')throw new BadRequestException('Customer wallet is not active');if(wallet.balance<amount)throw new BadRequestException('Insufficient wallet balance');const newBalance=Math.round((wallet.balance-amount)*100)/100;const updated=await tx.customerWallet.updateMany({where:{id:wallet.id,balance:{gte:amount},status:'ACTIVE'},data:{balance:newBalance}});if(updated.count!==1)throw new BadRequestException('Withdrawal could not be completed because the balance changed');const transaction=await tx.walletTransaction.create({data:{customerId,type:'WITHDRAWAL',amount,previousBalance:wallet.balance,newBalance,reference:data.reference?.trim()||this.ref('WDR'),description:data.description??'Wallet withdrawal',branchId:data.branchId,staffId:data.staffId}});return{wallet:{...wallet,balance:newBalance},transaction}})}
-  async transfer(customerId:string,data:any){const amount=this.amount(data.amount);if(!data.recipientCustomerId)throw new BadRequestException('Recipient customer is required');if(customerId===data.recipientCustomerId)throw new BadRequestException('You cannot transfer to the same customer');return this.prisma.$transaction(async tx=>{const [sender,recipient]=await Promise.all([tx.customer.findUnique({where:{id:customerId}}),tx.customer.findUnique({where:{id:data.recipientCustomerId}})]);if(!sender)throw new NotFoundException('Sender customer not found');if(!recipient)throw new NotFoundException('Recipient customer not found');const sw=await tx.customerWallet.findUnique({where:{customerId}});if(!sw)throw new NotFoundException('Sender wallet not found');if(sw.status!=='ACTIVE')throw new BadRequestException('Sender wallet is not active');if(sw.balance<amount)throw new BadRequestException('Insufficient wallet balance');const rw=await tx.customerWallet.upsert({where:{customerId:data.recipientCustomerId},create:{customerId:data.recipientCustomerId,balance:0},update:{}});if(rw.status!=='ACTIVE')throw new BadRequestException('Recipient wallet is not active');const sb=Math.round((sw.balance-amount)*100)/100,rb=Math.round((rw.balance+amount)*100)/100;const su=await tx.customerWallet.updateMany({where:{id:sw.id,balance:{gte:amount},status:'ACTIVE'},data:{balance:sb}});if(su.count!==1)throw new BadRequestException('Transfer could not be completed because the sender balance changed');const ur=await tx.customerWallet.update({where:{id:rw.id},data:{balance:rb}});const r=data.reference?.trim()||this.ref('TRF');const outgoing=await tx.walletTransaction.create({data:{customerId,type:'TRANSFER_OUT',amount,previousBalance:sw.balance,newBalance:sb,reference:`${r}-OUT`,description:data.description??`Transfer to ${recipient.firstName} ${recipient.lastName}`,branchId:data.branchId,staffId:data.staffId}});const incoming=await tx.walletTransaction.create({data:{customerId:data.recipientCustomerId,type:'TRANSFER_IN',amount,previousBalance:rw.balance,newBalance:rb,reference:`${r}-IN`,description:data.description??`Transfer from ${sender.firstName} ${sender.lastName}`,branchId:data.branchId,staffId:data.staffId}});return{senderWallet:{...sw,balance:sb},recipientWallet:ur,outgoing,incoming}})}
+  async deposit(customerId: string, data: any) {
+    const amount = this.amount(data.amount);
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findUnique({ where: { id: customerId } });
+      if (!customer) throw new NotFoundException('Customer not found');
+
+      const wallet = await tx.customerWallet.upsert({
+        where: { customerId },
+        create: { customerId, balance: 0 },
+        update: {},
+      });
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet) throw new NotFoundException('Customer wallet not found');
+      if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+
+      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
+      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+      const updatedWallet = await tx.customerWallet.update({
+        where: { id: lockedWallet.id },
+        data: { balance: newBalance },
+      });
+      const provider = String(data.verificationProvider || data.provider || '').trim().toUpperCase() || null;
+      const bankCode = String(data.bankCode || data.bank_code || '').trim() || null;
+      const accountNumber = String(data.accountNumber || '').replace(/\D/g, '') || null;
+      const accountName = String(data.accountName || '').trim() || null;
+      const description = data.description ?? (accountName
+        ? 'Bank deposit from ' + accountName + (bankCode ? ' • ' + bankCode : '') + (accountNumber ? ' • ' + accountNumber : '')
+        : 'Wallet deposit');
+      const transaction = await tx.walletTransaction.create({
+        data: {
+          customerId,
+          type: 'DEPOSIT',
+          amount,
+          previousBalance,
+          newBalance,
+          reference: data.reference?.trim() || this.ref('DEP'),
+          description,
+          branchId: data.branchId,
+          staffId: data.staffId,
+          provider,
+          providerReference: data.providerReference || null,
+          status: 'COMPLETED',
+          processedAt: new Date(),
+        },
+      });
+      return { wallet: updatedWallet, transaction };
+    });
+  }
+  async withdraw(customerId: string, data: any) {
+    const amount = this.amount(data.amount);
+    return this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.customerWallet.findUnique({ where: { customerId } });
+      if (!wallet) throw new NotFoundException('Customer wallet not found');
+
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet) throw new NotFoundException('Customer wallet not found');
+      if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+
+      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
+      if (previousBalance < amount) throw new BadRequestException('Insufficient wallet balance');
+      const newBalance = Math.round((previousBalance - amount) * 100) / 100;
+      const updatedWallet = await tx.customerWallet.update({
+        where: { id: lockedWallet.id },
+        data: { balance: newBalance },
+      });
+      const transaction = await tx.walletTransaction.create({
+        data: {
+          customerId,
+          type: 'WITHDRAWAL',
+          amount,
+          previousBalance,
+          newBalance,
+          reference: data.reference?.trim() || this.ref('WDR'),
+          description: data.description ?? 'Wallet withdrawal',
+          branchId: data.branchId,
+          staffId: data.staffId,
+        },
+      });
+      return { wallet: { ...lockedWallet, balance: newBalance }, transaction };
+    });
+  }
+  async transfer(customerId: string, data: any) {
+    const amount = this.amount(data.amount);
+    const recipientCustomerId = String(data.recipientCustomerId || '').trim();
+    if (!recipientCustomerId) throw new BadRequestException('Recipient customer is required');
+    if (customerId === recipientCustomerId) throw new BadRequestException('You cannot transfer to the same customer');
+
+    return this.prisma.$transaction(async (tx) => {
+      // Customer-ID locks serialize transfers involving the same parties before
+      // any wallet rows are touched. Sorting gives A->B and B->A the same order.
+      const customerLockKeys = [customerId, recipientCustomerId].sort();
+      for (const id of customerLockKeys) {
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          'CUSTOMER-WALLET-TRANSFER:' + id,
+        );
+      }
+
+      const sender = await tx.customer.findUnique({ where: { id: customerId } });
+      const recipient = await tx.customer.findUnique({ where: { id: recipientCustomerId } });
+      if (!sender) throw new NotFoundException('Sender customer not found');
+      if (!recipient) throw new NotFoundException('Recipient customer not found');
+
+      const senderInitial = await tx.customerWallet.findUnique({ where: { customerId } });
+      if (!senderInitial) throw new NotFoundException('Sender wallet not found');
+
+      const recipientInitial = await tx.customerWallet.findUnique({ where: { customerId: recipientCustomerId } })
+        ?? await tx.customerWallet.upsert({
+          where: { customerId: recipientCustomerId },
+          create: { customerId: recipientCustomerId, balance: 0 },
+          update: {},
+        });
+
+      const walletIds = [senderInitial.id, recipientInitial.id].sort();
+      for (const walletId of walletIds) {
+        await tx.$queryRawUnsafe(
+          'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+          walletId,
+        );
+      }
+
+      const lockedSender = await tx.customerWallet.findUnique({ where: { id: senderInitial.id } });
+      const lockedRecipient = await tx.customerWallet.findUnique({ where: { id: recipientInitial.id } });
+      if (!lockedSender) throw new NotFoundException('Sender wallet not found');
+      if (!lockedRecipient) throw new NotFoundException('Recipient wallet not found');
+      if (lockedSender.status !== 'ACTIVE') throw new BadRequestException('Sender wallet is not active');
+      if (lockedRecipient.status !== 'ACTIVE') throw new BadRequestException('Recipient wallet is not active');
+
+      const senderPreviousBalance = Math.round(Number(lockedSender.balance) * 100) / 100;
+      const recipientPreviousBalance = Math.round(Number(lockedRecipient.balance) * 100) / 100;
+      if (senderPreviousBalance < amount) throw new BadRequestException('Insufficient wallet balance');
+      const senderNewBalance = Math.round((senderPreviousBalance - amount) * 100) / 100;
+      const recipientNewBalance = Math.round((recipientPreviousBalance + amount) * 100) / 100;
+
+      const updatedSender = await tx.customerWallet.update({
+        where: { id: lockedSender.id },
+        data: { balance: senderNewBalance },
+      });
+      const updatedRecipient = await tx.customerWallet.update({
+        where: { id: lockedRecipient.id },
+        data: { balance: recipientNewBalance },
+      });
+      const reference = data.reference?.trim() || this.ref('TRF');
+      const outgoing = await tx.walletTransaction.create({
+        data: {
+          customerId,
+          type: 'TRANSFER_OUT',
+          amount,
+          previousBalance: senderPreviousBalance,
+          newBalance: senderNewBalance,
+          reference: reference + '-OUT',
+          description: data.description ?? ('Transfer to ' + recipient.firstName + ' ' + recipient.lastName),
+          branchId: data.branchId,
+          staffId: data.staffId,
+        },
+      });
+      const incoming = await tx.walletTransaction.create({
+        data: {
+          customerId: recipientCustomerId,
+          type: 'TRANSFER_IN',
+          amount,
+          previousBalance: recipientPreviousBalance,
+          newBalance: recipientNewBalance,
+          reference: reference + '-IN',
+          description: data.description ?? ('Transfer from ' + sender.firstName + ' ' + sender.lastName),
+          branchId: data.branchId,
+          staffId: data.staffId,
+        },
+      });
+      return { senderWallet: updatedSender, recipientWallet: updatedRecipient, outgoing, incoming };
+    });
+  }
+
 }

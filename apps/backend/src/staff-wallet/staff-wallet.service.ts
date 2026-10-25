@@ -82,6 +82,7 @@ export class StaffWalletService {
     }
     await this.ensureTables(db);
     const amount = this.amount(amountValue);
+    await this.ensureUniqueReference(db, reference);
     const wallet = await this.staff(staffId, db);
     const locked: any[] = await db.$queryRawUnsafe(`SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE`, wallet.id);
     const previous = Number(locked[0]?.balance ?? wallet.balance ?? 0);

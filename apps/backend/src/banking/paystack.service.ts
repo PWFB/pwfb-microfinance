@@ -347,7 +347,7 @@ export class PaystackService {
         // reference before reading the wallet transaction.
         await tx.$queryRawUnsafe(
           'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-          `PAYSTACK-TRANSFER:${reference}`,
+          'WALLET-WITHDRAWAL:' + reference,
         );
         const transaction = await tx.walletTransaction.findUnique({ where: { reference } });
         if (!transaction) return { ok: true, processed: false, message: 'Withdrawal transaction not found', reference };

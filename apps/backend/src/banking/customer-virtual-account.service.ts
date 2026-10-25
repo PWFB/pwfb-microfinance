@@ -443,8 +443,8 @@ export class CustomerVirtualAccountService {
       data?.authorization?.receiver_bank_account_number
         || data?.receiver_bank_account_number
         || '',
-    ).replace(/\\D/g, '');
-    if (!/^\\d{10}$/.test(accountNumber)) {
+    ).replace(/\D/g, '');
+    if (!/^\d{10}$/.test(accountNumber)) {
       return { ok: true, processed: false, matchedCustomerAccount: false, message: 'Dedicated account number is missing or invalid' };
     }
 

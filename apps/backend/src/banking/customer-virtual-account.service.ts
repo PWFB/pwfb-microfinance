@@ -471,7 +471,7 @@ export class CustomerVirtualAccountService {
 
     return this.prisma.$transaction(async (tx) => {
       // Serializes webhook retries and concurrent delivery of the same payment.
-      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', providerReference);
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', providerTransactionId);
       const duplicate = await tx.walletTransaction.findFirst({
         where: {
           OR: [

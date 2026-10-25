@@ -652,7 +652,7 @@ model StaffVirtualAccount {
 model CustomerWallet {
   id String @id @default(cuid())
   customerId String @unique
-  balance Decimal @db.Decimal(20, 2) @default(0.00) @default(0)
+  balance Decimal @db.Decimal(20, 2) @default(0.00)
   currency String @default("NGN")
   status AccountStatus @default(ACTIVE)
   createdAt DateTime @default(now())

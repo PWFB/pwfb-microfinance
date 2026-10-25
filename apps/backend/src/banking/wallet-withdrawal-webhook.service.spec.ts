@@ -16,6 +16,8 @@ describe('WalletWithdrawalWebhookService reconciliation concurrency', () => {
       type: 'WITHDRAWAL',
       status: 'PENDING',
       amount: 50,
+      previousBalance: 150,
+      newBalance: 100,
       provider: 'FLUTTERWAVE',
       providerReference: 'provider-transfer-1',
     };

@@ -1,5 +1,7 @@
 import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
+import { addMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type CustomerVirtualAccountView = {
@@ -493,7 +495,7 @@ export class CustomerVirtualAccountService {
     const paymentReference = String(data?.reference || '').trim();
     if (!paymentReference) throw new BadRequestException('Paystack virtual-account deposit reference is missing');
     const providerTransactionId = String(data?.id ?? paymentReference).trim();
-    const amount = amountMinor / 100;
+    const amountMoney = toMoney(new Prisma.Decimal(amountMinor).div(100));
     const transactionReference = `PAYSTACK-DVA-${paymentReference}`;
     const providerReference = `PAYSTACK-DVA-${providerTransactionId}`;
 
@@ -538,8 +540,8 @@ export class CustomerVirtualAccountService {
       if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while crediting Paystack deposit');
       if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
 
-      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
-      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+      const previousBalance = toMoney(lockedWallet.balance);
+      const newBalance = addMoney(previousBalance, amountMoney);
       const updatedWallet = await tx.customerWallet.update({
         where: { id: lockedWallet.id },
         data: { balance: newBalance },
@@ -548,7 +550,7 @@ export class CustomerVirtualAccountService {
         data: {
           customerId: account.customerId,
           type: 'DEPOSIT',
-          amount,
+          amount: amountMoney,
           previousBalance,
           newBalance,
           reference: transactionReference,
@@ -565,8 +567,8 @@ export class CustomerVirtualAccountService {
         ok: true,
         processed: true,
         matchedCustomerAccount: true,
-        wallet: updatedWallet,
-        transaction,
+        wallet: walletToApi(updatedWallet),
+        transaction: walletTransactionToApi(transaction),
       };
     });
   }

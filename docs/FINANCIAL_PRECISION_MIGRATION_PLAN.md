@@ -25,7 +25,20 @@ The Prisma schema on `staging` contains 21 `Float` fields across 11 models that 
 
 The Super Admin charges wallet is also created by raw SQL in `apps/backend/src/super-admin/super-admin.service.ts` using `DOUBLE PRECISION` for `pwfb_admin_wallet.balance`, `pwfb_admin_wallet_transactions.amount`, `previousBalance`, and `newBalance`. That schema must be included in the audit even though it is not represented by the Prisma models listed above.
 
-This inventory was derived from the repository schema and source. It is **not** a live-data audit: row counts, existing values, precision anomalies, Neon backups, and the live migration state have not been inspected here.
+This inventory was derived from the repository schema and source.
+
+## Read-only Neon preflight observed on 2026-10-25
+
+A read-only inspection was run against the Neon project named `Pwfb-microfinance`, its default `production` branch, and database `neondb`. Metadata showed:
+
+- `User`: 4 rows.
+- `Customer`, `Staff`, `CustomerWallet`, and `WalletTransaction`: 0 rows each.
+- The 20 inspected monetary columns across savings, loan amounts/disbursement, transactions, repayments, payroll, salary disbursements, cashbook, collections, customer wallets, and wallet ledger had 0 rows. The loan interest-rate field was excluded from monetary rounding checks because it has a different precision policy.
+- The expected Super Admin wallet tables `pwfb_admin_wallet` and `pwfb_admin_wallet_transactions` were not present on that branch at the time of the check, despite raw SQL in the source being capable of creating them later.
+
+Because those financial tables are empty, the read-only check found no existing monetary values to round in this specific Neon branch. This is **not yet proof that the deployed Render service points at the same branch/database**; do not infer that from project name alone. Before migration, confirm the staging/production `DATABASE_URL` target without printing credentials and rerun the audit on that exact target. Do not expose or log connection strings.
+
+This is a read-only snapshot, not a backup or migration test. It does not confirm the database connection configured in Render, the exact live migration history, or whether another project/branch contains financial records.
 
 ## Decisions before implementation
 

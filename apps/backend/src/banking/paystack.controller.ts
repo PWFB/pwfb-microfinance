@@ -66,7 +66,9 @@ export class PaystackController {
     }
 
     if (dedicatedDeposit) {
-      // Preserve the existing branch ledger reconciliation for branch-level DVAs.
+      // Customer DVAs credit customer wallets; branch DVAs continue through the branch ledger.
+      const customerResult = await this.customerVirtualAccountService.handleDedicatedDepositWebhook(body);
+      if (customerResult.matchedCustomerAccount) return customerResult;
       return this.branchDvaService.handleWebhook(body);
     }
 

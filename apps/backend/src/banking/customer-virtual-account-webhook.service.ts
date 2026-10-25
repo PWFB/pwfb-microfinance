@@ -255,6 +255,10 @@ export class CustomerVirtualAccountWebhookService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        'CUSTOMER-VA-DEPOSIT:' + providerReference,
+      );
       const duplicate = await tx.walletTransaction.findUnique({
         where: { providerReference },
       });
@@ -274,15 +278,21 @@ export class CustomerVirtualAccountWebhookService {
         create: { customerId: virtualAccount.customerId, balance: 0 },
         update: {},
       });
-      if (wallet.status !== 'ACTIVE') {
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet) throw new BadRequestException('Customer wallet not found while crediting virtual-account deposit');
+      if (lockedWallet.status !== 'ACTIVE') {
         throw new BadRequestException('Customer wallet is not active');
       }
 
-      const previousBalance = Number(wallet.balance);
+      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
       const newBalance = Math.round((previousBalance + amount) * 100) / 100;
 
       const updatedWallet = await tx.customerWallet.update({
-        where: { id: wallet.id },
+        where: { id: lockedWallet.id },
         data: { balance: newBalance },
       });
 

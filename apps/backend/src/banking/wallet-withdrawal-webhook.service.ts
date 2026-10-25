@@ -99,6 +99,10 @@ export class WalletWithdrawalWebhookService {
     if (!reference) throw new BadRequestException('Transaction reference is required');
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        'WALLET-WITHDRAWAL:' + reference,
+      );
       const transaction = await tx.walletTransaction.findUnique({ where: { reference } });
       if (!transaction) throw new BadRequestException('Wallet withdrawal transaction not found');
       if (transaction.type !== 'WITHDRAWAL') throw new BadRequestException('Transaction is not a wallet withdrawal');
@@ -128,9 +132,15 @@ export class WalletWithdrawalWebhookService {
       const wallet = await tx.customerWallet.findUnique({ where: { customerId: transaction.customerId } });
       if (!wallet) throw new BadRequestException('Customer wallet not found while reversing withdrawal');
 
-      const restoredBalance = Math.round((wallet.balance + transaction.amount) * 100) / 100;
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while reversing withdrawal');
+      const restoredBalance = Math.round((Number(lockedWallet.balance) + Number(transaction.amount)) * 100) / 100;
       const updatedWallet = await tx.customerWallet.update({
-        where: { id: wallet.id },
+        where: { id: lockedWallet.id },
         data: { balance: restoredBalance },
       });
 

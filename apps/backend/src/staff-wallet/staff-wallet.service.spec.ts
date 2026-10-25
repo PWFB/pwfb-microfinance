@@ -103,4 +103,29 @@ describe('StaffWalletService transaction safety', () => {
     expect((service as any).amount(12.344)).toBe(12.34);
     expect(() => (service as any).amount(0.001)).toThrow('Wallet amount must be at least ₦0.01');
   });
+
+  it('requires a stable reference before a staff wallet balance can be changed', async () => {
+    const tx = { $executeRawUnsafe: jest.fn().mockResolvedValue(1), $queryRawUnsafe: jest.fn() };
+    const prisma: any = { $transaction: jest.fn(async (callback: (client: any) => unknown) => callback(tx)) };
+    const service = new StaffWalletService(prisma);
+    await expect(service.credit('staff-1', 25)).rejects.toThrow('A transaction reference is required');
+    expect(tx.$queryRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  it('updates field balances with integer-cent arithmetic', async () => {
+    const tx = { $executeRawUnsafe: jest.fn().mockResolvedValue(1), $queryRawUnsafe: jest.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'wallet-1', staffId: 'staff-1', branchId: 'branch-1', balance: 0.1 }])
+      .mockResolvedValueOnce([{ balance: 0.1 }]) };
+    const prisma: any = { $transaction: jest.fn(async (callback: (client: any) => unknown) => callback(tx)) };
+    const service = new StaffWalletService(prisma);
+    await expect(service.credit('staff-1', 0.2, 'CENT-REF-1')).resolves.toEqual({
+      staffId: 'staff-1', previousBalance: 0.1, amount: 0.2, newBalance: 0.3,
+    });
+    expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE staff_wallets'), 'wallet-1', 0.3,
+    );
+  });
+
 });

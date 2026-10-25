@@ -297,6 +297,12 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
           balance: 100.75,
           status: options?.walletStatus || 'ACTIVE',
         }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          customerId: 'customer-1',
+          balance: 100.75,
+          status: options?.walletStatus || 'ACTIVE',
+        }),
         update: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 226.25, status: 'ACTIVE' }),
       },
       walletTransaction: {
@@ -330,10 +336,17 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
       where: { provider: 'PAYSTACK', accountNumber: '0123456789', status: 'ACTIVE' },
       select: { id: true, customerId: true, branchId: true },
     });
-    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      1,
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
       '98765',
     );
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'wallet-1',
+    );
+    expect(tx.customerWallet.findUnique).toHaveBeenCalledWith({ where: { id: 'wallet-1' } });
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },
       data: { balance: 226.25 },

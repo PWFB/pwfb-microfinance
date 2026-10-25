@@ -35,6 +35,11 @@ jobs:
       - name: Install locked dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Apply compatible dependency security updates
+        run: |
+          npm audit fix --no-fund --no-force || echo "Some advisories require major-version changes; continuing to run tests and report remaining findings."
+          npm ls next sharp @nestjs/platform-express body-parser brace-expansion fast-uri handlebars js-yaml multer nanoid postcss prisma proxy-addr qs source-map-js --all || true
+
       - name: Report dependency audit findings
         if: always()
         run: |
@@ -52,6 +57,15 @@ jobs:
             }
           }
           NODE
+
+      - name: Upload refreshed dependency lockfile for review
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwfb-package-lock-${{ github.sha }}
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Validate Prisma schema
         run: npx prisma validate --schema=apps/backend/prisma/schema.prisma

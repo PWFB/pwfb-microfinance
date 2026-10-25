@@ -10,6 +10,7 @@ describe('CustomerVirtualAccountWebhookService', () => {
   beforeEach(() => {
     process.env.FLUTTERWAVE_WEBHOOK_SECRET_HASH = secret;
     tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       walletTransaction: {
         findUnique: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'test-tx-1', ...data })),
@@ -25,6 +26,7 @@ describe('CustomerVirtualAccountWebhookService', () => {
       },
       customerWallet: {
         upsert: jest.fn().mockResolvedValue({ id: 'test-wallet-1', customerId: 'test-customer-1', balance: 0, status: 'ACTIVE' }),
+        findUnique: jest.fn().mockResolvedValue({ id: 'test-wallet-1', customerId: 'test-customer-1', balance: 125, status: 'ACTIVE' }),
         update: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'test-wallet-1', ...data, status: 'ACTIVE' })),
       },
     };
@@ -60,17 +62,27 @@ describe('CustomerVirtualAccountWebhookService', () => {
     const result = await service.depositFlutterwave(input);
 
     expect(result).toMatchObject({ ok: true, duplicate: false });
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      1,
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      'CUSTOMER-VA-DEPOSIT:flw-test-reference-001',
+    );
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'test-wallet-1',
+    );
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'test-wallet-1' },
-      data: { balance: 2500 },
+      data: { balance: 2625 },
     });
     expect(tx.walletTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         customerId: 'test-customer-1',
         type: 'DEPOSIT',
         amount: 2500,
-        previousBalance: 0,
-        newBalance: 2500,
+        previousBalance: 125,
+        newBalance: 2625,
         provider: 'FLUTTERWAVE',
         providerReference: 'flw-test-reference-001',
         status: 'COMPLETED',

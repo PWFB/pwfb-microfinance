@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { addMoney, compareMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
+import { addMoney, compareMoney, subtractMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 import { NibssService } from './nibss.service';
 import { FlutterwaveService } from './flutterwave.service';
 import { PaystackService } from './paystack.service';
@@ -245,7 +245,7 @@ export class ExternalBankTransferService {
       if (compareMoney(currentWallet.balance, amount) < 0) throw new BadRequestException('Insufficient wallet balance');
       const previousBalance = toMoney(currentWallet.balance);
       const amountMoney = toMoney(amount);
-      const newBalance = previousBalance.minus(amountMoney).toDecimalPlaces(2);
+      const newBalance = subtractMoney(previousBalance, amountMoney);
       const updated = await tx.customerWallet.updateMany({
         where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amountMoney } },
         data: { balance: newBalance },

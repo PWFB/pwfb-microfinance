@@ -32,7 +32,14 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
     prisma = {
       customerWallet: { findUnique: jest.fn() },
       walletTransaction: {
-        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'test-withdrawal', reference: where.reference, ...data })),
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({
+          id: 'test-withdrawal',
+          reference: where.reference,
+          amount: 250,
+          previousBalance: 1000,
+          newBalance: 750,
+          ...data,
+        })),
       },
       $transaction: jest.fn(async (callback: any) => callback(tx)),
     };

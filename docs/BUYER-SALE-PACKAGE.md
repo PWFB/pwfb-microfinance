@@ -10,7 +10,7 @@
 
 ## 1. Executive summary
 
-LAB MICROFINANCE is a web-based microfinance management software project intended to support workflows such as customer management, savings, loans, and transaction records. The project has a hosted web frontend, backend API, source-code repository, and PostgreSQL/Prisma database infrastructure.
+LAB MICROFINANCE is a web-based microfinance management software project intended to support workflows such as customer management, savings, loans, and transaction records. The project has a hosted web frontend, backend API, source-code repository, and PostgreSQL/Prisma database infrastructure. The seller's proposed bundle includes **three packages within the PWFB platform**; the exact package names, boundaries, and included rights must be listed and confirmed in the signed asset schedule before the offer is circulated.
 
 The opportunity is to acquire the software foundation and continue product hardening, commercialisation, and onboarding of microfinance operators. The project should be presented as an **early-stage software asset**, not as an established financial institution or a revenue-generating SaaS business unless the seller can provide separate evidence.
 
@@ -44,17 +44,17 @@ Additional backend workflows and controls may exist in the codebase, but their r
 
 ## 4. Proposed buyer price package (NGN)
 
-### Public asking price
-**₦7,500,000 — negotiable**
+### Public asking price for the three-package bundle
+**₦30,000,000 — negotiable**
 
-This is a proposed opening ask for the software assets and agreed handover, not a market-verified appraisal. The final price depends on due diligence, precise transfer scope, ownership evidence, and the amount of post-sale support.
+This is the seller's proposed asking price for the complete three-package bundle and the specifically agreed handover. It is **not** a market-verified appraisal or a guarantee that a buyer will pay this amount. The price should be supported during negotiations with a clear schedule naming all three packages, their included assets and rights, a verified feature/test report, ownership evidence, and the agreed post-sale support.
 
 ### Seller's internal negotiation guidance (do not publish automatically)
-- **Target negotiation zone:** ₦4,500,000–₦6,000,000, subject to the buyer's scope and evidence.
-- **Do not promise or imply:** verified revenue, live payment processing, regulatory approval, a customer portfolio, or fully production-ready financial workflows without evidence.
-- **Do not disclose a minimum acceptable price publicly.** Decide the reserve privately after reviewing urgency, transfer scope, taxes/fees, and the value of retaining licensing rights.
+- Keep **₦30,000,000** as the public asking price if this is the owner's intended price for all three packages together.
+- Set any private minimum only after deciding which code, brands, domains, data, deployment assets, and support obligations are included.
+- Do not promise or imply verified revenue, live payment processing, regulatory approval, a customer portfolio, or fully production-ready financial workflows without evidence.
 
-These figures are commercial starting points only. They are not derived from audited revenue, market comparables, or an independent appraisal. If the owner wants a stronger valuation, gather build/replacement-cost evidence, an independent code audit, a verified feature/test report, hosting-cost history, and any genuine customer contracts or revenue records.
+The asking price is a seller-set commercial position, not a revenue multiple or independent appraisal. A buyer may negotiate based on code review, operating costs, comparable sales, verified contracts/revenue (if any), and the cost of completing and securing the product.
 
 ### What the asking price may include (must be agreed in writing)
 1. Transfer or licence of the seller-owned application source code and associated project documentation.
@@ -103,9 +103,9 @@ Before payment or signing, both parties should document and verify:
 
 **LAB MICROFINANCE SaaS — Software Acquisition Opportunity**
 
-A web-based microfinance management software project is available for acquisition. The project includes a hosted web application, backend API, database infrastructure and source-code repository, with customer, savings, loan and transaction modules presented by the application.
+A web-based microfinance management software project is available for acquisition as a three-package bundle. The project includes a hosted web application, backend API, database infrastructure and source-code repository, with customer, savings, loan and transaction modules presented by the application. The precise names and scope of the three packages must be confirmed in the asset schedule.
 
-**Proposed asking price: ₦7,500,000 (negotiable).**
+**Proposed asking price for all three packages together: ₦30,000,000 (negotiable).**
 
 The asset is at an early commercial stage. Paystack is currently configured in test mode, and no established paying-customer revenue is claimed. A serious buyer is invited to inspect the code, review the implementation, and agree a clear transfer scope and acceptance plan.
 

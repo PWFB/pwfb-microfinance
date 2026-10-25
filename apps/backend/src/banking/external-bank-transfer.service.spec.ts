@@ -215,6 +215,64 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
     expect(result.wallet.balance).toBe(1000);
   });
 
+  it('does not refund again when a withdrawal webhook has already marked the payout failed', async () => {
+    const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
+    prisma.customerWallet.findUnique.mockResolvedValue(wallet);
+    currentTxWallet = wallet;
+    jest.spyOn(service, 'transferToVerifiedAccount').mockImplementation(async () => {
+      // Simulate the central provider webhook winning the race and restoring funds.
+      currentTxWallet = { ...currentTxWallet, balance: 1000 };
+      currentTxTransaction = { ...currentTxTransaction, status: 'FAILED', newBalance: 1000 };
+      return { status: 'FAILED', providerReference: 'TEST-FAILED-REF' } as any;
+    });
+
+    const result = await service.transfer({
+      customerId: 'TEST-CUSTOMER-001',
+      bankCode: '058',
+      accountNumber: '1234567890',
+      amount: 250,
+      provider: 'PAYSTACK',
+    });
+
+    expect(result).toMatchObject({
+      duplicate: true,
+      reconciliationConflict: false,
+      transaction: { status: 'FAILED' },
+    });
+    expect(tx.customerWallet.update).toHaveBeenCalledTimes(1);
+    expect(tx.customerWallet.update).toHaveBeenCalledWith({
+      where: { id: 'TEST-WALLET-001' },
+      data: { balance: 750 },
+    });
+    expect(result.wallet.balance).toBe(1000);
+  });
+
+  it('does not overwrite a failure already recorded by a webhook when the API later reports success', async () => {
+    const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
+    prisma.customerWallet.findUnique.mockResolvedValue(wallet);
+    currentTxWallet = wallet;
+    jest.spyOn(service, 'transferToVerifiedAccount').mockImplementation(async () => {
+      // Simulate a signed webhook reconciling this transfer before the API response returns.
+      currentTxWallet = { ...currentTxWallet, balance: 1000 };
+      currentTxTransaction = { ...currentTxTransaction, status: 'FAILED', newBalance: 1000 };
+      return { status: 'SUCCESSFUL', providerReference: 'TEST-LATE-SUCCESS-REF' } as any;
+    });
+
+    const result = await service.transfer({
+      customerId: 'TEST-CUSTOMER-001',
+      bankCode: '058',
+      accountNumber: '1234567890',
+      amount: 250,
+      provider: 'PAYSTACK',
+    });
+
+    expect(result.reconciliationConflict).toBe(true);
+    expect(result.transaction.status).toBe('FAILED');
+    expect(tx.walletTransaction.update).not.toHaveBeenCalled();
+    expect(tx.customerWallet.update).toHaveBeenCalledTimes(1);
+    expect(result.wallet.balance).toBe(1000);
+  });
+
   it('keeps funds reserved and does not auto-retry when provider outcome is uncertain', async () => {
     const wallet = { id: 'TEST-WALLET-001', customerId: 'TEST-CUSTOMER-001', balance: 1000, status: 'ACTIVE' };
     prisma.customerWallet.findUnique.mockResolvedValue(wallet);

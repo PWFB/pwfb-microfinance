@@ -8,7 +8,7 @@ Hello,
 
 I’m exploring a sale of **LAB MICROFINANCE**, a pre-revenue microfinance software platform, and thought it may be relevant to your fintech or financial-services technology work.
 
-The project includes a web frontend and backend with customer/staff workflows, financial operations modules, and payment/virtual-account integrations. The latest known Render staging deployment records showed successful application startup. End-to-end validation of KYC/BVN, bank verification, virtual-account assignment, and payment/ledger workflows is still a diligence item, and I’m disclosing that clearly rather than presenting the system as independently audited or production-certified.
+The project includes a web frontend and backend with three distinct wallet areas: Customer Wallet, Staff Wallet for field-cash issue/settlement, and Super Admin Charges Wallet for administrative charges, alongside customer/staff workflows and payment/virtual-account integrations. The existence of these modules should not be read as independent verification of every transaction path. The latest known Render staging deployment records showed successful application startup. End-to-end validation of KYC/BVN, bank verification, virtual-account assignment, and payment/ledger workflows is still a diligence item, and I’m disclosing that clearly rather than presenting the system as independently audited or production-certified.
 
 I’m considering a complete software-asset sale, subject to confirming transferable IP, third-party licences, and handover scope. If this fits your acquisition or product roadmap, I can share a concise overview and arrange a controlled demo.
 

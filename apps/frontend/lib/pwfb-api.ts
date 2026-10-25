@@ -41,7 +41,7 @@ export const pwfbApi = {
     addAtmCard: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/atm-cards`, { method: "POST", body: JSON.stringify(body) }),
     atmAttachment: (customerId: string, cardId: string, side: "front"|"back") => apiRequest(`/banking/customers/${customerId}/atm-cards/${cardId}/attachment/${side}`),
     removeAtmCard: (customerId: string, cardId: string) => apiRequest(`/banking/customers/${customerId}/atm-cards/${cardId}/delete`, { method: "POST" }),
-    ensureCustomerVirtualAccount: (customerId: string, institutionId?: string) => apiRequest(`/banking/customers/${customerId}/virtual-accounts/ensure`, { method: "POST", body: JSON.stringify(institutionId ? { institutionId } : {}) }),
+    ensureCustomerVirtualAccount: (customerId: string, institutionId?: string, consentConfirmed = false) => apiRequest(`/banking/customers/${customerId}/virtual-accounts/ensure`, { method: "POST", body: JSON.stringify({ ...(institutionId ? { institutionId } : {}), consentConfirmed }) }),
     customerWallet: (customerId: string) => apiRequest(`/banking/customers/${customerId}/wallet`),
     customerTransactions: (customerId: string) => apiRequest(`/banking/customers/${customerId}/transactions`),
     deposit: (customerId: string, body: unknown) => apiRequest(`/banking/customers/${customerId}/deposit`, { method: "POST", body: JSON.stringify(body) }),

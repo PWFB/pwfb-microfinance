@@ -119,4 +119,33 @@ describe('SuperAdminService', () => {
       inactive: 3,
     });
   });
+
+  it('requires a stable transaction reference before recording a charge', async () => {
+    await expect(service.recordAdminCharge({ amount: 20, reference: '' })).rejects.toThrow('transaction reference is required');
+  });
+
+  it('adds Super Admin charges using integer-cent arithmetic', async () => {
+    prisma.$executeRawUnsafe = jest.fn().mockResolvedValue(1);
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValueOnce([{ id: 'SUPER_ADMIN_CHARGES', balance: 0.1 }]).mockResolvedValueOnce([]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    prisma.$transaction = jest.fn(async (callback: (client: any) => unknown) => callback(tx));
+    await expect(service.recordAdminCharge({ amount: 0.2, reference: 'CHARGE-CENTS-1' })).resolves.toEqual({
+      balance: 0.3, amount: 0.2, reference: 'CHARGE-CENTS-1',
+    });
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a reused admin charge reference before updating balance', async () => {
+    prisma.$executeRawUnsafe = jest.fn().mockResolvedValue(1);
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValueOnce([{ id: 'SUPER_ADMIN_CHARGES', balance: 50 }]).mockResolvedValueOnce([{ id: 'existing-charge' }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    prisma.$transaction = jest.fn(async (callback: (client: any) => unknown) => callback(tx));
+    await expect(service.recordAdminCharge({ amount: 10, reference: 'REUSED-CHARGE' })).rejects.toThrow('reference already exists');
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
 });

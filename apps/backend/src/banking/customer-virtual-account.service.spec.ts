@@ -395,6 +395,24 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
     expect(tx.walletTransaction.create).not.toHaveBeenCalled();
   });
 
+  it('does not inspect or credit a dedicated-account payment unless Paystack status is successful', async () => {
+    const { service, prismaForDeposit, tx } = createDepositHarness();
+
+    await expect(service.handleDedicatedDepositWebhook({
+      ...payment,
+      data: { ...payment.data, status: 'pending' },
+    })).resolves.toMatchObject({
+      ok: true,
+      processed: false,
+      matchedCustomerAccount: false,
+      message: 'Paystack dedicated-account payment is not successful',
+    });
+
+    expect(prismaForDeposit.customerVirtualAccount.findFirst).not.toHaveBeenCalled();
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+    expect(tx.walletTransaction.create).not.toHaveBeenCalled();
+  });
+
   it('ignores unrelated events and payment channels', async () => {
     const { service, prismaForDeposit } = createDepositHarness();
     await expect(service.handleDedicatedDepositWebhook({

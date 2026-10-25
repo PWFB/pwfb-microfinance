@@ -11,13 +11,13 @@ on:
       - staging
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     env:
       DATABASE_URL: postgresql://pwfb_ci:pwfb_ci@localhost:5432/pwfb_ci
@@ -34,6 +34,38 @@ jobs:
 
       - name: Install locked dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Apply compatible dependency security updates
+        run: |
+          npm audit fix --no-fund --no-force || echo "Some advisories require major-version changes; continuing to run tests and report remaining findings."
+          npm ls next sharp @nestjs/platform-express body-parser brace-expansion fast-uri handlebars js-yaml multer nanoid postcss prisma proxy-addr qs source-map-js --all || true
+
+      - name: Report dependency audit findings
+        if: always()
+        run: |
+          npm audit --json > /tmp/pwfb-npm-audit.json || true
+          node <<'NODE'
+          const fs = require('node:fs');
+          let report = {};
+          try { report = JSON.parse(fs.readFileSync('/tmp/pwfb-npm-audit.json', 'utf8')); } catch { console.log('npm audit did not return parseable JSON'); process.exit(0); }
+          const counts = report.metadata?.vulnerabilities || {};
+          console.log('Dependency audit counts:', JSON.stringify(counts));
+          for (const [name, item] of Object.entries(report.vulnerabilities || {})) {
+            console.log(`AUDIT ${String(item.severity || 'unknown').toUpperCase()} ${name} range=${item.range || 'unknown'} fixAvailable=${JSON.stringify(item.fixAvailable ?? null)}`);
+            for (const via of (item.via || [])) {
+              if (typeof via === 'object') console.log(`  ADVISORY ${via.title || via.name || 'unknown'} ${via.url || ''}`);
+            }
+          }
+          NODE
+
+      - name: Upload refreshed dependency lockfile for review
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwfb-package-lock-${{ github.sha }}
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Validate Prisma schema
         run: npx prisma validate --schema=apps/backend/prisma/schema.prisma
@@ -54,6 +86,27 @@ jobs:
         run: |
           IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
           docker build -f docker/Dockerfile.backend -t "$IMAGE_NAME" .
+
+      - name: Commit refreshed dependency lockfile after passing checks
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          refreshed_lock="$(mktemp)"
+          cp package-lock.json "$refreshed_lock"
+          git fetch origin "$PR_BRANCH:refs/remotes/origin/$PR_BRANCH"
+          git checkout --force -B "$PR_BRANCH" "origin/$PR_BRANCH"
+          cp "$refreshed_lock" package-lock.json
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Dependency lockfile is already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: refresh security dependency lockfile"
+          git push origin "HEAD:$PR_BRANCH"
 
       - name: Login to GitHub Container Registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

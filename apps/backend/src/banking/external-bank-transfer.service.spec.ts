@@ -11,6 +11,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
   beforeEach(() => {
     currentTxWallet = null;
     tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       customerWallet: {
         findUnique: jest.fn().mockImplementation(async () => currentTxWallet ? { ...currentTxWallet } : null),
         updateMany: jest.fn().mockImplementation(async ({ where, data }: any) => {
@@ -125,6 +126,11 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       provider: 'PAYSTACK',
     });
 
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      1,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'TEST-WALLET-001',
+    );
     expect(service.nameEnquiry).toHaveBeenCalledWith('058', '1234567890', 'PAYSTACK');
     expect(service.transferToVerifiedAccount).toHaveBeenCalledWith(expect.objectContaining({
       bankCode: '058',
@@ -178,6 +184,16 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       amount: 250, provider: 'PAYSTACK',
     });
 
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      1,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'TEST-WALLET-001',
+    );
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'TEST-WALLET-001',
+    );
     expect(tx.customerWallet.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: { balance: 750 },
     }));

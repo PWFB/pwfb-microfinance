@@ -18,6 +18,19 @@ export class StaffWalletService {
     await this.ready;
   }
 
+  private async ensureUniqueReference(db: any, reference?: string) {
+    const normalized = String(reference ?? '').trim();
+    if (!normalized) return;
+    // Serialize writes sharing a reference inside the transaction, so concurrent
+    // duplicate requests cannot both pass the existence check.
+    await db.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', normalized);
+    const existing: any[] = await db.$queryRawUnsafe(
+      'SELECT id FROM staff_wallet_transactions WHERE reference=$1 LIMIT 1',
+      normalized,
+    );
+    if (existing.length) throw new BadRequestException('Staff wallet transaction reference already exists');
+  }
+
   private amount(value: unknown) { const n = Number(value ?? 0); if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Wallet amount must be greater than zero'); const rounded = Math.round((n + Number.EPSILON) * 100) / 100; if (rounded <= 0) throw new BadRequestException('Wallet amount must be at least ₦0.01'); return rounded; }
 
   private async staff(staffId: string, db: any = this.prisma) {
@@ -53,6 +66,7 @@ export class StaffWalletService {
     }
     await this.ensureTables(db);
     const amount = this.amount(amountValue);
+    await this.ensureUniqueReference(db, reference);
     const wallet = await this.staff(staffId, db);
     const locked: any[] = await db.$queryRawUnsafe(`SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE`, wallet.id);
     const previous = Number(locked[0]?.balance ?? wallet.balance ?? 0), next = previous + amount;

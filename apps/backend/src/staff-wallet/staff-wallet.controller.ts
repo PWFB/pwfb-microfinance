@@ -17,7 +17,7 @@ export class StaffWalletController {
   @Get(':staffId/history')
   history(@Param('staffId') staffId: string) { return this.service.history(staffId); }
   @Post('issue')
-  issue(@Body() body: { staffId: string; amount: number; reference?: string; description?: string }) { return this.service.credit(body.staffId, body.amount, body.reference, body.description); }
+  issue(@Body() body: { staffId: string; amount: number; reference: string; description?: string }) { return this.service.credit(body.staffId, body.amount, body.reference, body.description); }
   @Post('settle')
-  settle(@Body() body: { staffId: string; amount: number; reference?: string; description?: string }) { return this.service.debit(body.staffId, body.amount, body.reference, body.description); }
+  settle(@Body() body: { staffId: string; amount: number; reference: string; description?: string }) { return this.service.debit(body.staffId, body.amount, body.reference, body.description); }
 }

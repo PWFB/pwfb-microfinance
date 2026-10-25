@@ -22,6 +22,17 @@ The source includes three distinct wallet areas:
 
 Treat these as three implemented wallet areas in the codebase, not as proof that all wallet flows have passed end-to-end testing. Add wallet-specific evidence for role access, balance updates, transaction history, duplicate submissions, failed operations, reconciliation, and auditability. Do not use real money or production credentials during testing.
 
+## Static code-review findings — wallet controls
+
+These findings come from source inspection only. They are not live penetration-test results and must be confirmed with targeted tests before being marked resolved.
+
+- **Staff Wallet authorization scope:** the controller allows multiple roles, including `STAFF`, on the controller and exposes list, individual-wallet, history, issue, and settle routes. The inspected controller does not show per-staff ownership or branch-scope checks. Verify that guards/services enforce the intended boundaries; otherwise restrict wallet administration to authorized roles and enforce branch/staff scope server-side.
+- **Staff Wallet transaction atomicity:** the controller calls `credit` and `debit` without passing a transaction client. In that path, the service performs `SELECT ... FOR UPDATE`, balance update, and transaction insertion through the normal Prisma client rather than one explicit database transaction. The row lock may not protect the later statements across separate autocommit operations. Wrap the complete read/lock/update/insert sequence in a single database transaction and add concurrent-operation tests before relying on balances.
+- **Staff Wallet references and precision:** the inspected service does not enforce uniqueness for optional transaction references and does not round amounts to currency precision in the same way as the admin charges wallet. Decide and test the required idempotency/reference policy and currency rounding rules.
+- **Super Admin Charges Wallet:** its controller is guarded by JWT and the `SUPER_ADMIN` role, and its charge operation uses a database transaction and row lock. Still test duplicate references, simultaneous charges, input validation, and reconciliation; these code patterns alone do not establish end-to-end correctness.
+
+**Required evidence to close these items:** tests for cross-staff and cross-branch access, concurrent issue/settle operations, database failure between balance update and transaction insertion, duplicate references, and before/after balance reconciliation. Use staging and synthetic records only; do not use real funds or production secrets.
+
 ## Test execution record
 
 For every test, record date/time (UTC), tester, deployment commit, environment, sanitized evidence reference, actual result, and PASS/FAIL/BLOCKED. Never include BVNs, passwords, tokens, bank account numbers, or provider secrets in evidence.

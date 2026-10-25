@@ -20,9 +20,9 @@ export class StaffWalletService {
 
   private async ensureUniqueReference(db: any, reference?: string) {
     const normalized = String(reference ?? '').trim();
-    if (!normalized) return;
+    if (!normalized) throw new BadRequestException('A transaction reference is required for staff wallet movements');
     // Serialize writes sharing a reference inside the transaction, so concurrent
-    // duplicate requests cannot both pass the existence check.
+    // retries cannot both pass the existence check.
     await db.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtext($1))', normalized);
     const existing: any[] = await db.$queryRawUnsafe(
       'SELECT id FROM staff_wallet_transactions WHERE reference=$1 LIMIT 1',
@@ -31,7 +31,20 @@ export class StaffWalletService {
     if (existing.length) throw new BadRequestException('Staff wallet transaction reference already exists');
   }
 
-  private amount(value: unknown) { const n = Number(value ?? 0); if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Wallet amount must be greater than zero'); const rounded = Math.round((n + Number.EPSILON) * 100) / 100; if (rounded <= 0) throw new BadRequestException('Wallet amount must be at least ₦0.01'); return rounded; }
+  private amount(value: unknown) {
+    const n = Number(value ?? 0);
+    if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Wallet amount must be greater than zero');
+    const cents = Math.round((n + Number.EPSILON) * 100);
+    if (!Number.isSafeInteger(cents)) throw new BadRequestException('Wallet amount exceeds the supported money range');
+    if (cents <= 0) throw new BadRequestException('Wallet amount must be at least ₦0.01');
+    return cents / 100;
+  }
+
+  private balanceCents(value: unknown) {
+    const cents = Math.round((Number(value ?? 0) + Number.EPSILON) * 100);
+    if (!Number.isSafeInteger(cents)) throw new BadRequestException('Staff wallet balance exceeds the supported money range');
+    return cents;
+  }
 
   private async staff(staffId: string, db: any = this.prisma) {
     const rows: any[] = await db.$queryRawUnsafe(`SELECT id, staff_id AS "staffId", branch_id AS "branchId", balance FROM staff_wallets WHERE staff_id=$1`, staffId);
@@ -69,7 +82,11 @@ export class StaffWalletService {
     await this.ensureUniqueReference(db, reference);
     const wallet = await this.staff(staffId, db);
     const locked: any[] = await db.$queryRawUnsafe(`SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE`, wallet.id);
-    const previous = Number(locked[0]?.balance ?? wallet.balance ?? 0), next = previous + amount;
+    const previousCents = this.balanceCents(locked[0]?.balance ?? wallet.balance ?? 0);
+    const nextCents = previousCents + Math.round(amount * 100);
+    if (!Number.isSafeInteger(nextCents)) throw new BadRequestException('Staff wallet balance exceeds the supported money range');
+    const previous = previousCents / 100;
+    const next = nextCents / 100;
     await db.$executeRawUnsafe(`UPDATE staff_wallets SET balance=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, wallet.id, next);
     await db.$executeRawUnsafe(`INSERT INTO staff_wallet_transactions (id,wallet_id,type,amount,previous_balance,new_balance,reference,description) VALUES ($1,$2,'ISSUE',$3,$4,$5,$6,$7)`, randomUUID(), wallet.id, amount, previous, next, reference ?? null, description);
     return { staffId, previousBalance: previous, amount, newBalance: next };
@@ -85,9 +102,12 @@ export class StaffWalletService {
     await this.ensureUniqueReference(db, reference);
     const wallet = await this.staff(staffId, db);
     const locked: any[] = await db.$queryRawUnsafe(`SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE`, wallet.id);
-    const previous = Number(locked[0]?.balance ?? wallet.balance ?? 0);
-    if (previous < amount) throw new BadRequestException(`Insufficient staff wallet balance. Available: ₦${previous.toFixed(2)}`);
-    const next = previous - amount;
+    const previousCents = this.balanceCents(locked[0]?.balance ?? wallet.balance ?? 0);
+    const amountCents = Math.round(amount * 100);
+    if (previousCents < amountCents) throw new BadRequestException(`Insufficient staff wallet balance. Available: ₦${(previousCents / 100).toFixed(2)}`);
+    const nextCents = previousCents - amountCents;
+    const previous = previousCents / 100;
+    const next = nextCents / 100;
     await db.$executeRawUnsafe(`UPDATE staff_wallets SET balance=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, wallet.id, next);
     await db.$executeRawUnsafe(`INSERT INTO staff_wallet_transactions (id,wallet_id,type,amount,previous_balance,new_balance,reference,description) VALUES ($1,$2,'SETTLEMENT',$3,$4,$5,$6,$7)`, randomUUID(), wallet.id, amount, previous, next, reference ?? null, description);
     return { staffId, previousBalance: previous, amount, newBalance: next };

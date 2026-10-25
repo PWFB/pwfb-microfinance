@@ -119,4 +119,32 @@ describe('SuperAdminService', () => {
       inactive: 3,
     });
   });
+
+  it('records Super Admin charges using decimal arithmetic and numeric API fields', async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'SUPER_ADMIN_CHARGES', balance: '0.10' }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    prisma.$executeRawUnsafe = jest.fn().mockResolvedValue(1);
+    prisma.$transaction = jest.fn(async (callback: any) => callback(tx));
+
+    const result = await service.recordAdminCharge({
+      amount: 0.20,
+      reference: 'CHARGE-DECIMAL-001',
+    });
+
+    expect(result).toEqual({ balance: 0.3, amount: 0.2, reference: 'CHARGE-DECIMAL-001' });
+    const updateCall = tx.$executeRaw.mock.calls.find((call: any[]) =>
+      String(call[0]?.join?.(' ') || call[0]).includes('UPDATE "pwfb_admin_wallet"'),
+    );
+    expect(updateCall).toBeDefined();
+    expect(String(updateCall[1])).toBe('0.30');
+  });
+
+  it('rejects zero, invalid and unsafe Super Admin charges', async () => {
+    await expect(service.recordAdminCharge({ amount: 0 })).rejects.toThrow('Charge amount must be at least ₦0.01');
+    await expect(service.recordAdminCharge({ amount: Number.NaN })).rejects.toThrow('Charge amount must be a valid monetary value');
+    await expect(service.recordAdminCharge({ amount: 90071992547409.93 })).rejects.toThrow();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
 });

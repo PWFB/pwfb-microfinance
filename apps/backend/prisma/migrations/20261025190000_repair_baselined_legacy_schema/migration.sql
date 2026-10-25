@@ -133,6 +133,32 @@ CREATE TABLE IF NOT EXISTS cashbook_daily_records (
 CREATE INDEX IF NOT EXISTS cashbook_daily_period_branch_date_idx ON cashbook_daily_records(period_id, branch_id, entry_date DESC);
 CREATE INDEX IF NOT EXISTS cashbook_daily_staff_date_idx ON cashbook_daily_records(staff_id, created_at DESC);
 
+-- Ensure the third (Super Admin charges) wallet exists alongside customer and staff wallets.
+CREATE TABLE IF NOT EXISTS "pwfb_admin_wallet" (
+  "id" TEXT PRIMARY KEY,
+  "name" TEXT NOT NULL,
+  "currency" TEXT NOT NULL DEFAULT 'NGN',
+  "balance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS "pwfb_admin_wallet_transactions" (
+  "id" TEXT PRIMARY KEY,
+  "walletId" TEXT NOT NULL,
+  "type" TEXT NOT NULL,
+  "amount" DOUBLE PRECISION NOT NULL,
+  "previousBalance" DOUBLE PRECISION NOT NULL,
+  "newBalance" DOUBLE PRECISION NOT NULL,
+  "reference" TEXT NOT NULL UNIQUE,
+  "description" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS "pwfb_admin_wallet_transactions_createdAt_idx"
+  ON "pwfb_admin_wallet_transactions" ("walletId","createdAt" DESC);
+INSERT INTO "pwfb_admin_wallet" ("id","name")
+VALUES ('SUPER_ADMIN_CHARGES','Super Admin Charges Wallet')
+ON CONFLICT ("id") DO NOTHING;
+
 CREATE OR REPLACE FUNCTION pwfb_assert_branch_open(p_branch_id TEXT, p_at TIMESTAMPTZ)
 RETURNS VOID LANGUAGE plpgsql AS $$
 BEGIN

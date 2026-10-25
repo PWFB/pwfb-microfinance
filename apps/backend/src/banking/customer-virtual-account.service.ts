@@ -425,6 +425,115 @@ export class CustomerVirtualAccountService {
     return this.prisma.staffVirtualAccount.findUnique({ where: { staffId }, include: { institution: true } });
   }
 
+  /**
+   * Credits a customer's active Paystack dedicated virtual account after the
+   * signed central webhook confirms a successful NGN transfer. Returns
+   * matchedCustomerAccount=false when the account belongs to another ledger
+   * (for example, a branch DVA) so the controller can route it appropriately.
+   */
+  async handleDedicatedDepositWebhook(event: any) {
+    const eventName = String(event?.event || '').trim().toLowerCase();
+    const data = event?.data || {};
+    const channel = String(data?.authorization?.channel || '').trim().toLowerCase();
+    if (eventName !== 'charge.success' || channel !== 'dedicated_nuban') {
+      return { ok: true, processed: false, matchedCustomerAccount: false, message: 'Event is not a dedicated-account deposit' };
+    }
+
+    const accountNumber = String(
+      data?.authorization?.receiver_bank_account_number
+        || data?.receiver_bank_account_number
+        || '',
+    ).replace(/\D/g, '');
+    if (!/^\d{10}$/.test(accountNumber)) {
+      return { ok: true, processed: false, matchedCustomerAccount: false, message: 'Dedicated account number is missing or invalid' };
+    }
+
+    const account = await this.prisma.customerVirtualAccount.findFirst({
+      where: { provider: 'PAYSTACK', accountNumber, status: 'ACTIVE' },
+      select: { id: true, customerId: true, branchId: true },
+    });
+    if (!account) {
+      return { ok: true, processed: false, matchedCustomerAccount: false, message: 'No active customer virtual account matches this payment' };
+    }
+
+    const currency = String(data?.currency || '').trim().toUpperCase();
+    if (currency !== 'NGN') throw new BadRequestException('Only NGN Paystack virtual-account deposits can be credited');
+    const amountMinor = Number(data?.amount);
+    if (!Number.isSafeInteger(amountMinor) || amountMinor <= 0) {
+      throw new BadRequestException('Paystack virtual-account deposit amount must be a positive integer in minor units');
+    }
+    const paymentReference = String(data?.reference || '').trim();
+    if (!paymentReference) throw new BadRequestException('Paystack virtual-account deposit reference is missing');
+    const providerTransactionId = String(data?.id ?? paymentReference).trim();
+    const amount = amountMinor / 100;
+    const transactionReference = `PAYSTACK-DVA-${paymentReference}`;
+    const providerReference = `PAYSTACK-DVA-${providerTransactionId}`;
+
+    return this.prisma.$transaction(async (tx) => {
+      // Serializes webhook retries and concurrent delivery of the same payment.
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', providerTransactionId);
+      const duplicate = await tx.walletTransaction.findFirst({
+        where: {
+          OR: [
+            { reference: transactionReference },
+            { reference: `PAY-${paymentReference}` },
+            { providerReference },
+            { providerReference: providerTransactionId },
+          ],
+        },
+        select: { id: true, reference: true },
+      });
+      if (duplicate) {
+        return {
+          ok: true,
+          processed: false,
+          duplicate: true,
+          matchedCustomerAccount: true,
+          transactionId: duplicate.id,
+          reference: duplicate.reference,
+        };
+      }
+
+      const wallet = await tx.customerWallet.upsert({
+        where: { customerId: account.customerId },
+        create: { customerId: account.customerId, balance: 0 },
+        update: {},
+      });
+      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+
+      const previousBalance = Math.round(Number(wallet.balance) * 100) / 100;
+      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+      const updatedWallet = await tx.customerWallet.update({
+        where: { id: wallet.id },
+        data: { balance: newBalance },
+      });
+      const transaction = await tx.walletTransaction.create({
+        data: {
+          customerId: account.customerId,
+          type: 'DEPOSIT',
+          amount,
+          previousBalance,
+          newBalance,
+          reference: transactionReference,
+          description: 'Paystack dedicated virtual-account deposit',
+          branchId: account.branchId ?? undefined,
+          status: 'COMPLETED',
+          provider: 'PAYSTACK',
+          providerReference,
+          processedAt: new Date(),
+        },
+      });
+
+      return {
+        ok: true,
+        processed: true,
+        matchedCustomerAccount: true,
+        wallet: updatedWallet,
+        transaction,
+      };
+    });
+  }
+
   async handleAssignmentWebhook(event: any) {
     const type = String(event?.event || '');
     const data = event?.data || {};

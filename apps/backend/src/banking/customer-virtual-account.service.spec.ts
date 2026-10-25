@@ -317,3 +317,26 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
     expect(prismaForDeposit.customerVirtualAccount.findFirst).not.toHaveBeenCalled();
   });
 });
+
+describe('Customer DVA webhook payment status validation', () => {
+  it('does not credit when a charge.success payload has no successful payment status', async () => {
+    const prisma = {
+      customerVirtualAccount: { findFirst: jest.fn() },
+    };
+    const service = new CustomerVirtualAccountService(prisma as any);
+    await expect(service.handleDedicatedDepositWebhook({
+      event: 'charge.success',
+      data: {
+        status: 'pending',
+        currency: 'NGN',
+        amount: 10000,
+        reference: 'pending-payment-reference',
+        authorization: {
+          channel: 'dedicated_nuban',
+          receiver_bank_account_number: '0123456789',
+        },
+      },
+    })).resolves.toMatchObject({ ok: true, processed: false, matchedCustomerAccount: false });
+    expect(prisma.customerVirtualAccount.findFirst).not.toHaveBeenCalled();
+  });
+});

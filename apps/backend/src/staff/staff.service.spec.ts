@@ -4,6 +4,7 @@ import { StaffRepository } from './staff.repository';
 describe('StaffService', () => {
   let service: StaffService;
   let repository: jest.Mocked<StaffRepository>;
+  let virtualAccounts: { ensureStaff: jest.Mock; getStaff: jest.Mock };
 
   beforeEach(() => {
     repository = {
@@ -18,6 +19,8 @@ describe('StaffService', () => {
         count: jest.fn().mockResolvedValue(0),
     } as unknown as jest.Mocked<StaffRepository>;
 
+    virtualAccounts = { ensureStaff: jest.fn().mockResolvedValue({ status: 'PENDING' }), getStaff: jest.fn().mockResolvedValue({ providerCustomerCode: 'CUS_staff_test' }) };
+
     service = new StaffService(
       repository,
       {
@@ -26,7 +29,7 @@ describe('StaffService', () => {
         staff: { update: jest.fn().mockResolvedValue({}) },
       } as any,
       { isConfigured: jest.fn().mockReturnValue(false) } as any,
-      { ensureStaff: jest.fn(), getStaff: jest.fn() } as any,
+      virtualAccounts as any,
     );
     jest.spyOn(service, 'getBvnVerification').mockResolvedValue({
       verified: true,
@@ -261,6 +264,36 @@ describe('StaffService', () => {
       'staff-1',
       dto,
     );
+  });
+
+  it('automatically resumes Paystack DVA assignment when a BVN-verified staff member becomes active', async () => {
+    const staff = { id: 'staff-activated', employmentStatus: 'ACTIVE', bvnVerified: true };
+    repository.update.mockResolvedValue(staff as any);
+    virtualAccounts.getStaff.mockResolvedValue({ providerCustomerCode: 'CUS_staff_activated' });
+
+    await expect(service.update('staff-activated', { employmentStatus: 'ACTIVE' } as any)).resolves.toBe(staff);
+
+    expect(virtualAccounts.getStaff).toHaveBeenCalledWith('staff-activated');
+    expect(virtualAccounts.ensureStaff).toHaveBeenCalledWith('staff-activated', 'CUS_staff_activated');
+  });
+
+  it('keeps staff activation successful when Paystack DVA assignment fails', async () => {
+    const staff = { id: 'staff-activated', employmentStatus: 'ACTIVE', bvnVerified: true };
+    repository.update.mockResolvedValue(staff as any);
+    virtualAccounts.getStaff.mockResolvedValue({ providerCustomerCode: 'CUS_staff_activated' });
+    virtualAccounts.ensureStaff.mockRejectedValue(new Error('Paystack unavailable'));
+
+    await expect(service.update('staff-activated', { employmentStatus: 'ACTIVE' } as any)).resolves.toBe(staff);
+    expect(virtualAccounts.ensureStaff).toHaveBeenCalledWith('staff-activated', 'CUS_staff_activated');
+  });
+
+  it('does not attempt Paystack DVA assignment for staff who are not BVN verified', async () => {
+    const staff = { id: 'staff-not-verified', employmentStatus: 'ACTIVE', bvnVerified: false };
+    repository.update.mockResolvedValue(staff as any);
+
+    await expect(service.update('staff-not-verified', { employmentStatus: 'ACTIVE' } as any)).resolves.toBe(staff);
+    expect(virtualAccounts.getStaff).not.toHaveBeenCalled();
+    expect(virtualAccounts.ensureStaff).not.toHaveBeenCalled();
   });
 
   it('should remove staff', async () => {

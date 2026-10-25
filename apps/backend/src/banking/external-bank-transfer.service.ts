@@ -235,24 +235,38 @@ export class ExternalBankTransferService {
     // provider. This prevents a successful payout from racing a later wallet debit.
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const reservation = await this.prisma.$transaction(async (tx) => {
-      const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      const initialWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!initialWallet || initialWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        initialWallet.id,
+      );
+      const currentWallet = await tx.customerWallet.findUnique({ where: { id: initialWallet.id } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
-      if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
-      const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;
-      const updated = await tx.customerWallet.updateMany({
-        where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } },
+      const previousBalance = Math.round(Number(currentWallet.balance) * 100) / 100;
+      if (previousBalance < amount) throw new BadRequestException('Insufficient wallet balance');
+
+      const newBalance = Math.round((previousBalance - amount) * 100) / 100;
+      const updatedWallet = await tx.customerWallet.update({
+        where: { id: currentWallet.id },
         data: { balance: newBalance },
       });
-      if (updated.count !== 1) throw new BadRequestException('Insufficient wallet balance or wallet changed; retry safely');
       const transaction = await tx.walletTransaction.create({
         data: {
-          customerId: input.customerId, type: 'WITHDRAWAL', amount,
-          previousBalance: currentWallet.balance, newBalance, reference: xref,
-          description: input.description || `Bank withdrawal to ${verifiedAccountName}`,
-          provider, providerReference: xref, status: 'PROCESSING',
+          customerId: input.customerId,
+          type: 'WITHDRAWAL',
+          amount,
+          previousBalance,
+          newBalance,
+          reference: xref,
+          description: input.description || 'Bank withdrawal to ' + verifiedAccountName,
+          provider,
+          providerReference: xref,
+          status: 'PROCESSING',
         },
       });
-      return { wallet: { ...currentWallet, balance: newBalance }, transaction };
+      return { wallet: { ...currentWallet, ...updatedWallet, balance: newBalance }, transaction };
     });
 
     let providerResult: any;
@@ -275,27 +289,78 @@ export class ExternalBankTransferService {
 
     if (isDefinitiveFailure) {
       const reversal = await this.prisma.$transaction(async (tx) => {
-        const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
-        if (!currentWallet) throw new NotFoundException('Customer wallet not found during transfer reversal');
-        const restoredBalance = Math.round((currentWallet.balance + amount) * 100) / 100;
-        await tx.customerWallet.update({ where: { id: currentWallet.id }, data: { balance: restoredBalance } });
-        const transaction = await tx.walletTransaction.update({
-          where: { reference: xref },
-          data: { newBalance: restoredBalance, status: 'FAILED', failureReason: `Provider rejected transfer: ${providerStatus}`, processedAt: new Date() },
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          'WALLET-WITHDRAWAL:' + xref,
+        );
+        const currentTransaction = await tx.walletTransaction.findUnique({ where: { reference: xref } });
+        if (!currentTransaction) throw new NotFoundException('Wallet withdrawal transaction not found during transfer reversal');
+        if (currentTransaction.status === 'FAILED' || currentTransaction.status === 'REVERSED') {
+          const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+          return { wallet: currentWallet, transaction: currentTransaction, duplicate: true, conflict: false };
+        }
+        if (currentTransaction.status === 'COMPLETED') {
+          const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+          return { wallet: currentWallet, transaction: currentTransaction, duplicate: true, conflict: true };
+        }
+
+        const initialWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+        if (!initialWallet) throw new NotFoundException('Customer wallet not found during transfer reversal');
+        await tx.$queryRawUnsafe(
+          'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+          initialWallet.id,
+        );
+        const currentWallet = await tx.customerWallet.findUnique({ where: { id: initialWallet.id } });
+        if (!currentWallet) throw new NotFoundException('Customer wallet disappeared during transfer reversal');
+        const restoredBalance = Math.round((Number(currentWallet.balance) + amount) * 100) / 100;
+        const updatedWallet = await tx.customerWallet.update({
+          where: { id: currentWallet.id },
+          data: { balance: restoredBalance },
         });
-        return { wallet: { ...currentWallet, balance: restoredBalance }, transaction };
+        const updatedTransaction = await tx.walletTransaction.update({
+          where: { reference: xref },
+          data: {
+            newBalance: restoredBalance,
+            status: 'FAILED',
+            failureReason: 'Provider rejected transfer: ' + providerStatus,
+            processedAt: new Date(),
+          },
+        });
+        return { wallet: updatedWallet, transaction: updatedTransaction, duplicate: false, conflict: false };
       });
-      return { ...reversal, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, accountNameVerified: true, provider } };
+      return { ...reversal, reconciliationConflict: reversal.conflict, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, accountNameVerified: true, provider } };
     }
 
     const finalStatus = isSuccess ? 'COMPLETED' : 'PENDING';
-    const transaction = await this.prisma.walletTransaction.update({
-      where: { reference: xref },
-      data: { status: finalStatus, providerReference: String(providerResult?.providerReference ?? providerResult?.transactionReference ?? xref), processedAt: isSuccess ? new Date() : null },
+    const finalization = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        'WALLET-WITHDRAWAL:' + xref,
+      );
+      const currentTransaction = await tx.walletTransaction.findUnique({ where: { reference: xref } });
+      if (!currentTransaction) throw new NotFoundException('Wallet withdrawal transaction not found while finalizing provider response');
+      if (currentTransaction.status === 'FAILED' || currentTransaction.status === 'REVERSED') {
+        const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+        return { transaction: currentTransaction, wallet: currentWallet, conflict: true };
+      }
+      if (currentTransaction.status === 'COMPLETED') {
+        const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+        return { transaction: currentTransaction, wallet: currentWallet, conflict: finalStatus !== 'COMPLETED' };
+      }
+      const transaction = await tx.walletTransaction.update({
+        where: { reference: xref },
+        data: {
+          status: finalStatus,
+          providerReference: String(providerResult?.providerReference ?? providerResult?.transactionReference ?? xref),
+          processedAt: isSuccess ? new Date() : null,
+        },
+      });
+      return { transaction, wallet: reservation.wallet, conflict: false };
     });
     return {
-      wallet: reservation.wallet,
-      transaction,
+      wallet: finalization.wallet ?? reservation.wallet,
+      transaction: finalization.transaction,
+      ...(finalization.conflict ? { reconciliationConflict: true } : {}),
       provider: providerResult,
       beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, accountNameVerified: true, provider },
     };

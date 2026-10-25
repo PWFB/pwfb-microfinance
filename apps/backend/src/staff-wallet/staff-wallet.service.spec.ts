@@ -76,6 +76,8 @@ describe('StaffWalletService transaction safety', () => {
     const tx = {
       $executeRawUnsafe: jest.fn().mockResolvedValue(1),
       $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([]) // advisory lock
+        .mockResolvedValueOnce([]) // no duplicate reference
         .mockResolvedValueOnce([{ id: 'wallet-1', staffId: 'staff-1', branchId: 'branch-1', balance: 10 }])
         .mockResolvedValueOnce([{ balance: 10 }]),
     };

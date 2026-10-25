@@ -652,7 +652,7 @@ model StaffVirtualAccount {
 model CustomerWallet {
   id String @id @default(cuid())
   customerId String @unique
-  balance Float @default(0)
+  balance Decimal @db.Decimal(20, 2) @default(0.00) @default(0)
   currency String @default("NGN")
   status AccountStatus @default(ACTIVE)
   createdAt DateTime @default(now())
@@ -664,9 +664,9 @@ model WalletTransaction {
   id String @id @default(cuid())
   customerId String
   type WalletTransactionType
-  amount Float
-  previousBalance Float
-  newBalance Float
+  amount Decimal @db.Decimal(20, 2)
+  previousBalance Decimal @db.Decimal(20, 2)
+  newBalance Decimal @db.Decimal(20, 2)
   reference String @unique
   description String?
   branchId String?

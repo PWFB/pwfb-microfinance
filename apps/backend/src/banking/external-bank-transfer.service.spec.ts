@@ -234,7 +234,11 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       data: expect.objectContaining({ status: 'PROCESSING' }),
     }));
     expect(tx.walletTransaction.update).not.toHaveBeenCalled();
-    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+    expect(tx.customerWallet.update).toHaveBeenCalledTimes(1);
+    expect(tx.customerWallet.update).toHaveBeenCalledWith({
+      where: { id: 'TEST-WALLET-001' },
+      data: { balance: 750 },
+    });
   });
 
 });

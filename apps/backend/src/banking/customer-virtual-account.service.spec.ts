@@ -148,6 +148,36 @@ describe('CustomerVirtualAccountService', () => {
     expect(prisma.customerVirtualAccount.create).not.toHaveBeenCalled();
   });
 
+  it('requires explicit consent before resuming a pending assignment without a consent record', async () => {
+    prisma.customerVirtualAccount.findFirst.mockResolvedValueOnce({
+      id: 'pending-va-without-consent',
+      customerId: customer.id,
+      status: 'PENDING',
+      providerCustomerId: 'CUS_test',
+      consentAt: null,
+    });
+
+    await expect(service.ensure(customer.id)).rejects.toThrow('consent');
+    expect(prisma.customerVirtualAccount.update).not.toHaveBeenCalled();
+  });
+
+  it('persists explicit consent before returning a pending assignment with a provider customer code', async () => {
+    prisma.customerVirtualAccount.findFirst.mockResolvedValueOnce({
+      id: 'pending-va-without-consent',
+      customerId: customer.id,
+      status: 'PENDING',
+      providerCustomerId: 'CUS_test',
+      consentAt: null,
+    });
+
+    await service.ensure(customer.id, undefined, true);
+
+    expect(prisma.customerVirtualAccount.update).toHaveBeenCalledWith({
+      where: { id: 'pending-va-without-consent' },
+      data: { consentAt: expect.any(Date) },
+    });
+  });
+
   it('keeps a consented DVA request pending while customer KYC details are not verified yet', async () => {
     prisma.customerVirtualAccount.findFirst
       .mockResolvedValueOnce(null)
@@ -170,6 +200,67 @@ describe('CustomerVirtualAccountService', () => {
         failureReason: expect.stringContaining('Awaiting verified customer BVN'),
       }),
     }));
+  });
+
+  it('does not request a customer DVA from an identity-success webhook without a stored consent timestamp', async () => {
+    const originalSecret = process.env.PAYSTACK_SECRET_KEY;
+    process.env.PAYSTACK_SECRET_KEY = 'sk_test_unit';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ status: true, data: { account_number: '1234567890' } }),
+    } as Response));
+    prisma.customerVirtualAccount.findMany.mockResolvedValueOnce([]);
+
+    try {
+      await expect(service.handleAssignmentWebhook({
+        event: 'customeridentification.success',
+        data: { customer_code: 'CUS_legacy_without_consent' },
+      })).resolves.toMatchObject({ status: 'NO_MATCHING_PENDING_ACCOUNT' });
+
+      expect(prisma.customerVirtualAccount.findMany).toHaveBeenCalledWith({
+        where: {
+          provider: 'PAYSTACK',
+          providerCustomerId: 'CUS_legacy_without_consent',
+          status: 'PENDING',
+          consentAt: { not: null },
+        },
+        include: { customer: true },
+      });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+      if (originalSecret === undefined) delete process.env.PAYSTACK_SECRET_KEY;
+      else process.env.PAYSTACK_SECRET_KEY = originalSecret;
+    }
+  });
+
+  it('only activates customer virtual accounts that have recorded consent', async () => {
+    await service.handleAssignmentWebhook({
+      event: 'dedicatedaccount.assign.success',
+      data: {
+        customer: { customer_code: 'CUS_legacy_without_consent' },
+        dedicated_account: {
+          id: 'provider-account-1',
+          account_number: '1234567890',
+          account_name: 'Test Customer',
+          bank: { name: 'Paystack-Titan' },
+        },
+      },
+    });
+
+    expect(prisma.customerVirtualAccount.updateMany).toHaveBeenCalledWith({
+      where: {
+        provider: 'PAYSTACK',
+        providerCustomerId: 'CUS_legacy_without_consent',
+        status: { not: 'ACTIVE' },
+        consentAt: { not: null },
+      },
+      data: expect.objectContaining({
+        accountNumber: '1234567890',
+        status: 'ACTIVE',
+      }),
+    });
   });
 
   it('rejects provisioning for a customer that does not exist', async () => {
@@ -201,6 +292,12 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       customerWallet: {
         upsert: jest.fn().mockResolvedValue({
+          id: 'wallet-1',
+          customerId: 'customer-1',
+          balance: 100.75,
+          status: options?.walletStatus || 'ACTIVE',
+        }),
+        findUnique: jest.fn().mockResolvedValue({
           id: 'wallet-1',
           customerId: 'customer-1',
           balance: 100.75,
@@ -239,10 +336,17 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
       where: { provider: 'PAYSTACK', accountNumber: '0123456789', status: 'ACTIVE' },
       select: { id: true, customerId: true, branchId: true },
     });
-    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      1,
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
       '98765',
     );
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'wallet-1',
+    );
+    expect(tx.customerWallet.findUnique).toHaveBeenCalledWith({ where: { id: 'wallet-1' } });
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },
       data: { balance: 226.25 },
@@ -301,6 +405,24 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
   it('rejects an inactive customer wallet without recording a deposit', async () => {
     const { service, tx } = createDepositHarness({ walletStatus: 'SUSPENDED' });
     await expect(service.handleDedicatedDepositWebhook(payment)).rejects.toThrow('Customer wallet is not active');
+    expect(tx.walletTransaction.create).not.toHaveBeenCalled();
+  });
+
+  it('does not inspect or credit a dedicated-account payment unless Paystack status is successful', async () => {
+    const { service, prismaForDeposit, tx } = createDepositHarness();
+
+    await expect(service.handleDedicatedDepositWebhook({
+      ...payment,
+      data: { ...payment.data, status: 'pending' },
+    })).resolves.toMatchObject({
+      ok: true,
+      processed: false,
+      matchedCustomerAccount: false,
+      message: 'Paystack dedicated-account payment is not successful',
+    });
+
+    expect(prismaForDeposit.customerVirtualAccount.findFirst).not.toHaveBeenCalled();
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
     expect(tx.walletTransaction.create).not.toHaveBeenCalled();
   });
 

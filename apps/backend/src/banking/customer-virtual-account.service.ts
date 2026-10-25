@@ -257,21 +257,46 @@ export class CustomerVirtualAccountService {
     }));
 
     if (existing?.status === 'ACTIVE' && existing.accountNumber) return this.get(customerId);
-    if (existing?.status === 'PENDING' && existing.providerCustomerId) return this.get(customerId);
+    if (existing?.status === 'PENDING' && existing.providerCustomerId) {
+      // A pending provider record must not bypass explicit consent. Older records
+      // may predate consent capture; require confirmation and persist its audit time.
+      if (!existing.consentAt) {
+        if (!consentConfirmed) {
+          throw new BadRequestException('Customer consent is required before continuing Paystack virtual-account assignment');
+        }
+        await this.prisma.customerVirtualAccount.update({
+          where: { id: existing.id },
+          data: { consentAt: new Date() },
+        });
+      }
+      return this.get(customerId);
+    }
     if (!existing && !consentConfirmed) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
     if (existing && !existing.consentAt && !consentConfirmed) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
 
-    const local = existing ?? await this.prisma.customerVirtualAccount.create({
-      data: {
-        id: randomUUID(),
-        customerId,
-        institutionId: institution.id,
-        branchId: customer.branchId ?? null,
-        provider: 'PAYSTACK',
-        consentAt: new Date(),
-        status: 'PENDING',
-      },
-    });
+    let local: any;
+    if (existing) {
+      local = existing;
+      if (!existing.consentAt) {
+        // Persist the confirmation even when retrying a previously-created request.
+        local = await this.prisma.customerVirtualAccount.update({
+          where: { id: existing.id },
+          data: { institutionId: institution.id, provider: 'PAYSTACK', consentAt: new Date() },
+        });
+      }
+    } else {
+      local = await this.prisma.customerVirtualAccount.create({
+        data: {
+          id: randomUUID(),
+          customerId,
+          institutionId: institution.id,
+          branchId: customer.branchId ?? null,
+          provider: 'PAYSTACK',
+          consentAt: new Date(),
+          status: 'PENDING',
+        },
+      });
+    }
 
     const email = String(customer.email ?? customer.user?.email ?? '').trim().toLowerCase();
     if (!email || !email.includes('@')) {
@@ -438,6 +463,9 @@ export class CustomerVirtualAccountService {
     if (eventName !== 'charge.success' || channel !== 'dedicated_nuban') {
       return { ok: true, processed: false, matchedCustomerAccount: false, message: 'Event is not a dedicated-account deposit' };
     }
+    if (String(data?.status || '').trim().toLowerCase() !== 'success') {
+      return { ok: true, processed: false, matchedCustomerAccount: false, message: 'Paystack dedicated-account payment is not successful' };
+    }
 
     const accountNumber = String(
       data?.authorization?.receiver_bank_account_number
@@ -499,12 +527,21 @@ export class CustomerVirtualAccountService {
         create: { customerId: account.customerId, balance: 0 },
         update: {},
       });
-      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+      // Different Paystack payment references have different advisory locks.
+      // Lock the shared wallet row and re-read its balance to prevent concurrent
+      // deposits from overwriting one another.
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while crediting Paystack deposit');
+      if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
 
-      const previousBalance = Math.round(Number(wallet.balance) * 100) / 100;
+      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
       const newBalance = Math.round((previousBalance + amount) * 100) / 100;
       const updatedWallet = await tx.customerWallet.update({
-        where: { id: wallet.id },
+        where: { id: lockedWallet.id },
         data: { balance: newBalance },
       });
       const transaction = await tx.walletTransaction.create({
@@ -545,15 +582,15 @@ export class CustomerVirtualAccountService {
 
     if (type === 'customeridentification.failed') {
       const reason = String(data?.reason || 'Paystack customer identity validation failed').slice(0, 500);
-      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode }, select: { customerId: true } });
+      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, consentAt: { not: null } }, select: { customerId: true } });
       for (const row of rows) {
         await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'FAILED', updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, row.customerId);
       }
-      await this.prisma.customerVirtualAccount.updateMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, data: { status: 'FAILED', failureReason: reason } });
+      await this.prisma.customerVirtualAccount.updateMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', consentAt: { not: null } }, data: { status: 'FAILED', failureReason: reason } });
       return { ok: true, processed: true, status: 'FAILED', stage: 'identity' };
     }
     if (type === 'customeridentification.success') {
-      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, include: { customer: true } });
+      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', consentAt: { not: null } }, include: { customer: true } });
       for (const row of rows) {
         await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'VERIFIED', bvn_verified_at = NOW(), updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, row.customerId);
       }
@@ -578,7 +615,7 @@ export class CustomerVirtualAccountService {
     if (type === 'dedicatedaccount.assign.failed') {
       const reason = String(data?.reason || 'Paystack DVA assignment failed').slice(0, 500);
       await this.prisma.customerVirtualAccount.updateMany({
-        where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' } },
+        where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' }, consentAt: { not: null } },
         data: { status: 'FAILED', failureReason: reason },
       });
       await this.prisma.staffVirtualAccount.updateMany({
@@ -597,7 +634,7 @@ export class CustomerVirtualAccountService {
     const assignedAt = new Date();
 
     await this.prisma.customerVirtualAccount.updateMany({
-      where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' } },
+      where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' }, consentAt: { not: null } },
       data: { accountNumber, accountName, providerBankName: bankName, providerReference, status: 'ACTIVE', assignedAt, failureReason: null },
     });
     await this.prisma.staffVirtualAccount.updateMany({

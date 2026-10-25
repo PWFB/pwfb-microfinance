@@ -22,6 +22,6 @@ describe('money helpers', () => {
 
   it('rejects invalid values and values unsafe for the numeric API contract', () => {
     expect(() => toMoney('not-money')).toThrow('Invalid monetary value');
-    expect(() => moneyToNumber('90000000000000.00')).toThrow('safe numeric API range');
+    expect(() => moneyToNumber('90071992547409.93')).toThrow('safe numeric API range');
   });
 });

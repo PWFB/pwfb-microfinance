@@ -6,7 +6,7 @@ import { StaffWalletService } from './staff-wallet.service';
 
 @Controller('staff-wallet')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'STAFF')
+@Roles('SUPER_ADMIN', 'ADMIN')
 export class StaffWalletController {
   constructor(private readonly service: StaffWalletService) {}
 

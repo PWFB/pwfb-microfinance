@@ -165,7 +165,7 @@ describe('Paystack transfer webhook concurrency protection', () => {
     expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
       1,
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      'PAYSTACK-TRANSFER:PWFB-WITHDRAWAL-001',
+      'WALLET-WITHDRAWAL:PWFB-WITHDRAWAL-001',
     );
     expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
       2,

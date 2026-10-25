@@ -48,4 +48,6 @@ Some infrastructure and repository identifiers still use the legacy PWFB name. T
 
 ## Buyer disclosure
 
+The source also includes three distinct wallet areas: (1) **Customer Wallet** for a customer's own balance, transaction history, and deposit/withdraw/transfer flows; (2) **Staff Wallet** for field cash issued to staff and settlements/returns; and (3) **Super Admin Charges Wallet** for recording administrative charges and fee income. These are distinct application modules, but their existence does not independently prove that every wallet operation is financially correct or production-ready.
+
 The project has a web frontend and backend, and the latest known staging deployment records showed successful startup. End-to-end verification of identity/KYC, bank-account verification, virtual-account assignment, and financial transaction flows remains a diligence requirement. The project is pre-revenue and should be evaluated as a software asset, not as a profitable or independently audited financial institution.

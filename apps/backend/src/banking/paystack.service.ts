@@ -354,27 +354,27 @@ export class PaystackService {
         if (!transaction) return { ok: true, processed: false, message: 'Withdrawal transaction not found', reference };
         if (transaction.type !== 'WITHDRAWAL') return { ok: true, processed: false, message: 'Referenced transaction is not a withdrawal', reference };
         if (eventName === 'transfer.success') {
-          if (transaction.status === 'COMPLETED') return { ok: true, processed: false, duplicate: true, transaction };
+          if (transaction.status === 'COMPLETED') return { ok: true, processed: false, duplicate: true, transaction: walletTransactionToApi(transaction) };
           if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') {
             return {
               ok: true,
               processed: false,
               conflict: true,
               message: 'Paystack reported transfer success after the withdrawal was already refunded; manual reconciliation is required',
-              transaction,
+              transaction: walletTransactionToApi(transaction),
             };
           }
           const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status: 'COMPLETED', provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, processedAt: new Date(), failureReason: null } });
-          return { ok: true, processed: true, action: 'COMPLETED', transaction: updated };
+          return { ok: true, processed: true, action: 'COMPLETED', transaction: walletTransactionToApi(updated) };
         }
-        if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') return { ok: true, processed: false, duplicate: true, transaction };
+        if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') return { ok: true, processed: false, duplicate: true, transaction: walletTransactionToApi(transaction) };
         if (eventName === 'transfer.failed' && transaction.status === 'COMPLETED') {
           return {
             ok: true,
             processed: false,
             conflict: true,
             message: 'Paystack reported transfer failure after completion; no wallet refund was applied and manual reconciliation is required',
-            transaction,
+            transaction: walletTransactionToApi(transaction),
           };
         }
         const wallet = await tx.customerWallet.findUnique({ where: { customerId: transaction.customerId } });

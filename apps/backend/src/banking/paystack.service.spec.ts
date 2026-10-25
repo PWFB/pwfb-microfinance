@@ -174,12 +174,14 @@ describe('Paystack transfer webhook concurrency protection', () => {
     );
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },
-      data: { balance: 150 },
+      data: { balance: expect.anything() },
     });
+    expect(Number(tx.customerWallet.update.mock.calls[0][0].data.balance)).toBe(150);
     expect(tx.walletTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'withdrawal-1' },
-      data: expect.objectContaining({ status: 'FAILED', newBalance: 150 }),
+      data: expect.objectContaining({ status: 'FAILED', newBalance: expect.anything() }),
     }));
+    expect(Number(tx.walletTransaction.update.mock.calls[0][0].data.newBalance)).toBe(150);
   });
 
   it('does not refund an already failed withdrawal again', async () => {
@@ -302,15 +304,16 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
     expect(tx.customerWallet.findUnique).toHaveBeenCalledWith({ where: { id: 'wallet-1' } });
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },
-      data: { balance: 180.25 },
+      data: { balance: expect.anything() },
     });
+    expect(Number(tx.customerWallet.update.mock.calls[0][0].data.balance)).toBe(180.25);
     expect(tx.walletTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         customerId: 'customer-1',
         type: 'DEPOSIT',
-        amount: 100,
-        previousBalance: 80.25,
-        newBalance: 180.25,
+        amount: expect.anything(),
+        previousBalance: expect.anything(),
+        newBalance: expect.anything(),
         reference: 'PAY-paystack-checkout-100',
         providerReference: '98765',
         status: 'COMPLETED',

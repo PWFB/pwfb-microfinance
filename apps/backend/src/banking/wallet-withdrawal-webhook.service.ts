@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { addMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 import { FlutterwaveService } from './flutterwave.service';
 
 @Injectable()
@@ -109,7 +110,7 @@ export class WalletWithdrawalWebhookService {
       if (transaction.type !== 'WITHDRAWAL') throw new BadRequestException('Transaction is not a wallet withdrawal');
 
       if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') {
-        return { ok: true, duplicate: true, transaction };
+        return { ok: true, duplicate: true, transaction: walletTransactionToApi(transaction) };
       }
 
       if (payload.status === 'COMPLETED') {
@@ -123,11 +124,11 @@ export class WalletWithdrawalWebhookService {
             failureReason: null,
           },
         });
-        return { ok: true, duplicate: false, action: 'COMPLETED', transaction: updated };
+        return { ok: true, duplicate: false, action: 'COMPLETED', transaction: walletTransactionToApi(updated) };
       }
 
       if (transaction.status === 'COMPLETED') {
-        return { ok: true, duplicate: true, transaction };
+        return { ok: true, duplicate: true, transaction: walletTransactionToApi(transaction) };
       }
 
       const wallet = await tx.customerWallet.findUnique({ where: { customerId: transaction.customerId } });
@@ -140,7 +141,7 @@ export class WalletWithdrawalWebhookService {
       const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while reversing withdrawal');
 
-      const restoredBalance = Math.round((Number(lockedWallet.balance) + Number(transaction.amount)) * 100) / 100;
+      const restoredBalance = addMoney(lockedWallet.balance, transaction.amount);
       const updatedWallet = await tx.customerWallet.update({
         where: { id: lockedWallet.id },
         data: { balance: restoredBalance },
@@ -159,7 +160,7 @@ export class WalletWithdrawalWebhookService {
         },
       });
 
-      return { ok: true, duplicate: false, action: 'REFUNDED', wallet: updatedWallet, transaction: updated };
+      return { ok: true, duplicate: false, action: 'REFUNDED', wallet: walletToApi(updatedWallet), transaction: walletTransactionToApi(updated) };
     });
   }
 }

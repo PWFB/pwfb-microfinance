@@ -82,24 +82,32 @@ describe('CustomerVirtualAccountWebhookService', () => {
     expect(tx.customerWallet.findUnique).toHaveBeenCalledWith({ where: { id: 'test-wallet-1' } });
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'test-wallet-1' },
-      data: { balance: 3200 },
+      data: { balance: expect.anything() },
     });
+    expect(Number(tx.customerWallet.update.mock.calls[0][0].data.balance)).toBe(3200);
     expect(tx.walletTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         customerId: 'test-customer-1',
         type: 'DEPOSIT',
-        amount: 2500,
-        previousBalance: 700,
-        newBalance: 3200,
+        amount: expect.anything(),
+        previousBalance: expect.anything(),
+        newBalance: expect.anything(),
         provider: 'FLUTTERWAVE',
         providerReference: 'flw-test-reference-001',
         status: 'COMPLETED',
       }),
     }));
+    const ledger = tx.walletTransaction.create.mock.calls[0][0].data;
+    expect(Number(ledger.amount)).toBe(2500);
+    expect(Number(ledger.previousBalance)).toBe(700);
+    expect(Number(ledger.newBalance)).toBe(3200);
   });
 
   it('does not credit twice when the provider reference already exists', async () => {
-    tx.walletTransaction.findUnique.mockResolvedValue({ id: 'existing-tx', providerReference: 'flw-test-reference-001' });
+    tx.walletTransaction.findUnique.mockResolvedValue({
+      id: 'existing-tx', providerReference: 'flw-test-reference-001',
+      amount: 2500, previousBalance: 0, newBalance: 2500,
+    });
     const input = signed({
       event: 'charge.completed',
       data: {

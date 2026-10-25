@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { addMoney, compareMoney, moneyToNumber, subtractMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 
 @Injectable()
 export class BankingService {
@@ -44,14 +45,223 @@ export class BankingService {
   async removeCustomerAtmCard(customerId:string,cardId:string){const card=await this.prisma.customerAtmCard.findFirst({where:{id:cardId,customerId}});if(!card)throw new NotFoundException('ATM card not found');await this.prisma.customerAtmCard.delete({where:{id:card.id}});return {message:'ATM card removed'};}
   async getBranchVirtualAccounts(branchId:string){return this.prisma.branchVirtualAccount.findMany({where:{branchId},include:{institution:true,branch:true},orderBy:{createdAt:'desc'}})}
   async generateBranchVirtualAccount(branchId:string,institutionId:string){const branch=await this.prisma.branch.findUnique({where:{id:branchId}});if(!branch)throw new NotFoundException('Branch not found');const institution=await this.prisma.bankInstitution.findUnique({where:{id:institutionId}});if(!institution)throw new NotFoundException('Bank or payment institution not found');if(!institution.active)throw new BadRequestException('Bank or payment institution is inactive');const existing=await this.prisma.branchVirtualAccount.findUnique({where:{branchId_institutionId:{branchId,institutionId}},include:{institution:true,branch:true}});if(existing)return existing;let accountNumber='';do{accountNumber=`9${Date.now().toString().slice(-8)}${Math.floor(Math.random()*10)}`}while(await this.prisma.branchVirtualAccount.findUnique({where:{accountNumber}}));return this.prisma.branchVirtualAccount.create({data:{branchId,institutionId,accountNumber,accountName:`PWFB - ${branch.name}`,isGenerated:true,generatedAt:new Date()},include:{institution:true,branch:true}})}
-  private amount(value:any){const n=Number(value);if(!Number.isFinite(n)||n<=0)throw new BadRequestException('Amount must be greater than zero');return Math.round(n*100)/100}
+  private amount(value: any) {
+    try {
+      const amount = moneyToNumber(toMoney(value));
+      if (amount <= 0) throw new Error('Amount must be positive after rounding');
+      return amount;
+    } catch {
+      throw new BadRequestException('Amount must be greater than zero and no more than two decimal places of currency precision');
+    }
+  }
   private ref(prefix:string){return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,10).toUpperCase()}`}
   private async openPeriod(tx:any){let p=await tx.financialPeriod.findFirst({where:{status:'OPEN'},orderBy:{startDate:'desc'}});if(p)return p;const now=new Date();const end=new Date(now);end.setDate(end.getDate()+1);return tx.financialPeriod.create({data:{name:`Auto ${now.toISOString().slice(0,10)}`,startDate:now,endDate:end,status:'OPEN'}})}
   async recordBranchDeposit(data:{accountNumber:string;amount:number;reference?:string;narration?:string}){const amount=this.amount(data.amount);return this.prisma.$transaction(async tx=>{const account=await tx.branchVirtualAccount.findUnique({where:{accountNumber:data.accountNumber},include:{branch:true,institution:true}});if(!account)throw new NotFoundException('Branch virtual account not found');if(account.status!=='ACTIVE')throw new BadRequestException('Branch virtual account is not active');const period=await this.openPeriod(tx);const reference=data.reference?.trim()||this.ref('BDEP');const entry=await tx.cashbookEntry.create({data:{periodId:period.id,branchId:account.branchId,type:'CASH_IN',amount,reference,description:data.narration||`Virtual account deposit - ${account.accountNumber}`}});return{branch:account.branch,virtualAccount:account,institution:account.institution,entry}})}
   async getBranchLedger(branchId:string){const branch=await this.prisma.branch.findUnique({where:{id:branchId}});if(!branch)throw new NotFoundException('Branch not found');const entries=await this.prisma.cashbookEntry.findMany({where:{branchId},orderBy:{entryDate:'desc'}});const totalIn=entries.filter(e=>e.type==='CASH_IN').reduce((s,e)=>s+e.amount,0);const totalOut=entries.filter(e=>e.type==='CASH_OUT').reduce((s,e)=>s+e.amount,0);return{branch,entries,totalIn,totalOut,balance:totalIn-totalOut}}
-  async getCustomerWallet(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.customerWallet.upsert({where:{customerId},create:{customerId},update:{}})}
-  async getCustomerTransactions(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.walletTransaction.findMany({where:{customerId},orderBy:{createdAt:'desc'}})}
-  async deposit(customerId:string,data:any){const amount=this.amount(data.amount);return this.prisma.$transaction(async tx=>{const customer=await tx.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');const wallet=await tx.customerWallet.upsert({where:{customerId},create:{customerId,balance:0},update:{}});if(wallet.status!=='ACTIVE')throw new BadRequestException('Customer wallet is not active');const newBalance=Math.round((wallet.balance+amount)*100)/100;const updatedWallet=await tx.customerWallet.update({where:{id:wallet.id},data:{balance:newBalance}});const provider=String(data.verificationProvider||data.provider||'').trim().toUpperCase()||null; const bankCode=String(data.bankCode||data.bank_code||'').trim()||null; const accountNumber=String(data.accountNumber||'').replace(/\D/g,'')||null; const accountName=String(data.accountName||'').trim()||null; const transaction=await tx.walletTransaction.create({data:{customerId,type:'DEPOSIT',amount,previousBalance:wallet.balance,newBalance,reference:data.reference?.trim()||this.ref('DEP'),description:data.description??(accountName?`Bank deposit from ${accountName}${bankCode?` • ${bankCode}`:''}${accountNumber?` • ${accountNumber}`:''}`:'Wallet deposit'),branchId:data.branchId,staffId:data.staffId,provider,providerReference:data.providerReference||null,status:'COMPLETED',processedAt:new Date()}});return{wallet:updatedWallet,transaction}})}
-  async withdraw(customerId:string,data:any){const amount=this.amount(data.amount);return this.prisma.$transaction(async tx=>{const wallet=await tx.customerWallet.findUnique({where:{customerId}});if(!wallet)throw new NotFoundException('Customer wallet not found');if(wallet.status!=='ACTIVE')throw new BadRequestException('Customer wallet is not active');if(wallet.balance<amount)throw new BadRequestException('Insufficient wallet balance');const newBalance=Math.round((wallet.balance-amount)*100)/100;const updated=await tx.customerWallet.updateMany({where:{id:wallet.id,balance:{gte:amount},status:'ACTIVE'},data:{balance:newBalance}});if(updated.count!==1)throw new BadRequestException('Withdrawal could not be completed because the balance changed');const transaction=await tx.walletTransaction.create({data:{customerId,type:'WITHDRAWAL',amount,previousBalance:wallet.balance,newBalance,reference:data.reference?.trim()||this.ref('WDR'),description:data.description??'Wallet withdrawal',branchId:data.branchId,staffId:data.staffId}});return{wallet:{...wallet,balance:newBalance},transaction}})}
-  async transfer(customerId:string,data:any){const amount=this.amount(data.amount);if(!data.recipientCustomerId)throw new BadRequestException('Recipient customer is required');if(customerId===data.recipientCustomerId)throw new BadRequestException('You cannot transfer to the same customer');return this.prisma.$transaction(async tx=>{const [sender,recipient]=await Promise.all([tx.customer.findUnique({where:{id:customerId}}),tx.customer.findUnique({where:{id:data.recipientCustomerId}})]);if(!sender)throw new NotFoundException('Sender customer not found');if(!recipient)throw new NotFoundException('Recipient customer not found');const sw=await tx.customerWallet.findUnique({where:{customerId}});if(!sw)throw new NotFoundException('Sender wallet not found');if(sw.status!=='ACTIVE')throw new BadRequestException('Sender wallet is not active');if(sw.balance<amount)throw new BadRequestException('Insufficient wallet balance');const rw=await tx.customerWallet.upsert({where:{customerId:data.recipientCustomerId},create:{customerId:data.recipientCustomerId,balance:0},update:{}});if(rw.status!=='ACTIVE')throw new BadRequestException('Recipient wallet is not active');const sb=Math.round((sw.balance-amount)*100)/100,rb=Math.round((rw.balance+amount)*100)/100;const su=await tx.customerWallet.updateMany({where:{id:sw.id,balance:{gte:amount},status:'ACTIVE'},data:{balance:sb}});if(su.count!==1)throw new BadRequestException('Transfer could not be completed because the sender balance changed');const ur=await tx.customerWallet.update({where:{id:rw.id},data:{balance:rb}});const r=data.reference?.trim()||this.ref('TRF');const outgoing=await tx.walletTransaction.create({data:{customerId,type:'TRANSFER_OUT',amount,previousBalance:sw.balance,newBalance:sb,reference:`${r}-OUT`,description:data.description??`Transfer to ${recipient.firstName} ${recipient.lastName}`,branchId:data.branchId,staffId:data.staffId}});const incoming=await tx.walletTransaction.create({data:{customerId:data.recipientCustomerId,type:'TRANSFER_IN',amount,previousBalance:rw.balance,newBalance:rb,reference:`${r}-IN`,description:data.description??`Transfer from ${sender.firstName} ${sender.lastName}`,branchId:data.branchId,staffId:data.staffId}});return{senderWallet:{...sw,balance:sb},recipientWallet:ur,outgoing,incoming}})}
+  async getCustomerWallet(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) throw new NotFoundException('Customer not found');
+    const wallet = await this.prisma.customerWallet.upsert({
+      where: { customerId },
+      create: { customerId },
+      update: {},
+    });
+    return walletToApi(wallet);
+  }
+  async getCustomerTransactions(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+    if (!customer) throw new NotFoundException('Customer not found');
+    const transactions = await this.prisma.walletTransaction.findMany({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return transactions.map((transaction) => walletTransactionToApi(transaction));
+  }
+  async deposit(customerId: string, data: any) {
+    const amount = toMoney(this.amount(data.amount));
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findUnique({ where: { id: customerId } });
+      if (!customer) throw new NotFoundException('Customer not found');
+
+      const initialWallet = await tx.customerWallet.upsert({
+        where: { customerId },
+        create: { customerId, balance: toMoney(0) },
+        update: {},
+      });
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        initialWallet.id,
+      );
+      const wallet = await tx.customerWallet.findUnique({ where: { id: initialWallet.id } });
+      if (!wallet) throw new NotFoundException('Customer wallet not found');
+      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+
+      const previousBalance = toMoney(wallet.balance);
+      const newBalance = addMoney(previousBalance, amount);
+      const updatedWallet = await tx.customerWallet.update({
+        where: { id: wallet.id },
+        data: { balance: newBalance },
+      });
+      const provider = String(data.verificationProvider || data.provider || '').trim().toUpperCase() || null;
+      const bankCode = String(data.bankCode || data.bank_code || '').trim() || null;
+      const accountNumber = String(data.accountNumber || '').replace(/\\D/g, '') || null;
+      const accountName = String(data.accountName || '').trim() || null;
+      const transaction = await tx.walletTransaction.create({
+        data: {
+          customerId,
+          type: 'DEPOSIT',
+          amount,
+          previousBalance,
+          newBalance,
+          reference: data.reference?.trim() || this.ref('DEP'),
+          description: data.description ?? (accountName
+            ? `Bank deposit from ${accountName}${bankCode ? ` • ${bankCode}` : ''}${accountNumber ? ` • ${accountNumber}` : ''}`
+            : 'Wallet deposit'),
+          branchId: data.branchId,
+          staffId: data.staffId,
+          provider,
+          providerReference: data.providerReference || null,
+          status: 'COMPLETED',
+          processedAt: new Date(),
+        },
+      });
+      return {
+        wallet: walletToApi(updatedWallet),
+        transaction: walletTransactionToApi(transaction),
+      };
+    });
+  }
+  async withdraw(customerId: string, data: any) {
+    const amount = toMoney(this.amount(data.amount));
+    return this.prisma.$transaction(async (tx) => {
+      const initialWallet = await tx.customerWallet.findUnique({ where: { customerId } });
+      if (!initialWallet) throw new NotFoundException('Customer wallet not found');
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        initialWallet.id,
+      );
+      const wallet = await tx.customerWallet.findUnique({ where: { id: initialWallet.id } });
+      if (!wallet) throw new NotFoundException('Customer wallet not found');
+      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+      if (compareMoney(wallet.balance, amount) < 0) throw new BadRequestException('Insufficient wallet balance');
+
+      const previousBalance = toMoney(wallet.balance);
+      const newBalance = subtractMoney(previousBalance, amount);
+      const updatedWallet = await tx.customerWallet.update({
+        where: { id: wallet.id },
+        data: { balance: newBalance },
+      });
+      const transaction = await tx.walletTransaction.create({
+        data: {
+          customerId,
+          type: 'WITHDRAWAL',
+          amount,
+          previousBalance,
+          newBalance,
+          reference: data.reference?.trim() || this.ref('WDR'),
+          description: data.description ?? 'Wallet withdrawal',
+          branchId: data.branchId,
+          staffId: data.staffId,
+        },
+      });
+      return {
+        wallet: walletToApi(updatedWallet),
+        transaction: walletTransactionToApi(transaction),
+      };
+    });
+  }
+  async transfer(customerId: string, data: any) {
+    const amount = toMoney(this.amount(data.amount));
+    if (!data.recipientCustomerId) throw new BadRequestException('Recipient customer is required');
+    if (customerId === data.recipientCustomerId) throw new BadRequestException('You cannot transfer to the same customer');
+
+    return this.prisma.$transaction(async (tx) => {
+      const [sender, recipient] = await Promise.all([
+        tx.customer.findUnique({ where: { id: customerId } }),
+        tx.customer.findUnique({ where: { id: data.recipientCustomerId } }),
+      ]);
+      if (!sender) throw new NotFoundException('Sender customer not found');
+      if (!recipient) throw new NotFoundException('Recipient customer not found');
+
+      // Acquire customer-level locks in deterministic order, then lock wallet
+      // rows in deterministic order. This prevents opposite-direction transfers
+      // from deadlocking and keeps row-locking consistent with other wallet flows.
+      for (const id of [customerId, data.recipientCustomerId].sort()) {
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          'CUSTOMER-WALLET-TRANSFER:' + id,
+        );
+      }
+
+      const senderInitial = await tx.customerWallet.findUnique({ where: { customerId } });
+      if (!senderInitial) throw new NotFoundException('Sender wallet not found');
+      const recipientInitial = await tx.customerWallet.upsert({
+        where: { customerId: data.recipientCustomerId },
+        create: { customerId: data.recipientCustomerId, balance: toMoney(0) },
+        update: {},
+      });
+      const rowsToLock = [senderInitial, recipientInitial].sort((a, b) => a.id.localeCompare(b.id));
+      for (const row of rowsToLock) {
+        await tx.$queryRawUnsafe(
+          'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+          row.id,
+        );
+      }
+      const [senderWallet, recipientWallet] = await Promise.all([
+        tx.customerWallet.findUnique({ where: { id: senderInitial.id } }),
+        tx.customerWallet.findUnique({ where: { id: recipientInitial.id } }),
+      ]);
+      if (!senderWallet) throw new NotFoundException('Sender wallet not found');
+      if (!recipientWallet) throw new NotFoundException('Recipient wallet not found');
+      if (senderWallet.status !== 'ACTIVE') throw new BadRequestException('Sender wallet is not active');
+      if (recipientWallet.status !== 'ACTIVE') throw new BadRequestException('Recipient wallet is not active');
+      if (compareMoney(senderWallet.balance, amount) < 0) throw new BadRequestException('Insufficient wallet balance');
+
+      const senderPrevious = toMoney(senderWallet.balance);
+      const recipientPrevious = toMoney(recipientWallet.balance);
+      const senderNew = subtractMoney(senderPrevious, amount);
+      const recipientNew = addMoney(recipientPrevious, amount);
+      const updatedSender = await tx.customerWallet.update({
+        where: { id: senderWallet.id },
+        data: { balance: senderNew },
+      });
+      const updatedRecipient = await tx.customerWallet.update({
+        where: { id: recipientWallet.id },
+        data: { balance: recipientNew },
+      });
+      const reference = data.reference?.trim() || this.ref('TRF');
+      const outgoing = await tx.walletTransaction.create({
+        data: {
+          customerId,
+          type: 'TRANSFER_OUT',
+          amount,
+          previousBalance: senderPrevious,
+          newBalance: senderNew,
+          reference: `${reference}-OUT`,
+          description: data.description ?? `Transfer to ${recipient.firstName} ${recipient.lastName}`,
+          branchId: data.branchId,
+          staffId: data.staffId,
+        },
+      });
+      const incoming = await tx.walletTransaction.create({
+        data: {
+          customerId: data.recipientCustomerId,
+          type: 'TRANSFER_IN',
+          amount,
+          previousBalance: recipientPrevious,
+          newBalance: recipientNew,
+          reference: `${reference}-IN`,
+          description: data.description ?? `Transfer from ${sender.firstName} ${sender.lastName}`,
+          branchId: data.branchId,
+          staffId: data.staffId,
+        },
+      });
+      return {
+        senderWallet: walletToApi(updatedSender),
+        recipientWallet: walletToApi(updatedRecipient),
+        outgoing: walletTransactionToApi(outgoing),
+        incoming: walletTransactionToApi(incoming),
+      };
+    });
+  }
 }

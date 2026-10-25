@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { createHmac, timingSafeEqual, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { addMoney, moneyToNumber, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 
 @Injectable()
 export class CustomerVirtualAccountWebhookService {
@@ -247,12 +248,19 @@ export class CustomerVirtualAccountWebhookService {
     description?: string;
   }) {
     const accountNumber = String(payload.accountNumber ?? '').replace(/\D/g, '');
-    const amount = Math.round(Number(payload.amount) * 100) / 100;
+    const rawAmount = Number(payload.amount);
     const providerReference = String(payload.providerReference ?? '').trim();
 
-    if (!accountNumber || !Number.isFinite(amount) || amount <= 0 || !providerReference) {
+    if (!accountNumber || !Number.isFinite(rawAmount) || rawAmount <= 0 || !providerReference) {
       throw new BadRequestException('Account number, positive amount and provider reference are required');
     }
+    let amount: number;
+    try {
+      amount = moneyToNumber(toMoney(rawAmount));
+    } catch {
+      throw new BadRequestException('Deposit amount is outside the supported monetary range');
+    }
+    if (amount <= 0) throw new BadRequestException('Deposit amount must round to at least one kobo');
 
     return this.prisma.$transaction(async (tx) => {
       // Idempotency lock prevents simultaneous deliveries of the same provider payment.
@@ -264,7 +272,7 @@ export class CustomerVirtualAccountWebhookService {
         where: { providerReference },
       });
       if (duplicate) {
-        return { ok: true, duplicate: true, transaction: duplicate };
+        return { ok: true, duplicate: true, transaction: walletTransactionToApi(duplicate) };
       }
 
       const virtualAccount = await tx.customerVirtualAccount.findFirst({
@@ -289,8 +297,9 @@ export class CustomerVirtualAccountWebhookService {
         throw new BadRequestException('Customer wallet is not active');
       }
 
-      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
-      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+      const previousBalance = toMoney(lockedWallet.balance);
+      const amountMoney = toMoney(amount);
+      const newBalance = addMoney(previousBalance, amountMoney);
 
       const updatedWallet = await tx.customerWallet.update({
         where: { id: lockedWallet.id },
@@ -301,7 +310,7 @@ export class CustomerVirtualAccountWebhookService {
         data: {
           customerId: virtualAccount.customerId,
           type: 'DEPOSIT',
-          amount,
+          amount: amountMoney,
           previousBalance,
           newBalance,
           reference: `VAD-${providerReference}-${randomUUID().slice(0, 8)}`,
@@ -317,8 +326,8 @@ export class CustomerVirtualAccountWebhookService {
       return {
         ok: true,
         duplicate: false,
-        wallet: updatedWallet,
-        transaction,
+        wallet: walletToApi(updatedWallet),
+        transaction: walletTransactionToApi(transaction),
       };
     });
   }

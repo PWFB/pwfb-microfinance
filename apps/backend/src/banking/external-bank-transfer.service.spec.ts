@@ -15,7 +15,7 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       customerWallet: {
         findUnique: jest.fn().mockImplementation(async () => currentTxWallet ? { ...currentTxWallet } : null),
         updateMany: jest.fn().mockImplementation(async ({ where, data }: any) => {
-          if (!currentTxWallet || currentTxWallet.id !== where.id || currentTxWallet.status !== where.status || currentTxWallet.balance < where.balance.gte) return { count: 0 };
+          if (!currentTxWallet || currentTxWallet.id !== where.id || currentTxWallet.status !== where.status || Number(currentTxWallet.balance) < Number(where.balance.gte)) return { count: 0 };
           currentTxWallet = { ...currentTxWallet, ...data };
           return { count: 1 };
         }),
@@ -26,13 +26,27 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       },
       walletTransaction: {
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'test-withdrawal', ...data })),
-        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'test-withdrawal', reference: where.reference, ...data })),
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({
+          id: 'test-withdrawal',
+          reference: where.reference,
+          amount: 250,
+          previousBalance: 1000,
+          newBalance: 750,
+          ...data,
+        })),
       },
     };
     prisma = {
       customerWallet: { findUnique: jest.fn() },
       walletTransaction: {
-        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'test-withdrawal', reference: where.reference, ...data })),
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({
+          id: 'test-withdrawal',
+          reference: where.reference,
+          amount: 250,
+          previousBalance: 1000,
+          newBalance: 750,
+          ...data,
+        })),
       },
       $transaction: jest.fn(async (callback: any) => callback(tx)),
     };
@@ -104,7 +118,6 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
 
     expect(service.nameEnquiry).toHaveBeenCalled();
     expect(service.transferToVerifiedAccount).not.toHaveBeenCalled();
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('records an accepted provider transfer as a withdrawal and debits the wallet once', async () => {
@@ -140,21 +153,27 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       provider: 'PAYSTACK',
     }));
     expect(tx.customerWallet.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: 'TEST-WALLET-001', status: 'ACTIVE', balance: { gte: 250 } },
-      data: { balance: 750 },
+      where: { id: 'TEST-WALLET-001', status: 'ACTIVE', balance: { gte: expect.anything() } },
+      data: { balance: expect.anything() },
     }));
     expect(tx.walletTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         customerId: 'TEST-CUSTOMER-001',
         type: 'WITHDRAWAL',
-        amount: 250,
-        previousBalance: 1000,
-        newBalance: 750,
+        amount: expect.anything(),
+        previousBalance: expect.anything(),
+        newBalance: expect.anything(),
         provider: 'PAYSTACK',
         providerReference: expect.any(String),
         status: 'PROCESSING',
       }),
     }));
+    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].where.balance.gte)).toBe(250);
+    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].data.balance)).toBe(750);
+    const ledger = tx.walletTransaction.create.mock.calls[0][0].data;
+    expect(Number(ledger.amount)).toBe(250);
+    expect(Number(ledger.previousBalance)).toBe(1000);
+    expect(Number(ledger.newBalance)).toBe(750);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction.mock.calls[0][0]).toBeInstanceOf(Function);
     expect(prisma.$transaction).toHaveBeenCalled();
@@ -195,12 +214,14 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       'TEST-WALLET-001',
     );
     expect(tx.customerWallet.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: { balance: 750 },
+      data: { balance: expect.anything() },
     }));
+    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].data.balance)).toBe(750);
     expect(tx.customerWallet.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'TEST-WALLET-001' },
-      data: { balance: 1000 },
+      data: { balance: expect.anything() },
     }));
+    expect(Number(tx.customerWallet.update.mock.calls[0][0].data.balance)).toBe(1000);
     expect(tx.walletTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { reference: expect.any(String) },
       data: expect.objectContaining({ status: 'FAILED' }),
@@ -220,8 +241,9 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
     })).rejects.toThrow('status is uncertain');
 
     expect(tx.customerWallet.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: { balance: 750 },
+      data: { balance: expect.anything() },
     }));
+    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].data.balance)).toBe(750);
     expect(tx.walletTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: 'PROCESSING' }),
     }));

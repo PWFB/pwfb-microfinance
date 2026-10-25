@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { addMoney, compareMoney, moneyToNumber, subtractMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 import { NibssService } from './nibss.service';
 import { FlutterwaveService } from './flutterwave.service';
 import { PaystackService } from './paystack.service';
@@ -210,11 +211,18 @@ export class ExternalBankTransferService {
 
   async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string }) {
     const bankCode = String(input.bankCode || '').trim();
-    const amount = Math.round(Number(input.amount) * 100) / 100;
+    const rawAmount = Number(input.amount);
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
     if (!bankCode) throw new BadRequestException('Bank code is required');
     if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit account number');
-    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
+    if (!Number.isFinite(rawAmount) || rawAmount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
+    let amount: number;
+    try {
+      amount = moneyToNumber(toMoney(rawAmount));
+    } catch {
+      throw new BadRequestException('Transfer amount is outside the supported monetary range');
+    }
+    if (amount <= 0) throw new BadRequestException('Transfer amount must round to at least one kobo');
 
     // Interbank beneficiaries are not expected to share the sender's name.
     // Resolve the destination account with the bank/provider and use that returned
@@ -241,22 +249,24 @@ export class ExternalBankTransferService {
       );
       const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
-      if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
-      const newBalance = Math.round((currentWallet.balance - amount) * 100) / 100;
+      if (compareMoney(currentWallet.balance, amount) < 0) throw new BadRequestException('Insufficient wallet balance');
+      const previousBalance = toMoney(currentWallet.balance);
+      const amountMoney = toMoney(amount);
+      const newBalance = subtractMoney(previousBalance, amountMoney);
       const updated = await tx.customerWallet.updateMany({
-        where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amount } },
+        where: { id: currentWallet.id, status: 'ACTIVE', balance: { gte: amountMoney } },
         data: { balance: newBalance },
       });
       if (updated.count !== 1) throw new BadRequestException('Insufficient wallet balance or wallet changed; retry safely');
       const transaction = await tx.walletTransaction.create({
         data: {
-          customerId: input.customerId, type: 'WITHDRAWAL', amount,
-          previousBalance: currentWallet.balance, newBalance, reference: xref,
+          customerId: input.customerId, type: 'WITHDRAWAL', amount: amountMoney,
+          previousBalance, newBalance, reference: xref,
           description: input.description || `Bank withdrawal to ${verifiedAccountName}`,
           provider, providerReference: xref, status: 'PROCESSING',
         },
       });
-      return { wallet: { ...currentWallet, balance: newBalance }, transaction };
+      return { wallet: walletToApi({ ...currentWallet, balance: newBalance }), transaction: walletTransactionToApi(transaction) };
     });
 
     let providerResult: any;
@@ -285,13 +295,13 @@ export class ExternalBankTransferService {
         );
         const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
         if (!currentWallet) throw new NotFoundException('Customer wallet not found during transfer reversal');
-        const restoredBalance = Math.round((currentWallet.balance + amount) * 100) / 100;
+        const restoredBalance = addMoney(currentWallet.balance, toMoney(amount));
         await tx.customerWallet.update({ where: { id: currentWallet.id }, data: { balance: restoredBalance } });
         const transaction = await tx.walletTransaction.update({
           where: { reference: xref },
           data: { newBalance: restoredBalance, status: 'FAILED', failureReason: `Provider rejected transfer: ${providerStatus}`, processedAt: new Date() },
         });
-        return { wallet: { ...currentWallet, balance: restoredBalance }, transaction };
+        return { wallet: walletToApi({ ...currentWallet, balance: restoredBalance }), transaction: walletTransactionToApi(transaction) };
       });
       return { ...reversal, provider: providerResult, beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, accountNameVerified: true, provider } };
     }
@@ -303,7 +313,7 @@ export class ExternalBankTransferService {
     });
     return {
       wallet: reservation.wallet,
-      transaction,
+      transaction: walletTransactionToApi(transaction),
       provider: providerResult,
       beneficiary: { accountNumber, accountName: verifiedAccountName, bankCode, verified: true, accountNameVerified: true, provider },
     };

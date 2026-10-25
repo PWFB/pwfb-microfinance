@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { addMoney, toMoney, walletToApi, walletTransactionToApi } from '../common/financial/money';
 
 @Injectable()
 export class PaystackService {
@@ -353,27 +354,27 @@ export class PaystackService {
         if (!transaction) return { ok: true, processed: false, message: 'Withdrawal transaction not found', reference };
         if (transaction.type !== 'WITHDRAWAL') return { ok: true, processed: false, message: 'Referenced transaction is not a withdrawal', reference };
         if (eventName === 'transfer.success') {
-          if (transaction.status === 'COMPLETED') return { ok: true, processed: false, duplicate: true, transaction };
+          if (transaction.status === 'COMPLETED') return { ok: true, processed: false, duplicate: true, transaction: walletTransactionToApi(transaction) };
           if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') {
             return {
               ok: true,
               processed: false,
               conflict: true,
               message: 'Paystack reported transfer success after the withdrawal was already refunded; manual reconciliation is required',
-              transaction,
+              transaction: walletTransactionToApi(transaction),
             };
           }
           const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status: 'COMPLETED', provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, processedAt: new Date(), failureReason: null } });
-          return { ok: true, processed: true, action: 'COMPLETED', transaction: updated };
+          return { ok: true, processed: true, action: 'COMPLETED', transaction: walletTransactionToApi(updated) };
         }
-        if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') return { ok: true, processed: false, duplicate: true, transaction };
+        if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') return { ok: true, processed: false, duplicate: true, transaction: walletTransactionToApi(transaction) };
         if (eventName === 'transfer.failed' && transaction.status === 'COMPLETED') {
           return {
             ok: true,
             processed: false,
             conflict: true,
             message: 'Paystack reported transfer failure after completion; no wallet refund was applied and manual reconciliation is required',
-            transaction,
+            transaction: walletTransactionToApi(transaction),
           };
         }
         const wallet = await tx.customerWallet.findUnique({ where: { customerId: transaction.customerId } });
@@ -387,11 +388,11 @@ export class PaystackService {
         );
         const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
         if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while reversing Paystack withdrawal');
-        const restoredBalance = Math.round((Number(lockedWallet.balance) + Number(transaction.amount)) * 100) / 100;
+        const restoredBalance = addMoney(lockedWallet.balance, transaction.amount);
         const updatedWallet = await tx.customerWallet.update({ where: { id: lockedWallet.id }, data: { balance: restoredBalance } });
         const status = eventName === 'transfer.reversed' ? 'REVERSED' : 'FAILED';
         const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status, provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, failureReason: String(transfer?.reason || transfer?.message || 'Paystack reported a failed or reversed transfer'), reversedAt: new Date(), processedAt: new Date(), newBalance: restoredBalance } });
-        return { ok: true, processed: true, action: status, wallet: updatedWallet, transaction: updated };
+        return { ok: true, processed: true, action: status, wallet: walletToApi(updatedWallet), transaction: walletTransactionToApi(updated) };
       });
     }
     if (eventName !== 'charge.success') return { ok: true, processed: false, message: 'Event ignored' };
@@ -405,6 +406,7 @@ export class PaystackService {
     if (currency !== 'NGN') throw new BadRequestException('Only NGN Paystack wallet payments can be credited');
     const amount = Number(payment.amount) / 100;
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Invalid Paystack payment amount');
+    const amountMoney = toMoney(amount);
     const providerReference = String(payment.id ?? reference);
     const existing = await this.prisma.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
     if (existing) return { ok: true, processed: false, duplicate: true, transactionId: existing.id, reference: existing.reference };
@@ -426,11 +428,11 @@ export class PaystackService {
       const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while crediting Paystack payment');
       if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
-      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
-      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+      const previousBalance = toMoney(lockedWallet.balance);
+      const newBalance = addMoney(previousBalance, amountMoney);
       const updatedWallet = await tx.customerWallet.update({ where: { id: lockedWallet.id }, data: { balance: newBalance } });
-      const transaction = await tx.walletTransaction.create({ data: { customerId, type: 'DEPOSIT', amount, previousBalance, newBalance, reference: `PAY-${reference}`, description: 'Paystack wallet deposit', status: 'COMPLETED', provider: 'PAYSTACK', providerReference, processedAt: new Date() } });
-      return { ok: true, processed: true, transaction, wallet: updatedWallet };
+      const transaction = await tx.walletTransaction.create({ data: { customerId, type: 'DEPOSIT', amount: amountMoney, previousBalance, newBalance, reference: `PAY-${reference}`, description: 'Paystack wallet deposit', status: 'COMPLETED', provider: 'PAYSTACK', providerReference, processedAt: new Date() } });
+      return { ok: true, processed: true, transaction: walletTransactionToApi(transaction), wallet: walletToApi(updatedWallet) };
     });
   }
 

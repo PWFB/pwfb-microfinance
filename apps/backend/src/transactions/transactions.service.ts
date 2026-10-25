@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { moneyToNumber } from '../common/financial/money';
 
 @Injectable()
 export class TransactionsService {
@@ -58,7 +59,7 @@ export class TransactionsService {
       customerId: transaction.customerId,
       customer: transaction.customer,
       type: transaction.type,
-      amount: transaction.amount,
+      amount: moneyToNumber(transaction.amount),
       description: transaction.description,
       periodId: null,
       createdAt: transaction.createdAt,
@@ -69,8 +70,8 @@ export class TransactionsService {
       providerReference: transaction.providerReference,
       reference: transaction.reference,
       processedAt: transaction.processedAt,
-      walletBalanceBefore: transaction.previousBalance,
-      walletBalanceAfter: transaction.newBalance,
+      walletBalanceBefore: moneyToNumber(transaction.previousBalance),
+      walletBalanceAfter: moneyToNumber(transaction.newBalance),
       branchId: transaction.branchId,
       staffId: transaction.staffId,
       failureReason: transaction.failureReason,
@@ -93,7 +94,7 @@ export class TransactionsService {
         customerId: walletTransaction.customerId,
         customer: walletTransaction.customer,
         type: walletTransaction.type,
-        amount: walletTransaction.amount,
+        amount: moneyToNumber(walletTransaction.amount),
         description: walletTransaction.description,
         createdAt: walletTransaction.createdAt,
         updatedAt: walletTransaction.createdAt,
@@ -103,8 +104,8 @@ export class TransactionsService {
         providerReference: walletTransaction.providerReference,
         reference: walletTransaction.reference,
         processedAt: walletTransaction.processedAt,
-        walletBalanceBefore: walletTransaction.previousBalance,
-        walletBalanceAfter: walletTransaction.newBalance,
+        walletBalanceBefore: moneyToNumber(walletTransaction.previousBalance),
+        walletBalanceAfter: moneyToNumber(walletTransaction.newBalance),
         branchId: walletTransaction.branchId,
         staffId: walletTransaction.staffId,
         failureReason: walletTransaction.failureReason,

@@ -26,7 +26,14 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
       },
       walletTransaction: {
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'test-withdrawal', ...data })),
-        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({ id: 'test-withdrawal', reference: where.reference, ...data })),
+        update: jest.fn().mockImplementation(async ({ where, data }: any) => ({
+          id: 'test-withdrawal',
+          reference: where.reference,
+          amount: 250,
+          previousBalance: 1000,
+          newBalance: 750,
+          ...data,
+        })),
       },
     };
     prisma = {
@@ -111,13 +118,6 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
 
     expect(service.nameEnquiry).toHaveBeenCalled();
     expect(service.transferToVerifiedAccount).not.toHaveBeenCalled();
-    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].where.balance.gte)).toBe(250);
-    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].data.balance)).toBe(750);
-    const ledger = tx.walletTransaction.create.mock.calls[0][0].data;
-    expect(Number(ledger.amount)).toBe(250);
-    expect(Number(ledger.previousBalance)).toBe(1000);
-    expect(Number(ledger.newBalance)).toBe(750);
-    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('records an accepted provider transfer as a withdrawal and debits the wallet once', async () => {
@@ -168,6 +168,12 @@ describe('ExternalBankTransferService outbound bank transfer', () => {
         status: 'PROCESSING',
       }),
     }));
+    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].where.balance.gte)).toBe(250);
+    expect(Number(tx.customerWallet.updateMany.mock.calls[0][0].data.balance)).toBe(750);
+    const ledger = tx.walletTransaction.create.mock.calls[0][0].data;
+    expect(Number(ledger.amount)).toBe(250);
+    expect(Number(ledger.previousBalance)).toBe(1000);
+    expect(Number(ledger.newBalance)).toBe(750);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(prisma.$transaction.mock.calls[0][0]).toBeInstanceOf(Function);
     expect(prisma.$transaction).toHaveBeenCalled();

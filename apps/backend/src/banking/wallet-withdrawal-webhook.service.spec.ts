@@ -76,12 +76,14 @@ describe('WalletWithdrawalWebhookService reconciliation concurrency', () => {
     );
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },
-      data: { balance: 200 },
+      data: { balance: expect.anything() },
     });
+    expect(Number(tx.customerWallet.update.mock.calls[0][0].data.balance)).toBe(200);
     expect(tx.walletTransaction.update).toHaveBeenCalledWith({
       where: { id: 'withdrawal-transaction-1' },
-      data: expect.objectContaining({ status: 'FAILED', newBalance: 200 }),
+      data: expect.objectContaining({ status: 'FAILED', newBalance: expect.anything() }),
     });
+    expect(Number(tx.walletTransaction.update.mock.calls[0][0].data.newBalance)).toBe(200);
   });
 
   it('does not restore a completed withdrawal when a contradictory failure event arrives', async () => {

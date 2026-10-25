@@ -235,6 +235,10 @@ export class ExternalBankTransferService {
     // provider. This prevents a successful payout from racing a later wallet debit.
     const xref = `${provider === 'FLUTTERWAVE' ? 'FLW' : provider === 'PAYSTACK' ? 'PAY' : 'NIP'}-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
     const reservation = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
       const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!currentWallet || currentWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
       if (currentWallet.balance < amount) throw new BadRequestException('Insufficient wallet balance');
@@ -275,6 +279,10 @@ export class ExternalBankTransferService {
 
     if (isDefinitiveFailure) {
       const reversal = await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRawUnsafe(
+          'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+          wallet.id,
+        );
         const currentWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
         if (!currentWallet) throw new NotFoundException('Customer wallet not found during transfer reversal');
         const restoredBalance = Math.round((currentWallet.balance + amount) * 100) / 100;

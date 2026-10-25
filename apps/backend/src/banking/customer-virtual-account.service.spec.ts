@@ -303,11 +303,11 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
           balance: 100.75,
           status: options?.walletStatus || 'ACTIVE',
         }),
-        update: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 226.25, status: 'ACTIVE' }),
+        update: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'wallet-1', customerId: 'customer-1', ...data, status: 'ACTIVE' })),
       },
       walletTransaction: {
         findFirst: jest.fn().mockResolvedValue(options?.duplicate || null),
-        create: jest.fn().mockResolvedValue({ id: 'txn-1', reference: 'PAYSTACK-DVA-ps_dva_test_01' }),
+        create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'txn-1', createdAt: new Date('2026-01-01T00:00:00Z'), ...data })),
       },
     };
     const prismaForDeposit = {
@@ -349,21 +349,28 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
     expect(tx.customerWallet.findUnique).toHaveBeenCalledWith({ where: { id: 'wallet-1' } });
     expect(tx.customerWallet.update).toHaveBeenCalledWith({
       where: { id: 'wallet-1' },
-      data: { balance: 226.25 },
+      data: { balance: expect.anything() },
     });
+    expect(Number(tx.customerWallet.update.mock.calls[0][0].data.balance)).toBe(226.25);
     expect(tx.walletTransaction.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         customerId: 'customer-1',
         type: 'DEPOSIT',
-        amount: 125.5,
-        previousBalance: 100.75,
-        newBalance: 226.25,
+        amount: expect.anything(),
+        previousBalance: expect.anything(),
+        newBalance: expect.anything(),
         reference: 'PAYSTACK-DVA-ps_dva_test_01',
         provider: 'PAYSTACK',
         providerReference: 'PAYSTACK-DVA-98765',
         status: 'COMPLETED',
       }),
     });
+    const ledger = tx.walletTransaction.create.mock.calls[0][0].data;
+    expect(Number(ledger.amount)).toBe(125.5);
+    expect(Number(ledger.previousBalance)).toBe(100.75);
+    expect(Number(ledger.newBalance)).toBe(226.25);
+    expect(result.wallet.balance).toBe(226.25);
+    expect(result.transaction.amount).toBe(125.5);
   });
 
   it('leaves unmapped dedicated accounts for the branch ledger handler', async () => {

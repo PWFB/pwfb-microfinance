@@ -11,13 +11,13 @@ on:
       - staging
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     env:
       DATABASE_URL: postgresql://pwfb_ci:pwfb_ci@localhost:5432/pwfb_ci
@@ -86,6 +86,27 @@ jobs:
         run: |
           IMAGE_NAME=ghcr.io/pwfb/pwfb-microfinance/backend:${{ github.sha }}
           docker build -f docker/Dockerfile.backend -t "$IMAGE_NAME" .
+
+      - name: Commit refreshed dependency lockfile after passing checks
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          refreshed_lock="$(mktemp)"
+          cp package-lock.json "$refreshed_lock"
+          git fetch origin "$PR_BRANCH:refs/remotes/origin/$PR_BRANCH"
+          git checkout --force -B "$PR_BRANCH" "origin/$PR_BRANCH"
+          cp "$refreshed_lock" package-lock.json
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Dependency lockfile is already synchronized."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: refresh security dependency lockfile"
+          git push origin "HEAD:$PR_BRANCH"
 
       - name: Login to GitHub Container Registry
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'

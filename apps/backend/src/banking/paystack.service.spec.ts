@@ -193,3 +193,50 @@ describe('Paystack transfer webhook concurrency protection', () => {
     expect(tx.customerWallet.update).not.toHaveBeenCalled();
   });
 });
+
+describe('Paystack transfer webhook conflicting status events', () => {
+  function setup(status: string) {
+    const transaction = {
+      id: 'withdrawal-2',
+      reference: 'PWFB-WITHDRAWAL-002',
+      customerId: 'customer-1',
+      type: 'WITHDRAWAL',
+      status,
+      amount: 250,
+      providerReference: '991',
+    };
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      walletTransaction: {
+        findUnique: jest.fn().mockResolvedValue(transaction),
+        update: jest.fn().mockResolvedValue({ ...transaction, status: 'COMPLETED' }),
+      },
+      customerWallet: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'wallet-2', customerId: 'customer-1', balance: 500, status: 'ACTIVE' }),
+        update: jest.fn(),
+      },
+    };
+    const prisma = { $transaction: jest.fn(async (callback: any) => callback(tx)) };
+    return { service: new PaystackService(prisma as any), tx, transaction };
+  }
+
+  it('does not mark a previously refunded withdrawal completed after a late success event', async () => {
+    const { service, tx, transaction } = setup('FAILED');
+    await expect(service.handleWebhook({
+      event: 'transfer.success',
+      data: { reference: transaction.reference, id: 991 },
+    })).resolves.toMatchObject({ ok: true, processed: false, conflict: true });
+    expect(tx.walletTransaction.update).not.toHaveBeenCalled();
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+  });
+
+  it('does not refund a completed withdrawal on a contradictory transfer.failed event', async () => {
+    const { service, tx, transaction } = setup('COMPLETED');
+    await expect(service.handleWebhook({
+      event: 'transfer.failed',
+      data: { reference: transaction.reference, id: 991 },
+    })).resolves.toMatchObject({ ok: true, processed: false, conflict: true });
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+    expect(tx.walletTransaction.update).not.toHaveBeenCalled();
+  });
+});

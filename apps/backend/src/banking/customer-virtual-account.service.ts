@@ -438,6 +438,9 @@ export class CustomerVirtualAccountService {
     if (eventName !== 'charge.success' || channel !== 'dedicated_nuban') {
       return { ok: true, processed: false, matchedCustomerAccount: false, message: 'Event is not a dedicated-account deposit' };
     }
+    if (String(data?.status || '').trim().toLowerCase() !== 'success') {
+      return { ok: true, processed: false, matchedCustomerAccount: false, message: 'Paystack payment status is not successful' };
+    }
 
     const accountNumber = String(
       data?.authorization?.receiver_bank_account_number

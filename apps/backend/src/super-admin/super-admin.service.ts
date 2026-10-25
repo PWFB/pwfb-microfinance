@@ -67,18 +67,28 @@ export class SuperAdminService {
     return this.prisma.$queryRaw<Array<{id:string;type:string;amount:number;previousBalance:number;newBalance:number;reference:string;description:string|null;createdAt:Date}>>`SELECT "id","type","amount","previousBalance","newBalance","reference","description","createdAt" FROM "pwfb_admin_wallet_transactions" WHERE "walletId"='SUPER_ADMIN_CHARGES' ORDER BY "createdAt" DESC`;
   }
 
-  async recordAdminCharge(body: { amount: number; reference?: string; description?: string }) {
-    const amount = Math.round(Number(body?.amount) * 100) / 100;
-    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Charge amount must be greater than zero');
-    const reference = String(body?.reference || `CHG-${Date.now()}-${randomUUID().slice(0,8).toUpperCase()}`).trim();
-    if (!reference) throw new BadRequestException('Charge reference is required');
+  async recordAdminCharge(body: { amount: number; reference: string; description?: string }) {
+    const rawAmount = Number(body?.amount);
+    const amountCents = Math.round((rawAmount + Number.EPSILON) * 100);
+    if (!Number.isFinite(rawAmount) || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
+      throw new BadRequestException('Charge amount must be at least ₦0.01 and within the supported money range');
+    }
+    const amount = amountCents / 100;
+    const reference = String(body?.reference ?? '').trim();
+    if (!reference) throw new BadRequestException('A transaction reference is required for charges');
     await this.ensureAdminWalletTable();
     return this.prisma.$transaction(async tx => {
       const walletRows = await tx.$queryRaw<Array<{id:string;balance:number}>>`SELECT "id","balance" FROM "pwfb_admin_wallet" WHERE "id"='SUPER_ADMIN_CHARGES' FOR UPDATE`;
       const wallet = walletRows[0];
       if (!wallet) throw new BadRequestException('Super Admin charges wallet is unavailable');
-      const previousBalance = Number(wallet.balance || 0);
-      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+      const existing = await tx.$queryRaw<Array<{id:string}>>`SELECT "id" FROM "pwfb_admin_wallet_transactions" WHERE "reference"=${reference} LIMIT 1`;
+      if (existing.length) throw new BadRequestException('Admin wallet transaction reference already exists');
+      const previousCents = Math.round((Number(wallet.balance || 0) + Number.EPSILON) * 100);
+      if (!Number.isSafeInteger(previousCents)) throw new BadRequestException('Admin wallet balance exceeds the supported money range');
+      const newBalanceCents = previousCents + amountCents;
+      if (!Number.isSafeInteger(newBalanceCents)) throw new BadRequestException('Admin wallet balance exceeds the supported money range');
+      const previousBalance = previousCents / 100;
+      const newBalance = newBalanceCents / 100;
       await tx.$executeRaw`UPDATE "pwfb_admin_wallet" SET "balance"=${newBalance}, "updatedAt"=NOW() WHERE "id"='SUPER_ADMIN_CHARGES'`;
       await tx.$executeRaw`INSERT INTO "pwfb_admin_wallet_transactions" ("id","walletId","type","amount","previousBalance","newBalance","reference","description") VALUES (${randomUUID()},'SUPER_ADMIN_CHARGES','CHARGE',${amount},${previousBalance},${newBalance},${reference},${String(body?.description || 'PWFB charge')})`;
       return { balance: newBalance, amount, reference };

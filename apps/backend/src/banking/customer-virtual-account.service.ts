@@ -527,12 +527,21 @@ export class CustomerVirtualAccountService {
         create: { customerId: account.customerId, balance: 0 },
         update: {},
       });
-      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+      // Different Paystack payment references have different advisory locks.
+      // Lock the shared wallet row and re-read its balance to prevent concurrent
+      // deposits from overwriting one another.
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while crediting Paystack deposit');
+      if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
 
-      const previousBalance = Math.round(Number(wallet.balance) * 100) / 100;
+      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
       const newBalance = Math.round((previousBalance + amount) * 100) / 100;
       const updatedWallet = await tx.customerWallet.update({
-        where: { id: wallet.id },
+        where: { id: lockedWallet.id },
         data: { balance: newBalance },
       });
       const transaction = await tx.walletTransaction.create({

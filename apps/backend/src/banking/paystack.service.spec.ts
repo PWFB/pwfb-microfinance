@@ -134,6 +134,8 @@ describe('Paystack transfer webhook concurrency protection', () => {
       type: 'WITHDRAWAL',
       status: options?.transactionStatus || 'PENDING',
       amount: 100,
+      previousBalance: 150,
+      newBalance: 50,
       providerReference: null,
     };
     const wallet = {

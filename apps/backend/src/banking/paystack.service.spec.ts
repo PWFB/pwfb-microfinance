@@ -119,3 +119,77 @@ describe('Paystack wallet deposit currency validation', () => {
     })).rejects.toThrow('Only NGN Paystack wallet payments can be credited');
   });
 });
+
+describe('Paystack transfer webhook concurrency protection', () => {
+  const failedTransferEvent = {
+    event: 'transfer.failed',
+    data: { reference: 'PWFB-WITHDRAWAL-001', id: 991, reason: 'Bank rejected transfer' },
+  };
+
+  function createTransferHarness(options?: { transactionStatus?: string; walletBalance?: number }) {
+    const withdrawal = {
+      id: 'withdrawal-1',
+      reference: 'PWFB-WITHDRAWAL-001',
+      customerId: 'customer-1',
+      type: 'WITHDRAWAL',
+      status: options?.transactionStatus || 'PENDING',
+      amount: 100,
+      providerReference: null,
+    };
+    const wallet = {
+      id: 'wallet-1',
+      customerId: 'customer-1',
+      balance: options?.walletBalance ?? 50,
+      status: 'ACTIVE',
+    };
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      walletTransaction: {
+        findUnique: jest.fn().mockResolvedValue(withdrawal),
+        update: jest.fn().mockImplementation(async ({ data }: any) => ({ ...withdrawal, ...data })),
+      },
+      customerWallet: {
+        findUnique: jest.fn().mockResolvedValue(wallet),
+        update: jest.fn().mockImplementation(async ({ data }: any) => ({ ...wallet, ...data })),
+      },
+    };
+    const prisma = { $transaction: jest.fn(async (callback: any) => callback(tx)) };
+    return { service: new PaystackService(prisma as any), prisma, tx, withdrawal, wallet };
+  }
+
+  it('locks the transfer reference before reading the transaction and locks the wallet row before refunding', async () => {
+    const { service, tx } = createTransferHarness();
+    const result = await service.handleWebhook(failedTransferEvent);
+
+    expect(result).toMatchObject({ ok: true, processed: true, action: 'FAILED' });
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      1,
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      'PAYSTACK-TRANSFER:PWFB-WITHDRAWAL-001',
+    );
+    expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
+      2,
+      'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+      'wallet-1',
+    );
+    expect(tx.customerWallet.update).toHaveBeenCalledWith({
+      where: { id: 'wallet-1' },
+      data: { balance: 150 },
+    });
+    expect(tx.walletTransaction.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'withdrawal-1' },
+      data: expect.objectContaining({ status: 'FAILED', newBalance: 150 }),
+    }));
+  });
+
+  it('does not refund an already failed withdrawal again', async () => {
+    const { service, tx } = createTransferHarness({ transactionStatus: 'FAILED' });
+    await expect(service.handleWebhook(failedTransferEvent)).resolves.toMatchObject({
+      ok: true,
+      processed: false,
+      duplicate: true,
+    });
+    expect(tx.customerWallet.findUnique).not.toHaveBeenCalled();
+    expect(tx.customerWallet.update).not.toHaveBeenCalled();
+  });
+});

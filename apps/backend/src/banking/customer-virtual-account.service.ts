@@ -257,21 +257,46 @@ export class CustomerVirtualAccountService {
     }));
 
     if (existing?.status === 'ACTIVE' && existing.accountNumber) return this.get(customerId);
-    if (existing?.status === 'PENDING' && existing.providerCustomerId) return this.get(customerId);
+    if (existing?.status === 'PENDING' && existing.providerCustomerId) {
+      // A pending provider record must not bypass explicit consent. Older records
+      // may predate consent capture; require confirmation and persist its audit time.
+      if (!existing.consentAt) {
+        if (!consentConfirmed) {
+          throw new BadRequestException('Customer consent is required before continuing Paystack virtual-account assignment');
+        }
+        await this.prisma.customerVirtualAccount.update({
+          where: { id: existing.id },
+          data: { consentAt: new Date() },
+        });
+      }
+      return this.get(customerId);
+    }
     if (!existing && !consentConfirmed) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
     if (existing && !existing.consentAt && !consentConfirmed) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
 
-    const local = existing ?? await this.prisma.customerVirtualAccount.create({
-      data: {
-        id: randomUUID(),
-        customerId,
-        institutionId: institution.id,
-        branchId: customer.branchId ?? null,
-        provider: 'PAYSTACK',
-        consentAt: new Date(),
-        status: 'PENDING',
-      },
-    });
+    let local: any;
+    if (existing) {
+      local = existing;
+      if (!existing.consentAt) {
+        // Persist the confirmation even when retrying a previously-created request.
+        local = await this.prisma.customerVirtualAccount.update({
+          where: { id: existing.id },
+          data: { institutionId: institution.id, provider: 'PAYSTACK', consentAt: new Date() },
+        });
+      }
+    } else {
+      local = await this.prisma.customerVirtualAccount.create({
+        data: {
+          id: randomUUID(),
+          customerId,
+          institutionId: institution.id,
+          branchId: customer.branchId ?? null,
+          provider: 'PAYSTACK',
+          consentAt: new Date(),
+          status: 'PENDING',
+        },
+      });
+    }
 
     const email = String(customer.email ?? customer.user?.email ?? '').trim().toLowerCase();
     if (!email || !email.includes('@')) {

@@ -46,6 +46,11 @@ export class StaffWalletService {
   }
 
   async credit(staffId: string, amountValue: number, reference?: string, description = 'Field cash issued to staff', db: any = this.prisma) {
+    // Calls from the controller must use one DB transaction for the row lock,
+    // balance update, and ledger insert. Internal callers may pass their own tx.
+    if (db === this.prisma) {
+      return this.prisma.$transaction((tx: any) => this.credit(staffId, amountValue, reference, description, tx));
+    }
     await this.ensureTables(db);
     const amount = this.amount(amountValue);
     const wallet = await this.staff(staffId, db);
@@ -57,6 +62,10 @@ export class StaffWalletService {
   }
 
   async debit(staffId: string, amountValue: number, reference?: string, description = 'Field cash received/paid by staff', db: any = this.prisma) {
+    // Keep the lock, balance mutation, and ledger insert atomic on direct calls.
+    if (db === this.prisma) {
+      return this.prisma.$transaction((tx: any) => this.debit(staffId, amountValue, reference, description, tx));
+    }
     await this.ensureTables(db);
     const amount = this.amount(amountValue);
     const wallet = await this.staff(staffId, db);

@@ -570,15 +570,15 @@ export class CustomerVirtualAccountService {
 
     if (type === 'customeridentification.failed') {
       const reason = String(data?.reason || 'Paystack customer identity validation failed').slice(0, 500);
-      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode }, select: { customerId: true } });
+      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, consentAt: { not: null } }, select: { customerId: true } });
       for (const row of rows) {
         await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'FAILED', updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, row.customerId);
       }
-      await this.prisma.customerVirtualAccount.updateMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, data: { status: 'FAILED', failureReason: reason } });
+      await this.prisma.customerVirtualAccount.updateMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', consentAt: { not: null } }, data: { status: 'FAILED', failureReason: reason } });
       return { ok: true, processed: true, status: 'FAILED', stage: 'identity' };
     }
     if (type === 'customeridentification.success') {
-      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING' }, include: { customer: true } });
+      const rows = await this.prisma.customerVirtualAccount.findMany({ where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: 'PENDING', consentAt: { not: null } }, include: { customer: true } });
       for (const row of rows) {
         await this.prisma.$executeRawUnsafe(`UPDATE customer_identity_verifications SET bvn_status = 'VERIFIED', bvn_verified_at = NOW(), updated_at = NOW() WHERE customer_id = $1 AND bvn_status = 'PENDING'`, row.customerId);
       }
@@ -603,7 +603,7 @@ export class CustomerVirtualAccountService {
     if (type === 'dedicatedaccount.assign.failed') {
       const reason = String(data?.reason || 'Paystack DVA assignment failed').slice(0, 500);
       await this.prisma.customerVirtualAccount.updateMany({
-        where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' } },
+        where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' }, consentAt: { not: null } },
         data: { status: 'FAILED', failureReason: reason },
       });
       await this.prisma.staffVirtualAccount.updateMany({
@@ -622,7 +622,7 @@ export class CustomerVirtualAccountService {
     const assignedAt = new Date();
 
     await this.prisma.customerVirtualAccount.updateMany({
-      where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' } },
+      where: { provider: 'PAYSTACK', providerCustomerId: customerCode, status: { not: 'ACTIVE' }, consentAt: { not: null } },
       data: { accountNumber, accountName, providerBankName: bankName, providerReference, status: 'ACTIVE', assignedAt, failureReason: null },
     });
     await this.prisma.staffVirtualAccount.updateMany({

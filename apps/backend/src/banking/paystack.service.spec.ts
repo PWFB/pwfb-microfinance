@@ -87,3 +87,35 @@ describe('Paystack staff identity webhook reconciliation', () => {
     expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled();
   });
 });
+
+
+describe('Paystack wallet deposit currency validation', () => {
+  it('rejects a successful payment in a non-NGN currency before touching the wallet', async () => {
+    const service = new PaystackService({} as any);
+    await expect((service as any).handleWebhook({
+      event: 'charge.success',
+      data: {
+        status: 'success',
+        currency: 'USD',
+        amount: 10000,
+        reference: 'foreign-currency-ref',
+        id: 12345,
+        metadata: { customerId: 'customer-1' },
+      },
+    })).rejects.toThrow('Only NGN Paystack wallet payments can be credited');
+  });
+
+  it('rejects a successful payment when currency is missing', async () => {
+    const service = new PaystackService({} as any);
+    await expect((service as any).handleWebhook({
+      event: 'charge.success',
+      data: {
+        status: 'success',
+        amount: 10000,
+        reference: 'missing-currency-ref',
+        id: 12346,
+        metadata: { customerId: 'customer-1' },
+      },
+    })).rejects.toThrow('Only NGN Paystack wallet payments can be credited');
+  });
+});

@@ -5,6 +5,8 @@ describe('StaffWalletService transaction safety', () => {
     const tx = {
       $executeRawUnsafe: jest.fn().mockResolvedValue(1),
       $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([]) // advisory lock
+        .mockResolvedValueOnce([]) // no duplicate reference
         .mockResolvedValueOnce([]) // no existing staff wallet
         .mockResolvedValueOnce([{ id: 'staff-1', branchId: 'branch-1', employmentStatus: 'ACTIVE' }])
         .mockResolvedValueOnce([{ id: 'wallet-1', staffId: 'staff-1', branchId: 'branch-1', balance: 0 }])
@@ -45,6 +47,29 @@ describe('StaffWalletService transaction safety', () => {
       amount: 250,
       newBalance: 250,
     });
+  });
+
+  it('rejects a duplicate transaction reference before changing the balance', async () => {
+    const tx = {
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([]) // advisory lock
+        .mockResolvedValueOnce([{ id: 'existing-tx' }]), // reference already used
+    };
+    const prisma: any = {
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $transaction: jest.fn(async (callback: (client: any) => unknown) => callback(tx)),
+    };
+    const service = new StaffWalletService(prisma);
+
+    await expect(service.credit('staff-1', 250, 'DUPLICATE-REF')).rejects.toThrow(
+      'Staff wallet transaction reference already exists',
+    );
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE staff_wallets'),
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
   it('rejects a settlement when the locked balance is insufficient', async () => {

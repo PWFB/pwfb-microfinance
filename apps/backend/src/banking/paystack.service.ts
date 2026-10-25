@@ -416,10 +416,20 @@ export class PaystackService {
       const duplicate = await tx.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
       if (duplicate) return { ok: true, processed: false, duplicate: true, transactionId: duplicate.id, reference: duplicate.reference };
       const wallet = await tx.customerWallet.upsert({ where: { customerId }, create: { customerId, balance: 0 }, update: {} });
-      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
-      const newBalance = Math.round((wallet.balance + amount) * 100) / 100;
-      const updatedWallet = await tx.customerWallet.update({ where: { id: wallet.id }, data: { balance: newBalance } });
-      const transaction = await tx.walletTransaction.create({ data: { customerId, type: 'DEPOSIT', amount, previousBalance: wallet.balance, newBalance, reference: `PAY-${reference}`, description: 'Paystack wallet deposit', status: 'COMPLETED', provider: 'PAYSTACK', providerReference, processedAt: new Date() } });
+      // Different successful payments use different provider-reference locks.
+      // Lock the shared wallet row and re-read the balance to prevent a
+      // concurrent deposit from overwriting another payment's balance update.
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+        wallet.id,
+      );
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while crediting Paystack payment');
+      if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+      const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
+      const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+      const updatedWallet = await tx.customerWallet.update({ where: { id: lockedWallet.id }, data: { balance: newBalance } });
+      const transaction = await tx.walletTransaction.create({ data: { customerId, type: 'DEPOSIT', amount, previousBalance, newBalance, reference: `PAY-${reference}`, description: 'Paystack wallet deposit', status: 'COMPLETED', provider: 'PAYSTACK', providerReference, processedAt: new Date() } });
       return { ok: true, processed: true, transaction, wallet: updatedWallet };
     });
   }

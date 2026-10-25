@@ -342,6 +342,13 @@ export class PaystackService {
       if (!reference) throw new BadRequestException('Paystack transfer webhook is missing reference');
       if (!['transfer.success','transfer.failed','transfer.reversed'].includes(eventName)) return { ok: true, processed: false, message: 'Transfer event ignored' };
       return this.prisma.$transaction(async (tx) => {
+        // A single provider transfer can be delivered more than once or with
+        // concurrent status events. Serialize state transitions for the
+        // reference before reading the wallet transaction.
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          `PAYSTACK-TRANSFER:${reference}`,
+        );
         const transaction = await tx.walletTransaction.findUnique({ where: { reference } });
         if (!transaction) return { ok: true, processed: false, message: 'Withdrawal transaction not found', reference };
         if (transaction.type !== 'WITHDRAWAL') return { ok: true, processed: false, message: 'Referenced transaction is not a withdrawal', reference };
@@ -353,8 +360,17 @@ export class PaystackService {
         if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') return { ok: true, processed: false, duplicate: true, transaction };
         const wallet = await tx.customerWallet.findUnique({ where: { customerId: transaction.customerId } });
         if (!wallet) throw new BadRequestException('Customer wallet not found while reversing Paystack withdrawal');
-        const restoredBalance = Math.round((wallet.balance + transaction.amount) * 100) / 100;
-        const updatedWallet = await tx.customerWallet.update({ where: { id: wallet.id }, data: { balance: restoredBalance } });
+        // Different withdrawals for the same customer have different reference
+        // locks; lock the wallet row too so two refunds cannot overwrite each
+        // other's balance update.
+        await tx.$queryRawUnsafe(
+          'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
+          wallet.id,
+        );
+        const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+        if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while reversing Paystack withdrawal');
+        const restoredBalance = Math.round((Number(lockedWallet.balance) + Number(transaction.amount)) * 100) / 100;
+        const updatedWallet = await tx.customerWallet.update({ where: { id: lockedWallet.id }, data: { balance: restoredBalance } });
         const status = eventName === 'transfer.reversed' ? 'REVERSED' : 'FAILED';
         const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status, provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, failureReason: String(transfer?.reason || transfer?.message || 'Paystack reported a failed or reversed transfer'), reversedAt: new Date(), processedAt: new Date(), newBalance: restoredBalance } });
         return { ok: true, processed: true, action: status, wallet: updatedWallet, transaction: updated };

@@ -69,7 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const nativeApp = /PWFBAndroidApp/i.test(ua);
     // Return to the public frontend root; this deployment does not expose a /login page.
-    const loginUrl = "https://pwfb-microfinance-965u.onrender.com/";
+    const loginUrl = `${window.location.origin}/`;
     if (nativeApp) {
       window.location.href = "pwfb://open-app?logout=1&url=" + encodeURIComponent(loginUrl);
       window.setTimeout(() => router.replace("/"), 700);

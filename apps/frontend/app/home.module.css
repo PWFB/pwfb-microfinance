@@ -487,3 +487,36 @@
 .header .brandText::first-line {
   color: #f28c18 !important;
 }
+
+
+/* Final LAB landing-page brand sizing and two-tone wordmark */
+.header .brand {
+  gap: 0;
+}
+.header .brandLogo {
+  width: clamp(230px, 24vw, 310px) !important;
+  max-height: 82px;
+  height: auto;
+  object-fit: contain;
+}
+.header .brandText {
+  display: none !important;
+}
+.hero .heroLogo {
+  width: min(520px, 88vw) !important;
+  max-height: 150px;
+  object-fit: contain;
+  margin-bottom: 16px;
+}
+.hero .heroBrand h1 {
+  color: #ffffff !important;
+}
+@media (max-width: 640px) {
+  .header .brandLogo {
+    width: min(270px, 82vw) !important;
+    max-height: 72px;
+  }
+  .hero .heroLogo {
+    width: min(440px, 90vw) !important;
+  }
+}

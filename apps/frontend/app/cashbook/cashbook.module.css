@@ -55,3 +55,66 @@
     border-radius: 14px;
   }
 }
+
+
+/* High-contrast cashbook controls, especially on mobile screens. */
+.cashbookPage .field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  color: #111827 !important;
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+
+.cashbookPage .field input,
+.cashbookPage .field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0.65rem 0.75rem;
+  border: 2px solid #475569 !important;
+  border-radius: 0.65rem;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  font-size: 1rem;
+  font-weight: 650;
+  opacity: 1;
+  color-scheme: light;
+}
+
+.cashbookPage .field select option {
+  background: #ffffff;
+  color: #111827;
+}
+
+.cashbookPage .cashbookAmountInput {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0.65rem 0.7rem;
+  border: 2px solid #334155;
+  border-radius: 0.65rem;
+  background: #ffffff;
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 800;
+  text-align: right;
+  opacity: 1;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+  color-scheme: light;
+}
+
+.cashbookPage .cashbookAmountInput:focus {
+  border-color: #047857;
+  outline: 3px solid rgba(4, 120, 87, 0.2);
+  outline-offset: 1px;
+}
+
+@media (max-width: 420px) {
+  .cashbookPage .cashbookAmountInput {
+    padding-inline: 0.45rem;
+    font-size: 0.95rem;
+  }
+}

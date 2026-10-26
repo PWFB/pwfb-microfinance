@@ -31,14 +31,16 @@ export default function StaffRolesPage() {
         {roles.map(([name,description])=><button type="button" key={name} onClick={()=>setSelectedRole(name)} aria-pressed={selectedRole===name} className="rounded-xl border border-slate-300 bg-white p-5 text-left transition hover:border-orange-500 hover:bg-orange-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500" style={{cursor:'pointer',color:'#111827',minHeight:110,boxShadow:selectedRole===name?'0 0 0 2px #f28c18':'none'}}><strong>{name.replaceAll('_',' ')}</strong><p className="mt-2 text-sm" style={{color:'#475569'}}>{description}</p><span className="mt-3 inline-block text-xs font-bold" style={{color:'#0b612b'}}>View role details →</span></button>)}
       </div>
     </section>
-    {selected && <section className="pwfb-panel mt-5" aria-live="polite">
-      <div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">ROLE DETAILS</p><h2>{selected[0].replaceAll('_',' ')}</h2><p>{selected[1]}</p></div><button type="button" className="pwfb-secondary-button" onClick={()=>setSelectedRole(null)}>Close details</button></div>
-      <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-xl border border-slate-200 p-4"><strong>Role key</strong><p className="mt-2 break-all">{selected[0]}</p></div>
-        <div className="rounded-xl border border-slate-200 p-4"><strong>Purpose</strong><p className="mt-2">{selected[1]}</p></div>
-        <div className="rounded-xl border border-slate-200 p-4 sm:col-span-2"><strong>Manage access</strong><p className="mt-2">Use the operational permission matrix to review the permission switches assigned to each supported role. Role descriptions do not grant permissions by themselves.</p><Link href="/permissions" className="pwfb-primary-button mt-3 inline-flex">Open Access Control / Permissions</Link></div>
-        <div className="sm:col-span-2"><Link href="/staff" className="pwfb-secondary-button">View Staff Register</Link> <Link href="/staff/add" className="pwfb-primary-button ml-2">Assign role to new staff</Link></div>
-      </div>
-    </section>}
+    {selected && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-3 sm:p-6" role="presentation" onClick={(event)=>{if(event.target===event.currentTarget)setSelectedRole(null);}}>
+      <section role="dialog" aria-modal="true" aria-labelledby="pwfb-role-details-title" className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 text-slate-900 shadow-2xl sm:p-6" aria-live="polite">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-4"><div><p className="pwfb-eyebrow">ROLE DETAILS</p><h2 id="pwfb-role-details-title" className="text-xl font-bold">{selected[0].replaceAll('_',' ')}</h2><p className="mt-2 text-slate-600">{selected[1]}</p></div><button type="button" className="pwfb-secondary-button shrink-0" onClick={()=>setSelectedRole(null)} aria-label="Close role details">Close ✕</button></div>
+        <div className="grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 p-4"><strong>Role key</strong><p className="mt-2 break-all">{selected[0]}</p></div>
+          <div className="rounded-xl border border-slate-200 p-4"><strong>Purpose</strong><p className="mt-2">{selected[1]}</p></div>
+          <div className="rounded-xl border border-slate-200 p-4 sm:col-span-2"><strong>Manage access</strong><p className="mt-2 text-slate-700">Review the permission switches on the operational permission matrix. This description does not itself grant or change permissions.</p><Link href="/permissions" className="pwfb-primary-button mt-3 inline-flex">Open Access Control / Permissions</Link></div>
+          <div className="flex flex-wrap gap-2 sm:col-span-2"><Link href="/staff" className="pwfb-secondary-button">View Staff Register</Link><Link href="/staff/add" className="pwfb-primary-button">Assign role to new staff</Link></div>
+        </div>
+      </section>
+    </div>}
   </main>;
 }

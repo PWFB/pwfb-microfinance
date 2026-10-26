@@ -154,3 +154,111 @@
   .pwfb-content main .pwfb-panel a[style*="min-height: 82px"]:hover,
   .pwfb-content main .pwfb-operation-control-card:hover { transform: none; }
 }
+
+
+/* Accessible high-contrast controls and table columns across authenticated PWFB workspaces.
+   Keep the selectors scoped to the app shell so public login/registration styling is not altered. */
+.pwfb-content main :is(input, select, textarea, .pwfb-input, .input, .audit-input) {
+  box-sizing: border-box !important;
+  min-height: 44px;
+  border: 2px solid #475569 !important;
+  border-radius: 10px !important;
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827;
+  font-size: 14px;
+  font-weight: 650;
+  opacity: 1 !important;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, .06);
+}
+
+.pwfb-content main textarea {
+  min-height: 100px;
+  padding: 10px 12px !important;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.pwfb-content main :is(input, select, textarea, .pwfb-input, .input, .audit-input)::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b;
+  opacity: 1 !important;
+  font-weight: 500;
+}
+
+.pwfb-content main :is(input, select, textarea, .pwfb-input, .input, .audit-input):focus {
+  border-color: #047857 !important;
+  outline: 3px solid rgba(4, 120, 87, .2) !important;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px #047857, 0 0 0 4px rgba(4, 120, 87, .12) !important;
+}
+
+.pwfb-content main select,
+.pwfb-content main select option {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827;
+}
+
+.pwfb-content main :is(input, select, textarea):disabled {
+  background-color: #eef2f0 !important;
+  color: #475569 !important;
+  -webkit-text-fill-color: #475569;
+  border-color: #94a3b8 !important;
+  cursor: not-allowed;
+}
+
+.pwfb-content main :is(label, .field, .form-label, .label) {
+  color: #1f2937;
+  font-weight: 750;
+}
+
+.pwfb-content main :is(.pwfb-table, table) {
+  border: 1px solid #64748b !important;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.pwfb-content main :is(.pwfb-table, table) thead th {
+  color: #111827 !important;
+  background: #e8eeea !important;
+  font-weight: 900 !important;
+  border: 1px solid #64748b !important;
+  border-bottom: 2px solid #475569 !important;
+  text-shadow: none !important;
+}
+
+.pwfb-content main :is(.pwfb-table, table) tbody td,
+.pwfb-content main :is(.pwfb-table, table) tfoot td {
+  color: #111827;
+  border-right: 1px solid #cbd5e1 !important;
+  border-bottom: 1px solid #cbd5e1 !important;
+  font-weight: 600;
+}
+
+.pwfb-content main :is(.pwfb-table, table) tbody tr:nth-child(even) td {
+  background-color: #f8faf9;
+}
+
+.pwfb-content main :is(.pwfb-table, table) tbody tr:hover td {
+  background-color: #fff7ed;
+}
+
+.pwfb-content main :is(.pwfb-table, table) :is(th, td) {
+  vertical-align: middle;
+}
+
+.pwfb-content main :is(.pwfb-table, table) :is(button, a) {
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .pwfb-content main :is(input, select, textarea, .pwfb-input, .input, .audit-input) {
+    min-height: 46px;
+    font-size: 16px;
+  }
+
+  .pwfb-content main :is(.pwfb-table, table) {
+    font-size: 12px;
+  }
+}

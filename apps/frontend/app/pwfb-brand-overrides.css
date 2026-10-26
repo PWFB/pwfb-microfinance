@@ -262,3 +262,84 @@
     font-size: 12px;
   }
 }
+
+
+/* FINAL DESKTOP DRAWER FIX (staging):
+   The earlier sidebar-scroll-fix.css Super Admin selector restores a 190px
+   left gutter after the drawer rules. Override it last on desktop only.
+   Mobile/Android breakpoints and markup are intentionally unchanged. */
+@media (min-width: 1024px) {
+  .pwfb-shell {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .pwfb-shell .pwfb-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+    width: 280px !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    z-index: 100 !important;
+    transform: translateX(-105%) !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+    overflow: hidden !important;
+    transition: transform .22s ease, visibility .22s ease !important;
+  }
+
+  .pwfb-shell.pwfb-shell-sidebar-open .pwfb-sidebar {
+    transform: translateX(0) !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  .pwfb-shell .pwfb-main,
+  .pwfb-shell.pwfb-shell-super-admin .pwfb-main,
+  .pwfb-shell.pwfb-shell-sidebar-closed .pwfb-main,
+  .pwfb-shell.pwfb-shell-sidebar-open .pwfb-main {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    margin-left: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  .pwfb-shell .pwfb-content {
+    width: 100% !important;
+    min-height: calc(100dvh - 62px) !important;
+    box-sizing: border-box !important;
+  }
+
+  .pwfb-shell .pwfb-sidebar-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 90 !important;
+    display: block !important;
+    border: 0 !important;
+    padding: 0 !important;
+    background: rgba(0, 0, 0, .42) !important;
+    cursor: pointer !important;
+  }
+
+  .pwfb-shell .pwfb-sidebar-close {
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    cursor: pointer !important;
+  }
+
+  .pwfb-shell .pwfb-menu-button {
+    display: grid !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+  }
+}

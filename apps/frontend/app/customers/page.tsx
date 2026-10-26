@@ -81,38 +81,36 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <section className="pwfb-panel" style={{ marginBottom: 18, background: "linear-gradient(135deg,#075c32 0%,#0b7441 100%)", color: "#fff", border: "none", boxShadow: "0 14px 34px rgba(7,92,50,.16)" }}>
-        <div style={{ padding: "22px 20px 16px" }}>
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 800, letterSpacing: 1.4, opacity: .82 }}>OPERATIONAL CONTROL CENTER</p>
-          <h2 style={{ margin: "6px 0 4px", color: "#fff", fontSize: 24 }}>Daily Operations</h2>
-          <p style={{ margin: 0, color: "rgba(255,255,255,.78)" }}>Quick access to customer, loan, staff, savings and daily transaction operations.</p>
+      <section aria-label="Customer shortcuts" className="pwfb-panel" style={{ marginBottom: 18, overflow: "hidden", border: "1px solid #f3d5bd", background: "linear-gradient(110deg,#fffaf6 0%,#ffffff 62%,#fff4e9 100%)" }}>
+        <div style={{ padding: "20px 20px 14px", display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <div><p style={{ margin: 0, fontSize: 11, fontWeight: 800, letterSpacing: 1.3, color: "#b45309" }}>QUICK ACTIONS</p><h2 style={{ margin: "5px 0 4px", color: "#182230", fontSize: 21 }}>Customer operations</h2><p style={{ margin: 0, color: "#667085", fontSize: 14 }}>Jump directly to the service you need.</p></div>
+          <Link href="/customers/add" className="pwfb-primary-button">+ Register customer</Link>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 10, padding: "0 20px 20px" }}>
-          {operations.map((item) => (
-            <Link key={item.label} href={item.href} style={{ textDecoration: "none", color: "#fff", background: "rgba(255,255,255,.11)", border: "1px solid rgba(255,255,255,.16)", borderRadius: 14, padding: "14px 12px", minHeight: 92, transition: "transform .15s ease,background .15s ease" }}>
-              <span style={{ display: "flex", width: 34, height: 34, alignItems: "center", justifyContent: "center", borderRadius: 10, background: "rgba(255,255,255,.15)", fontSize: 18, fontWeight: 800 }}>{item.icon}</span>
-              <strong style={{ display: "block", marginTop: 10, fontSize: 14 }}>{item.label}</strong>
-              <small style={{ display: "block", marginTop: 3, color: "rgba(255,255,255,.68)", lineHeight: 1.3 }}>{item.description}</small>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(145px,1fr))", gap: 10, padding: "0 20px 20px" }}>
+          {operations.filter((item) => item.label !== "Customer").map((item) => (
+            <Link key={item.label} href={item.href} style={{ display: "flex", alignItems: "center", gap: 11, textDecoration: "none", color: "#182230", background: "#fff", border: "1px solid #eaecf0", borderRadius: 12, padding: "12px", minHeight: 68 }}>
+              <span style={{ display: "flex", flexShrink: 0, width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 10, background: "#fff0e3", color: "#b54708", fontSize: 18, fontWeight: 800 }}>{item.icon}</span>
+              <span><strong style={{ display: "block", fontSize: 13 }}>{item.label}</strong><small style={{ display: "block", marginTop: 3, color: "#667085", lineHeight: 1.3 }}>{item.description}</small></span>
             </Link>
           ))}
         </div>
       </section>
 
-      <section className="pwfb-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))", marginBottom: 18 }}>
-        <div className="pwfb-stat-card"><span>Total Customers</span><strong>{loading ? "—" : customers.length.toLocaleString()}</strong><small>All registered customers</small></div>
-        <div className="pwfb-stat-card"><span>Active</span><strong>{loading ? "—" : active.toLocaleString()}</strong><small>Currently active profiles</small></div>
-        <div className="pwfb-stat-card pwfb-stat-orange"><span>Inactive</span><strong>{loading ? "—" : (customers.length - active).toLocaleString()}</strong><small>Require attention</small></div>
-        <div className="pwfb-stat-card"><span>Workspace</span><strong>{loading ? "Checking" : loadError ? "Unavailable" : "Connected"}</strong><small>{loadError ? "Customer records could not be loaded" : "Customer records connection status"}</small></div>
+      <section aria-label="Customer summary" className="pwfb-stat-grid" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12, marginBottom: 18 }}>
+        <div className="pwfb-stat-card" style={{ borderTop: "3px solid #f97316", padding: 18 }}><span style={{ color: "#667085", fontSize: 13, fontWeight: 700 }}>Total customers</span><strong style={{ display: "block", marginTop: 9, color: "#101828", fontSize: 29 }}>{loading ? "—" : customers.length.toLocaleString()}</strong><small style={{ color: "#667085" }}>All registered profiles</small></div>
+        <div className="pwfb-stat-card" style={{ borderTop: "3px solid #16a34a", padding: 18 }}><span style={{ color: "#667085", fontSize: 13, fontWeight: 700 }}>Active customers</span><strong style={{ display: "block", marginTop: 9, color: "#101828", fontSize: 29 }}>{loading ? "—" : active.toLocaleString()}</strong><small style={{ color: "#667085" }}>Profiles marked active</small></div>
+        <div className="pwfb-stat-card" style={{ borderTop: "3px solid #d97706", padding: 18 }}><span style={{ color: "#667085", fontSize: 13, fontWeight: 700 }}>Inactive customers</span><strong style={{ display: "block", marginTop: 9, color: "#101828", fontSize: 29 }}>{loading ? "—" : (customers.length - active).toLocaleString()}</strong><small style={{ color: "#667085" }}>Profiles needing review</small></div>
+        <div className="pwfb-stat-card" style={{ borderTop: `3px solid ${loadError ? "#dc2626" : "#64748b"}`, padding: 18 }}><span style={{ color: "#667085", fontSize: 13, fontWeight: 700 }}>Records connection</span><strong style={{ display: "block", marginTop: 9, color: loadError ? "#b42318" : "#101828", fontSize: 22 }}>{loading ? "Checking…" : loadError ? "Unavailable" : "Connected"}</strong><small style={{ color: "#667085" }}>{loadError ? "Unable to retrieve records" : "Customer service status"}</small></div>
       </section>
 
       <section className="pwfb-panel" style={{ marginBottom: 18 }}>
-        <div className="pwfb-panel-header" style={{ alignItems: "center" }}>
-          <div><h2>Customer workspace</h2><p>Find a customer quickly or switch between the main directory and recent records.</p></div>
-          <span className="pwfb-record-count" style={{ background: "#e9f7ef", color: "#126b35", borderRadius: 999, padding: "8px 12px", fontWeight: 800, whiteSpace: "nowrap" }}>{filtered.length} matching</span>
+        <div className="pwfb-panel-header" style={{ alignItems: "center", padding: "18px 20px", borderBottom: "1px solid #eaecf0" }}>
+          <div><p style={{ margin: "0 0 5px", color: "#b45309", fontSize: 11, fontWeight: 800, letterSpacing: 1.1 }}>DIRECTORY & SEARCH</p><h2 style={{ margin: 0, color: "#101828", fontSize: 20 }}>Customer workspace</h2><p style={{ margin: "5px 0 0", color: "#667085", fontSize: 14 }}>Search profiles, filter by status, or switch to recent registrations.</p></div>
+          <span className="pwfb-record-count" style={{ background: "#fff0e3", color: "#9a3412", borderRadius: 999, padding: "8px 12px", fontWeight: 800, whiteSpace: "nowrap" }}>{filtered.length} {filtered.length === 1 ? "match" : "matches"}</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 12, alignItems: "end", padding: "0 18px 18px" }}>
-          <label style={{ fontWeight: 700, color: "#126b35" }}>Search customer<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, phone, email or customer ID" style={{ display: "block", width: "100%", marginTop: 7, padding: "12px 13px", border: "1px solid #d0d5dd", borderRadius: 11, boxSizing: "border-box" }} /></label>
-          <label style={{ fontWeight: 700, color: "#126b35" }}>Status<select value={status} onChange={(e) => setStatus(e.target.value)} style={{ display: "block", width: "100%", marginTop: 7, padding: "12px 13px", border: "1px solid #d0d5dd", borderRadius: 11, background: "#fff", boxSizing: "border-box" }}><option value="all">All customers</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 14, alignItems: "end", padding: "18px 20px 20px" }}>
+          <label style={{ fontWeight: 700, color: "#344054", fontSize: 13 }}>Search customers<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, phone, email or customer ID" style={{ display: "block", width: "100%", marginTop: 7, padding: "12px 13px", border: "1px solid #d0d5dd", borderRadius: 10, background: "#fff", color: "#101828", outlineColor: "#f97316", boxSizing: "border-box" }} /></label>
+          <label style={{ fontWeight: 700, color: "#344054", fontSize: 13 }}>Customer status<select value={status} onChange={(e) => setStatus(e.target.value)} style={{ display: "block", width: "100%", marginTop: 7, padding: "12px 13px", border: "1px solid #d0d5dd", borderRadius: 10, background: "#fff", color: "#101828", boxSizing: "border-box" }}><option value="all">All customers</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label>
           <div style={{ display: "flex", gap: 7 }}><button type="button" onClick={() => setView("directory")} style={{ padding: "11px 14px", borderRadius: 10, border: "1px solid #d0d5dd", background: view === "directory" ? "#e9f7ef" : "#fff", color: "#126b35", fontWeight: 800 }}>Directory</button><button type="button" onClick={() => setView("recent")} style={{ padding: "11px 14px", borderRadius: 10, border: "1px solid #d0d5dd", background: view === "recent" ? "#e9f7ef" : "#fff", color: "#126b35", fontWeight: 800 }}>Recent</button></div>
         </div>
       </section>

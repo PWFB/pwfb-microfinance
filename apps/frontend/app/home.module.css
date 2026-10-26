@@ -478,3 +478,12 @@
     forced-color-adjust: auto;
   }
 }
+
+
+/* LAB brand color correction: orange and white wordmark on the public landing page */
+.header .brandText {
+  color: #f28c18 !important;
+}
+.header .brandText::first-line {
+  color: #f28c18 !important;
+}

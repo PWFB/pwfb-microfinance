@@ -125,3 +125,14 @@ html[data-theme="dark"] textarea::placeholder { color: #9caf9f !important; opaci
   .pwfb-menu-button { flex: 0 0 40px; }
   .pwfb-content { width: 100%; }
 }
+
+
+/* Desktop parity with the Android slide-out sidebar.
+   Keep these changes desktop-only so Android's existing layout stays unchanged. */
+@media (min-width:801px){
+  .pwfb-sidebar{width:280px}
+  .pwfb-sidebar-close{display:block}
+  .pwfb-main{width:100%;margin-left:0}
+  .pwfb-content{width:100%;min-height:calc(100vh - 70px)}
+  .pwfb-sidebar-overlay{display:block;position:fixed;inset:0;z-index:49;border:0;background:rgba(0,0,0,.42)}
+}

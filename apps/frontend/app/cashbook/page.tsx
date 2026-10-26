@@ -142,7 +142,7 @@ export default function CashbookPage(){
     <div className="mx-auto max-w-[1900px]">
       <header className="mb-4 rounded-2xl border bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><p className="text-xs font-black tracking-[.18em] text-emerald-700">PERFECT WISDOM FOR BETTER MICROFINANCE</p><h1 className="text-2xl font-black text-emerald-950">Cash Book</h1><p className="text-sm text-slate-500">Finance Services · physical PWFB cashbook layout.</p></div>
+          <div><h1 className="text-2xl font-black text-emerald-950">Cash Book</h1><p className="text-sm text-slate-600">Finance Services · physical PWFB cashbook layout.</p></div>
           <div className="flex gap-2"><Link href="/dashboard" className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white">Dashboard</Link><Link href="/staff-wallet" className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-black text-white">Staff Wallet</Link></div>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -224,9 +224,17 @@ export default function CashbookPage(){
 }
 
 function InputGroup({title,items,form,set,payment=false}:{title:string;items:readonly (readonly [string,string])[];form:any;set:(k:string,v:string)=>void;payment?:boolean}){
-  return <div className={`rounded-xl border ${payment?"border-orange-200":"border-emerald-200"}`}>
-    <div className={`border-b p-3 font-black ${payment?"bg-orange-50 text-orange-800":"bg-emerald-50 text-emerald-900"}`}>{title}</div>
-    <div className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3">{items.map(([k,l])=><label className="field" key={k}>{l}<input type="number" min="0" step="0.01" value={form[k]||"0"} onChange={e=>set(k,e.target.value)}/></label>)}</div>
+  return <div className={`rounded-xl border ${payment?"border-orange-300":"border-emerald-300"}`}>
+    <div className={`border-b p-3 font-black ${payment?"bg-orange-100 text-orange-950":"bg-emerald-100 text-emerald-950"}`}>{title}</div>
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(112px,0.8fr)] gap-3 border-b bg-slate-100 px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-800">
+      <span>Cashbook item</span><span className="text-right">Amount (₦)</span>
+    </div>
+    <div className="divide-y divide-slate-200">
+      {items.map(([k,l])=><div key={k} className="grid grid-cols-[minmax(0,1fr)_minmax(112px,0.8fr)] items-center gap-3 px-3 py-2">
+        <label htmlFor={`cashbook-${k}`} className="text-sm font-bold text-slate-900">{l}</label>
+        <input id={`cashbook-${k}`} className={styles.cashbookAmountInput} aria-label={`${l} amount in naira`} type="number" min="0" step="0.01" inputMode="decimal" value={form[k]||"0"} onChange={e=>set(k,e.target.value)}/>
+      </div>)}
+    </div>
   </div>;
 }
 

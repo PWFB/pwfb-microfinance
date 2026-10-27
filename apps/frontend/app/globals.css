@@ -136,3 +136,80 @@ html[data-theme="dark"] textarea::placeholder { color: #9caf9f !important; opaci
   .pwfb-content{width:100%;min-height:calc(100vh - 70px)}
   .pwfb-sidebar-overlay{display:block;position:fixed;inset:0;z-index:49;border:0;background:rgba(0,0,0,.42)}
 }
+
+
+/* Customer profile: consistent PWFB orange + green design system */
+.customer-profile-page {
+  background: linear-gradient(145deg, rgba(15,123,53,.045), rgba(242,140,24,.055) 55%, transparent);
+  border-radius: 22px;
+}
+.customer-profile-page .profile-title h1 { color: var(--pwfb-green-dark); }
+.customer-profile-page .profile-title .pwfb-eyebrow { color: var(--pwfb-orange-dark); }
+.customer-profile-page .customer-photo-card {
+  border: 1px solid #f4c58c;
+  border-left: 6px solid var(--pwfb-orange);
+  background: linear-gradient(110deg, #fff4e5 0%, #fff 56%, #eaf7ef 100%);
+}
+.customer-profile-page .profile-info-card,
+.customer-profile-page section:not(.customer-photo-card) {
+  border: 1px solid #cfe3d5 !important;
+  border-top: 3px solid var(--pwfb-green) !important;
+  background: #fff !important;
+  box-shadow: 0 5px 18px rgba(10,92,40,.07), 0 2px 8px rgba(242,140,24,.04) !important;
+}
+.customer-profile-page section h2,
+.customer-profile-page section h3 { color: var(--pwfb-green-dark); }
+.customer-profile-page .section-icon {
+  background: var(--pwfb-orange-light);
+  color: var(--pwfb-orange-dark);
+  border: 1px solid #f6d2a5;
+}
+.customer-profile-page .profile-info-item {
+  border-top-color: #e5efe8;
+}
+.customer-profile-page .profile-info-item strong { color: #173b27; }
+.customer-profile-page .profile-info-item span { color: #53685a; }
+.customer-profile-page .section-edit {
+  border-color: #f3c58d;
+  background: var(--pwfb-orange-light);
+  color: #9a4b00;
+}
+.customer-profile-page .customer-photo-kicker { color: var(--pwfb-green-dark); }
+.customer-profile-page .customer-photo-avatar {
+  box-shadow: 0 0 0 2px var(--pwfb-orange), 0 0 0 6px #eaf7ef, 0 8px 20px rgba(10,92,40,.12);
+}
+.customer-profile-page .customer-photo-initials {
+  background: var(--pwfb-green-light);
+  color: var(--pwfb-green-dark);
+}
+.customer-profile-page .customer-photo-buttons button:not(.camera-button) {
+  background: linear-gradient(135deg, var(--pwfb-orange), var(--pwfb-orange-dark));
+  border-color: var(--pwfb-orange-dark);
+}
+.customer-profile-page .customer-photo-buttons button.camera-button {
+  background: var(--pwfb-green-light);
+  border-color: #a9d4b5;
+  color: var(--pwfb-green-dark);
+}
+.customer-profile-page .profile-actions :global(a:first-child) {
+  background: var(--pwfb-green-light);
+  border-color: #a9d4b5;
+  color: var(--pwfb-green-dark);
+}
+.customer-profile-page .profile-actions :global(button:first-of-type) {
+  background: linear-gradient(135deg, var(--pwfb-orange), var(--pwfb-orange-dark));
+  border-color: var(--pwfb-orange-dark);
+}
+.customer-profile-page .profile-actions :global(button:not(:first-of-type)) {
+  border-color: #cfe0d5;
+  color: var(--pwfb-green-dark);
+}
+.customer-profile-page .profile-info-card .section-heading {
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e5efe8;
+}
+.customer-profile-page .profile-info-card .section-heading h2 { color: var(--pwfb-green-dark); }
+@media (max-width: 640px) {
+  .customer-profile-page { border-radius: 14px; }
+  .customer-profile-page .customer-photo-card { background: linear-gradient(160deg, #fff4e5, #fff 60%, #eaf7ef); }
+}

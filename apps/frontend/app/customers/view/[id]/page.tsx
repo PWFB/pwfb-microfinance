@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiRequest } from "../../../../lib/api";
@@ -20,6 +20,7 @@ interface Customer {
 export default function ViewCustomerPage() {
   const { id } = useParams(); const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null); const [loading, setLoading] = useState(true); const [resetting, setResetting] = useState(false); const [temporaryPassword, setTemporaryPassword] = useState(""); const [message, setMessage] = useState("");
+  const [photoPreview, setPhotoPreview] = useState(""); const photoInputRef = useRef<HTMLInputElement>(null); const cameraInputRef = useRef<HTMLInputElement>(null);
   const [editing, setEditing] = useState(false); const [saving, setSaving] = useState(false); const [form, setForm] = useState({ firstName: "", middleName: "", lastName: "", email: "", phone: "", address: "", dateOfBirth: "" });
   const [identityType, setIdentityType] = useState<"BVN" | "NIN">("BVN"); const [identityValue, setIdentityValue] = useState(""); const [identityReason, setIdentityReason] = useState(""); const [overriding, setOverriding] = useState(false);
   const [verifyBvn, setVerifyBvn] = useState(""); const [verifyBankCode, setVerifyBankCode] = useState(""); const [verifyAccountNumber, setVerifyAccountNumber] = useState(""); const [verifyConsent, setVerifyConsent] = useState(false); const [verifyBanks, setVerifyBanks] = useState<Array<{ code: string; name: string; shortName?: string; provider?: string }>>([]); const [verifyingIdentity, setVerifyingIdentity] = useState(false);
@@ -40,6 +41,7 @@ export default function ViewCustomerPage() {
     return () => window.clearInterval(timer);
   }, [id, customer?.virtualAccounts?.map((account) => account.status + ":" + (account.accountNumber || "")).join("|")]);
 
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) { const file = e.target.files?.[0]; if (!file) return; if (!file.type.startsWith("image/")) { setMessage("Please choose an image file."); return; } if (file.size > 5 * 1024 * 1024) { setMessage("Image must be 5 MB or smaller."); return; } const reader = new FileReader(); reader.onload = () => setPhotoPreview(String(reader.result || "")); reader.readAsDataURL(file); setMessage("Image preview only. This customer profile API does not currently provide persistent photo storage, so the image has not been saved."); }
   function change(e: React.ChangeEvent<HTMLInputElement>) { setForm({ ...form, [e.target.name]: e.target.value }); }
   async function saveProfile(e: React.FormEvent) { e.preventDefault(); setSaving(true); setMessage(""); try { await apiRequest(`/customers/${id}`, { method: "PATCH", body: JSON.stringify(form) }); setMessage("Customer profile updated successfully."); setEditing(false); await loadCustomer(); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to update customer"); } finally { setSaving(false); } }
   async function resetPassword() { if (!window.confirm("Reset this customer's login password? The current password cannot be recovered.")) return; setResetting(true); setMessage(""); try { const result = await apiRequest(`/customers/${id}/reset-password`, { method: "POST" }); setTemporaryPassword(result.temporaryPassword || ""); setMessage("Password reset successfully. Give the temporary password to the customer securely."); } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to reset password"); } finally { setResetting(false); } }
@@ -67,6 +69,24 @@ export default function ViewCustomerPage() {
       <div className="profile-actions"><Link href={`/transactions?customerId=${encodeURIComponent(String(id))}`} style={{ display: "inline-flex", alignItems: "center", padding: "9px 12px", border: "1px solid #b7dfc5", borderRadius: 8, color: "#126b35", fontWeight: 700, textDecoration: "none" }}>View Client History</Link><button onClick={() => setEditing((value) => !value)}>{editing ? "Cancel Edit" : "Edit Profile"}</button><button onClick={resetPassword} disabled={resetting}>{resetting ? "Resetting..." : "Reset Password"}</button><button onClick={() => router.push("/customers")}>Back</button></div>
     </div>
 
+    <section className="customer-photo-card">
+      <div className="customer-photo-avatar">
+        {photoPreview ? <img src={photoPreview} alt="Selected customer photo preview" /> : <div className="customer-photo-initials">{[customer.firstName?.[0], customer.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "CU"}</div>}
+      </div>
+      <div className="customer-photo-details">
+        <span className="customer-photo-kicker">CUSTOMER IDENTITY</span>
+        <h2>{fullName}</h2>
+        <p>{customer.email || "No email recorded"}{customer.phone ? " · " + customer.phone : ""}</p>
+        <div className="customer-photo-buttons">
+          <button type="button" onClick={() => photoInputRef.current?.click()}>Upload photo</button>
+          <button type="button" className="camera-button" onClick={() => cameraInputRef.current?.click()}>Use camera</button>
+          {photoPreview && <button type="button" className="camera-button" onClick={() => { setPhotoPreview(""); if (photoInputRef.current) photoInputRef.current.value = ""; if (cameraInputRef.current) cameraInputRef.current.value = ""; }}>Remove preview</button>}
+        </div>
+        <small>Choose JPG, PNG or WebP · Maximum 5 MB. Camera access depends on your device/browser. Preview is not saved to the customer record.</small>
+      </div>
+      <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={handlePhotoSelect} />
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="user" hidden onChange={handlePhotoSelect} />
+    </section>
     {message && <div style={{ margin: "16px 0", padding: 12, border: "1px solid #ccc", borderRadius: 8 }}>{message}</div>}
     {temporaryPassword && <div style={{ margin: "16px 0", padding: 16, border: "1px solid #ccc", borderRadius: 8 }}><strong>Temporary password:</strong> {temporaryPassword}<br /><small>This is shown once. PWFB does not display the customer's previous plaintext password.</small></div>}
 
@@ -84,5 +104,20 @@ export default function ViewCustomerPage() {
     <section style={{ marginTop: 24 }}><h2>Registered bank accounts</h2>{customer.bankAccounts?.length ? customer.bankAccounts.map((account) => <div key={account.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, marginBottom: 8 }}><strong>{account.institution?.name || "Bank"}</strong> — {account.accountNumber}<br />Name: {account.accountName || "—"} • Status: {account.status}{account.isPrimary ? " • Primary" : ""}</div>) : <p>No bank account registered.</p>}</section>
     <section style={{ marginTop: 24 }}><h2>Virtual accounts</h2>{customer.virtualAccounts?.length ? customer.virtualAccounts.map((account) => <div key={account.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, marginBottom: 8 }}><strong>{account.institution?.name || account.provider || "Provider"}</strong><br />Account number: {account.accountNumber || "Not generated"}<br />Account name: {account.accountName || "—"}<br />Provider: {account.provider || "—"} • Status: {account.status}</div>) : <p>No virtual account record.</p>}</section>
     <style jsx>{`.customer-profile-page{color:#172033}.profile-title h1{margin:4px 0 8px;font-size:clamp(26px,3vw,34px);letter-spacing:-.7px}.profile-title>p:last-child{color:#475467;margin:0;overflow-wrap:anywhere}.profile-id{color:#667085;font-size:12px}.profile-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.profile-actions :global(a),.profile-actions :global(button){display:inline-flex;justify-content:center;align-items:center;min-height:40px;padding:9px 13px;border-radius:9px;border:1px solid #d0d5dd;background:#fff;color:#344054;font-size:13px;font-weight:750;text-decoration:none;cursor:pointer}.profile-actions :global(a:first-child){background:#fff7ed;border-color:#fed7aa;color:#9a3412}.profile-actions :global(button:first-of-type){background:#f97316;color:#fff;border-color:#f97316}.customer-profile-page section{border-color:#e4e7ec!important;border-radius:15px!important;box-shadow:0 4px 14px #10182808}.customer-profile-page h2{font-size:19px}.customer-profile-page section p{line-height:1.55}.customer-profile-page input,.customer-profile-page textarea{max-width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:10px}.customer-profile-page button{cursor:pointer;border-radius:8px}.customer-profile-page button:hover{filter:brightness(.97)}@media(max-width:640px){.customer-profile-page{padding:16px!important}.profile-actions{width:100%}.profile-actions :global(a),.profile-actions :global(button){flex:1}}`}</style>
+    <style jsx>{`
+      .customer-photo-card{display:flex;align-items:center;gap:24px;margin:26px 0 20px;padding:26px;border:1px solid #fed7aa;border-radius:20px;background:linear-gradient(115deg,#fff7ed,#fff 68%);box-shadow:0 10px 28px rgba(16,24,40,.07)}
+      .customer-photo-avatar{width:132px;height:132px;flex:0 0 132px;display:grid;place-items:center;overflow:hidden;border-radius:50%;border:5px solid white;background:#ffedd5;box-shadow:0 0 0 1px #fdba74,0 8px 20px #9a34121a}
+      .customer-photo-avatar img{width:100%;height:100%;object-fit:cover}
+      .customer-photo-initials{display:grid;place-items:center;width:100%;height:100%;font-size:40px;font-weight:850;color:#c2410c}
+      .customer-photo-details{min-width:0;flex:1}
+      .customer-photo-kicker{font-size:11px;letter-spacing:1.4px;font-weight:850;color:#c2410c}
+      .customer-photo-details h2{font-size:25px;margin:7px 0;color:#172033}
+      .customer-photo-details p{color:#667085;margin:0 0 14px;overflow-wrap:anywhere}
+      .customer-photo-buttons{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:10px}
+      .customer-photo-buttons button{min-height:40px;border:1px solid #f97316;border-radius:9px;background:#f97316;color:white;padding:10px 15px;font-weight:800;cursor:pointer}
+      .customer-photo-buttons button.camera-button{background:white;border-color:#d0d5dd;color:#344054}
+      .customer-photo-details small{display:block;color:#667085;line-height:1.5}
+      @media(max-width:640px){.customer-photo-card{flex-direction:column;align-items:flex-start;padding:20px}.customer-photo-avatar{width:104px;height:104px;flex-basis:104px}.customer-photo-details h2{font-size:22px}.customer-photo-buttons button{flex:1}}
+    `}</style>
   </main>;
 }

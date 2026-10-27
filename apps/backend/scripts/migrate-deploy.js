@@ -1,4 +1,5 @@
 const { execFileSync } = require('node:child_process');
+const { setTimeout: delay } = require('node:timers/promises');
 const { Client } = require('pg');
 
 const LEGACY_MIGRATIONS = [
@@ -23,6 +24,25 @@ function runPrisma(args) {
     env: process.env,
     stdio: 'inherit',
   });
+}
+
+async function deployMigrationsWithLockRetry() {
+  const maxAttempts = 5;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await deployMigrationsWithLockRetry();
+      return;
+    } catch (error) {
+      const output = [error?.stderr, error?.stdout, error?.message]
+        .map((value) => Buffer.isBuffer(value) ? value.toString('utf8') : String(value || ''))
+        .join('\n');
+      const lockTimeout = /P1002|advisory lock|Timed out trying to acquire/i.test(output);
+      if (!lockTimeout || attempt === maxAttempts) throw error;
+      const waitMs = attempt * 10000;
+      console.warn(`Prisma migration lock is busy (attempt ${attempt}/${maxAttempts}); retrying in ${waitMs / 1000}s. No database data is being reset or deleted.`);
+      await delay(waitMs);
+    }
+  }
 }
 
 async function inspectMigrationHistory() {

@@ -38,7 +38,7 @@ async function deployMigrationsWithLockRetry() {
   const maxAttempts = 5;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      await deployMigrationsWithLockRetry();
+      runPrisma(['migrate', 'deploy']);
       return;
     } catch (error) {
       const output = [error?.stderr, error?.stdout, error?.message]
@@ -114,7 +114,7 @@ async function main() {
   }
 
   console.log('Applying pending Prisma migrations.');
-  runPrisma(['migrate', 'deploy']);
+  await deployMigrationsWithLockRetry();
 }
 
 main().catch((error) => {

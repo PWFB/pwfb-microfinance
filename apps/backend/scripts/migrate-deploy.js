@@ -19,11 +19,19 @@ const RETRYABLE_ADDITIVE_MIGRATION = '20261024120000_paystack_dva_staff_customer
 const schemaPath = 'prisma/schema.prisma';
 
 function runPrisma(args) {
-  execFileSync('npx', ['prisma', ...args, `--schema=${schemaPath}`], {
-    cwd: __dirname,
-    env: process.env,
-    stdio: 'inherit',
-  });
+  try {
+    const output = execFileSync('npx', ['prisma', ...args, `--schema=${schemaPath}`], {
+      cwd: __dirname,
+      env: process.env,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    if (output) process.stdout.write(output);
+  } catch (error) {
+    if (error?.stdout) process.stdout.write(Buffer.isBuffer(error.stdout) ? error.stdout.toString('utf8') : error.stdout);
+    if (error?.stderr) process.stderr.write(Buffer.isBuffer(error.stderr) ? error.stderr.toString('utf8') : error.stderr);
+    throw error;
+  }
 }
 
 async function deployMigrationsWithLockRetry() {

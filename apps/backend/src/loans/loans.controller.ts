@@ -39,13 +39,21 @@ export class LoansController {
   @Post() @Roles('CREDIT_OFFICER','TELLER','SUPER_ADMIN','ADMIN','BRANCH_MANAGER') async create(@Body() dto:CreateLoanDto,@Req() req:any){await this.permissions.assert(req.user.role,'LOAN_CREATE');return this.loansService.create(dto,req.user);}
   @Get() @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','ASSET_LOAN_MANAGER','LOAN_OFFICER') findAll(@Req() req:any){return this.loansService.findAll(req.user);}
   @Get('registered-staff-borrowers')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','TELLER')
   listRegisteredStaffBorrowers(@Req() req:any){return this.loansService.listRegisteredStaffBorrowers(req.user);}
     @Get(':id/schedule') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','ASSET_LOAN_MANAGER','LOAN_OFFICER') getSchedule(@Param('id') id:string,@Req() req:any){return this.loansService.getRepaymentSchedule(id,req.user);}
   @Get(':id') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','ASSET_LOAN_MANAGER','LOAN_OFFICER') findOne(@Param('id') id:string,@Req() req:any){return this.loansService.findOne(id,req.user);}
   @Patch(':id') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER') async update(@Param('id') id:string,@Body() dto:UpdateLoanDto,@Req() req:any){await this.requireDisbursementMfa(req);return this.loansService.update(id,dto,req.user);}
   @Delete(':id') @Roles('SUPER_ADMIN','ADMIN') async remove(@Param('id') id:string,@Req() req:any){await this.requireDisbursementMfa(req);return this.loansService.remove(id,req.user);}
   @Post(':id/submit-disbursement') @Roles('CREDIT_OFFICER','TELLER') async submitDisbursement(@Param('id') id:string,@Req() req:any,@Body() body:any){await this.requireDisbursementMfa(req);return this.loanDisbursementService.submitForBranchReview(id,req.user,body);}
+  @Post(':id/asset-review')
+  @Roles('ASSET_LOAN_MANAGER')
+  async assetReview(@Param('id') id: string, @Req() req: any, @Body() body: { note?: string }) {
+    await this.permissions.assert(req.user.role, 'ASSET_LOAN_REVIEW');
+    await this.requireDisbursementMfa(req);
+    return this.loanDisbursementService.reviewAssetLoan(id, req.user, body?.note);
+  }
+
   @Post(':id/approve-disbursement')
   @Roles('BRANCH_MANAGER','ADMIN','SUPER_ADMIN')
   async approveDisbursement(@Param('id') id: string, @Req() req: any) {

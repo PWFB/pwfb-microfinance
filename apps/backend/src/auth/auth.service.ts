@@ -92,11 +92,75 @@ export class AuthService {
       },
     };
   }
-  async login(dto: LoginDto) {
+  private loginThrottleReady = false;
+
+  private async ensureLoginThrottleTable() {
+    if (this.loginThrottleReady) return;
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "AuthLoginAttempt" (
+        "keyHash" TEXT PRIMARY KEY,
+        "attempts" INTEGER NOT NULL DEFAULT 0,
+        "windowStartedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "blockedUntil" TIMESTAMP(3),
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "AuthLoginAttempt_blockedUntil_idx" ON "AuthLoginAttempt" ("blockedUntil");
+    `);
+    this.loginThrottleReady = true;
+  }
+
+  private loginAttemptKeys(identifier: string, ipAddress?: string) {
+    const identity = String(identifier || '').trim().toLowerCase();
+    const ip = String(ipAddress || 'unknown').trim();
+    return {
+      identity: createHash('sha256').update('identity:' + identity).digest('hex'),
+      ip: createHash('sha256').update('ip:' + ip).digest('hex'),
+    };
+  }
+
+  private async assertLoginAllowed(identifier: string, ipAddress?: string) {
+    await this.ensureLoginThrottleTable();
+    const keys = this.loginAttemptKeys(identifier, ipAddress);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT "keyHash" FROM "AuthLoginAttempt" WHERE "keyHash" = ANY($1::text[]) AND "blockedUntil" > CURRENT_TIMESTAMP LIMIT 1`,
+      [keys.identity, keys.ip],
+    );
+    if (rows.length) throw new UnauthorizedException('Too many login attempts. Please wait before trying again.');
+    return keys;
+  }
+
+  private async recordLoginFailure(keys: { identity: string; ip: string }) {
+    await this.ensureLoginThrottleTable();
+    const upsert = `
+      INSERT INTO "AuthLoginAttempt" ("keyHash","attempts","windowStartedAt","updatedAt")
+      VALUES ($1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT ("keyHash") DO UPDATE SET
+        "attempts" = CASE WHEN "AuthLoginAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN 1 ELSE "AuthLoginAttempt"."attempts" + 1 END,
+        "windowStartedAt" = CASE WHEN "AuthLoginAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN CURRENT_TIMESTAMP ELSE "AuthLoginAttempt"."windowStartedAt" END,
+        "blockedUntil" = CASE
+          WHEN "AuthLoginAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN NULL
+          WHEN "AuthLoginAttempt"."attempts" + 1 >= $2 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+          ELSE "AuthLoginAttempt"."blockedUntil"
+        END,
+        "updatedAt" = CURRENT_TIMESTAMP
+    `;
+    await this.prisma.$executeRawUnsafe(upsert, keys.identity, 5);
+    await this.prisma.$executeRawUnsafe(upsert, keys.ip, 30);
+  }
+
+  private async clearLoginFailures(keys: { identity: string; ip: string }) {
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM "AuthLoginAttempt" WHERE "keyHash" = ANY($1::text[])`,
+      [keys.identity, keys.ip],
+    );
+  }
+
+  async login(dto: LoginDto, ipAddress?: string) {
     const identifier = String(dto.identifier || dto.email || '').trim();
     const password = String(dto.password || '');
     const mode = String(dto.loginMode || '').trim().toUpperCase();
     if (!identifier || !password) throw new UnauthorizedException('Login ID and password are required');
+    const attemptKeys = await this.assertLoginAllowed(identifier, ipAddress);
 
     let user: any = null;
     const email = identifier.toLowerCase();
@@ -114,6 +178,7 @@ export class AuthService {
     }
 
     if (!user || !user.password || !await bcrypt.compare(password, user.password)) {
+      await this.recordLoginFailure(attemptKeys);
       throw new UnauthorizedException('Invalid login ID or password');
     }
 
@@ -133,6 +198,7 @@ export class AuthService {
       throw new UnauthorizedException('This account is not a Customer account. Use another login.');
     }
 
+    await this.clearLoginFailures(attemptKeys);
     const accessToken = await this.issueToken(user);
     const { password: _password, ...safeUser } = user;
     return { message: 'Login successful', access_token: accessToken, user: safeUser };

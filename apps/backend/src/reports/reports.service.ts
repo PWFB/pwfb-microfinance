@@ -8,7 +8,7 @@ export class ReportsService {
 
   private async scopedFilters(user: any) {
     const scope = await this.accessScope.getScope(user);
-    if (scope.global) return { global: true, branchIds: null as string[] | null, staffId: null as string | null, empty: false };
+    if (scope.global) return { global: true, branchIds: [] as string[], staffId: null as string | null, empty: false };
     const branchIds = await this.accessScope.getBranchIds(user);
     const assignedBranchIds = branchIds || [];
     return {
@@ -37,11 +37,11 @@ export class ReportsService {
 
   async getSummary(user: any) {
     const filters = await this.scopedFilters(user);
-    const customersWhere = this.customerScope(filters);
-    const customerRelation = filters.global ? {} : { customer: { is: customersWhere } };
+    const customersWhere: any = this.customerScope(filters);
+    const customerRelation: any = filters.global ? {} : { customer: { is: customersWhere } };
     // Cashbook entries now carry the collector Staff ID; officers can safely
     // see only their own attributed entries while managers see their assigned branches.
-    const cashbookWhere = filters.global ? {} : filters.empty
+    const cashbookWhere: any = filters.global ? {} : filters.empty
       ? { id: { in: [] } }
       : filters.staffId ? { staffId: filters.staffId } : { branchId: { in: filters.branchIds } };
     const [totalCustomers, savingsCount, savingsTotal, loansCount, loansTotal, transactionsCount, transactionsTotal, repaymentsCount, repaymentsTotal, collectionsCount, collectionsTotal, cashInTotal, cashOutTotal] = await Promise.all([
@@ -99,11 +99,11 @@ export class ReportsService {
       : {};
     const customerFilter = customerId ? { customerId } : {};
     const staffFilter = staffId ? { staffId } : {};
-    const customerScope = this.customerScope(filters);
-    const relationScope = filters.global ? {} : { customer: { is: customerScope } };
-    const branchScope = filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
-    const cashbookScope = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { staffId: filters.staffId } : { branchId: { in: filters.branchIds } };
-    const staffScope = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { id: filters.staffId } : { branchId: { in: filters.branchIds } };
+    const customerScope: any = this.customerScope(filters);
+    const relationScope: any = filters.global ? {} : { customer: { is: customerScope } };
+    const branchScope: any = filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
+    const cashbookScope: any = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { staffId: filters.staffId } : { branchId: { in: filters.branchIds } };
+    const staffScope: any = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { id: filters.staffId } : { branchId: { in: filters.branchIds } };
 
     const [customers, staff, loans, savings, walletTransactions, collections, cashbook] = await Promise.all([
       this.prisma.customer.findMany({ where: { ...customerScope, ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { middleName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : {}) }, orderBy: { createdAt: 'desc' } }),

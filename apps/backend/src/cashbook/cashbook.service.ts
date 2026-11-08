@@ -116,8 +116,23 @@ export class CashbookService {
     const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}});if(!p)throw new NotFoundException('Financial period not found');if(p.status==='CLOSED')throw new BadRequestException('Cannot add entries to a closed period');
     const b=await this.prisma.branch.findUnique({where:{id:data.branchId}});if(!b)throw new NotFoundException('Branch not found');
     if(data.staffId){const staff=await this.prisma.staff.findUnique({where:{id:data.staffId}});if(!staff)throw new NotFoundException('Field staff not found');if(staff.branchId!==data.branchId)throw new BadRequestException('Field staff must belong to the selected branch');}
-    const v=this.values(data),id=randomUUID(); const rowTotals=this.totals(v); v.otherAfterTotal=Math.max(0,rowTotals.totalReceipts-rowTotals.totalPayments); const cols=ALL_FIELDS.map(snake);
-    const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,data.entryDate?new Date(data.entryDate):new Date(),data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
+    const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
+    if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
+    const v=this.values(data);
+    // Opening cash is a server-calculated carry-forward. Ignore client-supplied
+    // opening values so only the previous closing cash can roll into this row.
+    const previousRows:any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date < $3 ORDER BY entry_date DESC, created_at DESC LIMIT 1`,
+      data.branchId, data.staffId ?? null, entryDate,
+    );
+    if (previousRows[0]) {
+      const previous = this.map({ ...previousRows[0], branch_name: b.name, period_name: '' });
+      v.previousCashAtHand = Math.max(0, Number(previous.totalReceipts || 0) - Number(previous.totalPayments || 0));
+    } else {
+      v.previousCashAtHand = 0;
+    }
+    const id=randomUUID(); const rowTotals=this.totals(v); v.otherAfterTotal=Math.max(0,rowTotals.totalReceipts-rowTotals.totalPayments); const cols=ALL_FIELDS.map(snake);
+    const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,entryDate,data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
     const placeholders=params.map((_,i)=>`$${i+1}`);
     await this.prisma.$executeRawUnsafe(`INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,...params);
     return this.dailyOne(id);

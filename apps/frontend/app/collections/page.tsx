@@ -134,7 +134,7 @@ export default function CollectionsPage() {
           <table className="pwfb-table"><thead><tr><th>Credit Officer</th><th>Staff ID</th><th>Branch</th><th>Collections</th><th>Cash Collected</th><th>Settled</th><th>Unsettled</th></tr></thead>
             <tbody>{(Array.isArray(summary.byOfficer) ? summary.byOfficer : []).map((officer: any) => (
               <tr key={officer.staffId || officer.employeeStaffId || officer.officerName}>
-                <td>{officer.officerName || 'Unassigned'}</td><td>{officer.employeeStaffId || '—'}</td><td>{officer.branchId || 'Assigned branch'}</td>
+                <td>{officer.officerName || 'Unassigned'}</td><td>{officer.employeeStaffId || '—'}</td><td>{officer.branchName || officer.branchId || 'Assigned branch'}</td>
                 <td>{officer.collectionCount || 0}</td><td><strong>{money(officer.cashCollected)}</strong></td><td>{money(officer.settled)}</td><td>{money(officer.unsettled)}</td>
               </tr>
             ))}

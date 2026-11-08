@@ -52,7 +52,7 @@ export class TransactionsService {
         include: { customer: true },
       }),
       this.prisma.walletTransaction.findMany({
-        where: { customer },
+        where: { customer: { is: customer } },
         orderBy: { createdAt: 'desc' },
         include: { customer: true },
       }),

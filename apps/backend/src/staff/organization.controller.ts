@@ -40,8 +40,8 @@ export class OrganizationController {
   }
 
   @Get('regions/:id/staff')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER')
-  regionStaff(@Param('id') id: string) {
-    return this.organizationService.regionStaff(id);
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER')
+  regionStaff(@Param('id') id: string, @Req() req: any) {
+    return this.organizationService.regionStaff(id, req.user.id || req.user.sub);
   }
 }

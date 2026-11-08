@@ -197,7 +197,10 @@ export class CashbookService {
     }
     const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
     if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
-    if (entryDate < p.startDate || entryDate > p.endDate) throw new BadRequestException('Cashbook work date must fall inside the selected open financial period');
+    const entryDay = entryDate.toISOString().slice(0, 10);
+    const periodStartDay = new Date(p.startDate).toISOString().slice(0, 10);
+    const periodEndDay = new Date(p.endDate).toISOString().slice(0, 10);
+    if (entryDay < periodStartDay || entryDay > periodEndDay) throw new BadRequestException('Cashbook work date must fall inside the selected open financial period');
     const v = this.values(data);
     const id = randomUUID();
     const dayKey = entryDate.toISOString().slice(0, 10);

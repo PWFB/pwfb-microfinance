@@ -25,6 +25,7 @@ describe('LoansService', () => {
 
     service = new LoansService(
       prisma as PrismaService,
+      { getScope: jest.fn().mockResolvedValue({ role: 'SUPER_ADMIN', global: true, staffId: null }), getBranchIds: jest.fn().mockResolvedValue(null), assertCustomer: jest.fn().mockResolvedValue(true), assertLoan: jest.fn().mockResolvedValue(true) } as any,
     );
     jest.spyOn(service as any, 'withMeta').mockImplementation(async (loan: any) => loan);
     prisma.$queryRawUnsafe.mockResolvedValue([{ interestRate: 0 }]);
@@ -53,12 +54,13 @@ describe('LoansService', () => {
       ...dto,
       customer,
       repayments: [],
+      status: 'PENDING',
     };
 
     prisma.customer.findUnique.mockResolvedValue(customer);
     prisma.loan.create.mockResolvedValue(result);
 
-    await expect(service.create(dto)).resolves.toEqual(result);
+    await expect(service.create(dto, { role: 'SUPER_ADMIN' })).resolves.toEqual(result);
 
     expect(prisma.customer.findUnique).toHaveBeenCalledWith({
       where: {
@@ -89,7 +91,7 @@ describe('LoansService', () => {
       amount: 100000,
     };
 
-    await expect(service.create(dto)).rejects.toBeInstanceOf(
+    await expect(service.create(dto, { role: 'SUPER_ADMIN' })).rejects.toBeInstanceOf(
       NotFoundException,
     );
 
@@ -107,9 +109,10 @@ describe('LoansService', () => {
 
     prisma.loan.findMany.mockResolvedValue(result);
 
-    await expect(service.findAll()).resolves.toEqual(result);
+    await expect(service.findAll({ role: 'SUPER_ADMIN' })).resolves.toEqual(result);
 
-    expect(prisma.loan.findMany).toHaveBeenCalledWith({
+    expect(prisma.loan.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {},
       orderBy: { createdAt: 'desc' },
       include: expect.objectContaining({
         customer: expect.objectContaining({
@@ -120,7 +123,7 @@ describe('LoansService', () => {
         repayments: true,
         guarantors: true,
       }),
-    });
+    }));
   });
 
   it('should return a loan by id', async () => {
@@ -134,7 +137,7 @@ describe('LoansService', () => {
     prisma.loan.findUnique.mockResolvedValue(result);
 
     await expect(
-      service.findOne('loan-1'),
+      service.findOne('loan-1', { role: 'SUPER_ADMIN' }),
     ).resolves.toEqual(result);
 
     expect(prisma.loan.findUnique).toHaveBeenCalledWith({
@@ -157,7 +160,7 @@ describe('LoansService', () => {
     prisma.loan.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.findOne('missing-loan'),
+      service.findOne('missing-loan', { role: 'SUPER_ADMIN' }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -187,7 +190,7 @@ describe('LoansService', () => {
     prisma.loan.update.mockResolvedValue(updatedLoan);
 
     await expect(
-      service.update('loan-1', dto),
+      service.update('loan-1', dto, { role: 'SUPER_ADMIN' }),
     ).resolves.toEqual(updatedLoan);
 
     expect(prisma.loan.update).toHaveBeenCalledWith({
@@ -221,7 +224,7 @@ describe('LoansService', () => {
     };
 
     await expect(
-      service.update('loan-1', dto),
+      service.update('loan-1', dto, { role: 'SUPER_ADMIN' }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(prisma.loan.update).not.toHaveBeenCalled();
@@ -238,7 +241,7 @@ describe('LoansService', () => {
     prisma.loan.delete.mockResolvedValue(existingLoan);
 
     await expect(
-      service.remove('loan-1'),
+      service.remove('loan-1', { role: 'SUPER_ADMIN' }),
     ).resolves.toEqual(existingLoan);
 
     expect(prisma.loan.delete).toHaveBeenCalledWith({

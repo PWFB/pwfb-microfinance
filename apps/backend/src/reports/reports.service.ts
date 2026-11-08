@@ -38,6 +38,9 @@ export class ReportsService {
     const filters = await this.scopedFilters(user);
     const customersWhere = this.customerScope(filters);
     const customerRelation = filters.global ? {} : { customer: customersWhere };
+    // CashbookEntry has no collector Staff ID yet. Do not expose whole-branch
+    // cashbook totals to an individual Credit Officer until attribution is reliable.
+    const cashbookWhere = filters.global ? {} : filters.empty || filters.staffId ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
     const [totalCustomers, savingsCount, savingsTotal, loansCount, loansTotal, transactionsCount, transactionsTotal, repaymentsCount, repaymentsTotal, collectionsCount, collectionsTotal, cashInTotal, cashOutTotal] = await Promise.all([
       this.prisma.customer.count({ where: customersWhere }),
       this.prisma.savings.count({ where: customerRelation }),
@@ -50,8 +53,8 @@ export class ReportsService {
       this.prisma.repayment.aggregate({ where: filters.global ? {} : { loan: { customer: customersWhere } }, _sum: { amount: true } }),
       this.prisma.dailyCollection.count({ where: filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds }, ...(filters.staffId ? { staffId: filters.staffId } : {}) } }),
       this.prisma.dailyCollection.aggregate({ where: filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds }, ...(filters.staffId ? { staffId: filters.staffId } : {}) }, _sum: { amount: true } }),
-      this.prisma.cashbookEntry.aggregate({ where: { ...(filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds } }), type: 'CASH_IN' }, _sum: { amount: true } }),
-      this.prisma.cashbookEntry.aggregate({ where: { ...(filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds } }), type: 'CASH_OUT' }, _sum: { amount: true } }),
+      this.prisma.cashbookEntry.aggregate({ where: { ...cashbookWhere, type: 'CASH_IN' }, _sum: { amount: true } }),
+      this.prisma.cashbookEntry.aggregate({ where: { ...cashbookWhere, type: 'CASH_OUT' }, _sum: { amount: true } }),
     ]);
     const totalSavings = savingsTotal._sum.amount ?? 0;
     const totalLoans = loansTotal._sum.amount ?? 0;
@@ -96,6 +99,7 @@ export class ReportsService {
     const customerScope = this.customerScope(filters);
     const relationScope = filters.global ? {} : { customer: customerScope };
     const branchScope = filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
+    const cashbookScope = filters.global ? {} : filters.empty || filters.staffId ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
     const staffScope = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { id: filters.staffId } : { branchId: { in: filters.branchIds } };
 
     const [customers, staff, loans, savings, walletTransactions, collections, cashbook] = await Promise.all([
@@ -105,7 +109,7 @@ export class ReportsService {
       this.prisma.savings.findMany({ where: { ...customerFilter, ...dateFilter, ...relationScope }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.walletTransaction.findMany({ where: { ...customerFilter, ...staffFilter, ...dateFilter, ...(type ? { type: type as any } : {}), ...relationScope }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.dailyCollection.findMany({ where: { ...customerFilter, ...staffFilter, ...dateFilter, ...branchScope }, include: { customer: true, staff: true, branch: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.cashbookEntry.findMany({ where: { ...dateFilter, ...branchScope }, include: { branch: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.cashbookEntry.findMany({ where: { ...dateFilter, ...cashbookScope }, include: { branch: true }, orderBy: { createdAt: 'desc' } }),
     ]);
 
     const deposits = walletTransactions.filter((x) => x.type === 'DEPOSIT');

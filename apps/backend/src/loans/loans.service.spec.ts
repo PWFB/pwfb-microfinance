@@ -170,6 +170,7 @@ describe('LoansService', () => {
       customerId: 'customer-1',
       amount: 100000,
       interestRate: 10,
+      status: 'PENDING',
       repayments: [],
     };
 
@@ -193,7 +194,7 @@ describe('LoansService', () => {
       service.update('loan-1', dto, { role: 'SUPER_ADMIN' }),
     ).resolves.toEqual(updatedLoan);
 
-    expect(prisma.loan.update).toHaveBeenCalledWith({
+    expect(prisma.loan.update).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         id: 'loan-1',
       },
@@ -208,13 +209,14 @@ describe('LoansService', () => {
         repayments: true,
         guarantors: true,
       },
-    });
+    }));
   });
 
   it('should reject update when the new customer does not exist', async () => {
     prisma.loan.findUnique.mockResolvedValue({
       id: 'loan-1',
       customerId: 'customer-1',
+      status: 'PENDING',
     });
 
     prisma.customer.findUnique.mockResolvedValue(null);

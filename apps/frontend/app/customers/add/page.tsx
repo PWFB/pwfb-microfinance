@@ -10,6 +10,7 @@ import styles from "./page.module.css";
 
 type CustomerForm = { firstName: string; middleName: string; lastName: string; email: string; phone: string; address: string; dateOfBirth: string };
 type BankOption = { code: string; name: string; shortName?: string; provider?: string };
+type ClientGroupOption = { id: string; name: string; memberCount?: number };
 const initialForm: CustomerForm = { firstName: "", middleName: "", lastName: "", email: "", phone: "", address: "", dateOfBirth: "" };
 
 export default function AddCustomerPage() {
@@ -18,6 +19,10 @@ export default function AddCustomerPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [virtualAccountConsent, setVirtualAccountConsent] = useState(false);
+  const [registrationType, setRegistrationType] = useState<'INDIVIDUAL' | 'GROUP'>('INDIVIDUAL');
+  const [groups, setGroups] = useState<ClientGroupOption[]>([]);
+  const [groupId, setGroupId] = useState('');
+  const [groupName, setGroupName] = useState('');
   const [bvn, setBvn] = useState("");
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -28,6 +33,10 @@ export default function AddCustomerPage() {
       const list = Array.isArray(result) ? result : result?.data ?? [];
       if (alive) setBanks(list.filter((bank: any) => bank?.code && bank?.name).map((bank: any) => ({ code: String(bank.code), name: String(bank.name), shortName: bank.shortName, provider: bank.provider })));
     }).catch(() => { if (alive) setBanks([]); });
+    apiRequest("/customers/groups").then((result: any) => {
+      const list = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
+      if (alive) setGroups(list.map((group: any) => ({ id: String(group.id), name: String(group.name || "Unnamed group"), memberCount: Number(group.memberCount ?? group._count?.members ?? 0) })));
+    }).catch(() => { if (alive) setGroups([]); });
     return () => { alive = false; };
   }, []);
   const fullName = useMemo(() => [form.firstName, form.middleName, form.lastName].filter(Boolean).join(" "), [form.firstName, form.middleName, form.lastName]);
@@ -47,9 +56,17 @@ export default function AddCustomerPage() {
       setMessage("Customer consent is required before sending identity details to Paystack.");
       return;
     }
+    if (registrationType === 'GROUP' && !groupId && !groupName.trim()) {
+      setMessage("Select an existing client group or enter a name to create a new group.");
+      return;
+    }
+    if (registrationType === 'INDIVIDUAL' && (groupId || groupName.trim())) {
+      setMessage("Clear the group selection or choose Group registration.");
+      return;
+    }
     setLoading(true);
     try {
-      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent }) });
+      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent, registrationType, groupId: registrationType === 'GROUP' && groupId ? groupId : undefined, groupName: registrationType === 'GROUP' && !groupId ? groupName.trim() : undefined }) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
       if (!customerId) {
         setMessage("Customer profile was submitted, but the server response did not include a customer ID. Wallet and virtual-account setup could not be confirmed.");
@@ -116,8 +133,14 @@ export default function AddCustomerPage() {
             </div>
           </section>
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
+            <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Choose an individual record or register this customer under a group.</p></div></div>
             <div className={styles.gridTwo}>
+              <label className={styles.full}>REGISTRATION TYPE<select value={registrationType} onChange={e => { const value = e.target.value as 'INDIVIDUAL' | 'GROUP'; setRegistrationType(value); if (value === 'INDIVIDUAL') { setGroupId(''); setGroupName(''); } }}><option value="INDIVIDUAL">Individual customer</option><option value="GROUP">Group member</option></select></label>
+              {registrationType === 'GROUP' && <>
+                <label>EXISTING GROUP <small>Choose a group you own</small><select value={groupId} onChange={e => { setGroupId(e.target.value); if (e.target.value) setGroupName(''); }}><option value="">Create a new group instead…</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name} · {group.memberCount || 0} members</option>)}</select></label>
+                <label>NEW GROUP NAME <small>Leave blank when selecting an existing group</small><input value={groupName} onChange={e => { setGroupName(e.target.value); if (e.target.value.trim()) setGroupId(''); }} maxLength={80} placeholder="Enter the group name" /></label>
+              </>}
+              <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
               <label>BVN <em>*</em> <small>Required for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="11-digit BVN" required /></label>
               <div><label>Bank <em>*</em> <small>Required for identity validation</small></label><BankSearchSelect banks={banks} value={bankCode} onChange={setBankCode} disabled={loading} /></div>

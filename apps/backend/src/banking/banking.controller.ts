@@ -7,10 +7,38 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
-const BANKING_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER'] as const;
+import { TwoFactorService } from '../auth/two-factor.service';
+const BANKING_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','CREDIT_OFFICER','STAFF','CUSTOMER'] as const;
 @Controller('banking') @UseGuards(JwtAuthGuard, RolesGuard)
 export class BankingController {
-  constructor(private readonly bankingService: BankingService, private readonly customerVirtualAccountService: CustomerVirtualAccountService, private readonly externalBankTransferService: ExternalBankTransferService, private readonly permissionsService: PermissionsService, private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly bankingService: BankingService,
+    private readonly customerVirtualAccountService: CustomerVirtualAccountService,
+    private readonly externalBankTransferService: ExternalBankTransferService,
+    private readonly permissionsService: PermissionsService,
+    private readonly prisma: PrismaService,
+    private readonly twoFactorService: TwoFactorService,
+  ) {}
+
+  private async requireTransferMfa(req: any) {
+    const authorization = String(req?.headers?.authorization || '');
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    return this.twoFactorService.assertVerified(String(req?.user?.id || ''), token);
+  }
+
+  private async authenticatedStaff(user: any) {
+    const staffId = String(user?.staffId || '').trim();
+    const userId = String(user?.id || '').trim();
+    const staff = staffId
+      ? await this.prisma.staff.findUnique({ where: { id: staffId }, select: { id: true, staffId: true, branchId: true, employmentStatus: true } })
+      : userId
+        ? await this.prisma.staff.findUnique({ where: { userId }, select: { id: true, staffId: true, branchId: true, employmentStatus: true } })
+        : null;
+    if (user?.role === 'CREDIT_OFFICER' && (!staff || staff.employmentStatus !== 'ACTIVE')) {
+      throw new ForbiddenException('Credit officer must have an active Staff ID and branch assignment');
+    }
+    return staff;
+  }
   @Get('institutions') @Roles(...BANKING_ROLES) listInstitutions(){return this.externalBankTransferService.listInstitutions()}
   @Get('institutions/search') @Roles(...BANKING_ROLES) searchInstitutions(@Query('q') q?:string){return this.externalBankTransferService.searchInstitutions(q)}
   @Get('account-name') @Roles(...BANKING_ROLES) async nameEnquiry(@Query('bankCode') bankCode:string,@Query('accountNumber') accountNumber:string,@Query('provider') provider:string|undefined,@Req() req:any){const role=String(req.user?.role||'').toUpperCase();if(role==='CUSTOMER'){const customerId=await this.resolveCustomerId('',req.user);return this.externalBankTransferService.checkCustomerBankAccount(customerId,bankCode,accountNumber,provider)}return this.externalBankTransferService.nameEnquiry(bankCode,accountNumber,provider)}
@@ -26,10 +54,55 @@ export class BankingController {
   @Post('customers/:customerId/virtual-accounts/ensure') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','STAFF','CUSTOMER') async ensureCustomerVirtualAccount(@Param('customerId') customerId:string,@Body() body:any,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);return this.customerVirtualAccountService.ensure(id,body?.institutionId,body?.consentConfirmed === true)}
   @Get('customers/:customerId/wallet') @Roles(...BANKING_ROLES) async getCustomerWallet(@Param('customerId') customerId:string,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);return this.bankingService.getCustomerWallet(id)}
   @Get('customers/:customerId/transactions') @Roles(...BANKING_ROLES) async getCustomerTransactions(@Param('customerId') customerId:string,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);return this.bankingService.getCustomerTransactions(id)}
-  @Post('customers/:customerId/deposit') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF') async deposit(@Param('customerId') customerId:string,@Body() body:any,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);await this.assertPermission(req.user,'WALLET_DEPOSIT');const bankCode=String(body?.bankCode||body?.bank_code||'').trim();const accountNumber=String(body?.accountNumber||'').replace(/\D/g,'');if(bankCode||accountNumber){if(!bankCode||!/^\d{10}$/.test(accountNumber))throw new BadRequestException('Select a bank and enter a valid 10-digit account number for bank-funded deposit');const verified=await this.externalBankTransferService.verifyCustomerBankAccount(id,bankCode,accountNumber,body?.provider);return this.bankingService.deposit(id,{...body,bankCode,accountNumber,accountName:String(verified.accountName).trim(),verificationProvider:(verified as any).provider||undefined,accountVerified:true,customerNameVerified:true})}return this.bankingService.deposit(id,body)}
-  @Post('customers/:customerId/withdraw') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF','CUSTOMER') async withdraw(@Param('customerId') customerId:string,@Body() body:any,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);await this.assertPermission(req.user,'WALLET_WITHDRAWAL');const destination=String(body?.destination||'BANK').trim().toUpperCase();if(destination==='ATM')throw new BadRequestException('ATM cash withdrawal is not enabled until a PWFB ATM/payment provider is configured. Your wallet has not been debited.');const bankCode=String(body.bankCode||body.bank_code||'').trim();const accountNumber=String(body.accountNumber||'').replace(/\D/g,'');if(bankCode&&accountNumber)return this.externalBankTransferService.transfer({customerId:id,bankCode,accountNumber,accountName:body.accountName,amount:body.amount,description:body.description,provider:body.provider});return this.bankingService.withdraw(id,body)}
-  @Post('customers/:customerId/bank-transfer') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','CUSTOMER') async bankTransfer(@Param('customerId') customerId:string,@Body() body:any,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);await this.assertPermission(req.user,'BANK_TRANSFER');const bankCode=String(body.bankCode||body.bank_code||'').trim();const accountNumber=String(body.accountNumber||'').replace(/\D/g,'');if(!bankCode||!accountNumber)throw new BadRequestException('Select a destination bank and enter a valid 10-digit account number');return this.externalBankTransferService.transfer({customerId:id,bankCode,accountNumber,accountName:body.accountName,amount:body.amount,description:body.description||body.narration,provider:body.provider})}
-  @Post('customers/:customerId/transfer') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','CUSTOMER') async transfer(@Param('customerId') customerId:string,@Body() body:any,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);return this.bankingService.transfer(id,body)}
+  @Post('customers/:customerId/deposit')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','CREDIT_OFFICER','STAFF')
+  async deposit(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
+    const id = await this.resolveCustomerId(customerId, req.user);
+    await this.assertPermission(req.user, 'WALLET_DEPOSIT');
+    const staff = await this.authenticatedStaff(req.user);
+    const attributed = staff ? { ...body, branchId: staff.branchId, staffId: staff.id } : { ...body, branchId: undefined, staffId: undefined };
+    const bankCode = String(body?.bankCode || body?.bank_code || '').trim();
+    const accountNumber = String(body?.accountNumber || '').replace(/\D/g, '');
+    if (bankCode || accountNumber) {
+      if (!bankCode || !/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Select a bank and enter a valid 10-digit account number for bank-funded deposit');
+      const verified = await this.externalBankTransferService.verifyCustomerBankAccount(id, bankCode, accountNumber, body?.provider);
+      return this.bankingService.deposit(id, { ...attributed, bankCode, accountNumber, accountName: String(verified.accountName).trim(), verificationProvider: (verified as any).provider || undefined, accountVerified: true, customerNameVerified: true });
+    }
+    return this.bankingService.deposit(id, attributed);
+  }
+  @Post('customers/:customerId/withdraw')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF','CUSTOMER')
+  async withdraw(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
+    const id = await this.resolveCustomerId(customerId, req.user);
+    await this.assertPermission(req.user, 'WALLET_WITHDRAWAL');
+    await this.requireTransferMfa(req);
+    const destination = String(body?.destination || 'BANK').trim().toUpperCase();
+    if (destination === 'ATM') throw new BadRequestException('ATM cash withdrawal is not enabled until a PWFB ATM/payment provider is configured. Your wallet has not been debited.');
+    const bankCode = String(body.bankCode || body.bank_code || '').trim();
+    const accountNumber = String(body.accountNumber || '').replace(/\D/g, '');
+    if (bankCode && accountNumber) return this.externalBankTransferService.transfer({ customerId: id, bankCode, accountNumber, accountName: body.accountName, amount: body.amount, description: body.description, provider: body.provider });
+    return this.bankingService.withdraw(id, body);
+  }
+  @Post('customers/:customerId/bank-transfer')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','CUSTOMER')
+  async bankTransfer(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
+    const id = await this.resolveCustomerId(customerId, req.user);
+    await this.assertPermission(req.user, 'BANK_TRANSFER');
+    await this.requireTransferMfa(req);
+    const bankCode = String(body.bankCode || body.bank_code || '').trim();
+    const accountNumber = String(body.accountNumber || '').replace(/\D/g, '');
+    if (!bankCode || !accountNumber) throw new BadRequestException('Select a destination bank and enter a valid 10-digit account number');
+    return this.externalBankTransferService.transfer({ customerId: id, bankCode, accountNumber, accountName: body.accountName, amount: body.amount, description: body.description || body.narration, provider: body.provider });
+  }
+  @Post('customers/:customerId/transfer')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','CUSTOMER')
+  async transfer(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
+    const id = await this.resolveCustomerId(customerId, req.user);
+    await this.assertPermission(req.user, 'BANK_TRANSFER');
+    await this.requireTransferMfa(req);
+    const staff = await this.authenticatedStaff(req.user);
+    return this.bankingService.transfer(id, { ...body, branchId: staff?.branchId || undefined, staffId: staff?.id || undefined });
+  }
   @Get('branches/:branchId/virtual-accounts') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AUDITOR','TELLER','STAFF') getBranchVirtualAccounts(@Param('branchId') branchId:string){return this.bankingService.getBranchVirtualAccounts(branchId)}
   @Post('branches/:branchId/virtual-accounts') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF') generateBranchVirtualAccount(@Param('branchId') branchId:string,@Body() body:{institutionId:string}){return this.bankingService.generateBranchVirtualAccount(branchId,body.institutionId)}
   @Post('branch-virtual-account/deposit') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF') recordBranchDeposit(@Body() body:{accountNumber:string;amount:number;reference?:string;narration?:string}){return this.bankingService.recordBranchDeposit(body)}

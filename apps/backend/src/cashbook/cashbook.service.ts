@@ -113,7 +113,13 @@ export class CashbookService {
     return this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...allowedBranches,...(staffId?{staffId}:{})},orderBy:{entryDate:'desc'},include:{period:true,branch:true,staff:true}});
   }
   async findOne(id:string){const e=await this.prisma.cashbookEntry.findUnique({where:{id},include:{period:true,branch:true,staff:true}});if(!e)throw new NotFoundException('Cashbook entry not found');return e;}
-  async summary(periodId?:string,branchId?:string){const rows=await this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...(branchId?{branchId}:{})}});const cashIn=rows.filter(r=>r.type==='CASH_IN').reduce((s,r)=>s+r.amount,0),cashOut=rows.filter(r=>r.type==='CASH_OUT').reduce((s,r)=>s+r.amount,0);return{cashIn,cashOut,balance:cashIn-cashOut,entryCount:rows.length};}
+  async summary(periodId?:string,branchId?:string,branchIds?:string[]|null,staffId?:string){
+    const where:any={...(periodId?{periodId}:{}),...(branchId?{branchId}:{}),...(branchIds&&!branchId?{branchId:{in:branchIds}}:{}),...(staffId?{staffId}:{})};
+    const rows=await this.prisma.cashbookEntry.findMany({where});
+    const cashIn=rows.filter(r=>r.type==='CASH_IN').reduce((s,r)=>s+r.amount,0);
+    const cashOut=rows.filter(r=>r.type==='CASH_OUT').reduce((s,r)=>s+r.amount,0);
+    return {cashIn,cashOut,balance:cashIn-cashOut,entryCount:rows.length};
+  }
 
   private map(r:any){const out:any={id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,branch:{name:r.branch_name},period:{name:r.period_name}};for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);return {...out,...this.totals(out)};}
 

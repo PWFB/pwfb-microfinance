@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   Injectable,
@@ -26,7 +27,101 @@ export class RepaymentsService {
     await tx.$executeRawUnsafe(`INSERT INTO "PWFBRepaymentAllocation" ("repaymentId","principalPaid","interestPaid","updatedAt") VALUES ($1,$2,$3,CURRENT_TIMESTAMP) ON CONFLICT ("repaymentId") DO UPDATE SET "principalPaid"=$2,"interestPaid"=$3,"updatedAt"=CURRENT_TIMESTAMP`,repaymentId,principalPaid,interestPaid);
     return {principalPaid,interestPaid,principalOutstanding:Math.max(0,principalRemaining-principalPaid),interestOutstanding:Math.max(0,interestRemaining-interestPaid)};
   }
-  async create(dto:CreateRepaymentDto,user:any) { const amount=this.amount(dto.amount); const loan=await this.prisma.loan.findUnique({where:{id:dto.loanId}}); if(!loan) throw new NotFoundException('Loan not found'); await this.accessScope.assertLoan(user, loan.id); await this.ensureAllocationTable(); return this.prisma.$transaction(async tx=>{const repayment=await tx.repayment.create({data:{loanId:dto.loanId,amount,paymentDate:dto.paymentDate?new Date(dto.paymentDate):undefined,method:dto.method,notes:dto.notes},include:{loan:{include:{customer:true}}}}); const allocation=await this.allocate(tx,loan.id,repayment.id,amount); await tx.transaction.create({data:{customerId:loan.customerId,type:'LOAN_REPAYMENT',amount,description:`Loan repayment — ${loan.id}${dto.method?` — ${dto.method}`:''} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`}}); return {...repayment,...allocation}; }); }
+  async create(dto: CreateRepaymentDto, user: any) {
+    const amount = this.amount(dto.amount);
+    const method = String(dto.method || 'Cash').trim().toUpperCase();
+    if (method !== 'CASH') {
+      throw new BadRequestException('Manual repayments accept physical cash only. Bank transfers, card and mobile-money repayments must be credited through a verified provider settlement.');
+    }
+    if (dto.cashReceivedConfirmed !== true) {
+      throw new BadRequestException('Confirm that the cash repayment has physically been received and counted before saving.');
+    }
+
+    const loan = await this.prisma.loan.findUnique({
+      where: { id: dto.loanId },
+      include: { customer: true },
+    });
+    if (!loan) throw new NotFoundException('Loan not found');
+    await this.accessScope.assertLoan(user, loan.id);
+
+    const scope = await this.accessScope.getScope(user);
+    const staffId = String(scope.staffId || '').trim();
+    if (!staffId) throw new BadRequestException('The collecting user must be linked to an active Staff ID');
+    const staff = await this.prisma.staff.findUnique({
+      where: { id: staffId },
+      select: { id: true, staffId: true, branchId: true, employmentStatus: true },
+    });
+    if (!staff || staff.employmentStatus !== 'ACTIVE' || !staff.branchId) {
+      throw new BadRequestException('Cash repayment requires an active branch-assigned Staff ID');
+    }
+    if (!loan.customer.branchId || staff.branchId !== loan.customer.branchId) {
+      throw new BadRequestException('Cash repayment collector and borrower must belong to the same branch');
+    }
+    const paymentDate = dto.paymentDate ? new Date(dto.paymentDate) : new Date();
+    if (Number.isNaN(paymentDate.getTime())) throw new BadRequestException('Invalid repayment date');
+    const paymentDay = paymentDate.toISOString().slice(0, 10);
+    const reference = String(dto.reference || '').trim();
+    if (!reference || reference.length > 120) {
+      throw new BadRequestException('A unique cash receipt reference is required for every repayment');
+    }
+
+    const period = await this.prisma.financialPeriod.findFirst({
+      where: { status: 'OPEN' },
+      orderBy: { startDate: 'desc' },
+    });
+    if (!period) throw new BadRequestException('An open financial period is required before accepting cash repayments');
+    const startDay = new Date(period.startDate).toISOString().slice(0, 10);
+    const endDay = new Date(period.endDate).toISOString().slice(0, 10);
+    if (paymentDay < startDay || paymentDay > endDay) {
+      throw new BadRequestException('Repayment date must fall inside the current open financial period');
+    }
+
+    await this.ensureAllocationTable();
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', `CASH-REPAYMENT:${reference}`);
+      const duplicate = await tx.repayment.findFirst({ where: { reference }, select: { id: true } });
+      if (duplicate) throw new BadRequestException('This cash repayment reference has already been recorded');
+
+      const repayment = await tx.repayment.create({
+        data: {
+          loanId: loan.id,
+          amount,
+          paymentDate,
+          method: 'CASH',
+          notes: dto.notes,
+          periodId: period.id,
+          branchId: staff.branchId,
+          staffId: staff.id,
+          reference,
+        },
+        include: { loan: { include: { customer: true } }, staff: true, branch: true },
+      });
+      const allocation = await this.allocate(tx, loan.id, repayment.id, amount);
+      const description = `Cash loan repayment ${reference} received by Staff ID ${staff.staffId} for loan ${loan.id} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`;
+      const transaction = await tx.transaction.create({
+        data: {
+          customerId: loan.customerId,
+          type: 'LOAN_REPAYMENT',
+          amount,
+          description,
+          periodId: period.id,
+        },
+      });
+      const cashbookEntry = await tx.cashbookEntry.create({
+        data: {
+          periodId: period.id,
+          branchId: staff.branchId,
+          staffId: staff.id,
+          type: 'CASH_IN',
+          amount,
+          reference: `REPAY-${reference}`,
+          description,
+          entryDate: paymentDate,
+        },
+      });
+      return { ...repayment, ...allocation, transaction, cashbookEntry };
+    });
+  }
   async findAll(user:any){await this.ensureAllocationTable(); const scope=await this.accessScope.getScope(user); const branchIds=scope.global?null:await this.accessScope.getBranchIds(user); if(!scope.global&&!branchIds?.length)return []; const customerWhere=scope.global?{}:scope.role==='CREDIT_OFFICER'?{branchId:{in:branchIds!},assignedStaffId:scope.staffId||'__NO_STAFF__'}:{branchId:{in:branchIds!}}; const rows=await this.prisma.repayment.findMany({where:scope.global?{}:{loan:{is:{customer:{is:customerWhere}}}},orderBy:{createdAt:'desc'},include:{loan:{include:{customer:true}}}}); return Promise.all(rows.map(async repayment=>{const allocation=await this.prisma.$queryRawUnsafe(`SELECT "principalPaid","interestPaid" FROM "PWFBRepaymentAllocation" WHERE "repaymentId"=$1`,repayment.id) as Array<{principalPaid:number|string;interestPaid:number|string}>; return {...repayment,principalPaid:Number(allocation[0]?.principalPaid||0),interestPaid:Number(allocation[0]?.interestPaid||0)};}));}
   async findOne(id:string,user:any){await this.ensureAllocationTable(); const repayment=await this.prisma.repayment.findUnique({where:{id},include:{loan:{include:{customer:true}}}}); if(!repayment)throw new NotFoundException('Repayment not found'); await this.accessScope.assertLoan(user, repayment.loanId); const allocation=await this.prisma.$queryRawUnsafe(`SELECT "principalPaid","interestPaid" FROM "PWFBRepaymentAllocation" WHERE "repaymentId"=$1`,id) as Array<{principalPaid:number|string;interestPaid:number|string}>; return {...repayment,principalPaid:Number(allocation[0]?.principalPaid||0),interestPaid:Number(allocation[0]?.interestPaid||0)};}
   async update(id:string,dto:UpdateRepaymentDto,user:any){const existing=await this.findOne(id,user); if(dto.loanId&&dto.loanId!==existing.loanId) throw new BadRequestException('A repayment cannot be moved to another loan. Create a reversal and a new repayment instead.'); const newAmount=dto.amount===undefined?Number(existing.amount):this.amount(dto.amount),oldAmount=Number(existing.amount),delta=Math.round((newAmount-oldAmount)*100)/100; return this.prisma.$transaction(async tx=>{const repayment=await tx.repayment.update({where:{id},data:{amount:newAmount,paymentDate:dto.paymentDate?new Date(dto.paymentDate):undefined,method:dto.method,notes:dto.notes},include:{loan:{include:{customer:true}}}}); const allocation=await this.allocate(tx,existing.loanId,id,newAmount); if(delta!==0) await tx.transaction.create({data:{customerId:existing.loan.customerId,type:delta>0?'LOAN_REPAYMENT_ADJUSTMENT':'LOAN_REPAYMENT_REVERSAL',amount:Math.abs(delta),description:`Repayment ${id} amount correction from ${oldAmount} to ${newAmount} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`}}); return {...repayment,...allocation};});}

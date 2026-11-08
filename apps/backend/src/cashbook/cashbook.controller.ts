@@ -8,7 +8,7 @@ import { AccessScopeService } from '../access/access-scope.service';
 import { TwoFactorService } from '../auth/two-factor.service';
 import { PermissionsService } from '../permissions/permissions.service';
 
-const CASHBOOK_ROLES = ['SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR', 'TELLER'] as const;
+const CASHBOOK_ROLES = ['SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR', 'TELLER', 'CREDIT_OFFICER'] as const;
 const DAILY_WORK_ROLES = [...CASHBOOK_ROLES, 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'] as const;
 
 @Controller('cashbook')

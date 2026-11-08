@@ -101,7 +101,7 @@ export class LoanDisbursementService {
       createdByStaffId: string | null;
       creatorUserId: string | null;
     }>>(
-      \`SELECT "loanType","assetReviewStatus","createdByStaffId","creatorUserId" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1\`,
+      `SELECT "loanType","assetReviewStatus","createdByStaffId","creatorUserId" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,
       loanId,
     );
     if (meta[0]?.loanType !== 'Individual Loan') {
@@ -119,16 +119,16 @@ export class LoanDisbursementService {
 
     return this.prisma.$transaction(async tx => {
       const updated = await tx.$executeRawUnsafe(
-        \`UPDATE "PWFBLoanMeta" SET "assetReviewStatus"='APPROVED',"assetReviewedByStaffId"=$2,"assetReviewedByUserId"=$3,"assetReviewedAt"=CURRENT_TIMESTAMP,"assetReviewNote"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "loanId"=$1 AND "assetReviewStatus"='PENDING_ASSET_REVIEW'\`,
+        `UPDATE "PWFBLoanMeta" SET "assetReviewStatus"='APPROVED',"assetReviewedByStaffId"=$2,"assetReviewedByUserId"=$3,"assetReviewedAt"=CURRENT_TIMESTAMP,"assetReviewNote"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "loanId"=$1 AND "assetReviewStatus"='PENDING_ASSET_REVIEW'`,
         loanId, actor.staff.id, actor.id, reviewNote || null,
       );
       if (updated !== 1) throw new BadRequestException('Asset review was already processed or is no longer pending');
       await tx.$executeRawUnsafe(
-        \`INSERT INTO "PWFBLoanReviewEvent" ("id","loanId","actorUserId","actorStaffId","action","note") VALUES ($1,$2,$3,$4,'ASSET_REVIEW_APPROVED',$5)\`,
+        `INSERT INTO "PWFBLoanReviewEvent" ("id","loanId","actorUserId","actorStaffId","action","note") VALUES ($1,$2,$3,$4,'ASSET_REVIEW_APPROVED',$5)`,
         randomUUID(), loanId, actor.id, actor.staff.id, reviewNote || null,
       );
       const rows = await tx.$queryRawUnsafe<any[]>(
-        \`SELECT "assetReviewStatus","assetReviewedByStaffId","assetReviewedByUserId","assetReviewedAt","assetReviewNote" FROM "PWFBLoanMeta" WHERE "loanId"=$1\`,
+        `SELECT "assetReviewStatus","assetReviewedByStaffId","assetReviewedByUserId","assetReviewedAt","assetReviewNote" FROM "PWFBLoanMeta" WHERE "loanId"=$1`,
         loanId,
       );
       return { loanId, ...rows[0], reviewedBy: { staffId: actor.staff.staffId, name: [actor.firstName, actor.lastName].filter(Boolean).join(' ') } };
@@ -174,7 +174,7 @@ export class LoanDisbursementService {
     }
 
     const metaRows = await this.prisma.$queryRawUnsafe<Array<{ disbursementDestination: string | null }>>(
-      \`SELECT "disbursementDestination" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1\`,
+      `SELECT "disbursementDestination" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,
       loan.id,
     );
     const destination = String(metaRows[0]?.disbursementDestination || 'WALLET').toUpperCase();
@@ -197,7 +197,7 @@ export class LoanDisbursementService {
           await tx.$queryRawUnsafe('SELECT id FROM "CustomerWallet" WHERE id=$1 FOR UPDATE', wallet.id);
           const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
           if (!lockedWallet || lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
-          const reference = \`LOAN-\${loan.id}-WALLET\`;
+          const reference = `LOAN-${loan.id}-WALLET`;
           const existing = await tx.walletTransaction.findUnique({ where: { reference } });
           if (existing) {
             if (existing.status === 'COMPLETED' && existing.newBalance !== undefined) {
@@ -216,7 +216,7 @@ export class LoanDisbursementService {
               previousBalance,
               newBalance,
               reference,
-              description: \`PWFB loan disbursement \${loan.id}\`,
+              description: `PWFB loan disbursement ${loan.id}`,
               branchId: loan.customer.branchId || undefined,
               status: 'COMPLETED',
               provider: 'PWFB_LOAN',
@@ -228,7 +228,7 @@ export class LoanDisbursementService {
               customerId: loan.customerId,
               type: 'LOAN_DISBURSEMENT',
               amount,
-              description: \`Confirmed wallet disbursement for loan \${loan.id}; wallet reference \${reference}\`,
+              description: `Confirmed wallet disbursement for loan ${loan.id}; wallet reference ${reference}`,
             },
           });
           const updatedLoan = await tx.loan.update({

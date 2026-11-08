@@ -5,11 +5,12 @@ import { UpdateBranchDto } from './dto/update-branch.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Controller('branches')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BranchController {
-  constructor(private readonly branchService: BranchService) {}
+  constructor(private readonly branchService: BranchService, private readonly accessScope: AccessScopeService) {}
 
   @Post()
   @Roles('ADMIN', 'SUPER_ADMIN')
@@ -17,7 +18,10 @@ export class BranchController {
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
-  findAll() { return this.branchService.findAll(); }
+  async findAll(@Req() req: any) {
+    const rows = await this.branchService.findAll();
+    return this.accessScope.filterList(req.user, 'branches', rows);
+  }
 
   @Get('provision-virtual-accounts')
   @Roles('SUPER_ADMIN')
@@ -25,7 +29,10 @@ export class BranchController {
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
-  findOne(@Param('id') id: string) { return this.branchService.findOne(id); }
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertBranch(req.user, id);
+    return this.branchService.findOne(id);
+  }
 
   @Patch(':id')
   @Roles('ADMIN', 'SUPER_ADMIN')

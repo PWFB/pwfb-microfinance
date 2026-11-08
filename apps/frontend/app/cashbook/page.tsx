@@ -113,8 +113,20 @@ export default function CashbookPage(){
       const d=await apiRequest(`/cashbook/daily?${q}`);setRows(Array.isArray(d)?d:[]);
     }catch(e:any){setError(e?.message||"Unable to load cashbook");}finally{setLoading(false);}
   }
+  async function loadOpeningBalance(){
+    if(!branchId)return;
+    try{
+      const q=new URLSearchParams({branchId,entryDate:form.entryDate});
+      if(form.staffId)q.set("staffId",form.staffId);
+      const value=await apiRequest(`/cashbook/daily/opening-balance?${q}`);
+      setForm((current:any)=>({...current,previousCashAtHand:String(Number(value?.previousCashAtHand||0))}));
+    }catch(e:any){
+      setError(e?.message||"Unable to calculate the previous closing cash balance.");
+    }
+  }
   useEffect(()=>{void init();void loadStaff();},[]);
   useEffect(()=>{void load();},[periodId,branchId,from,to]);
+  useEffect(()=>{void loadOpeningBalance();},[branchId,form.staffId,form.entryDate]);
 
   async function submit(e:React.FormEvent){
     e.preventDefault();setError("");setMessage("");
@@ -156,7 +168,7 @@ export default function CashbookPage(){
       {message&&<div className={`mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-900 ${styles.cashbookSuccess}`}>{message}</div>}
 
       <section className="mb-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
-        <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">The input fields follow the same categories and No./N columns as the physical register.</p></div>
+        <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">Opening cash is carried forward automatically from the previous closing balance. All other daily fields start fresh.</p></div>
         <form onSubmit={submit} className="p-4">
           <div className="grid gap-3 md:grid-cols-4">
             <label className="field">Date<input type="date" value={form.entryDate} onChange={e=>set("entryDate",e.target.value)}/></label>
@@ -232,7 +244,7 @@ function InputGroup({title,items,form,set,payment=false}:{title:string;items:rea
     <div className="divide-y divide-slate-200">
       {items.map(([k,l])=><div key={k} className="grid grid-cols-[minmax(0,1fr)_minmax(112px,0.8fr)] items-center gap-3 px-3 py-2">
         <label htmlFor={`cashbook-${k}`} className="text-sm font-bold text-slate-900">{l}</label>
-        <input id={`cashbook-${k}`} className={styles.cashbookAmountInput} aria-label={`${l} amount in naira`} type="number" min="0" step="0.01" inputMode="decimal" value={form[k]||"0"} onChange={e=>set(k,e.target.value)}/>
+        <input id={`cashbook-${k}`} className={styles.cashbookAmountInput} aria-label={`${l} amount in naira`} type="number" min="0" step="0.01" inputMode="decimal" value={form[k]||"0"} readOnly={k==="previousCashAtHand"} aria-readonly={k==="previousCashAtHand"} title={k==="previousCashAtHand"?"Calculated automatically from the previous daily closing balance":undefined} onChange={k==="previousCashAtHand"?undefined:e=>set(k,e.target.value)}/>
       </div>)}
     </div>
   </div>;

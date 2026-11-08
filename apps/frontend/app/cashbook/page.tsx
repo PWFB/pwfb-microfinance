@@ -7,7 +7,7 @@ import styles from "./cashbook.module.css";
 
 type Branch={id:string;name:string};
 type Period={id:string;name:string;status?:string};
-type Staff={id:string;firstName?:string;lastName?:string;position?:string;branchId?:string};
+type Staff={id:string;staffId?:string;firstName?:string;lastName?:string;position?:string;branchId?:string};
 type Row={id:string;entryDate:string;description?:string;referenceNo?:string;staffId?:string;staff?:{staffId?:string;firstName?:string;lastName?:string}|null;branch?:{name?:string};[key:string]:any};
 type PostedEntry={id:string;entryDate:string;type:'CASH_IN'|'CASH_OUT';amount:number;reference?:string|null;description?:string|null;staffId?:string|null;staff?:{staffId?:string;firstName?:string;lastName?:string}|null};
 
@@ -105,7 +105,7 @@ export default function CashbookPage(){
       if(open)setPeriodId(open.id);
     }catch(e:any){setError(e?.message||"Unable to load cashbook settings");}
   }
-  async function loadStaff(){try{const s=await apiRequest("/staff");setStaff(Array.isArray(s)?s:[]);}catch{setStaff([]);}}
+  async function loadStaff(){try{const s=await apiRequest("/staff");const list=Array.isArray(s)?s:[];setStaff(list);if(list.length===1)setForm((current:any)=>({...current,staffId:list[0].id}));}catch{setStaff([]);}}
   async function load(){
     if(!periodId||!branchId)return;
     try{
@@ -180,7 +180,7 @@ export default function CashbookPage(){
           <div className="grid gap-3 md:grid-cols-4">
             <label className="field">Date<input type="date" value={form.entryDate} onChange={e=>set("entryDate",e.target.value)}/></label>
             <label className="field">Description<input value={form.description} onChange={e=>set("description",e.target.value)} placeholder="Customer / daily description"/></label>
-            <label className="field">Field staff / collector<select value={form.staffId} onChange={e=>set("staffId",e.target.value)}><option value="">Not assigned</option>{staff.filter(s=>!s.branchId||s.branchId===branchId).map(s=><option key={s.id} value={s.id}>{s.firstName} {s.lastName} — {s.position||"Staff"}</option>)}</select></label>
+            <label className="field">Field staff / collector<select value={form.staffId} onChange={e=>set("staffId",e.target.value)}><option value="">Not assigned</option>{staff.filter(s=>!s.branchId||s.branchId===branchId).map(s=><option key={s.id} value={s.id}>{s.staffId||s.id} · {s.firstName} {s.lastName} — {s.position||"Staff"}</option>)}</select></label>
             <label className="field">Reference<input value={form.referenceNo} onChange={e=>set("referenceNo",e.target.value)} placeholder="Voucher / reference"/></label>
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -281,7 +281,7 @@ function InputGroup({title,items,form,set,payment=false}:{title:string;items:rea
 
 function WeekRows({week,items}:{week:number;items:Row[]}){
   const totalR=items.reduce((s,r)=>s+receiptTotal(r),0),totalP=items.reduce((s,r)=>s+paymentTotal(r),0),other=items.reduce((s,r)=>s+n(r.otherAfterTotal),0);
-  const staffName=(r:Row)=>r.description||"";
+  const staffName=(r:Row)=>r.narration||"";
   return <>
     {items.map(r=><tr key={r.id} className="odd:bg-white even:bg-slate-50">
       <td className="border p-2">{new Date(r.entryDate).toLocaleDateString("en-NG",{day:"2-digit",month:"2-digit"})}</td>

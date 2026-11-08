@@ -46,7 +46,15 @@ export class LoanDisbursementService {
     if (actor.role !== 'CREDIT_OFFICER') throw new UnauthorizedException('Only a Credit Officer can submit a loan for disbursement');
     if (!actor.staff) throw new UnauthorizedException('Credit Officer staff profile not found');
     const loan = await this.getLoan(loanId);
+    await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "createdByStaffId" TEXT`);
+    const ownership = await this.prisma.$queryRawUnsafe<Array<{ createdByStaffId: string | null }>>(
+      `SELECT "createdByStaffId" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,
+      loanId,
+    );
     if (!loan.customer.branchId || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException("This loan is outside the Credit Officer's assigned branch");
+    if (loan.customer.assignedStaffId !== actor.staff.id || ownership[0]?.createdByStaffId !== actor.staff.id) {
+      throw new UnauthorizedException('A credit officer can submit only a loan they created for their own registered customer');
+    }
     const assignment = await this.activeBranchAssignment(actor.staff.id, 'CREDIT_OFFICER', actor.staff.branchId);
     if (!assignment) throw new UnauthorizedException('Credit Officer is not actively assigned to this branch');
     if (![undefined, null, 'PENDING', 'APPROVED'].includes(loan.status)) throw new BadRequestException(`Loan cannot be submitted from status ${loan.status}`);
@@ -77,6 +85,9 @@ export class LoanDisbursementService {
     if (!isSuperAdmin && !isBranchAdmin && !isBranchManager) throw new UnauthorizedException('Only an assigned Branch Manager, branch Admin or Super Admin can approve disbursement');
     const loan = await this.getLoan(loanId);
     if (loan.status !== SUBMITTED) throw new BadRequestException('Loan is not waiting for Branch Manager confirmation');
+    if (isBranchAdmin && (!actor.staff || loan.customer.branchId !== actor.staff.branchId)) {
+      throw new UnauthorizedException('Branch Admin can approve only loans from the assigned branch');
+    }
     if (!isSuperAdmin) {
       if (!actor.staff) throw new UnauthorizedException('Branch management account is not linked to an assigned staff record');
       if (!loan.customer.branchId || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException('This loan is outside your assigned branch');
@@ -85,6 +96,93 @@ export class LoanDisbursementService {
         if (!assignment) throw new UnauthorizedException('Branch Manager is not actively assigned to this branch');
       }
     }
+
+    const metaRows = await this.prisma.$queryRawUnsafe<Array<{ disbursementDestination: string | null }>>(
+      \`SELECT "disbursementDestination" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1\`,
+      loan.id,
+    );
+    const destination = String(metaRows[0]?.disbursementDestination || 'WALLET').toUpperCase();
+    const amount = Number(loan.disbursementAmount ?? loan.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Loan disbursement amount must be greater than zero');
+
+    if (destination === 'WALLET') {
+      const claimed = await this.prisma.loan.updateMany({
+        where: { id: loanId, status: SUBMITTED },
+        data: { status: PROCESSING },
+      });
+      if (claimed.count !== 1) throw new BadRequestException('This loan disbursement is already being processed or is no longer awaiting approval');
+      try {
+        const result = await this.prisma.$transaction(async tx => {
+          const wallet = await tx.customerWallet.upsert({
+            where: { customerId: loan.customerId },
+            create: { customerId: loan.customerId, balance: 0 },
+            update: {},
+          });
+          await tx.$queryRawUnsafe('SELECT id FROM "CustomerWallet" WHERE id=$1 FOR UPDATE', wallet.id);
+          const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+          if (!lockedWallet || lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+          const reference = \`LOAN-\${loan.id}-WALLET\`;
+          const existing = await tx.walletTransaction.findUnique({ where: { reference } });
+          if (existing) {
+            if (existing.status === 'COMPLETED' && existing.newBalance !== undefined) {
+              throw new BadRequestException('A wallet disbursement transaction already exists for this loan');
+            }
+            throw new BadRequestException('A previous wallet disbursement requires reconciliation before retry');
+          }
+          const previousBalance = Math.round(Number(lockedWallet.balance || 0) * 100) / 100;
+          const newBalance = Math.round((previousBalance + amount) * 100) / 100;
+          const updatedWallet = await tx.customerWallet.update({ where: { id: wallet.id }, data: { balance: newBalance } });
+          const walletTransaction = await tx.walletTransaction.create({
+            data: {
+              customerId: loan.customerId,
+              type: 'DEPOSIT',
+              amount,
+              previousBalance,
+              newBalance,
+              reference,
+              description: \`PWFB loan disbursement \${loan.id}\`,
+              branchId: loan.customer.branchId || undefined,
+              status: 'COMPLETED',
+              provider: 'PWFB_LOAN',
+              processedAt: new Date(),
+            },
+          });
+          const ledger = await tx.transaction.create({
+            data: {
+              customerId: loan.customerId,
+              type: 'LOAN_DISBURSEMENT',
+              amount,
+              description: \`Confirmed wallet disbursement for loan \${loan.id}; wallet reference \${reference}\`,
+            },
+          });
+          const updatedLoan = await tx.loan.update({
+            where: { id: loanId, status: PROCESSING },
+            data: { status: DISBURSED },
+            include: { customer: true, repayments: true, guarantors: true },
+          });
+          return { wallet: updatedWallet, walletTransaction, ledger, loan: updatedLoan };
+        });
+        return {
+          loan: result.loan,
+          status: DISBURSED,
+          destination: 'WALLET',
+          wallet: result.wallet,
+          transaction: result.walletTransaction,
+          ledger: result.ledger,
+          amount,
+        };
+      } catch (error) {
+        // This path does not call an external provider. If the local DB transaction
+        // rolled back, it is safe to release the processing claim for a controlled retry.
+        await this.prisma.loan.updateMany({
+          where: { id: loanId, status: PROCESSING },
+          data: { status: SUBMITTED },
+        });
+        throw error;
+      }
+    }
+
+    if (destination !== 'BANK') throw new BadRequestException('Unsupported loan disbursement destination');
 
     const useAlternative = loan.disbursementUsesAlternativeAccount;
     const registered = loan.customer.bankAccounts[0];
@@ -98,7 +196,6 @@ export class LoanDisbursementService {
     const accountName = String(verified.accountName || storedAccountName || '').trim();
     if (!accountName) throw new BadRequestException('Bank provider did not return a verified beneficiary name');
 
-    const amount = loan.disbursementAmount ?? loan.amount;
     const reference = `LOAN-${loan.id}-${Date.now()}`;
     const narration = `PWFB loan disbursement ${loan.id}`;
 

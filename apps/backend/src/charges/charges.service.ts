@@ -163,7 +163,7 @@ export class ChargesService {
     await this.ensureTables(tx);
     const chargeAmount = Number(input.amount);
     if (!Number.isFinite(chargeAmount) || chargeAmount <= 0) throw new BadRequestException('Client registration charge is invalid');
-    const existing = await tx.$queryRawUnsafe<any[]>(
+    const existing = await tx.$queryRawUnsafe(
       `SELECT "id" FROM "PWFBRegistrationFeeReceipt" WHERE "customerId"=$1 LIMIT 1`,
       input.customerId,
     );

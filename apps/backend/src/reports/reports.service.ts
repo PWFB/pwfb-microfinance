@@ -10,11 +10,12 @@ export class ReportsService {
     const scope = await this.accessScope.getScope(user);
     if (scope.global) return { global: true, branchIds: null as string[] | null, staffId: null as string | null, empty: false };
     const branchIds = await this.accessScope.getBranchIds(user);
+    const assignedBranchIds = branchIds || [];
     return {
       global: false,
-      branchIds,
+      branchIds: assignedBranchIds,
       staffId: scope.role === 'CREDIT_OFFICER' ? scope.staffId : null,
-      empty: !branchIds?.length,
+      empty: assignedBranchIds.length === 0,
     };
   }
 
@@ -58,13 +59,13 @@ export class ReportsService {
       this.prisma.cashbookEntry.aggregate({ where: { ...cashbookWhere, type: 'CASH_IN' }, _sum: { amount: true } }),
       this.prisma.cashbookEntry.aggregate({ where: { ...cashbookWhere, type: 'CASH_OUT' }, _sum: { amount: true } }),
     ]);
-    const totalSavings = savingsTotal._sum.amount ?? 0;
-    const totalLoans = loansTotal._sum.amount ?? 0;
-    const totalTransactions = transactionsTotal._sum.amount ?? 0;
-    const totalRepayments = repaymentsTotal._sum.amount ?? 0;
-    const totalCollections = collectionsTotal._sum.amount ?? 0;
-    const cashIn = cashInTotal._sum.amount ?? 0;
-    const cashOut = cashOutTotal._sum.amount ?? 0;
+    const totalSavings = savingsTotal._sum?.amount ?? 0;
+    const totalLoans = loansTotal._sum?.amount ?? 0;
+    const totalTransactions = transactionsTotal._sum?.amount ?? 0;
+    const totalRepayments = repaymentsTotal._sum?.amount ?? 0;
+    const totalCollections = collectionsTotal._sum?.amount ?? 0;
+    const cashIn = cashInTotal._sum?.amount ?? 0;
+    const cashOut = cashOutTotal._sum?.amount ?? 0;
     return {
       customers: { count: totalCustomers },
       savings: { count: savingsCount, amount: totalSavings },

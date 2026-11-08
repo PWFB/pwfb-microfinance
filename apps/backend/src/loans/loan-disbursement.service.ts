@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExternalBankTransferService } from '../banking/external-bank-transfer.service';
 
@@ -6,6 +6,7 @@ const SUBMITTED = 'DISBURSEMENT_PENDING_BRANCH_REVIEW';
 const REJECTED = 'DISBURSEMENT_REJECTED';
 const PROCESSING = 'DISBURSEMENT_PROCESSING';
 const DISBURSED = 'DISBURSED';
+const DISBURSEMENT_FAILED = 'DISBURSEMENT_FAILED';
 
 @Injectable()
 export class LoanDisbursementService {
@@ -22,7 +23,7 @@ export class LoanDisbursementService {
   }
 
   private async actor(user: any) {
-    const actor = await this.prisma.user.findUnique({ where: { id: user?.sub }, include: { staff: { include: { assignments: true, branch: true } } } });
+    const actor = await this.prisma.user.findUnique({ where: { id: user?.id || user?.sub }, include: { staff: { include: { assignments: true, branch: true } } } });
     if (!actor) throw new UnauthorizedException('Authenticated user not found');
     return actor;
   }
@@ -70,15 +71,19 @@ export class LoanDisbursementService {
 
   async approveAndDisburse(loanId: string, user: any) {
     const actor = await this.actor(user);
-    const isAdmin = actor.role === 'ADMIN' || actor.role === 'SUPER_ADMIN';
-    if (!isAdmin && actor.role !== 'BRANCH_MANAGER') throw new UnauthorizedException('Only a Branch Manager, Admin or Super Admin can approve disbursement');
+    const isSuperAdmin = actor.role === 'SUPER_ADMIN';
+    const isBranchAdmin = actor.role === 'ADMIN';
+    const isBranchManager = actor.role === 'BRANCH_MANAGER';
+    if (!isSuperAdmin && !isBranchAdmin && !isBranchManager) throw new UnauthorizedException('Only an assigned Branch Manager, branch Admin or Super Admin can approve disbursement');
     const loan = await this.getLoan(loanId);
     if (loan.status !== SUBMITTED) throw new BadRequestException('Loan is not waiting for Branch Manager confirmation');
-    if (!isAdmin) {
-      if (!actor.staff) throw new UnauthorizedException('Branch Manager staff profile not found');
-      if (!loan.customer.branchId || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException("This loan is outside the Branch Manager's assigned branch");
-      const assignment = await this.activeBranchAssignment(actor.staff.id, 'BRANCH_MANAGER', actor.staff.branchId);
-      if (!assignment) throw new UnauthorizedException('Branch Manager is not actively assigned to this branch');
+    if (!isSuperAdmin) {
+      if (!actor.staff) throw new UnauthorizedException('Branch management account is not linked to an assigned staff record');
+      if (!loan.customer.branchId || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException('This loan is outside your assigned branch');
+      if (isBranchManager) {
+        const assignment = await this.activeBranchAssignment(actor.staff.id, 'BRANCH_MANAGER', actor.staff.branchId);
+        if (!assignment) throw new UnauthorizedException('Branch Manager is not actively assigned to this branch');
+      }
     }
 
     const useAlternative = loan.disbursementUsesAlternativeAccount;
@@ -96,30 +101,47 @@ export class LoanDisbursementService {
     const amount = loan.disbursementAmount ?? loan.amount;
     const reference = `LOAN-${loan.id}-${Date.now()}`;
     const narration = `PWFB loan disbursement ${loan.id}`;
-    const providerResult = await this.externalBankTransferService.transferToVerifiedAccount({ bankCode, accountNumber, accountName, amount, narration, reference });
+
+    // Atomically claim the submitted loan before calling the external provider.
+    // Concurrent approvals cannot initiate a second payout for the same loan.
+    const claimed = await this.prisma.loan.updateMany({
+      where: { id: loanId, status: SUBMITTED },
+      data: { status: PROCESSING },
+    });
+    if (claimed.count !== 1) throw new BadRequestException('This loan disbursement is already being processed or is no longer awaiting approval');
+
+    let providerResult: any;
+    try {
+      providerResult = await this.externalBankTransferService.transferToVerifiedAccount({ bankCode, accountNumber, accountName, amount, narration, reference });
+    } catch {
+      // The provider may have accepted the transfer before a timeout. Keep the claim
+      // in PROCESSING for manual/provider reconciliation; never issue an automatic retry.
+      throw new ServiceUnavailableException(`Loan payout status is uncertain. The loan remains in processing for reconciliation. Reference: ${reference}`);
+    }
 
     const providerStatus = String(providerResult?.status ?? '').toUpperCase();
-    const finalStatus = ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'].includes(providerStatus) ? DISBURSED : PROCESSING;
+    const isSuccess = ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'].includes(providerStatus);
+    const isDefinitiveFailure = ['FAILED', 'REJECTED', 'CANCELLED', 'CANCELED'].includes(providerStatus);
+    const finalStatus = isSuccess ? DISBURSED : isDefinitiveFailure ? DISBURSEMENT_FAILED : PROCESSING;
     const providerReference = this.providerReference(providerResult, reference);
 
-    // The provider call is external, but all PWFB-side financial state is committed
-    // together so a successful provider response cannot leave a loan without its ledger entry.
+    // Only confirmed provider success creates the completed disbursement ledger entry.
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.loan.update({
-        where: { id: loanId, status: SUBMITTED },
+        where: { id: loanId, status: PROCESSING },
         data: { status: finalStatus },
         include: { customer: true, repayments: true, guarantors: true },
       });
-
-      await tx.transaction.create({
-        data: {
-          customerId: loan.customerId,
-          type: 'LOAN_DISBURSEMENT',
-          amount,
-          description: `${finalStatus}: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}`,
-        },
-      });
-
+      if (isSuccess) {
+        await tx.transaction.create({
+          data: {
+            customerId: loan.customerId,
+            type: 'LOAN_DISBURSEMENT',
+            amount,
+            description: `DISBURSED: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}`,
+          },
+        });
+      }
       return updated;
     });
 
@@ -128,14 +150,18 @@ export class LoanDisbursementService {
 
   async reject(loanId: string, user: any, reason?: string) {
     const actor = await this.actor(user);
-    const isAdmin = actor.role === 'ADMIN' || actor.role === 'SUPER_ADMIN';
-    if (!isAdmin && actor.role !== 'BRANCH_MANAGER') throw new UnauthorizedException('Only a Branch Manager, Admin or Super Admin can reject disbursement');
+    const isSuperAdmin = actor.role === 'SUPER_ADMIN';
+    const isBranchAdmin = actor.role === 'ADMIN';
+    const isBranchManager = actor.role === 'BRANCH_MANAGER';
+    if (!isSuperAdmin && !isBranchAdmin && !isBranchManager) throw new UnauthorizedException('Only an assigned Branch Manager, branch Admin or Super Admin can reject disbursement');
     const loan = await this.getLoan(loanId);
     if (loan.status !== SUBMITTED) throw new BadRequestException('Loan is not waiting for Branch Manager confirmation');
-    if (!isAdmin) {
-      if (!actor.staff || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException("This loan is outside the Branch Manager's assigned branch");
-      const assignment = await this.activeBranchAssignment(actor.staff.id, 'BRANCH_MANAGER', actor.staff.branchId);
-      if (!assignment) throw new UnauthorizedException('Branch Manager is not actively assigned to this branch');
+    if (!isSuperAdmin) {
+      if (!actor.staff || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException('This loan is outside your assigned branch');
+      if (isBranchManager) {
+        const assignment = await this.activeBranchAssignment(actor.staff.id, 'BRANCH_MANAGER', actor.staff.branchId);
+        if (!assignment) throw new UnauthorizedException('Branch Manager is not actively assigned to this branch');
+      }
     }
     return this.prisma.loan.update({ where: { id: loanId }, data: { status: `${REJECTED}: ${String(reason || 'Branch Manager rejected the disbursement').slice(0, 240)}` }, include: { customer: true, repayments: true, guarantors: true } });
   }

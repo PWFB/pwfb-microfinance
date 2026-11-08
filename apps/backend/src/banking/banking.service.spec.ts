@@ -6,13 +6,16 @@ describe('BankingService wallet flows', () => {
   let prisma: any;
   let tx: any;
 
-  const sender = { id: 'test-customer-a', firstName: 'Test', lastName: 'Sender' };
+  const sender = { id: 'test-customer-a', firstName: 'Test', lastName: 'Sender', branchId: 'branch-1' };
   const recipient = { id: 'test-customer-b', firstName: 'Test', lastName: 'Recipient' };
 
   beforeEach(() => {
     tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       customer: { findUnique: jest.fn() },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-1', staffId: 'ST-001', branchId: 'branch-1', firstName: 'Test', lastName: 'Teller', employmentStatus: 'ACTIVE' }) },
+      financialPeriod: { findFirst: jest.fn().mockResolvedValue({ id: 'period-1', status: 'OPEN' }) },
+      cashbookEntry: { create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'cashbook-1', ...data })) },
       customerWallet: {
         findUnique: jest.fn(),
         upsert: jest.fn(),
@@ -31,7 +34,7 @@ describe('BankingService wallet flows', () => {
     tx.customerWallet.findUnique.mockResolvedValue({ id: 'wallet-a', customerId: sender.id, balance: 350, status: 'ACTIVE' });
     tx.customerWallet.update.mockResolvedValue({ id: 'wallet-a', customerId: sender.id, balance: 2850, status: 'ACTIVE' });
 
-    const result = await service.deposit(sender.id, { amount: 2500, reference: 'TEST-DEP-001' });
+    const result = await service.deposit(sender.id, { amount: 2500, reference: 'TEST-DEP-001', cashReceivedConfirmed: true, branchId: 'branch-1', staffId: 'staff-1' });
 
     expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
       'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
@@ -42,6 +45,7 @@ describe('BankingService wallet flows', () => {
     expect(tx.walletTransaction.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ customerId: sender.id, type: 'DEPOSIT', amount: 2500, previousBalance: 350, newBalance: 2850, reference: 'TEST-DEP-001', status: 'COMPLETED' }),
     }));
+    expect(tx.cashbookEntry.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ branchId: 'branch-1', staffId: 'staff-1', type: 'CASH_IN', amount: 2500, reference: 'TEST-DEP-001' }) }));
     expect(result.transaction.type).toBe('DEPOSIT');
   });
 

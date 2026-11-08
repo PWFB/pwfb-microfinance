@@ -25,7 +25,7 @@ export class AuthController {
   register(@Body() dto: RegisterDto) { return this.authService.register(dto); }
 
   @Post('login')
-  login(@Body() dto: LoginDto) { return this.authService.login(dto); }
+  login(@Body() dto: LoginDto, @Req() req: any) { return this.authService.login(dto, req?.ip); }
 
   @Get('google/config')
   googleConfig() { return this.authService.googleConfig(); }

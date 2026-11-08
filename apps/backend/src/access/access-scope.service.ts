@@ -8,11 +8,28 @@ export class AccessScopeService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getScope(user: AccessUser) {
-    const role = String(user?.role || '');
-    if (!user?.staffId) return { role, staffId: null, branchId: null, areaId: null, divisionId: null, regionId: null, global: role === 'SUPER_ADMIN' || role === 'ADMIN' };
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, user.staffId);
-    const staff = rows[0] || {};
-    return { role, staffId: user.staffId, branchId: staff.branchId ?? null, areaId: staff.areaId ?? null, divisionId: staff.divisionId ?? null, regionId: staff.regionId ?? null, global: role === 'SUPER_ADMIN' || role === 'ADMIN' };
+    const role = String(user?.role || '').toUpperCase();
+    if (role === 'SUPER_ADMIN') return { role, staffId: user?.staffId ?? null, branchId: null, areaId: null, divisionId: null, regionId: null, global: true };
+    const staffRef = String(user?.staffId || user?.id || '').trim();
+    if (!staffRef) return { role, staffId: null, branchId: null, areaId: null, divisionId: null, regionId: null, global: false };
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 OR "userId" = $1 ORDER BY CASE WHEN "id" = $1 THEN 0 ELSE 1 END LIMIT 1`,
+      staffRef,
+    );
+    const staff = rows[0];
+    if (!staff) return { role, staffId: null, branchId: null, areaId: null, divisionId: null, regionId: null, global: false };
+    return { role, staffId: staff.id, branchId: staff.branchId ?? null, areaId: staff.areaId ?? null, divisionId: staff.divisionId ?? null, regionId: staff.regionId ?? null, global: false };
+  }
+
+  async getBranchIds(user: AccessUser): Promise<string[] | null> {
+    const scope = await this.getScope(user);
+    if (scope.global) return null;
+    if (scope.branchId) return [String(scope.branchId)];
+    const dimension = scope.regionId ? ['regionId', scope.regionId] : scope.divisionId ? ['divisionId', scope.divisionId] : scope.areaId ? ['areaId', scope.areaId] : null;
+    if (!dimension) return [];
+    const column = dimension[0];
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "${column}" = $1`, dimension[1]);
+    return rows.map((row) => String(row.id));
   }
 
   private async assertOrg(user: AccessUser, target: any) {
@@ -20,6 +37,13 @@ export class AccessScopeService {
     if (scope.global) return true;
     if (!target) throw new ForbiddenException('Access denied: record not found');
     const same = (a: unknown, b: unknown) => Boolean(a && b && String(a) === String(b));
+    if (scope.role === 'CREDIT_OFFICER') {
+      const owner = target.staffId ?? target.assignedStaffId;
+      if (owner !== undefined && owner !== null) {
+        if (same(scope.staffId, owner)) return true;
+        throw new ForbiddenException('Access denied: credit officers may access only their own assigned work');
+      }
+    }
     if (scope.role === 'REGIONAL_MANAGER' && same(scope.regionId, target.regionId)) return true;
     if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;
     if (scope.role === 'AREA_MANAGER' && same(scope.areaId, target.areaId)) return true;
@@ -34,7 +58,20 @@ export class AccessScopeService {
     const ids = rows.map((row) => String(row?.id || '')).filter(Boolean);
     if (!ids.length) return rows;
     let allowed: any[] = [];
-    if (resource === 'staff') {
+    if (scope.role === 'CREDIT_OFFICER') {
+      if (!scope.staffId) return [];
+      if (resource === 'staff') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.staffId);
+      } else if (resource === 'customers') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Customer" WHERE "id" = ANY($1::text[]) AND "assignedStaffId" = $2`, ids, scope.staffId);
+      } else if (resource === 'loans') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id" FROM "Loan" l JOIN "Customer" c ON c."id"=l."customerId" WHERE l."id" = ANY($1::text[]) AND c."assignedStaffId" = $2`, ids, scope.staffId);
+      } else if (resource === 'savings') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" WHERE s."id" = ANY($1::text[]) AND c."assignedStaffId" = $2`, ids, scope.staffId);
+      } else if (resource === 'collections') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "DailyCollection" WHERE "id" = ANY($1::text[]) AND "staffId" = $2`, ids, scope.staffId);
+      } else return rows;
+    } else if (resource === 'staff') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Staff')})`, ids);
     } else if (resource === 'customers') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id" FROM "Customer" c LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE c."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
@@ -70,15 +107,15 @@ export class AccessScopeService {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, targetStaffId); return this.assertOrg(user, rows[0]);
   }
   async assertCustomer(user: AccessUser, customerId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id", c."branchId", b."areaId", b."divisionId", b."regionId" FROM "Customer" c LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE c."id" = $1 LIMIT 1`, customerId); return this.assertOrg(user, rows[0]);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Customer" c LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE c."id" = $1 LIMIT 1`, customerId); return this.assertOrg(user, rows[0]);
   }
   async assertLoan(user: AccessUser, loanId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id", c."branchId", b."areaId", b."divisionId", b."regionId" FROM "Loan" l JOIN "Customer" c ON c."id" = l."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE l."id" = $1 LIMIT 1`, loanId); return this.assertOrg(user, rows[0]);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Loan" l JOIN "Customer" c ON c."id" = l."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE l."id" = $1 LIMIT 1`, loanId); return this.assertOrg(user, rows[0]);
   }
   async assertSavings(user: AccessUser, savingsId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id", c."branchId", b."areaId", b."divisionId", b."regionId" FROM "Savings" s JOIN "Customer" c ON c."id" = s."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE s."id" = $1 LIMIT 1`, savingsId); return this.assertOrg(user, rows[0]);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Savings" s JOIN "Customer" c ON c."id" = s."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE s."id" = $1 LIMIT 1`, savingsId); return this.assertOrg(user, rows[0]);
   }
   async assertCollection(user: AccessUser, collectionId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id", dc."branchId", b."areaId", b."divisionId", b."regionId" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id" = dc."branchId" WHERE dc."id" = $1 LIMIT 1`, collectionId); return this.assertOrg(user, rows[0]);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id", dc."branchId", dc."staffId", b."areaId", b."divisionId", b."regionId" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id" = dc."branchId" WHERE dc."id" = $1 LIMIT 1`, collectionId); return this.assertOrg(user, rows[0]);
   }
 }

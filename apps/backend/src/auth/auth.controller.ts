@@ -53,8 +53,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/setup')
-  authenticatorSetup(@Req() req: any) {
-    return this.authService.authenticatorSetup(req.user);
+  authenticatorSetup(@Req() req: any, @Body() body: { password: string }) {
+    return this.authService.authenticatorSetup(req.user, body?.password);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -65,8 +65,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/disable')
-  authenticatorDisable(@Req() req: any, @Body() body: { code: string }) {
-    return this.authService.authenticatorDisable(req.user, body?.code);
+  authenticatorDisable(@Req() req: any, @Body() body: { password: string; code: string }) {
+    return this.authService.authenticatorDisable(req.user, body?.password, body?.code);
   }
 
   @UseGuards(JwtAuthGuard)

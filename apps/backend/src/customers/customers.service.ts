@@ -157,7 +157,7 @@ export class CustomersService {
     const scope = authUser ? await this.accessScope.getScope(authUser) : { global: false, role, staffId: null };
     const branchIds = authUser && !scope.global ? await this.accessScope.getBranchIds(authUser) : null;
     if (authUser && !scope.global && !branchIds?.length) return [];
-    const personalRoles = ['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
+    const personalRoles = ['CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'];
     const staff = authUser && personalRoles.includes(role)
       ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } })
       : null;

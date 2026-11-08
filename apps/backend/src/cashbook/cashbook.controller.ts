@@ -146,13 +146,7 @@ export class CashbookController {
   async summary(@Req() req: any, @Query('periodId') periodId?: string, @Query('branchId') branchId?: string) {
     const filters = await this.filters(req.user, branchId);
     if (filters.branchIds && !filters.branchIds.length) throw new ForbiddenException('No branch cashbook is assigned to this account');
-    if (filters.branchIds && !filters.branchId) {
-      const entries = await this.cashbookService.findAll(periodId, undefined, filters.branchIds);
-      const cashIn = entries.filter((entry: any) => entry.type === 'CASH_IN').reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0);
-      const cashOut = entries.filter((entry: any) => entry.type === 'CASH_OUT').reduce((sum: number, entry: any) => sum + Number(entry.amount || 0), 0);
-      return { cashIn, cashOut, balance: cashIn - cashOut, entryCount: entries.length };
-    }
-    return this.cashbookService.summary(periodId, filters.branchId);
+    return this.cashbookService.summary(periodId, filters.branchId, filters.branchIds, filters.staffId);
   }
 
   @Get(':id')
@@ -160,6 +154,10 @@ export class CashbookController {
   async findOne(@Param('id') id: string, @Req() req: any) {
     const entry = await this.cashbookService.findOne(id);
     await this.accessScope.assertBranch(req.user, entry.branchId);
+    const scope = await this.accessScope.getScope(req.user);
+    if ((scope.role === 'TELLER' || scope.role === 'CREDIT_OFFICER') && entry.staffId !== scope.staffId) {
+      throw new ForbiddenException('You can access only cashbook entries attributed to your own Staff ID');
+    }
     return entry;
   }
 

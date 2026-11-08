@@ -23,7 +23,7 @@ type StaffMember = {
   assignments?: Array<{ id: string; role?: string; active?: boolean; startsAt?: string; endsAt?: string; notes?: string; region?: { name?: string }; division?: { name?: string }; area?: { name?: string }; branch?: { name?: string } }>;
 };
 
-const roles = ['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'];
+const roles = ['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','ASSET_LOAN_MANAGER','LOAN_OFFICER','STAFF'];
 
 export default function StaffPage() {
   const [staff, setStaff] = useState<StaffMember[]>([]);

@@ -111,4 +111,23 @@ export class TwoFactorService {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ verifiedUntil: Date }>>(`SELECT "verifiedUntil" FROM "UserTwoFactorSession" WHERE "tokenHash" = $1 AND "userId" = $2 AND "verifiedUntil" > CURRENT_TIMESTAMP LIMIT 1`, tokenHash, userId);
     return Boolean(rows.length);
   }
+
+  async assertVerified(userId: string, token: string) {
+    await this.ensureTables();
+    if (!userId || !token) throw new UnauthorizedException('A verified login session is required for money movement');
+    const authenticator = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(
+      `SELECT "enabled" FROM "UserAuthenticator" WHERE "userId" = $1 LIMIT 1`,
+      userId,
+    );
+    if (!authenticator[0]?.enabled) {
+      throw new BadRequestException('Enable authenticator two-factor authentication before making a funds transfer.');
+    }
+    const tokenHash = createHash('sha256').update(token).digest('hex');
+    const sessions = await this.prisma.$queryRawUnsafe<Array<{ verifiedUntil: Date }>>(
+      `SELECT "verifiedUntil" FROM "UserTwoFactorSession" WHERE "tokenHash" = $1 AND "userId" = $2 AND "verifiedUntil" > CURRENT_TIMESTAMP LIMIT 1`,
+      tokenHash, userId,
+    );
+    if (!sessions.length) throw new UnauthorizedException('Verify your authenticator code before making a funds transfer.');
+    return true;
+  }
 }

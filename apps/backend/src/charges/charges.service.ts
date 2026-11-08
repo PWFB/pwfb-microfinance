@@ -158,9 +158,11 @@ export class ChargesService {
     userId?: string;
     userEmail?: string;
     customerName: string;
+    amount: number;
   }) {
     await this.ensureTables(tx);
-    const charge = await this.getClientRegistrationCharge();
+    const chargeAmount = Number(input.amount);
+    if (!Number.isFinite(chargeAmount) || chargeAmount <= 0) throw new BadRequestException('Client registration charge is invalid');
     const existing = await tx.$queryRawUnsafe<any[]>(
       \`SELECT "id" FROM "PWFBRegistrationFeeReceipt" WHERE "customerId"=$1 LIMIT 1\`,
       input.customerId,
@@ -174,7 +176,7 @@ export class ChargesService {
         periodId: period.id,
         branchId: input.branchId,
         type: 'CASH_IN',
-        amount: Number(charge.amount),
+        amount: chargeAmount,
         reference,
         description: \`Client registration fee received in cash for \${input.customerName}; registering Staff ID \${input.staffId}\`,
         entryDate: new Date(),
@@ -184,9 +186,9 @@ export class ChargesService {
     await tx.$executeRawUnsafe(
       \`INSERT INTO "PWFBRegistrationFeeReceipt" ("id","customerId","staffId","branchId","amount","currency","paymentMethod","reference","cashbookEntryId","collectedAt","createdByUserId","createdByEmail")
        VALUES ($1,$2,$3,$4,$5,'NGN','CASH',$6,$7,CURRENT_TIMESTAMP,$8,$9)\`,
-      receiptId, input.customerId, input.staffId, input.branchId, Number(charge.amount), reference, cashbookEntry.id, input.userId || null, input.userEmail || null,
+      receiptId, input.customerId, input.staffId, input.branchId, chargeAmount, reference, cashbookEntry.id, input.userId || null, input.userEmail || null,
     );
-    return { id: receiptId, customerId: input.customerId, staffId: input.staffId, branchId: input.branchId, amount: Number(charge.amount), currency: 'NGN', paymentMethod: 'CASH', reference, cashbookEntryId: cashbookEntry.id, collectedAt: new Date() };
+    return { id: receiptId, customerId: input.customerId, staffId: input.staffId, branchId: input.branchId, amount: chargeAmount, currency: 'NGN', paymentMethod: 'CASH', reference, cashbookEntryId: cashbookEntry.id, collectedAt: new Date() };
   }
 
   async listRegistrationReceipts(branchIds?: string[] | null, staffId?: string) {

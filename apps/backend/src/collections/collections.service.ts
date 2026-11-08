@@ -165,7 +165,10 @@ export class CollectionsService {
     if (branchIds && !branchIds.length && !branchId) return { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, byOfficer: [] };
     const collections = await this.prisma.dailyCollection.findMany({
       where: { collectionDate: { gte: start, lte: end }, ...branchFilter, ...(staffId ? { staffId } : {}) },
-      include: { staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } } },
+      include: {
+        staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } },
+        branch: { select: { id: true, name: true } },
+      },
     });
     const summary: any = { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0 };
     const officers = new Map<string, any>();

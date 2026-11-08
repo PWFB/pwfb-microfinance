@@ -24,6 +24,12 @@ const BASELINE = [
   { key: 'transaction-ledger-branch-scope', module: 'Transactions', title: 'Restrict transaction history and manual ledger entries by customer ownership', description: 'Ledger and wallet transaction history now filters by assigned branch and credit-officer customers; manual ledger writes require MFA. Verify direct record IDs and all transaction routes.', priority: 'CRITICAL', status: 'IN_PROGRESS' },
   { key: 'reconciliation-branch-area-scope', module: 'Reconciliation', title: 'Apply branch/area filters to every reconciliation aggregate', description: 'Reconciliation filters collections, cashbook, savings, loans, repayments, payroll and staff wallets by all assigned branch IDs; head-office balance is Super Admin only. Verify with multiple branches.', priority: 'CRITICAL', status: 'IN_PROGRESS' },
   { key: 'branch-audit-history', module: 'Audit', title: 'Provide branch-only cumulative audit history', description: 'Audit history is available to Super Admin/Auditor and assigned branch or area managers; log records are filtered by branch details and staff actors. Validate coverage for actions without branch IDs.', priority: 'HIGH', status: 'IN_PROGRESS' },
+  { key: 'teller-branch-cash-desk', module: 'Teller / Banking', title: 'Complete Teller branch cash-desk workflow', description: 'Teller serves customers only within the assigned branch, receives and attests physical cash, requires MFA, cannot withdraw/transfer or approve payouts, and posts wallet plus cashbook receipts with its Staff ID.', priority: 'CRITICAL', status: 'IN_PROGRESS' },
+  { key: 'asset-loan-manager-review', module: 'Loans / Asset Review', title: 'Complete independent Asset Loan Manager review', description: 'Asset Loan Manager can review Individual Loan applications in its assigned branch only; no self-approval; review note and reviewer Staff ID are stored; Branch Manager final payout remains separately MFA-approved.', priority: 'CRITICAL', status: 'IN_PROGRESS' },
+  { key: 'cash-deposit-atomic-posting', module: 'Banking / Cashbook', title: 'Atomically post Teller cash deposits', description: 'Verify same-branch customer and active collector, require cash-received confirmation and open period, then atomically credit the wallet and create a matching CASH_IN cashbook entry with Staff ID and a unique transaction reference.', priority: 'CRITICAL', status: 'IN_PROGRESS' },
+  { key: 'cashbook-field-work-attribution', module: 'Cashbook', title: 'Display Staff ID across daily field work and posted cashbook entries', description: 'Daily register rows and ordinary posted receipts include collector Staff ID/name. Individual officers see own daily records; branch/area managers see all assigned staff. Posted wallet deposits remain separate from daily-register totals to prevent double counting.', priority: 'HIGH', status: 'IN_PROGRESS' },
+  { key: 'financial-period-route-security', module: 'Periods / Security', title: 'Secure financial-period operations', description: 'Require authentication on all period routes, Admin/Super Admin plus MFA to create or close periods, allow staff read-only access, and serialize creation/closure to avoid competing open periods.', priority: 'CRITICAL', status: 'IN_PROGRESS' },
+  { key: 'teller-customer-service-scope', module: 'Teller / Access Control', title: 'Separate Teller branch customer service from Credit Officer ownership', description: 'Teller can find and receive cash for customers in its own branch; cannot view another branch; Credit Officers remain restricted to their individually assigned clients and no staff can edit daily field work.', priority: 'HIGH', status: 'IN_PROGRESS' },
   { key: 'frontend-api-acceptance', module: 'Frontend / API', title: 'Complete frontend integration and role-by-role acceptance checks', description: 'Verify every affected screen calls scoped APIs, displays collector/Staff ID and branch totals, and has useful permission/error states for each role.', priority: 'MEDIUM', status: 'NOT_STARTED' },
 ] as const;
 
@@ -74,6 +80,19 @@ export class ImplementationWorkService {
         randomUUID(), item.key, item.title, item.description, item.module, item.priority, item.status,
       );
     }
+    // Refresh only baseline-owned rows; keep any user-updated work status intact.
+    await this.prisma.$executeRawUnsafe(`
+      UPDATE "ImplementationWorkItem" SET
+        "title"='Link settled cashbook entries to the collecting officer',
+        "description"='Cashbook postings now retain the Staff ID for manual deposits, settled collections and registration fees; verify historic postings and reconciliation.',
+        "priority"='HIGH',"status"='IN_PROGRESS',"updatedAt"=CURRENT_TIMESTAMP
+      WHERE "workKey"='cashbook-collector-link' AND "updatedBy"='SYSTEM';
+      UPDATE "ImplementationWorkItem" SET
+        "title"='Implement Super Admin-managed ₦1,500 registration charge',
+        "description"='Charge is centrally configured by Super Admin, actual collection attestation required, historical receipt amount retained, duplicate charge prevented and receipt linked to cashbook. Complete end-to-end acceptance testing.',
+        "priority"='HIGH',"status"='IN_PROGRESS',"updatedAt"=CURRENT_TIMESTAMP
+      WHERE "workKey"='registration-fee-1500' AND "updatedBy"='SYSTEM';
+    `);
   }
 
   async list(filters: { status?: string; module?: string } = {}) {

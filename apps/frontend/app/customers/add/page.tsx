@@ -81,7 +81,7 @@ export default function AddCustomerPage() {
     }
     setLoading(true);
     try {
-      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent, registrationFeeConfirmed, registrationType, groupId: registrationType === 'GROUP' && groupId ? groupId : undefined, groupName: registrationType === 'GROUP' && !groupId ? groupName.trim() : undefined }) });
+      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent, registrationFeeConfirmed, registrationChargeAmount: registrationCharge?.amount, registrationType, groupId: registrationType === 'GROUP' && groupId ? groupId : undefined, groupName: registrationType === 'GROUP' && !groupId ? groupName.trim() : undefined }) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
       if (!customerId) {
         setMessage("Customer profile was submitted, but the server response did not include a customer ID. Wallet and virtual-account setup could not be confirmed.");
@@ -157,7 +157,6 @@ export default function AddCustomerPage() {
                 <label>EXISTING GROUP <small>Choose a group you own</small><select value={groupId} onChange={e => { setGroupId(e.target.value); if (e.target.value) setGroupName(''); }}><option value="">Create a new group instead…</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name} · {group.memberCount || 0} members</option>)}</select></label>
                 <label>NEW GROUP NAME <small>Leave blank when selecting an existing group</small><input value={groupName} onChange={e => { setGroupName(e.target.value); if (e.target.value.trim()) setGroupId(''); }} maxLength={80} placeholder="Enter the group name" /></label>
               </>}
-              <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
               <label>BVN <em>*</em> <small>Required for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="11-digit BVN" required /></label>
               <div><label>Bank <em>*</em> <small>Required for identity validation</small></label><BankSearchSelect banks={banks} value={bankCode} onChange={setBankCode} disabled={loading} /></div>

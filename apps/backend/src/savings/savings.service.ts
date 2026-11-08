@@ -89,6 +89,7 @@ export class SavingsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe('SELECT id FROM "Savings" WHERE id = $1 FOR UPDATE', id);
       const savings = await tx.savings.findUnique({ where: { id } });
       if (!savings) throw new NotFoundException('Savings account not found');
       const balance = Number(savings.amount || 0);

@@ -90,7 +90,7 @@ describe('RepaymentsService', () => {
   it('rejects repayments greater than the outstanding loan balance', async () => {
     prisma.loan.findUnique.mockResolvedValue({ ...loan, amount: 1000 });
     await expect(service.create({
-      loanId: loan.id, amount: 2000, method: 'CASH',
+      loanId: loan.id, amount: 2500, method: 'CASH',
       cashReceivedConfirmed: true, reference: 'CASH-REC-002',
     } as any, user)).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.transaction.create).not.toHaveBeenCalled();

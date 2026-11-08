@@ -7,11 +7,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Controller('staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class StaffController {
-  constructor(private readonly staffService: StaffService) {}
+  constructor(private readonly staffService: StaffService, private readonly accessScope: AccessScopeService) {}
 
   @Get('bvn/banks')
   @Roles('SUPER_ADMIN', 'ADMIN')
@@ -37,7 +38,10 @@ export class StaffController {
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
-  findAll(@Query() filter: StaffFilterDto) { return this.staffService.findAll(filter); }
+  async findAll(@Query() filter: StaffFilterDto, @Req() req: any) {
+    const rows = await this.staffService.findAll(filter);
+    return this.accessScope.filterList(req.user, 'staff', rows);
+  }
 
   @Get(':id/virtual-account')
   @Roles('SUPER_ADMIN', 'ADMIN')
@@ -45,7 +49,10 @@ export class StaffController {
 
   @Get(':id/assignments')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
-  assignmentHistory(@Param('id') id: string) { return this.staffService.assignmentHistory(id); }
+  async assignmentHistory(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertStaff(req.user, id);
+    return this.staffService.assignmentHistory(id);
+  }
 
   @Post(':id/assignments')
   @Roles('SUPER_ADMIN', 'ADMIN')
@@ -53,7 +60,10 @@ export class StaffController {
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
-  findOne(@Param('id') id: string) { return this.staffService.findOne(id); }
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertStaff(req.user, id);
+    return this.staffService.findOne(id);
+  }
 
   @Patch(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')

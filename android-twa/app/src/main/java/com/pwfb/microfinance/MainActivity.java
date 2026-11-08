@@ -113,7 +113,7 @@ public class MainActivity extends Activity {
     }
 
     public final class NativePasskeyBridge {
-        @JavascriptInterface public void registerPasskey(final boolean replaceExisting, final String token) { runOnUiThread(() -> registerPasskeyOnMainThread(true, token)); }
+        @JavascriptInterface public void registerPasskey(final boolean replaceExisting, final String token, final String password, final String code) { runOnUiThread(() -> registerPasskeyOnMainThread(true, token, password, code)); }
         @JavascriptInterface public void signInWithGoogle() { runOnUiThread(() -> startNativeGoogleSignIn(null)); }
         @JavascriptInterface public void signInWithGoogle(final String loginMode) { runOnUiThread(() -> startNativeGoogleSignIn(loginMode)); }
         @JavascriptInterface public void signInWithPasskey() { runOnUiThread(() -> startNativePasskeySignIn("CUSTOMER", "")); }
@@ -245,7 +245,7 @@ public class MainActivity extends Activity {
 
     private void sendNativeGoogleResult(boolean ok, String message, JSONObject result, String loginMode) { runOnUiThread(() -> { if (webView == null) return; try { JSONObject payload = new JSONObject(); payload.put("ok", ok); payload.put("message", message == null ? "" : message); payload.put("loginMode", loginMode == null || loginMode.trim().isEmpty() ? "CUSTOMER" : loginMode); if (result != null) { payload.put("access_token", result.optString("access_token", "")); if (result.has("user")) payload.put("user", result.get("user")); } webView.evaluateJavascript("window.__pwfbNativeGoogleResult && window.__pwfbNativeGoogleResult(" + payload.toString() + ")", null); } catch (Exception ignored) {} }); }
 
-    private void registerPasskeyOnMainThread(final boolean replaceExisting, final String token) {
+    private void registerPasskeyOnMainThread(final boolean replaceExisting, final String token, final String password, final String code) {
         try {
             if (webView == null) return;
             Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
@@ -255,9 +255,11 @@ public class MainActivity extends Activity {
             sendNativePasskeyStatus("Save your PWFB fingerprint now…");
             new Thread(() -> {
                 try {
-                    postAuthenticated("/auth/passkey/unregister-all", new JSONObject(), token);
-                    JSONObject requestBody = new JSONObject(); requestBody.put("replaceExisting", true);
-                    JSONObject options = postAuthenticated("/auth/passkey/register/options", requestBody, token); options.remove("excludeCredentials");
+                    if (password == null || password.trim().isEmpty()) throw new Exception("Enter your current PWFB password before changing passkeys.");
+                    JSONObject requestBody = new JSONObject(); requestBody.put("password", password); if (code != null && !code.trim().isEmpty()) requestBody.put("code", code);
+                    postAuthenticated("/auth/passkey/unregister-all", requestBody, token);
+                    JSONObject optionsBody = new JSONObject(requestBody.toString()); optionsBody.put("replaceExisting", true);
+                    JSONObject options = postAuthenticated("/auth/passkey/register/options", optionsBody, token); options.remove("excludeCredentials");
                     runOnUiThread(() -> createNativePasskey(options, token));
                 } catch (Exception e) { sendNativePasskeyResult(false, e.getMessage() == null ? "Unable to prepare fingerprint registration." : e.getMessage(), null); }
             }).start();

@@ -81,14 +81,15 @@ export class LoanDisbursementService {
   async reviewAssetLoan(loanId: string, user: any, note?: string) {
     const actor = await this.actor(user);
     if (actor.role !== 'ASSET_LOAN_MANAGER') throw new UnauthorizedException('Only an Asset Loan Manager may review this loan');
-    if (!actor.staff || actor.staff.employmentStatus !== 'ACTIVE' || !actor.staff.branchId) {
+    const reviewerStaff = actor.staff;
+    if (!reviewerStaff || reviewerStaff.employmentStatus !== 'ACTIVE' || !reviewerStaff.branchId) {
       throw new UnauthorizedException('Asset Loan Manager must have an active Staff ID and branch assignment');
     }
-    const assignment = await this.activeBranchAssignment(actor.staff.id, 'ASSET_LOAN_MANAGER', actor.staff.branchId);
+    const assignment = await this.activeBranchAssignment(reviewerStaff.id, 'ASSET_LOAN_MANAGER', reviewerStaff.branchId);
     if (!assignment) throw new UnauthorizedException('Asset Loan Manager is not actively assigned to this branch');
 
     const loan = await this.getLoan(loanId);
-    if (loan.customer.branchId !== actor.staff.branchId) {
+    if (loan.customer.branchId !== reviewerStaff.branchId) {
       throw new UnauthorizedException('This loan is outside the Asset Loan Manager assigned branch');
     }
     if (loan.status !== SUBMITTED) {
@@ -110,7 +111,7 @@ export class LoanDisbursementService {
     if (meta[0]?.assetReviewStatus !== 'PENDING_ASSET_REVIEW') {
       throw new BadRequestException('This loan is not waiting for Asset Loan Manager review');
     }
-    if (meta[0]?.createdByStaffId === actor.staff.id || meta[0]?.creatorUserId === actor.id) {
+    if (meta[0]?.createdByStaffId === reviewerStaff.id || meta[0]?.creatorUserId === actor.id) {
       throw new UnauthorizedException('The loan creator cannot approve their own asset-loan review');
     }
     const reviewNote = String(note || '').trim();
@@ -120,18 +121,18 @@ export class LoanDisbursementService {
     return this.prisma.$transaction(async tx => {
       const updated = await tx.$executeRawUnsafe(
         `UPDATE "PWFBLoanMeta" SET "assetReviewStatus"='APPROVED',"assetReviewedByStaffId"=$2,"assetReviewedByUserId"=$3,"assetReviewedAt"=CURRENT_TIMESTAMP,"assetReviewNote"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "loanId"=$1 AND "assetReviewStatus"='PENDING_ASSET_REVIEW'`,
-        loanId, actor.staff.id, actor.id, reviewNote || null,
+        loanId, reviewerStaff.id, actor.id, reviewNote || null,
       );
       if (updated !== 1) throw new BadRequestException('Asset review was already processed or is no longer pending');
       await tx.$executeRawUnsafe(
         `INSERT INTO "PWFBLoanReviewEvent" ("id","loanId","actorUserId","actorStaffId","action","note") VALUES ($1,$2,$3,$4,'ASSET_REVIEW_APPROVED',$5)`,
-        randomUUID(), loanId, actor.id, actor.staff.id, reviewNote || null,
+        randomUUID(), loanId, actor.id, reviewerStaff.id, reviewNote || null,
       );
       const rows = await tx.$queryRawUnsafe<any[]>(
         `SELECT "assetReviewStatus","assetReviewedByStaffId","assetReviewedByUserId","assetReviewedAt","assetReviewNote" FROM "PWFBLoanMeta" WHERE "loanId"=$1`,
         loanId,
       );
-      return { loanId, ...rows[0], reviewedBy: { staffId: actor.staff.staffId, name: [actor.firstName, actor.lastName].filter(Boolean).join(' ') } };
+      return { loanId, ...rows[0], reviewedBy: { staffId: reviewerStaff.staffId, name: [actor.firstName, actor.lastName].filter(Boolean).join(' ') } };
     });
   }
 

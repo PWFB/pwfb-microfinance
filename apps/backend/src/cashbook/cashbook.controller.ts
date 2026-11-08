@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AccessScopeService } from '../access/access-scope.service';
+import { TwoFactorService } from '../auth/two-factor.service';
 
 const CASHBOOK_ROLES = ['SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR', 'TELLER'] as const;
 const DAILY_WORK_ROLES = [...CASHBOOK_ROLES, 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'] as const;
@@ -15,7 +16,14 @@ export class CashbookController {
   constructor(
     private readonly cashbookService: CashbookService,
     private readonly accessScope: AccessScopeService,
+    private readonly twoFactorService: TwoFactorService,
   ) {}
+
+  private async requireFinancialMfa(req: any) {
+    const authorization = String(req?.headers?.authorization || '');
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    return this.twoFactorService.assertVerified(String(req?.user?.id || ''), token);
+  }
 
   private async filters(user: any, requestedBranchId?: string, requestedStaffId?: string) {
     const scope = await this.accessScope.getScope(user);
@@ -44,6 +52,7 @@ export class CashbookController {
     entryDate?: string;
   }, @Req() req: any) {
     await this.accessScope.assertBranch(req.user, body.branchId);
+    await this.requireFinancialMfa(req);
     return this.cashbookService.create(body);
   }
 
@@ -64,6 +73,7 @@ export class CashbookController {
   @Post('daily')
   @Roles(...DAILY_WORK_ROLES)
   async createDaily(@Body() body: CashbookDailyInput, @Req() req: any) {
+    await this.requireFinancialMfa(req);
     const scope = await this.accessScope.getScope(req.user);
     const allowedBranches = await this.accessScope.getBranchIds(req.user);
     if (!scope.global && (!allowedBranches?.includes(body.branchId))) throw new ForbiddenException('You cannot create a daily cashbook record for another branch');

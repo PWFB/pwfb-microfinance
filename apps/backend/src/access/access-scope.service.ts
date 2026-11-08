@@ -43,7 +43,7 @@ export class AccessScopeService {
     if (scope.global) return true;
     if (!target) throw new ForbiddenException('Access denied: record not found');
     const same = (a: unknown, b: unknown) => Boolean(a && b && String(a) === String(b));
-    if (scope.role === 'CREDIT_OFFICER' && ('staffId' in target || 'assignedStaffId' in target)) {
+    if (['CREDIT_OFFICER', 'TELLER'].includes(scope.role) && ('staffId' in target || 'assignedStaffId' in target)) {
       const owner = target.staffId ?? target.assignedStaffId;
       if (same(scope.staffId, owner)) return true;
       throw new ForbiddenException('Access denied: credit officers may access only their own assigned work');
@@ -62,7 +62,7 @@ export class AccessScopeService {
     const ids = rows.map((row) => String(row?.id || '')).filter(Boolean);
     if (!ids.length) return rows;
     let allowed: any[] = [];
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (['CREDIT_OFFICER', 'TELLER'].includes(scope.role)) {
       if (!scope.staffId) return [];
       if (resource === 'staff') {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.staffId);

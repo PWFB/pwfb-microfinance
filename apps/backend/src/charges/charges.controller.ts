@@ -11,7 +11,7 @@ export class ChargesController {
   constructor(private readonly charges: ChargesService, private readonly scope: AccessScopeService) {}
 
   @Get()
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','DIVISIONAL_MANAGER','REGIONAL_MANAGER','CREDIT_OFFICER','LOAN_OFFICER','STAFF')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','DIVISIONAL_MANAGER','REGIONAL_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF')
   list() { return this.charges.list(); }
 
   @Get('client-registration/history')
@@ -25,12 +25,12 @@ export class ChargesController {
   }
 
   @Get('registration-receipts')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','DIVISIONAL_MANAGER','REGIONAL_MANAGER','CREDIT_OFFICER')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','DIVISIONAL_MANAGER','REGIONAL_MANAGER','CREDIT_OFFICER','TELLER')
   async registrationReceipts(@Req() req: any) {
     const access = await this.scope.getScope(req.user);
     const branchIds = access.global ? null : await this.scope.getBranchIds(req.user);
     if (!access.global && !branchIds?.length) return [];
-    return this.charges.listRegistrationReceipts(branchIds, access.role === 'CREDIT_OFFICER' ? access.staffId || undefined : undefined);
+    return this.charges.listRegistrationReceipts(branchIds, ['CREDIT_OFFICER','TELLER'].includes(access.role) ? access.staffId || undefined : undefined);
   }
 
 }

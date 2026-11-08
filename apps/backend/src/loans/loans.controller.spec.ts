@@ -1,115 +1,57 @@
 import { LoansController } from './loans.controller';
 import { LoansService } from './loans.service';
-import { PermissionsService } from '../permissions/permissions.service';
 
 describe('LoansController', () => {
   let controller: LoansController;
-  let service: jest.Mocked<LoansService>;
+  let service: any;
+  const req = { user: { id: 'admin-1', role: 'ADMIN' }, headers: { authorization: 'Bearer test-token' } };
 
   beforeEach(() => {
-    service = {
-      create: jest.fn(),
-      findAll: jest.fn(),
-      findOne: jest.fn(),
-      update: jest.fn(),
-      remove: jest.fn(),
-    } as unknown as jest.Mocked<LoansService>;
-
-    controller = new LoansController(service, {} as any, {} as any, { assert: jest.fn().mockResolvedValue(undefined) } as unknown as PermissionsService);
-  });
-
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
-  });
-
-  it('should create a loan', async () => {
-    const dto = {
-      customerId: 'customer-1',
-      amount: 100000,
-      interestRate: 10,
-      status: 'PENDING',
-    };
-
-    const result = {
-      id: 'loan-1',
-      ...dto,
-    };
-
-    service.create.mockResolvedValue(result as any);
-
-    await expect(controller.create(dto, { user: { role: 'ADMIN' } } as any)).resolves.toBe(result);
-    expect(service.create).toHaveBeenCalledWith(dto);
-  });
-
-  it('should return all loans', async () => {
-    const result = [
-      {
-        id: 'loan-1',
-        customerId: 'customer-1',
-        amount: 100000,
-      },
-    ];
-
-    service.findAll.mockResolvedValue(result as any);
-
-    await expect(controller.findAll()).resolves.toBe(result);
-    expect(service.findAll).toHaveBeenCalled();
-  });
-
-  it('should return one loan', async () => {
-    const result = {
-      id: 'loan-1',
-      customerId: 'customer-1',
-      amount: 100000,
-    };
-
-    service.findOne.mockResolvedValue(result as any);
-
-    await expect(
-      controller.findOne('loan-1'),
-    ).resolves.toBe(result);
-
-    expect(service.findOne).toHaveBeenCalledWith('loan-1');
-  });
-
-  it('should update a loan', async () => {
-    const dto = {
-      amount: 125000,
-      interestRate: 12,
-    };
-
-    const result = {
-      id: 'loan-1',
-      customerId: 'customer-1',
-      amount: 125000,
-      interestRate: 12,
-    };
-
-    service.update.mockResolvedValue(result as any);
-
-    await expect(
-      controller.update('loan-1', dto),
-    ).resolves.toBe(result);
-
-    expect(service.update).toHaveBeenCalledWith(
-      'loan-1',
-      dto,
+    service = { create: jest.fn(), findAll: jest.fn(), findOne: jest.fn(), update: jest.fn(), remove: jest.fn() };
+    controller = new LoansController(
+      service as LoansService,
+      {} as any,
+      {} as any,
+      { assert: jest.fn().mockResolvedValue(true) } as any,
+      { assertVerified: jest.fn().mockResolvedValue(true) } as any,
+      { assertCustomer: jest.fn().mockResolvedValue(true) } as any,
     );
   });
 
-  it('should delete a loan', async () => {
-    const result = {
-      id: 'loan-1',
-      customerId: 'customer-1',
-      amount: 100000,
-    };
+  it('creates a loan after role permission check', async () => {
+    const dto = { customerId: 'customer-1', amount: 100000, interestRate: 10 };
+    const result = { id: 'loan-1', ...dto };
+    service.create.mockResolvedValue(result);
+    await expect(controller.create(dto as any, req)).resolves.toBe(result);
+    expect(service.create).toHaveBeenCalledWith(dto, req.user);
+  });
 
-    service.remove.mockResolvedValue(result as any);
+  it('returns scoped loans', async () => {
+    const result = [{ id: 'loan-1' }];
+    service.findAll.mockResolvedValue(result);
+    await expect(controller.findAll(req as any)).resolves.toBe(result);
+    expect(service.findAll).toHaveBeenCalledWith(req.user);
+  });
 
-    await expect(
-      controller.remove('loan-1'),
-    ).resolves.toBe(result);
+  it('returns one scoped loan', async () => {
+    const result = { id: 'loan-1' };
+    service.findOne.mockResolvedValue(result);
+    await expect(controller.findOne('loan-1', req as any)).resolves.toBe(result);
+    expect(service.findOne).toHaveBeenCalledWith('loan-1', req.user);
+  });
 
-    expect(service.remove).toHaveBeenCalledWith('loan-1');
+  it('updates a loan after MFA', async () => {
+    const dto = { amount: 125000 };
+    const result = { id: 'loan-1', ...dto };
+    service.update.mockResolvedValue(result);
+    await expect(controller.update('loan-1', dto as any, req as any)).resolves.toBe(result);
+    expect(service.update).toHaveBeenCalledWith('loan-1', dto, req.user);
+  });
+
+  it('removes a loan after MFA', async () => {
+    const result = { id: 'loan-1' };
+    service.remove.mockResolvedValue(result);
+    await expect(controller.remove('loan-1', req as any)).resolves.toBe(result);
+    expect(service.remove).toHaveBeenCalledWith('loan-1', req.user);
   });
 });

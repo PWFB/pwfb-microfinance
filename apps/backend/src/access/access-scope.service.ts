@@ -74,6 +74,9 @@ export class AccessScopeService {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" WHERE s."id" = ANY($1::text[]) AND c."assignedStaffId" = $2`, ids, scope.staffId);
       } else if (resource === 'collections') {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "DailyCollection" WHERE "id" = ANY($1::text[]) AND "staffId" = $2`, ids, scope.staffId);
+      } else if (resource === 'branches') {
+        if (!scope.branchId) return [];
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.branchId);
       } else return rows;
     } else if (scope.role === 'TELLER') {
       if (!scope.staffId || !scope.branchId) return [];

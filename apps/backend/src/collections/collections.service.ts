@@ -135,7 +135,7 @@ export class CollectionsService {
         const loan = await tx.loan.findUnique({ where: { id: targetId } });
         if (!loan) throw new NotFoundException('Loan not found');
         if (loan.customerId !== collection.customerId) throw new BadRequestException('Loan does not belong to the collection customer');
-        const repayment = await tx.repayment.create({ data: { loanId: loan.id, amount, paymentDate: collection.collectionDate, method: 'FIELD_COLLECTION', notes: collection.notes || description, periodId: collection.periodId } });
+        const repayment = await tx.repayment.create({ data: { loanId: loan.id, amount, paymentDate: collection.collectionDate, method: 'FIELD_COLLECTION', notes: collection.notes || description, periodId: collection.periodId, branchId: collection.branchId, staffId: collection.staffId, reference: `FIELD-${reference}` } });
         recordId = repayment.id;
         allocation = await this.allocateLoanRepayment(tx, loan.id, repayment.id, amount);
         const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'LOAN_REPAYMENT', amount, description: `${description} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`, periodId: collection.periodId } });

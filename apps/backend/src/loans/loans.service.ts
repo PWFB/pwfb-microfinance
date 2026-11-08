@@ -184,7 +184,7 @@ export class LoansService {
   const scope = await this.accessScope.getScope(user);
   const branchIds = scope.global ? null : await this.accessScope.getBranchIds(user);
   if (!scope.global && !branchIds?.length) return [];
-  const customerWhere = scope.global ? {} : scope.role === 'CREDIT_OFFICER'
+  const customerWhere = scope.global ? {} : ['CREDIT_OFFICER', 'TELLER'].includes(scope.role)
     ? { branchId: { in: branchIds! }, assignedStaffId: scope.staffId || '__NO_STAFF__' }
     : { branchId: { in: branchIds! } };
   const loans = await this.prisma.loan.findMany({

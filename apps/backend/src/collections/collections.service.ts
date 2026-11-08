@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StaffWalletService } from '../staff-wallet/staff-wallet.service';
 
@@ -39,20 +40,46 @@ export class CollectionsService {
   }
 
   async create(data: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }) {
-    const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
-    if (!period) throw new NotFoundException('Financial period not found');
-    if (period.status === 'CLOSED') throw new BadRequestException('Cannot add collections to a closed period');
-    const branch = await this.prisma.branch.findUnique({ where: { id: data.branchId } });
-    if (!branch) throw new NotFoundException('Branch not found');
-    const staff = await this.prisma.staff.findUnique({ where: { id: data.staffId } });
-    if (!staff) throw new NotFoundException('Collector/staff not found');
-    if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
-    const customer = await this.prisma.customer.findUnique({ where: { id: data.customerId } });
-    if (!customer) throw new NotFoundException('Customer not found');
-    if (customer.branchId !== data.branchId) throw new BadRequestException('Collection customer must belong to the selected collection branch');
     const amount = Number(data.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Collection amount must be greater than zero');
-    const created = await this.prisma.dailyCollection.create({ data: { periodId: data.periodId, branchId: data.branchId, staffId: data.staffId, customerId: data.customerId, type: data.type, amount, reference: data.reference, notes: data.notes, collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date() }, include: { period: true, branch: true, staff: true, customer: true } });
+    const reference = String(data.reference || '').trim() || `COL-${randomUUID()}`;
+    if (reference.length > 120) throw new BadRequestException('Collection reference is too long');
+
+    const created = await this.prisma.$transaction(async tx => {
+      // Serialize requests sharing the same reference and reject duplicate submissions.
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', 'DAILY-COLLECTION-REFERENCE:' + reference);
+      const existing = await tx.dailyCollection.findFirst({ where: { reference }, select: { id: true } });
+      if (existing) throw new BadRequestException('This collection reference has already been recorded');
+
+      const period = await tx.financialPeriod.findUnique({ where: { id: data.periodId } });
+      if (!period) throw new NotFoundException('Financial period not found');
+      if (period.status === 'CLOSED') throw new BadRequestException('Cannot add collections to a closed period');
+      const branch = await tx.branch.findUnique({ where: { id: data.branchId } });
+      if (!branch) throw new NotFoundException('Branch not found');
+      const staff = await tx.staff.findUnique({ where: { id: data.staffId } });
+      if (!staff) throw new NotFoundException('Collector/staff not found');
+      if (staff.employmentStatus !== 'ACTIVE') throw new BadRequestException('Collector must be an active staff member');
+      if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
+      const customer = await tx.customer.findUnique({ where: { id: data.customerId } });
+      if (!customer) throw new NotFoundException('Customer not found');
+      if (customer.branchId !== data.branchId) throw new BadRequestException('Collection customer must belong to the selected collection branch');
+
+      return tx.dailyCollection.create({
+        data: {
+          periodId: data.periodId,
+          branchId: data.branchId,
+          staffId: data.staffId,
+          customerId: data.customerId,
+          type: data.type,
+          amount,
+          reference,
+          notes: data.notes,
+          collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date(),
+        },
+        include: { period: true, branch: true, staff: true, customer: true },
+      });
+    });
+
     if (!data.settleNow) return created;
     const targetId = await this.resolveSettlementTarget(data.customerId, data.type);
     return this.settle(created.id, targetId);

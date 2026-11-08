@@ -6,10 +6,11 @@ import { CustomerVirtualAccountService } from '../banking/customer-virtual-accou
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { AccessScopeService } from '../access/access-scope.service';
+import { ChargesService } from '../charges/charges.service';
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService, private readonly customerVirtualAccounts: CustomerVirtualAccountService, private readonly accessScope: AccessScopeService) {}
+  constructor(private readonly prisma: PrismaService, private readonly customerVirtualAccounts: CustomerVirtualAccountService, private readonly accessScope: AccessScopeService, private readonly charges: ChargesService) {}
 
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.prisma.user.findUnique({ where: { email } })) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
@@ -39,6 +40,8 @@ export class CustomersService {
 
   async create(dto: CreateCustomerDto, authUser: any) {
     if (dto.virtualAccountConsent !== true) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
+    if (dto.registrationFeeConfirmed !== true) throw new BadRequestException('Confirm that the current client registration fee has actually been collected before creating this client');
+    const registrationCharge = await this.charges.getClientRegistrationCharge();
     const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id }, include: { branch: true } });
     if (!staff || staff.employmentStatus !== 'ACTIVE') throw new UnauthorizedException('An active Staff ID and branch assignment are required to register a customer');
     const registrationType = dto.registrationType || (dto.groupId || dto.groupName ? 'GROUP' : 'INDIVIDUAL');
@@ -95,7 +98,15 @@ export class CustomersService {
             customer: { connect: { id: customer.id } },
           },
         });
-        return { customer, user, group };
+        const registrationFeeReceipt = await this.charges.recordClientRegistrationFee(tx, {
+          customerId: customer.id,
+          staffId: staff.id,
+          branchId: staff.branchId,
+          userId: authUser.id,
+          userEmail: authUser.email,
+          customerName: [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' '),
+        });
+        return { customer, user, group, registrationFeeReceipt };
       });
 
       let virtualAccounts: any[] = [];
@@ -122,6 +133,7 @@ export class CustomersService {
           registrationType,
           groupName: result.group?.name || null,
         },
+        registrationFeeReceipt: result.registrationFeeReceipt,
         wallet: { customerId: result.customer.id, currency: 'NGN', status: 'ACTIVE' },
         virtualAccounts,
         virtualAccountWarning,
@@ -195,6 +207,13 @@ export class CustomersService {
 
   private maskIdentity(value?: string | null) { if (!value) return null; return `${'•'.repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`; }
   private async getIdentityVerification(customerId: string) { const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT id, bvn, bvn_status AS "bvnStatus", bvn_verified_at AS "bvnVerifiedAt", bvn_overridden_at AS "bvnOverriddenAt", bvn_override_by_email AS "bvnOverrideByEmail", bvn_override_reason AS "bvnOverrideReason", nin, nin_status AS "ninStatus", nin_verified_at AS "ninVerifiedAt", nin_overridden_at AS "ninOverriddenAt", nin_override_by_email AS "ninOverrideByEmail", nin_override_reason AS "ninOverrideReason", created_at AS "createdAt", updated_at AS "updatedAt" FROM customer_identity_verifications WHERE customer_id = $1`, customerId); const row = rows[0]; if (!row) return null; return { id: row.id, bvn: this.maskIdentity(row.bvn), bvnStatus: row.bvnStatus, bvnVerifiedAt: row.bvnVerifiedAt, bvnOverriddenAt: row.bvnOverriddenAt, bvnOverrideByEmail: row.bvnOverrideByEmail, bvnOverrideReason: row.bvnOverrideReason, nin: this.maskIdentity(row.nin), ninStatus: row.ninStatus, ninVerifiedAt: row.ninVerifiedAt, ninOverriddenAt: row.ninOverriddenAt, ninOverrideByEmail: row.ninOverrideByEmail, ninOverrideReason: row.ninOverrideReason, createdAt: row.createdAt, updatedAt: row.updatedAt }; }
+
+  async getRegistrationFeeReceipt(id: string, authUser?: any) {
+    await this.findOne(id, authUser);
+    const receipt = await this.charges.getRegistrationReceipt(id);
+    if (!receipt) throw new NotFoundException('Registration fee receipt not found');
+    return receipt;
+  }
 
   async findOne(id: string, authUser?: any) {
     const customer = await this.prisma.customer.findUnique({

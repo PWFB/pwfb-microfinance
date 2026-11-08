@@ -111,6 +111,27 @@ export class CashbookService {
 
   private map(r:any){const out:any={id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,branch:{name:r.branch_name},period:{name:r.period_name}};for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);return {...out,...this.totals(out)};}
 
+  async getOpeningBalance(branchId: string, staffId?: string, entryDate?: string) {
+    await this.ensureDailyTable();
+    const date = entryDate ? new Date(entryDate + 'T00:00:00.000') : new Date();
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
+    const previousRows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date < $3 ORDER BY entry_date DESC, created_at DESC LIMIT 1`,
+      branchId, staffId || null, date,
+    );
+    if (!previousRows[0]) return { previousCashAtHand: 0, previousEntryDate: null, previousEntryId: null };
+    const previous = this.map(previousRows[0]);
+    const closing = Number(previous.totalReceipts || 0) - Number(previous.totalPayments || 0);
+    if (!Number.isFinite(closing) || closing < 0) {
+      throw new BadRequestException('The previous cashbook closing balance is negative or invalid. Reconcile the previous daily record before opening a new day.');
+    }
+    return {
+      previousCashAtHand: Math.round(closing * 100) / 100,
+      previousEntryDate: previousRows[0].entry_date,
+      previousEntryId: previousRows[0].id,
+    };
+  }
+
   async createDaily(data:CashbookDailyInput){
     await this.ensureDailyTable();
     const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}});if(!p)throw new NotFoundException('Financial period not found');if(p.status==='CLOSED')throw new BadRequestException('Cannot add entries to a closed period');
@@ -119,18 +140,9 @@ export class CashbookService {
     const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
     if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
     const v=this.values(data);
-    // Opening cash is a server-calculated carry-forward. Ignore client-supplied
-    // opening values so only the previous closing cash can roll into this row.
-    const previousRows:any[] = await this.prisma.$queryRawUnsafe(
-      `SELECT * FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date < $3 ORDER BY entry_date DESC, created_at DESC LIMIT 1`,
-      data.branchId, data.staffId ?? null, entryDate,
-    );
-    if (previousRows[0]) {
-      const previous = this.map({ ...previousRows[0], branch_name: b.name, period_name: '' });
-      v.previousCashAtHand = Math.max(0, Number(previous.totalReceipts || 0) - Number(previous.totalPayments || 0));
-    } else {
-      v.previousCashAtHand = 0;
-    }
+    // Opening cash is calculated on the server; ignore client-supplied opening cash.
+    const opening = await this.getOpeningBalance(data.branchId, data.staffId, entryDate.toISOString().slice(0,10));
+    v.previousCashAtHand = opening.previousCashAtHand;
     const id=randomUUID(); const rowTotals=this.totals(v); v.otherAfterTotal=Math.max(0,rowTotals.totalReceipts-rowTotals.totalPayments); const cols=ALL_FIELDS.map(snake);
     const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,entryDate,data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
     const placeholders=params.map((_,i)=>`$${i+1}`);

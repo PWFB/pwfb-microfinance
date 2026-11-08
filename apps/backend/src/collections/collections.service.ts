@@ -49,6 +49,7 @@ export class CollectionsService {
     if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
     const customer = await this.prisma.customer.findUnique({ where: { id: data.customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
+    if (customer.branchId !== data.branchId) throw new BadRequestException('Collection customer must belong to the selected collection branch');
     const amount = Number(data.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Collection amount must be greater than zero');
     const created = await this.prisma.dailyCollection.create({ data: { periodId: data.periodId, branchId: data.branchId, staffId: data.staffId, customerId: data.customerId, type: data.type, amount, reference: data.reference, notes: data.notes, collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date() }, include: { period: true, branch: true, staff: true, customer: true } });

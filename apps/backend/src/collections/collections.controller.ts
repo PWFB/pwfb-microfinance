@@ -32,7 +32,7 @@ export class CollectionsController {
     const branchIds = await this.accessScope.getBranchIds(user);
     if (!branchIds?.length) throw new ForbiddenException('Your account has no assigned branch or organizational scope');
     if (requestedBranchId && !branchIds.includes(requestedBranchId)) throw new ForbiddenException('You cannot view collections from another branch');
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
       if (!scope.staffId) throw new ForbiddenException('Credit officer account is not linked to a Staff ID');
       if (requestedStaffId && requestedStaffId !== scope.staffId) throw new ForbiddenException('Credit officers can view only their own daily collections');
       return { branchId: scope.branchId || undefined, branchIds, staffId: scope.staffId };
@@ -48,7 +48,7 @@ export class CollectionsController {
     await this.requireFinancialMfa(req);
     const scope = await this.accessScope.getScope(req.user);
     let input = { ...body };
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
       if (!scope.staffId || !scope.branchId) throw new ForbiddenException('Credit officer account is not assigned to a branch and Staff ID');
       if (body.branchId !== scope.branchId || (body.staffId && body.staffId !== scope.staffId)) throw new ForbiddenException('Credit officers can record collections only for themselves in their assigned branch');
       input = { ...body, branchId: scope.branchId, staffId: scope.staffId };

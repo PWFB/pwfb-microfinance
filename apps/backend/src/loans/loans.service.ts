@@ -20,6 +20,13 @@ export class LoansService {
   await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "registeredStaffId" TEXT`);
   await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "createdByStaffId" TEXT`);
   await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "creatorUserId" TEXT`);
+  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "assetReviewStatus" TEXT NOT NULL DEFAULT 'NOT_REQUIRED'`);
+  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "assetReviewedByStaffId" TEXT`);
+  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "assetReviewedByUserId" TEXT`);
+  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "assetReviewedAt" TIMESTAMP`);
+  await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "assetReviewNote" TEXT`);
+  await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PWFBLoanReviewEvent" ("id" TEXT PRIMARY KEY,"loanId" TEXT NOT NULL REFERENCES "Loan"("id") ON DELETE RESTRICT,"actorUserId" TEXT NOT NULL,"actorStaffId" TEXT NOT NULL,"action" TEXT NOT NULL,"note" TEXT,"createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+  await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PWFBLoanReviewEvent_loanId_createdAt_idx" ON "PWFBLoanReviewEvent" ("loanId","createdAt")`);
   for(const type of LOAN_TYPES) await this.prisma.$executeRawUnsafe(`INSERT INTO "PWFBLoanRate" ("id","loanType","interestRate") VALUES ($1,$2,0) ON CONFLICT ("loanType") DO NOTHING`,`rate_${type.toLowerCase().replace(/[^a-z0-9]+/g,'_')}`,type);
  }
  private async meta(id:string){await this.ensureLoanTables();const rows=await this.prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,id);return rows[0]??null;}
@@ -42,7 +49,7 @@ export class LoansService {
   const scope = await this.accessScope.getScope(user);
   const branchIds = scope.global ? null : await this.accessScope.getBranchIds(user);
   if (!scope.global && !branchIds?.length) return [];
-  if (scope.role === 'CREDIT_OFFICER' && !scope.staffId) return [];
+  if (['CREDIT_OFFICER','TELLER'].includes(scope.role) && !scope.staffId) return [];
   const whereParts = ['s."employmentStatus" = \'ACTIVE\'', 'c."id" IS NOT NULL'];
   const params: any[] = [];
   if (!scope.global) {
@@ -95,7 +102,7 @@ export class LoansService {
     if (!groupId || customer.groupId !== groupId) throw new BadRequestException('Select a customer who is a member of the chosen group');
     const group = await this.prisma.clientGroup.findUnique({ where: { id: groupId } });
     if (!group || group.branchId !== customer.branchId) throw new BadRequestException('The selected group does not belong to the borrower branch');
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
       if (!actorStaffId || customer.assignedStaffId !== actorStaffId) throw new BadRequestException('Credit officers can select only their own group members');
       await this.prisma.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PWFBClientGroupOwner" ("groupId" TEXT PRIMARY KEY REFERENCES "ClientGroup"("id") ON DELETE CASCADE, "ownerStaffId" TEXT NOT NULL REFERENCES "Staff"("id") ON DELETE RESTRICT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)');
       const owners = await this.prisma.$queryRawUnsafe<Array<{ ownerStaffId: string }>>('SELECT "ownerStaffId" FROM "PWFBClientGroupOwner" WHERE "groupId"=$1 LIMIT 1', groupId);
@@ -145,11 +152,12 @@ export class LoansService {
       include: { customer: true, repayments: true, guarantors: true },
     });
     await tx.$executeRawUnsafe(
-      'INSERT INTO "PWFBLoanMeta" ("loanId","loanType","duration","repaymentFrequency","purpose","interestAmount","totalRepayment","installmentAmount","passportPhoto","disbursementDestination","verifiedNameMatchCount","disbursementAccountVerified","borrowerType","groupId","registeredStaffId","createdByStaffId","creatorUserId") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)',
+      'INSERT INTO "PWFBLoanMeta" ("loanId","loanType","duration","repaymentFrequency","purpose","interestAmount","totalRepayment","installmentAmount","passportPhoto","disbursementDestination","verifiedNameMatchCount","disbursementAccountVerified","borrowerType","groupId","registeredStaffId","createdByStaffId","creatorUserId","assetReviewStatus") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)',
       created.id, loanType, duration, dto.repaymentFrequency ?? null, dto.purpose ?? null,
       interestAmount, totalRepayment, installmentAmount, dto.passportPhoto ?? null, destination,
       dto.verifiedNameMatchCount ?? 0, destination === 'BANK' && dto.disbursementAccountVerified === true,
       borrowerType, borrowerType === 'GROUP' ? dto.groupId : null, registeredStaffId, actorStaffId, user?.id || null,
+      loanType === 'Individual Loan' ? 'PENDING_ASSET_REVIEW' : 'NOT_REQUIRED',
     );
     return created;
   });

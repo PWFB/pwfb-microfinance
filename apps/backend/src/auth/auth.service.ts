@@ -232,6 +232,26 @@ export class AuthService {
     return true;
   }
 
+  async reauthenticateSecurityAction(authUser: any, password: string, code?: string) {
+    const userId = this.authenticatedUserId(authUser);
+    await this.verifyCurrentPassword(userId, password);
+    await this.ensureAuthenticatorTable();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ secretEnc: string; enabled: boolean }>>(
+      `SELECT "secretEnc","enabled" FROM "UserAuthenticator" WHERE "userId"=$1 LIMIT 1`,
+      userId,
+    );
+    if (rows[0]?.enabled) {
+      await this.assertAuthenticatorAttemptAllowed(userId);
+      const secret = this.decryptAuthenticatorSecret(rows[0].secretEnc);
+      if (!this.verifyTotp(secret, String(code || ''))) {
+        await this.recordAuthenticatorFailure(userId);
+        throw new UnauthorizedException('Enter a valid current authenticator code to confirm this security change');
+      }
+      await this.clearAuthenticatorFailures(userId);
+    }
+    return { verified: true };
+  }
+
   private async ensureAuthenticatorAttemptTable() {
     await this.prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS "AuthenticatorAttempt" (

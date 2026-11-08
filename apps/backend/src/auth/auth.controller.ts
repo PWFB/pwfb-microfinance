@@ -59,25 +59,29 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/setup')
-  authenticatorSetup(@Req() req: any, @Body() body: { password: string }) {
+  async authenticatorSetup(@Req() req: any, @Body() body: { password: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('authenticator-setup', req?.ip, req?.user?.id);
     return this.authService.authenticatorSetup(req.user, body?.password);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/verify')
-  authenticatorVerify(@Req() req: any, @Body() body: { code: string }) {
+  async authenticatorVerify(@Req() req: any, @Body() body: { code: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('authenticator-enrollment', req?.ip, req?.user?.id);
     return this.authService.authenticatorVerify(req.user, body?.code);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/disable')
-  authenticatorDisable(@Req() req: any, @Body() body: { password: string; code: string }) {
+  async authenticatorDisable(@Req() req: any, @Body() body: { password: string; code: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('security-change', req?.ip, req?.user?.id);
     return this.authService.authenticatorDisable(req.user, body?.password, body?.code);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('passkey/unregister-all')
   async passkeyUnregisterAll(@Req() req: any, @Body() body: { password: string; code?: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('security-change', req?.ip, req?.user?.id);
     await this.authService.reauthenticateSecurityAction(req.user, body?.password, body?.code);
     return this.authService.passkeyUnregisterAll(req.user);
   }
@@ -85,6 +89,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('passkey/register/options')
   async passkeyRegisterOptions(@Req() req: any, @Body() body: { replaceExisting?: boolean; password: string; code?: string }, @Headers('origin') origin?: string) {
+    await this.authService.consumeAuthEndpointRateLimit('security-change', req?.ip, req?.user?.id);
     await this.authService.reauthenticateSecurityAction(req.user, body?.password, body?.code);
     return this.authService.passkeyRegisterOptions(req.user, origin, !!body?.replaceExisting);
   }

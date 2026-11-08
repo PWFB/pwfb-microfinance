@@ -59,6 +59,7 @@ export class BankingController {
   async deposit(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
     const id = await this.resolveCustomerId(customerId, req.user);
     await this.assertPermission(req.user, 'WALLET_DEPOSIT');
+    await this.requireTransferMfa(req);
     const staff = await this.authenticatedStaff(req.user);
     const attributed = staff ? { ...body, branchId: staff.branchId, staffId: staff.id } : { ...body, branchId: undefined, staffId: undefined };
     const bankCode = String(body?.bankCode || body?.bank_code || '').trim();
@@ -105,6 +106,12 @@ export class BankingController {
   }
   @Get('branches/:branchId/virtual-accounts') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AUDITOR','TELLER','STAFF') getBranchVirtualAccounts(@Param('branchId') branchId:string){return this.bankingService.getBranchVirtualAccounts(branchId)}
   @Post('branches/:branchId/virtual-accounts') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF') generateBranchVirtualAccount(@Param('branchId') branchId:string,@Body() body:{institutionId:string}){return this.bankingService.generateBranchVirtualAccount(branchId,body.institutionId)}
-  @Post('branch-virtual-account/deposit') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF') recordBranchDeposit(@Body() body:{accountNumber:string;amount:number;reference?:string;narration?:string}){return this.bankingService.recordBranchDeposit(body)}
+  @Post('branch-virtual-account/deposit')
+  @Roles('SUPER_ADMIN')
+  async recordBranchDeposit(@Body() body: { accountNumber: string; amount: number; reference?: string; narration?: string }, @Req() req: any) {
+    await this.requireTransferMfa(req);
+    if (!String(body?.reference || '').trim()) throw new BadRequestException('A verified provider or reconciliation reference is required');
+    return this.bankingService.recordBranchDeposit(body);
+  }
   @Get('branches/:branchId/ledger') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AUDITOR','TELLER','STAFF') getBranchLedger(@Param('branchId') branchId:string){return this.bankingService.getBranchLedger(branchId)}
 }

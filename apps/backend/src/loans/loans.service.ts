@@ -49,7 +49,7 @@ export class LoansService {
     params.push(branchIds);
     whereParts.push('s."branchId" = ANY($' + params.length + '::text[])');
   }
-  if (scope.role === 'CREDIT_OFFICER') {
+  if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
     params.push(scope.staffId);
     whereParts.push('c."assignedStaffId" = $' + params.length);
   }

@@ -47,7 +47,7 @@ export class TransactionsService {
     const customer = await this.customerWhere(user);
     const [ledgerTransactions, walletTransactions] = await Promise.all([
       this.prisma.transaction.findMany({
-        where: { customer },
+        where: { customer: { is: customer } },
         orderBy: { createdAt: 'desc' },
         include: { customer: true },
       }),

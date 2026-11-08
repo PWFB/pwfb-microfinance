@@ -30,6 +30,7 @@ export class SavingsController {
   @Roles(...OPERATION_ROLES)
   async create(@Req() req: any, @Body() dto: CreateSavingsDto) {
     await this.permissions.assert(req.user.role, 'SAVINGS_CREATE');
+    await this.requireFinancialMfa(req);
     return this.savingsService.create(dto);
   }
 
@@ -37,6 +38,7 @@ export class SavingsController {
   @Roles(...OPERATION_ROLES)
   async deposit(@Req() req: any, @Param('id') id: string, @Body() body: { amount: number; description?: string }) {
     await this.permissions.assert(req.user.role, 'SAVINGS_CREATE');
+    await this.requireFinancialMfa(req);
     return this.savingsService.deposit(id, body?.amount, body?.description);
   }
 

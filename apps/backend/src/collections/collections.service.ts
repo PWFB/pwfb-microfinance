@@ -85,6 +85,11 @@ export class CollectionsService {
     if (!targetId) targetId = await this.resolveSettlementTarget(collection.customerId, collection.type);
     await this.staffWallet.ensureTables();
     return this.prisma.$transaction(async tx => {
+      await tx.$queryRawUnsafe(`SELECT id FROM "DailyCollection" WHERE id=$1 FOR UPDATE`, id);
+      const latest = await tx.dailyCollection.findUnique({ where: { id }, include: { period: true } });
+      if (!latest) throw new NotFoundException('Daily collection not found');
+      if (latest.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period');
+      if (latest.settled) throw new BadRequestException('Collection has already been settled');
       await this.ensureAllocationTable(tx);
       let transactionId: string;
       let recordId: string | undefined;

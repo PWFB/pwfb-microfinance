@@ -24,12 +24,18 @@ export class AccessScopeService {
   async getBranchIds(user: AccessUser): Promise<string[] | null> {
     const scope = await this.getScope(user);
     if (scope.global) return null;
+    const dimension =
+      scope.role === 'REGIONAL_MANAGER' && scope.regionId ? ['regionId', scope.regionId]
+      : scope.role === 'DIVISIONAL_MANAGER' && scope.divisionId ? ['divisionId', scope.divisionId]
+      : scope.role === 'AREA_MANAGER' && scope.areaId ? ['areaId', scope.areaId]
+      : null;
+    if (dimension) {
+      const column = dimension[0];
+      const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "${column}" = $1`, dimension[1]);
+      return rows.map((row) => String(row.id));
+    }
     if (scope.branchId) return [String(scope.branchId)];
-    const dimension = scope.regionId ? ['regionId', scope.regionId] : scope.divisionId ? ['divisionId', scope.divisionId] : scope.areaId ? ['areaId', scope.areaId] : null;
-    if (!dimension) return [];
-    const column = dimension[0];
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "${column}" = $1`, dimension[1]);
-    return rows.map((row) => String(row.id));
+    return [];
   }
 
   private async assertOrg(user: AccessUser, target: any) {

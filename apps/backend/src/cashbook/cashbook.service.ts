@@ -157,7 +157,12 @@ export class CashbookService {
     await this.ensureDailyTable();
     const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}});if(!p)throw new NotFoundException('Financial period not found');if(p.status==='CLOSED')throw new BadRequestException('Cannot add entries to a closed period');
     const b=await this.prisma.branch.findUnique({where:{id:data.branchId}});if(!b)throw new NotFoundException('Branch not found');
-    if(data.staffId){const staff=await this.prisma.staff.findUnique({where:{id:data.staffId}});if(!staff)throw new NotFoundException('Field staff not found');if(staff.branchId!==data.branchId)throw new BadRequestException('Field staff must belong to the selected branch');}
+    if(data.staffId){
+      const staff=await this.prisma.staff.findUnique({where:{id:data.staffId}});
+      if(!staff)throw new NotFoundException('Field staff not found');
+      if(staff.employmentStatus!=='ACTIVE')throw new BadRequestException('Field cashbook work requires an active staff member');
+      if(staff.branchId!==data.branchId)throw new BadRequestException('Field staff must belong to the selected branch');
+    }
     const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
     if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
     const v=this.values(data);

@@ -96,6 +96,9 @@ export class LoansService {
   if (!customer) throw new NotFoundException('Customer not found');
   await this.accessScope.assertCustomer(user, customer.id);
   const actorStaffId = String(scope.staffId || '').trim() || null;
+  if (scope.role === 'TELLER' && (!actorStaffId || customer.assignedStaffId !== actorStaffId)) {
+    throw new BadRequestException('A Teller may create loans only for customers personally registered under that Teller Staff ID');
+  }
 
   if (borrowerType === 'GROUP') {
     const groupId = String(dto.groupId || '').trim();

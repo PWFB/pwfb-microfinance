@@ -160,19 +160,67 @@ export class CollectionsService {
   async reconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } }); }
   async unreconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); if (collection.settled) throw new BadRequestException('A settled collection cannot be unreconciled'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: false } }); }
   async dailySummary(date: string, branchId?: string, staffId?: string, branchIds?: string[] | null) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestException('Invalid collection date'); const start = new Date(`${date}T00:00:00.000+01:00`), end = new Date(`${date}T23:59:59.999+01:00`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestException('Invalid collection date');
+    const start = new Date(`${date}T00:00:00.000+01:00`);
+    const end = new Date(`${date}T23:59:59.999+01:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date');
+
     const branchFilter = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
-    if (branchIds && !branchIds.length && !branchId) return { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, byOfficer: [] };
-    const collections = await this.prisma.dailyCollection.findMany({
-      where: { collectionDate: { gte: start, lte: end }, ...branchFilter, ...(staffId ? { staffId } : {}) },
-      include: {
-        staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } },
-        branch: { select: { id: true, name: true } },
-      },
-    });
-    const summary: any = { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0 };
+    if (branchIds && !branchIds.length && !branchId) {
+      return { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: 0, byOfficer: [] };
+    }
+
+    const [collections, walletDeposits] = await Promise.all([
+      this.prisma.dailyCollection.findMany({
+        where: { collectionDate: { gte: start, lte: end }, ...branchFilter, ...(staffId ? { staffId } : {}) },
+        include: {
+          staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } },
+          branch: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.walletTransaction.findMany({
+        where: {
+          type: 'DEPOSIT',
+          status: 'COMPLETED',
+          createdAt: { gte: start, lte: end },
+          ...branchFilter,
+          ...(staffId ? { staffId } : {}),
+        },
+        select: { id: true, customerId: true, amount: true, reference: true, branchId: true, staffId: true, createdAt: true },
+      }),
+    ]);
+
+    const collectionReferences = new Set((collections as any[]).map(row => String(row.reference || '').trim()).filter(Boolean));
+    const deposits = (walletDeposits as any[]).filter(row => !row.reference || !collectionReferences.has(String(row.reference).trim()));
+    const staffIds = [...new Set(deposits.map(row => String(row.staffId || '')).filter(Boolean))];
+    const depositBranchIds = [...new Set(deposits.map(row => String(row.branchId || '')).filter(Boolean))];
+    const [staffRows, branchRows] = await Promise.all([
+      staffIds.length ? this.prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } }) : Promise.resolve([]),
+      depositBranchIds.length ? this.prisma.branch.findMany({ where: { id: { in: depositBranchIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    ]);
+    const staffById = new Map((staffRows as any[]).map(row => [String(row.id), row]));
+    const branchById = new Map((branchRows as any[]).map(row => [String(row.id), row]));
+    const summary: any = { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: deposits.length };
     const officers = new Map<string, any>();
+
+    const officerFor = (staffIdValue: string | null, branchIdValue: string | null, staff: any, branchName: string | null) => {
+      const key = String(staffIdValue || 'UNASSIGNED');
+      const officer = officers.get(key) || {
+        staffId: staffIdValue,
+        employeeStaffId: staff?.staffId || null,
+        officerName: [staff?.firstName, staff?.lastName].filter(Boolean).join(' ').trim() || 'Unassigned collector',
+        branchId: branchIdValue,
+        branchName,
+        collectionCount: 0,
+        depositCount: 0,
+        cashCollected: 0,
+        settled: 0,
+        unsettled: 0,
+      };
+      officers.set(key, officer);
+      return officer;
+    };
+
     for (const collection of collections as any[]) {
       const amount = Number(collection.amount || 0);
       summary.total += amount;
@@ -181,13 +229,25 @@ export class CollectionsService {
       if (collection.type === 'OTHER') summary.other += amount;
       if (collection.settled) summary.settled += amount; else summary.unsettled += amount;
       summary.collectionCount++;
-      const staff = collection.staff || {}, key = String(collection.staffId || 'UNASSIGNED');
-      const officer = officers.get(key) || { staffId: collection.staffId, employeeStaffId: staff.staffId || null, officerName: [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim() || 'Unknown officer', branchId: collection.branchId, branchName: collection.branch?.name || null, collectionCount: 0, cashCollected: 0, settled: 0, unsettled: 0 };
+      const officer = officerFor(collection.staffId || null, collection.branchId || null, collection.staff, collection.branch?.name || null);
       officer.collectionCount++;
       officer.cashCollected += amount;
       if (collection.settled) officer.settled += amount; else officer.unsettled += amount;
-      officers.set(key, officer);
     }
+
+    for (const deposit of deposits) {
+      const amount = Number(deposit.amount || 0);
+      summary.cashDeposits += amount;
+      summary.settled += amount;
+      const staff = deposit.staffId ? staffById.get(String(deposit.staffId)) : null;
+      const branch = deposit.branchId ? branchById.get(String(deposit.branchId)) : null;
+      const officer = officerFor(deposit.staffId || null, deposit.branchId || null, staff, branch?.name || null);
+      officer.depositCount++;
+      officer.cashCollected += amount;
+      officer.settled += amount;
+    }
+
+    summary.cashCollectedTotal = summary.total + summary.cashDeposits;
     return { ...summary, byOfficer: [...officers.values()].sort((a, b) => b.cashCollected - a.cashCollected) };
   }
 }

@@ -36,7 +36,7 @@ export class StaffController {
   create(@Body() createStaffDto: CreateStaffDto) { return this.staffService.create(createStaffDto); }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
   findAll(@Query() filter: StaffFilterDto) { return this.staffService.findAll(filter); }
 
   @Get(':id/virtual-account')
@@ -44,7 +44,7 @@ export class StaffController {
   virtualAccount(@Param('id') id: string) { return this.staffService.virtualAccount(id); }
 
   @Get(':id/assignments')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
   assignmentHistory(@Param('id') id: string) { return this.staffService.assignmentHistory(id); }
 
   @Post(':id/assignments')
@@ -52,7 +52,7 @@ export class StaffController {
   assign(@Param('id') id: string, @Body() body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) { return this.staffService.assign(id, body); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
   findOne(@Param('id') id: string) { return this.staffService.findOne(id); }
 
   @Patch(':id')

@@ -27,7 +27,7 @@ export class CustomersService {
     const scope = await this.accessScope.getScope(authUser);
     const branchIds = scope.global ? null : await this.accessScope.getBranchIds(authUser);
     if (!scope.global && !branchIds?.length) return [];
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
       if (!scope.staffId) return [];
       return this.prisma.$queryRawUnsafe<any[]>(
         'SELECT g."id", g."name", g."branchId", g."createdAt", COUNT(c."id")::int AS "memberCount" FROM "ClientGroup" g JOIN "PWFBClientGroupOwner" o ON o."groupId"=g."id" LEFT JOIN "Customer" c ON c."groupId"=g."id" AND c."assignedStaffId"=$1 WHERE o."ownerStaffId"=$1 GROUP BY g."id", g."name", g."branchId", g."createdAt" ORDER BY g."createdAt" DESC',
@@ -157,7 +157,7 @@ export class CustomersService {
     const scope = authUser ? await this.accessScope.getScope(authUser) : { global: false, role, staffId: null };
     const branchIds = authUser && !scope.global ? await this.accessScope.getBranchIds(authUser) : null;
     if (authUser && !scope.global && !branchIds?.length) return [];
-    const personalRoles = ['CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'];
+    const personalRoles = ['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
     const staff = authUser && personalRoles.includes(role)
       ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } })
       : null;

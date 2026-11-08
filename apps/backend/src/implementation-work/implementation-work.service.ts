@@ -81,18 +81,16 @@ export class ImplementationWorkService {
       );
     }
     // Refresh only baseline-owned rows; keep any user-updated work status intact.
-    await this.prisma.$executeRawUnsafe(`
-      UPDATE "ImplementationWorkItem" SET
-        "title"='Link settled cashbook entries to the collecting officer',
-        "description"='Cashbook postings now retain the Staff ID for manual deposits, settled collections and registration fees; verify historic postings and reconciliation.',
-        "priority"='HIGH',"status"='IN_PROGRESS',"updatedAt"=CURRENT_TIMESTAMP
-      WHERE "workKey"='cashbook-collector-link' AND "updatedBy"='SYSTEM';
-      UPDATE "ImplementationWorkItem" SET
-        "title"='Implement Super Admin-managed ₦1,500 registration charge',
-        "description"='Charge is centrally configured by Super Admin, actual collection attestation required, historical receipt amount retained, duplicate charge prevented and receipt linked to cashbook. Complete end-to-end acceptance testing.',
-        "priority"='HIGH',"status"='IN_PROGRESS',"updatedAt"=CURRENT_TIMESTAMP
-      WHERE "workKey"='registration-fee-1500' AND "updatedBy"='SYSTEM';
-    `);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "ImplementationWorkItem" SET "title"=$1,"description"=$2,"priority"='HIGH',"status"='IN_PROGRESS',"updatedAt"=CURRENT_TIMESTAMP WHERE "workKey"='cashbook-collector-link' AND "updatedBy"='SYSTEM'`,
+      'Link settled cashbook entries to the collecting officer',
+      'Cashbook postings now retain the Staff ID for manual deposits, settled collections and registration fees; verify historic postings and reconciliation.',
+    );
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "ImplementationWorkItem" SET "title"=$1,"description"=$2,"priority"='HIGH',"status"='IN_PROGRESS',"updatedAt"=CURRENT_TIMESTAMP WHERE "workKey"='registration-fee-1500' AND "updatedBy"='SYSTEM'`,
+      'Implement Super Admin-managed ₦1,500 registration charge',
+      'Charge is centrally configured by Super Admin, actual collection attestation required, historical receipt amount retained, duplicate charge prevented and receipt linked to cashbook. Complete end-to-end acceptance testing.',
+    );
   }
 
   async list(filters: { status?: string; module?: string } = {}) {

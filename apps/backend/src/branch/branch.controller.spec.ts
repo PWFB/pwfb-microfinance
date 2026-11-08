@@ -60,7 +60,7 @@ describe('BranchController', () => {
 
     service.findOne.mockReturnValue(result as any);
 
-    expect(controller.findOne('1', { user: { id: 'admin', role: 'ADMIN' } } as any)).resolves.toBe(result);
+    await expect(controller.findOne('1', { user: { id: 'admin', role: 'ADMIN' } } as any)).resolves.toBe(result);
     expect(service.findOne).toHaveBeenCalledWith('1');
   });
 

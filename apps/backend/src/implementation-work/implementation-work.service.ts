@@ -120,7 +120,7 @@ export class ImplementationWorkService {
   async update(id: string, input: any, actor: any) {
     await this.ensureTables();
     const current = await this.get(id);
-    const allowed: Record<string, string> = {};
+    const allowed: Record<string, string | null> = {};
     if (input?.status !== undefined) {
       const status = String(input.status).toUpperCase();
       if (!STATUSES.includes(status as any)) throw new BadRequestException('Invalid work status');

@@ -17,6 +17,35 @@ export class TwoFactorService {
     this.tablesReady = true;
   }
 
+  private async assertAttemptAllowed(userId: string) {
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AuthenticatorAttempt" ("userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE,"attempts" INTEGER NOT NULL DEFAULT 0,"windowStartedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"blockedUntil" TIMESTAMP(3),"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" FROM "AuthenticatorAttempt" WHERE "userId"=$1 AND "blockedUntil">CURRENT_TIMESTAMP LIMIT 1`,
+      userId,
+    );
+    if (rows.length) throw new UnauthorizedException('Too many authenticator attempts. Wait 15 minutes before trying again.');
+  }
+
+  private async recordFailure(userId: string) {
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "AuthenticatorAttempt" ("userId","attempts","windowStartedAt","updatedAt")
+      VALUES ($1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT ("userId") DO UPDATE SET
+        "attempts" = CASE WHEN "AuthenticatorAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN 1 ELSE "AuthenticatorAttempt"."attempts"+1 END,
+        "windowStartedAt" = CASE WHEN "AuthenticatorAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN CURRENT_TIMESTAMP ELSE "AuthenticatorAttempt"."windowStartedAt" END,
+        "blockedUntil" = CASE
+          WHEN "AuthenticatorAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN NULL
+          WHEN "AuthenticatorAttempt"."attempts"+1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+          ELSE "AuthenticatorAttempt"."blockedUntil"
+        END,
+        "updatedAt"=CURRENT_TIMESTAMP
+    `, userId);
+  }
+
+  private async clearFailures(userId: string) {
+    await this.prisma.$executeRawUnsafe(`DELETE FROM "AuthenticatorAttempt" WHERE "userId"=$1`, userId);
+  }
+
   private encryptionKey() {
     const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET;
     if (!seed || seed === 'pwfb-secret-key') throw new BadRequestException('Authenticator encryption key is not configured on the server');
@@ -72,6 +101,7 @@ export class TwoFactorService {
       throw new UnauthorizedException('Two-factor login session has expired. Please sign in again.');
     }
     if (!payload?.sub) throw new UnauthorizedException('Invalid two-factor login session');
+    await this.assertAttemptAllowed(String(payload.sub));
 
     const rows = await this.prisma.$queryRawUnsafe<Array<{ secretEnc: string; enabled: boolean; recoveryCodes: string | null }>>(`SELECT "secretEnc", "enabled", "recoveryCodes" FROM "UserAuthenticator" WHERE "userId" = $1 LIMIT 1`, payload.sub);
     if (!rows[0]?.enabled) {
@@ -97,7 +127,11 @@ export class TwoFactorService {
       }
     }
 
-    if (!valid) throw new UnauthorizedException('Invalid authenticator code');
+    if (!valid) {
+      await this.recordFailure(String(payload.sub));
+      throw new UnauthorizedException('Invalid authenticator code');
+    }
+    await this.clearFailures(String(payload.sub));
 
     const tokenHash = createHash('sha256').update(token).digest('hex');
     await this.prisma.$executeRawUnsafe(`INSERT INTO "UserTwoFactorSession" ("tokenHash", "userId", "verifiedUntil") VALUES ($1, $2, CURRENT_TIMESTAMP + INTERVAL '1 day') ON CONFLICT ("tokenHash") DO UPDATE SET "verifiedUntil" = EXCLUDED."verifiedUntil"`, tokenHash, payload.sub);

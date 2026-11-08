@@ -74,6 +74,10 @@ export class AccessScopeService {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" WHERE s."id" = ANY($1::text[]) AND c."assignedStaffId" = $2`, ids, scope.staffId);
       } else if (resource === 'collections') {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "DailyCollection" WHERE "id" = ANY($1::text[]) AND "staffId" = $2`, ids, scope.staffId);
+      } else if (resource === 'branches') {
+        allowed = scope.branchId
+          ? await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.branchId)
+          : [];
       } else return rows;
     } else if (resource === 'staff') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Staff')})`, ids);
@@ -109,7 +113,7 @@ export class AccessScopeService {
   }
   async assertStaff(user: AccessUser, targetStaffId: string) {
     const scope = await this.getScope(user);
-    if (scope.role === 'CREDIT_OFFICER' && String(scope.staffId || '') !== String(targetStaffId || '')) {
+    if (['CREDIT_OFFICER', 'TELLER'].includes(scope.role) && String(scope.staffId || '') !== String(targetStaffId || '')) {
       throw new ForbiddenException('Credit officers may access only their own staff record');
     }
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, targetStaffId);

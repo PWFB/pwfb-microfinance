@@ -145,7 +145,7 @@ export class CollectionsService {
         transactionId = transaction.id;
       }
       await this.staffWallet.debit(collection.staffId, amount, reference, `Field collection settled — ${collection.type}`, tx);
-      await tx.cashbookEntry.create({ data: { periodId: collection.periodId, branchId: collection.branchId, type: 'CASH_IN', amount, reference, description, entryDate: collection.collectionDate } });
+      await tx.cashbookEntry.create({ data: { periodId: collection.periodId, branchId: collection.branchId, staffId: collection.staffId, type: 'CASH_IN', amount, reference, description, entryDate: collection.collectionDate } });
       return tx.dailyCollection.update({ where: { id }, data: { settled: true, settledAt: new Date(), settlementTransactionId: transactionId, settlementRecordId: recordId, reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } });
     });
   }

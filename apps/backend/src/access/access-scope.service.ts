@@ -104,7 +104,12 @@ export class AccessScopeService {
     return this.assertOrg(user, rows[0]);
   }
   async assertStaff(user: AccessUser, targetStaffId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, targetStaffId); return this.assertOrg(user, rows[0]);
+    const scope = await this.getScope(user);
+    if (scope.role === 'CREDIT_OFFICER' && String(scope.staffId || '') !== String(targetStaffId || '')) {
+      throw new ForbiddenException('Credit officers may access only their own staff record');
+    }
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, targetStaffId);
+    return this.assertOrg(user, rows[0]);
   }
   async assertCustomer(user: AccessUser, customerId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Customer" c LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE c."id" = $1 LIMIT 1`, customerId); return this.assertOrg(user, rows[0]);

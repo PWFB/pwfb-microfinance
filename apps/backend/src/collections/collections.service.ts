@@ -137,6 +137,7 @@ export class CollectionsService {
         employeeStaffId: staff.staffId || null,
         officerName: [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim() || 'Unknown officer',
         branchId: collection.branchId,
+        branchName: collection.branch?.name || null,
         collectionCount: 0,
         cashCollected: 0,
         settled: 0,
@@ -172,7 +173,7 @@ export class CollectionsService {
       if (collection.settled) summary.settled += amount; else summary.unsettled += amount;
       summary.collectionCount++;
       const staff = collection.staff || {}, key = String(collection.staffId || 'UNASSIGNED');
-      const officer = officers.get(key) || { staffId: collection.staffId, employeeStaffId: staff.staffId || null, officerName: [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim() || 'Unknown officer', branchId: collection.branchId, collectionCount: 0, cashCollected: 0, settled: 0, unsettled: 0 };
+      const officer = officers.get(key) || { staffId: collection.staffId, employeeStaffId: staff.staffId || null, officerName: [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim() || 'Unknown officer', branchId: collection.branchId, branchName: collection.branch?.name || null, collectionCount: 0, cashCollected: 0, settled: 0, unsettled: 0 };
       officer.collectionCount++;
       officer.cashCollected += amount;
       if (collection.settled) officer.settled += amount; else officer.unsettled += amount;

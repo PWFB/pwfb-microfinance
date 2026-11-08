@@ -18,6 +18,7 @@ enum Role {
   BRANCH_MANAGER
   CREDIT_OFFICER
   TELLER
+  ASSET_LOAN_MANAGER
   LOAN_OFFICER
   CUSTOMER
   STAFF
@@ -354,6 +355,7 @@ model Staff {
   payrollItems PayrollItem[]
   salaryDisbursements SalaryDisbursement[]
   collections DailyCollection[]
+  cashbookEntries CashbookEntry[]
   assignments StaffAssignment[]
   virtualAccounts StaffVirtualAccount[]
   @@index([branchId])
@@ -481,13 +483,16 @@ model CashbookEntry {
   reference String?
   description String?
   entryDate DateTime @default(now())
+  staffId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   period FinancialPeriod @relation(fields: [periodId], references: [id])
   branch Branch @relation(fields: [branchId], references: [id])
+  staff Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
   @@index([periodId])
   @@index([branchId])
   @@index([entryDate])
+  @@index([staffId])
 }
 
 model DailyCollection {

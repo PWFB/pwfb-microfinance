@@ -18,11 +18,15 @@ function getCorsOrigins() {
   // The staging web client is hosted on Vercel and must be allowed even when
   // CORS_ORIGINS is explicitly configured. Keep every existing configured
   // origin and add the stable staging-branch alias.
-  const stagingFrontendOrigins = [
-    'https://pwfb-microfinance-33ne-git-staging-alaba-busaris-projects.vercel.app',
-  ];
+  const stagingFrontendOrigin = process.env.STAGING_FRONTEND_URL?.trim();
 
-  return [...new Set([...defaults, ...configured, ...stagingFrontendOrigins])];
+  return [
+    ...new Set([
+      ...defaults,
+      ...configured,
+      ...(stagingFrontendOrigin ? [stagingFrontendOrigin] : []),
+    ]),
+  ];
 }
 
 async function bootstrap() {

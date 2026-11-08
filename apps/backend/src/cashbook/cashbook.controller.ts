@@ -6,6 +6,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AccessScopeService } from '../access/access-scope.service';
 import { TwoFactorService } from '../auth/two-factor.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 const CASHBOOK_ROLES = ['SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR', 'TELLER'] as const;
 const DAILY_WORK_ROLES = [...CASHBOOK_ROLES, 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'] as const;
@@ -17,6 +18,7 @@ export class CashbookController {
     private readonly cashbookService: CashbookService,
     private readonly accessScope: AccessScopeService,
     private readonly twoFactorService: TwoFactorService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   private async requireFinancialMfa(req: any) {
@@ -31,9 +33,9 @@ export class CashbookController {
     const branchIds = await this.accessScope.getBranchIds(user);
     if (!branchIds?.length) throw new ForbiddenException('Your account has no assigned branch or organizational scope');
     if (requestedBranchId && !branchIds.includes(requestedBranchId)) throw new ForbiddenException('You cannot access another branch cashbook');
-    if (scope.role === 'CREDIT_OFFICER') {
-      if (!scope.staffId) throw new ForbiddenException('Credit officer account is not linked to a Staff ID');
-      if (requestedStaffId && requestedStaffId !== scope.staffId) throw new ForbiddenException('Credit officers can view only their own daily work');
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
+      if (!scope.staffId) throw new ForbiddenException('Staff login is not linked to a Staff ID');
+      if (requestedStaffId && requestedStaffId !== scope.staffId) throw new ForbiddenException('You can view only your own daily cashbook work');
       return { branchId: scope.branchId || undefined, branchIds, staffId: scope.staffId };
     }
     if (requestedStaffId) await this.accessScope.assertStaff(user, requestedStaffId);
@@ -50,10 +52,22 @@ export class CashbookController {
     reference?: string;
     description?: string;
     entryDate?: string;
+    staffId?: string;
   }, @Req() req: any) {
+    await this.permissions.assert(req.user.role, 'CASHBOOK_CREATE');
     await this.accessScope.assertBranch(req.user, body.branchId);
+    const scope = await this.accessScope.getScope(req.user);
+    const staffId = scope.role === 'TELLER'
+      ? String(scope.staffId || '')
+      : String(body.staffId || '');
+    if (scope.role === 'TELLER' && !staffId) throw new ForbiddenException('Teller login is not linked to an active Staff ID');
+    if (staffId) {
+      await this.accessScope.assertStaff(req.user, staffId);
+      const staffScope = await this.accessScope.getScope({ id: staffId, staffId, role: 'STAFF' });
+      if (staffScope.branchId !== body.branchId) throw new ForbiddenException('Cashbook collector must belong to the selected branch');
+    }
     await this.requireFinancialMfa(req);
-    return this.cashbookService.create(body);
+    return this.cashbookService.create({ ...body, staffId: staffId || undefined });
   }
 
   @Get('daily/opening-balance')
@@ -82,16 +96,18 @@ export class CashbookController {
   @Post('daily')
   @Roles(...DAILY_WORK_ROLES)
   async createDaily(@Body() body: CashbookDailyInput, @Req() req: any) {
-    await this.requireFinancialMfa(req);
+    await this.permissions.assert(req.user.role, 'CASHBOOK_DAILY_CREATE');
     const scope = await this.accessScope.getScope(req.user);
     const allowedBranches = await this.accessScope.getBranchIds(req.user);
     if (!scope.global && (!allowedBranches?.includes(body.branchId))) throw new ForbiddenException('You cannot create a daily cashbook record for another branch');
-    if (scope.role === 'CREDIT_OFFICER') {
-      if (!scope.staffId) throw new ForbiddenException('Credit officer account is not linked to a Staff ID');
-      if (body.staffId && body.staffId !== scope.staffId) throw new ForbiddenException('Credit officers can record only their own daily work');
-      if (body.branchId !== scope.branchId) throw new ForbiddenException('Credit officer branch assignment does not match this record');
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
+      if (!scope.staffId || !scope.branchId) throw new ForbiddenException('Staff login is not linked to a branch and Staff ID');
+      if (body.staffId && body.staffId !== scope.staffId) throw new ForbiddenException('You can record only your own daily work');
+      if (body.branchId !== scope.branchId) throw new ForbiddenException('Staff branch assignment does not match this record');
+      await this.requireFinancialMfa(req);
       return this.cashbookService.createDaily({ ...body, staffId: scope.staffId, branchId: scope.branchId });
     }
+    await this.requireFinancialMfa(req);
     if (body.staffId) {
       await this.accessScope.assertStaff(req.user, body.staffId);
       const staff = await this.accessScope.getScope({ id: body.staffId, staffId: body.staffId, role: 'STAFF' });
@@ -122,7 +138,7 @@ export class CashbookController {
   @Roles(...CASHBOOK_ROLES)
   async findAll(@Req() req: any, @Query('periodId') periodId?: string, @Query('branchId') branchId?: string) {
     const filters = await this.filters(req.user, branchId);
-    return this.cashbookService.findAll(periodId, filters.branchId, filters.branchIds);
+    return this.cashbookService.findAll(periodId, filters.branchId, filters.branchIds, filters.staffId);
   }
 
   @Get('summary')

@@ -43,19 +43,19 @@ export class LoanDisbursementService {
 
   async submitForBranchReview(loanId: string, user: any, input?: { accountNumber?: string; accountName?: string; bankCode?: string; bankName?: string; amount?: number }) {
     const actor = await this.actor(user);
-    if (actor.role !== 'CREDIT_OFFICER') throw new UnauthorizedException('Only a Credit Officer can submit a loan for disbursement');
-    if (!actor.staff) throw new UnauthorizedException('Credit Officer staff profile not found');
+    if (!['CREDIT_OFFICER', 'TELLER'].includes(String(actor.role))) throw new UnauthorizedException('Only the registering Credit Officer or Teller can submit this loan for disbursement');
+    if (!actor.staff || actor.staff.employmentStatus !== 'ACTIVE') throw new UnauthorizedException('Active staff profile not found');
     const loan = await this.getLoan(loanId);
     await this.prisma.$executeRawUnsafe(`ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "createdByStaffId" TEXT`);
-    const ownership = await this.prisma.$queryRawUnsafe<Array<{ createdByStaffId: string | null }>>(
-      `SELECT "createdByStaffId" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,
+    const ownership = await this.prisma.$queryRawUnsafe<Array<{ createdByStaffId: string | null; creatorUserId: string | null }>>(
+      `SELECT "createdByStaffId", "creatorUserId" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,
       loanId,
     );
-    if (!loan.customer.branchId || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException("This loan is outside the Credit Officer's assigned branch");
-    if (loan.customer.assignedStaffId !== actor.staff.id || ownership[0]?.createdByStaffId !== actor.staff.id) {
-      throw new UnauthorizedException('A credit officer can submit only a loan they created for their own registered customer');
+    if (!loan.customer.branchId || loan.customer.branchId !== actor.staff.branchId) throw new UnauthorizedException('This loan is outside your assigned branch');
+    if (loan.customer.assignedStaffId !== actor.staff.id || ownership[0]?.createdByStaffId !== actor.staff.id || ownership[0]?.creatorUserId !== actor.id) {
+      throw new UnauthorizedException('You can submit only a loan you personally created for your own registered customer');
     }
-    const assignment = await this.activeBranchAssignment(actor.staff.id, 'CREDIT_OFFICER', actor.staff.branchId);
+    const assignment = await this.activeBranchAssignment(actor.staff.id, actor.role, actor.staff.branchId);
     if (!assignment) throw new UnauthorizedException('Credit Officer is not actively assigned to this branch');
     if (![undefined, null, 'PENDING', 'APPROVED'].includes(loan.status)) throw new BadRequestException(`Loan cannot be submitted from status ${loan.status}`);
 
@@ -77,6 +77,62 @@ export class LoanDisbursementService {
     return this.prisma.loan.update({ where: { id: loanId }, data: { status: SUBMITTED, disbursementAmount, disbursementUsesAlternativeAccount: false }, include: { customer: true, repayments: true, guarantors: true } });
   }
 
+  async reviewAssetLoan(loanId: string, user: any, note?: string) {
+    const actor = await this.actor(user);
+    if (actor.role !== 'ASSET_LOAN_MANAGER') throw new UnauthorizedException('Only an Asset Loan Manager may review this loan');
+    if (!actor.staff || actor.staff.employmentStatus !== 'ACTIVE' || !actor.staff.branchId) {
+      throw new UnauthorizedException('Asset Loan Manager must have an active Staff ID and branch assignment');
+    }
+    const assignment = await this.activeBranchAssignment(actor.staff.id, 'ASSET_LOAN_MANAGER', actor.staff.branchId);
+    if (!assignment) throw new UnauthorizedException('Asset Loan Manager is not actively assigned to this branch');
+
+    const loan = await this.getLoan(loanId);
+    if (loan.customer.branchId !== actor.staff.branchId) {
+      throw new UnauthorizedException('This loan is outside the Asset Loan Manager assigned branch');
+    }
+    if (loan.status !== SUBMITTED) {
+      throw new BadRequestException('Only a submitted loan awaiting branch review can receive asset review');
+    }
+
+    const meta = await this.prisma.$queryRawUnsafe<Array<{
+      loanType: string | null;
+      assetReviewStatus: string | null;
+      createdByStaffId: string | null;
+      creatorUserId: string | null;
+    }>>(
+      \`SELECT "loanType","assetReviewStatus","createdByStaffId","creatorUserId" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1\`,
+      loanId,
+    );
+    if (meta[0]?.loanType !== 'Individual Loan') {
+      throw new BadRequestException('Asset Loan Manager review is reserved for Individual Loan applications');
+    }
+    if (meta[0]?.assetReviewStatus !== 'PENDING_ASSET_REVIEW') {
+      throw new BadRequestException('This loan is not waiting for Asset Loan Manager review');
+    }
+    if (meta[0]?.createdByStaffId === actor.staff.id || meta[0]?.creatorUserId === actor.id) {
+      throw new UnauthorizedException('The loan creator cannot approve their own asset-loan review');
+    }
+    const reviewNote = String(note || '').trim();
+    if (reviewNote.length > 500) throw new BadRequestException('Asset review note cannot exceed 500 characters');
+
+    return this.prisma.$transaction(async tx => {
+      const updated = await tx.$executeRawUnsafe(
+        \`UPDATE "PWFBLoanMeta" SET "assetReviewStatus"='APPROVED',"assetReviewedByStaffId"=$2,"assetReviewedByUserId"=$3,"assetReviewedAt"=CURRENT_TIMESTAMP,"assetReviewNote"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "loanId"=$1 AND "assetReviewStatus"='PENDING_ASSET_REVIEW'\`,
+        loanId, actor.staff.id, actor.id, reviewNote || null,
+      );
+      if (updated !== 1) throw new BadRequestException('Asset review was already processed or is no longer pending');
+      await tx.$executeRawUnsafe(
+        \`INSERT INTO "PWFBLoanReviewEvent" ("id","loanId","actorUserId","actorStaffId","action","note") VALUES ($1,$2,$3,$4,'ASSET_REVIEW_APPROVED',$5)\`,
+        randomUUID(), loanId, actor.id, actor.staff.id, reviewNote || null,
+      );
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        \`SELECT "assetReviewStatus","assetReviewedByStaffId","assetReviewedByUserId","assetReviewedAt","assetReviewNote" FROM "PWFBLoanMeta" WHERE "loanId"=$1\`,
+        loanId,
+      );
+      return { loanId, ...rows[0], reviewedBy: { staffId: actor.staff.staffId, name: [actor.firstName, actor.lastName].filter(Boolean).join(' ') } };
+    });
+  }
+
   async approveAndDisburse(loanId: string, user: any) {
     const actor = await this.actor(user);
     const isSuperAdmin = actor.role === 'SUPER_ADMIN';
@@ -85,6 +141,24 @@ export class LoanDisbursementService {
     if (!isSuperAdmin && !isBranchAdmin && !isBranchManager) throw new UnauthorizedException('Only an assigned Branch Manager, branch Admin or Super Admin can approve disbursement');
     const loan = await this.getLoan(loanId);
     if (loan.status !== SUBMITTED) throw new BadRequestException('Loan is not waiting for Branch Manager confirmation');
+    const loanMeta = await this.prisma.$queryRawUnsafe<Array<{
+      loanType: string | null; assetReviewStatus: string | null;
+      assetReviewedByStaffId: string | null; createdByStaffId: string | null;
+    }>>(
+      `SELECT "loanType","assetReviewStatus","assetReviewedByStaffId","createdByStaffId" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`,
+      loanId,
+    );
+    if (loanMeta[0]?.loanType === 'Individual Loan') {
+      if (loanMeta[0]?.assetReviewStatus !== 'APPROVED') {
+        throw new BadRequestException('Individual Loan requires independent Asset Loan Manager approval before branch disbursement');
+      }
+      if (!isSuperAdmin && actor.staff?.id && (
+        actor.staff.id === loanMeta[0]?.createdByStaffId ||
+        actor.staff.id === loanMeta[0]?.assetReviewedByStaffId
+      )) {
+        throw new UnauthorizedException('Final disbursement must be approved by a different staff member from the loan creator and asset reviewer');
+      }
+    }
     if (isBranchAdmin && (!actor.staff || loan.customer.branchId !== actor.staff.branchId)) {
       throw new UnauthorizedException('Branch Admin can approve only loans from the assigned branch');
     }

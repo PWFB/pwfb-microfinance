@@ -19,11 +19,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AccessScopeService } from '../access/access-scope.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService, private readonly accessScope: AccessScopeService) {}
+  constructor(private readonly customersService: CustomersService, private readonly accessScope: AccessScopeService, private readonly permissions: PermissionsService) {}
 
   @Post()
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'TELLER', 'STAFF')
@@ -59,7 +60,7 @@ export class CustomersController {
 
   @Patch(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto, @Req() req: any) { await this.accessScope.assertCustomer(req.user, id); return this.customersService.update(id, updateCustomerDto); }
+  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto, @Req() req: any) { await this.accessScope.assertCustomer(req.user, id); await this.permissions.assert(req.user.role, 'CUSTOMER_EDIT'); return this.customersService.update(id, updateCustomerDto); }
 
   @Post(':id/reset-password')
   @Roles('SUPER_ADMIN')

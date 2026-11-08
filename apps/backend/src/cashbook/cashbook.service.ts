@@ -121,7 +121,16 @@ export class CashbookService {
     return {cashIn,cashOut,balance:cashIn-cashOut,entryCount:rows.length};
   }
 
-  private map(r:any){const out:any={id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,branch:{name:r.branch_name},period:{name:r.period_name}};for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);return {...out,...this.totals(out)};}
+  private map(r:any){
+    const out:any={
+      id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,
+      staff:r.staff_id?{id:r.staff_id,staffId:r.staff_code||null,firstName:r.staff_first_name||null,lastName:r.staff_last_name||null}:null,
+      entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,
+      branch:{name:r.branch_name},period:{name:r.period_name},
+    };
+    for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);
+    return {...out,...this.totals(out)};
+  }
 
   async getOpeningBalance(branchId: string, staffId?: string, entryDate?: string) {
     await this.ensureDailyTable();
@@ -161,7 +170,7 @@ export class CashbookService {
     await this.prisma.$executeRawUnsafe(`INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,...params);
     return this.dailyOne(id);
   }
-  async dailyOne(id:string){await this.ensureDailyTable();const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id WHERE r.id=$1`,id);if(!rows[0])throw new NotFoundException('Daily cashbook record not found');return this.map(rows[0]);}
+  async dailyOne(id:string){await this.ensureDailyTable();const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name,s."staffId" AS staff_code,s."firstName" AS staff_first_name,s."lastName" AS staff_last_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id WHERE r.id=$1`,id);if(!rows[0])throw new NotFoundException('Daily cashbook record not found');return this.map(rows[0]);}
   async findDaily(periodId?:string,branchId?:string,from?:string,to?:string,staffId?:string,branchIds?:string[]|null){
     await this.ensureDailyTable();
     const c:string[]=[],p:any[]=[];
@@ -171,7 +180,7 @@ export class CashbookService {
     if(staffId){p.push(staffId);c.push(`r.staff_id=${p.length}`)}
     if(from){p.push(new Date(from));c.push(`r.entry_date>=${p.length}`)}
     if(to){p.push(new Date(to));c.push(`r.entry_date<=${p.length}`)}
-    const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id ${c.length?'WHERE '+c.join(' AND '):''} ORDER BY r.entry_date DESC,r.created_at DESC`,...p);
+    const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name,s."staffId" AS staff_code,s."firstName" AS staff_first_name,s."lastName" AS staff_last_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id ${c.length?'WHERE '+c.join(' AND '):''} ORDER BY r.entry_date DESC,r.created_at DESC`,...p);
     return rows.map(r=>this.map(r));
   }
   async dailySummary(periodId?:string,branchId?:string,from?:string,to?:string,staffId?:string,branchIds?:string[]|null){

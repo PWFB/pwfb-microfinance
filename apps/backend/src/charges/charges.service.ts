@@ -175,6 +175,7 @@ export class ChargesService {
       data: {
         periodId: period.id,
         branchId: input.branchId,
+        staffId: input.staffId,
         type: 'CASH_IN',
         amount: chargeAmount,
         reference,

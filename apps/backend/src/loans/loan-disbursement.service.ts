@@ -114,6 +114,7 @@ export class LoanDisbursementService {
       throw new UnauthorizedException('The loan creator cannot approve their own asset-loan review');
     }
     const reviewNote = String(note || '').trim();
+    if (reviewNote.length < 5) throw new BadRequestException('A meaningful asset review note of at least 5 characters is required');
     if (reviewNote.length > 500) throw new BadRequestException('Asset review note cannot exceed 500 characters');
 
     return this.prisma.$transaction(async tx => {

@@ -16,7 +16,7 @@ type Collection = {
   settlementTransactionId?: string;
   settlementRecordId?: string;
   customer?: { id?: string; firstName: string; lastName: string };
-  staff?: { firstName: string; lastName: string };
+  staff?: { id?: string; staffId?: string; firstName: string; lastName: string };
   branch?: { name: string };
 };
 
@@ -129,6 +129,22 @@ export default function CollectionsPage() {
       </section>
 
       <section className="pwfb-panel">
+        <div className="pwfb-panel-header"><div><h2>Cash Collected by Credit Officer</h2><p>Officer totals are limited by the backend to the current user's branch or personal assignment.</p></div></div>
+        <div className="pwfb-table-wrap">
+          <table className="pwfb-table"><thead><tr><th>Credit Officer</th><th>Staff ID</th><th>Branch</th><th>Collections</th><th>Cash Collected</th><th>Settled</th><th>Unsettled</th></tr></thead>
+            <tbody>{(Array.isArray(summary.byOfficer) ? summary.byOfficer : []).map((officer: any) => (
+              <tr key={officer.staffId || officer.employeeStaffId || officer.officerName}>
+                <td>{officer.officerName || 'Unassigned'}</td><td>{officer.employeeStaffId || '—'}</td><td>{officer.branchId || 'Assigned branch'}</td>
+                <td>{officer.collectionCount || 0}</td><td><strong>{money(officer.cashCollected)}</strong></td><td>{money(officer.settled)}</td><td>{money(officer.unsettled)}</td>
+              </tr>
+            ))}
+            {(!Array.isArray(summary.byOfficer) || summary.byOfficer.length === 0) && <tr><td colSpan={7}>No cash collection records for this scope.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="pwfb-panel">
         <div className="pwfb-panel-header">
           <div><h2>Collection Register</h2><p>Every field collection can be traced from receipt to ledger settlement.</p></div>
           <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
@@ -143,7 +159,7 @@ export default function CollectionsPage() {
               <tr key={collection.id}>
                 <td>{new Date(collection.collectionDate).toLocaleDateString('en-NG')}</td>
                 <td>{collection.customer ? `${collection.customer.firstName} ${collection.customer.lastName}` : '—'}<br/><small>{collection.reference || collection.id}</small></td>
-                <td>{collection.staff ? `${collection.staff.firstName} ${collection.staff.lastName}` : '—'}</td>
+                <td>{collection.staff ? <>{`${collection.staff.firstName} ${collection.staff.lastName}`}<br/><small>{collection.staff.staffId || collection.staff.id || 'Staff ID unavailable'}</small></> : '—'}</td>
                 <td>{collection.type}</td>
                 <td><strong>{money(collection.amount)}</strong></td>
                 <td><span className="pwfb-status-badge">{collection.settled ? 'SETTLED' : collection.reconciled ? 'RECONCILED · UNSETTLED' : 'PENDING'}</span></td>

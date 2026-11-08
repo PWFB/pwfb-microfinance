@@ -9,7 +9,7 @@ type Region = Node & { divisions?: Node[]; areas?: Node[]; branches?: Node[] };
 type Bank = { code: string; name: string };
 type RegistrationHierarchy = { regions: Region[]; unassignedBranches: Node[] };
 
-const defaultRoles = ['STAFF','CREDIT_OFFICER','BRANCH_MANAGER','AREA_MANAGER','TELLER','LOAN_OFFICER'];
+const defaultRoles = ['STAFF','CREDIT_OFFICER','BRANCH_MANAGER','AREA_MANAGER','TELLER','ASSET_LOAN_MANAGER','LOAN_OFFICER'];
 
 export default function AddStaffPage() {
   const [step,setStep]=useState(1), [bvn,setBvn]=useState(''), [verified,setVerified]=useState<any>(null), [passport,setPassport]=useState(''), [username,setUsername]=useState('');

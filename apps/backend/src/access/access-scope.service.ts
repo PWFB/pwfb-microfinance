@@ -37,12 +37,10 @@ export class AccessScopeService {
     if (scope.global) return true;
     if (!target) throw new ForbiddenException('Access denied: record not found');
     const same = (a: unknown, b: unknown) => Boolean(a && b && String(a) === String(b));
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (scope.role === 'CREDIT_OFFICER' && ('staffId' in target || 'assignedStaffId' in target)) {
       const owner = target.staffId ?? target.assignedStaffId;
-      if (owner !== undefined && owner !== null) {
-        if (same(scope.staffId, owner)) return true;
-        throw new ForbiddenException('Access denied: credit officers may access only their own assigned work');
-      }
+      if (same(scope.staffId, owner)) return true;
+      throw new ForbiddenException('Access denied: credit officers may access only their own assigned work');
     }
     if (scope.role === 'REGIONAL_MANAGER' && same(scope.regionId, target.regionId)) return true;
     if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;

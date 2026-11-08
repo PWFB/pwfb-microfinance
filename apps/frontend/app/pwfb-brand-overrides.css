@@ -1,0 +1,24 @@
+/* PWFB brand normalization layer.
+ * Keeps semantic red/amber states intact while making Tailwind emerald/orange
+ * utilities render with the official PWFB green + orange palette.
+ */
+
+/* Emerald -> PWFB green */
+.bg-emerald-50{background-color:#eaf7ef!important}.bg-emerald-100{background-color:#d8efdf!important}.bg-emerald-200{background-color:#b9dfc4!important}.bg-emerald-300{background-color:#8fcaa0!important}.bg-emerald-400{background-color:#54a96e!important}.bg-emerald-500{background-color:#0f7b35!important}.bg-emerald-600{background-color:#0d6d30!important}.bg-emerald-700{background-color:#0b612b!important}.bg-emerald-800{background-color:#0a5c28!important}.bg-emerald-900{background-color:#064a22!important}
+.text-emerald-50{color:#eaf7ef!important}.text-emerald-100{color:#d8efdf!important}.text-emerald-200{color:#b9dfc4!important}.text-emerald-300{color:#8fcaa0!important}.text-emerald-400{color:#54a96e!important}.text-emerald-500{color:#0f7b35!important}.text-emerald-600{color:#0d6d30!important}.text-emerald-700{color:#0b612b!important}.text-emerald-800{color:#0a5c28!important}.text-emerald-900{color:#064a22!important}
+.border-emerald-50{border-color:#eaf7ef!important}.border-emerald-100{border-color:#d8efdf!important}.border-emerald-200{border-color:#b9dfc4!important}.border-emerald-300{border-color:#8fcaa0!important}.border-emerald-400{border-color:#54a96e!important}.border-emerald-500{border-color:#0f7b35!important}.border-emerald-600{border-color:#0d6d30!important}.border-emerald-700{border-color:#0b612b!important}.border-emerald-800{border-color:#0a5c28!important}.border-emerald-900{border-color:#064a22!important}
+
+/* Orange -> PWFB orange */
+.bg-orange-50{background-color:#fff4e5!important}.bg-orange-100{background-color:#ffe8cc!important}.bg-orange-200{background-color:#ffd09b!important}.bg-orange-300{background-color:#ffb866!important}.bg-orange-400{background-color:#f7a13b!important}.bg-orange-500{background-color:#f28c18!important}.bg-orange-600{background-color:#e77b0b!important}.bg-orange-700{background-color:#d96f00!important}.bg-orange-800{background-color:#b95d00!important}.bg-orange-900{background-color:#8f4700!important}
+.text-orange-50{color:#fff4e5!important}.text-orange-100{color:#ffe8cc!important}.text-orange-200{color:#ffd09b!important}.text-orange-300{color:#ffb866!important}.text-orange-400{color:#f7a13b!important}.text-orange-500{color:#f28c18!important}.text-orange-600{color:#e77b0b!important}.text-orange-700{color:#d96f00!important}.text-orange-800{color:#b95d00!important}.text-orange-900{color:#8f4700!important}
+.border-orange-50{border-color:#fff4e5!important}.border-orange-100{border-color:#ffe8cc!important}.border-orange-200{border-color:#ffd09b!important}.border-orange-300{border-color:#ffb866!important}.border-orange-400{border-color:#f7a13b!important}.border-orange-500{border-color:#f28c18!important}.border-orange-600{border-color:#e77b0b!important}.border-orange-700{border-color:#d96f00!important}.border-orange-800{border-color:#b95d00!important}.border-orange-900{border-color:#8f4700!important}
+
+/* Common hover/focus utilities that otherwise use Tailwind's default palette. */
+.hover\:bg-orange-500:hover{background-color:#f28c18!important}.hover\:bg-orange-600:hover{background-color:#e77b0b!important}.hover\:bg-emerald-700:hover{background-color:#0b612b!important}.hover\:bg-emerald-800:hover{background-color:#0a5c28!important}
+.hover\:text-orange-500:hover{color:#f28c18!important}.hover\:text-emerald-700:hover{color:#0b612b!important}.hover\:text-emerald-800:hover{color:#0a5c28!important}
+
+/* Frequently used PWFB hard-coded greens, normalized to the same palette. */
+[class*="bg-[#064d25]"]{background-color:#064a22!important}
+[class*="bg-[#075d2a]"]{background-color:#0a5c28!important}
+[class*="bg-[#087534]"]{background-color:#0f7b35!important}
+[class*="hover:bg-[#075d2a]"]:hover{background-color:#0a5c28!important}

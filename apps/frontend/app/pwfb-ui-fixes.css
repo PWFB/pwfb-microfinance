@@ -1,0 +1,53 @@
+/* PWFB login cleanup: remove the old overlay that caused the fuzzy/black artifact. */
+.login-page .login-shell::before,
+.login-page .login-shell::after { content: none !important; display: none !important; }
+.login-page .login-card,
+.login-page .brand-panel { position: relative; z-index: 1; }
+.login-page .login-card *::before,
+.login-page .login-card *::after { box-sizing: border-box; }
+
+/* Keep Google visually clean while preserving its click target. */
+.login-page .google { position: relative; overflow: hidden !important; }
+.login-page .google > div { opacity: 0 !important; pointer-events: auto !important; }
+.login-page .google::after {
+  content: "Connect to Google" !important;
+  display: flex !important;
+  position: absolute !important;
+  inset: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #29312d !important;
+  background: #fff !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  pointer-events: none !important;
+  z-index: 5 !important;
+}
+
+/* The OR separator is the only intentional pseudo-element in the login card. */
+.login-page .login-card .or::before,
+.login-page .login-card .or::after {
+  content: "" !important;
+  position: static !important;
+  display: block !important;
+  width: auto !important;
+  height: 1px !important;
+  background: #e4e9e6 !important;
+  flex: 1 !important;
+}
+
+/* Keep the actual PWFB logo crisp and free of filters/overlays. */
+.login-page .brand-mark img,
+.login-page .mobile-logo img {
+  filter: none !important;
+  opacity: 1 !important;
+  mix-blend-mode: normal !important;
+  transform: none !important;
+  backface-visibility: visible !important;
+}
+.login-page .brand-mark,
+.login-page .mobile-logo { filter: none !important; opacity: 1 !important; }
+
+@media (max-width:760px) {
+  .login-page .login-card { padding-bottom: 24px !important; }
+}

@@ -3,15 +3,24 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { TwoFactorService } from './two-factor.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import './auth-passkey.extension';
+import './auth-customer-link.extension';
+
+const jwtSecret =
+  process.env.JWT_SECRET ||
+  (process.env.NODE_ENV === 'test'
+    ? 'pwfb-test-only-secret'
+    : 'pwfb-development-only-secret');
 
 @Module({
   imports: [
     PrismaModule,
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'pwfb-secret-key',
+      secret: jwtSecret,
       signOptions: {
         expiresIn: '1d',
       },
@@ -20,10 +29,12 @@ import { JwtStrategy } from './strategies/jwt.strategy';
   controllers: [AuthController],
   providers: [
     AuthService,
+    TwoFactorService,
     JwtStrategy,
   ],
   exports: [
     AuthService,
+    TwoFactorService,
   ],
 })
 export class AuthModule {}

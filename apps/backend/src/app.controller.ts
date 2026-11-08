@@ -10,4 +10,8 @@ export class AppController {
       message: 'Backend is running',
     };
   }
+  @Get('health')
+  healthCheck() {
+    return { status: 'ok', service: 'PWFB Backend' };
+  }
 }

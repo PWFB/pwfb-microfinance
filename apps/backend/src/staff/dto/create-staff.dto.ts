@@ -1,15 +1,22 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
+import { Role } from '@prisma/client';
 
 export enum EmploymentStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
-  SUSPENDED = 'SUSPENDED',
 }
 
 export class CreateStaffDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  staffId: string;
+  staffId?: string;
 
   @IsNotEmpty()
   @IsString()
@@ -23,8 +30,9 @@ export class CreateStaffDto {
   @IsString()
   lastName: string;
 
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
   @IsNotEmpty()
   @IsString()
@@ -39,10 +47,35 @@ export class CreateStaffDto {
   position: string;
 
   @IsNotEmpty()
+  @IsEnum(Role)
+  role: Role;
+
+  @IsNotEmpty()
   @IsString()
   branch: string;
 
   @IsOptional()
+  @IsString()
+  regionId?: string;
+
+  @IsOptional()
+  @IsString()
+  divisionId?: string;
+
+  @IsOptional()
+  @IsString()
+  areaId?: string;
+
+  @IsOptional()
   @IsEnum(EmploymentStatus)
   employmentStatus?: EmploymentStatus = EmploymentStatus.ACTIVE;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{11}$/, { message: 'BVN must be exactly 11 digits' })
+  bvn?: string;
+
+  @IsOptional()
+  @IsString()
+  bvnVerificationReference?: string;
 }

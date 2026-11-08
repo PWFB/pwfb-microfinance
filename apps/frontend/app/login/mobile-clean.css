@@ -1,0 +1,89 @@
+/* Clean responsive layer for the current PWFB login structure. */
+@media (max-width: 760px) {
+  .login-page {
+    padding: 0 !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    background: #087534 !important;
+  }
+
+  .login-shell {
+    width: 100% !important;
+    min-height: 100dvh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  .login-card {
+    width: 100% !important;
+    min-height: 100dvh !important;
+    padding: 28px 22px 24px !important;
+    justify-content: flex-start !important;
+  }
+
+  .mobile-logo {
+    display: block !important;
+    margin: 6px auto 18px !important;
+    text-align: center !important;
+  }
+
+  .mobile-logo img {
+    width: min(280px, 86vw) !important;
+    max-height: 100px !important;
+    object-fit: contain !important;
+  }
+
+  .welcome {
+    margin-bottom: 22px !important;
+  }
+
+  .welcome h1 {
+    font-size: 23px !important;
+    line-height: 1.2 !important;
+  }
+
+  .welcome p {
+    font-size: 12px !important;
+    margin-top: 6px !important;
+  }
+
+  .login-card form {
+    width: 100% !important;
+    gap: 11px !important;
+  }
+
+  .input,
+  .login-button,
+  .google,
+  .finger {
+    width: 100% !important;
+    min-height: 47px !important;
+  }
+
+  .input {
+    height: 50px !important;
+  }
+
+  .options {
+    font-size: 11px !important;
+    gap: 10px !important;
+  }
+
+  .options button {
+    white-space: nowrap !important;
+  }
+
+  .google {
+    min-height: 47px !important;
+  }
+
+  .finger {
+    min-height: 47px !important;
+  }
+
+  .login-card footer {
+    margin-top: 22px !important;
+    padding-bottom: 8px !important;
+  }
+}

@@ -1,179 +1,88 @@
 import Link from "next/link";
+import styles from "./home.module.css";
 
-const cardStyle: React.CSSProperties = {
-  background: "#fff",
-  borderRadius: 16,
-  padding: 20,
-  boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-};
+const modules = [
+  ["👥", "Customers", "Manage customer profiles and KYC.", "/login"],
+  ["💰", "Savings", "Create and manage savings accounts.", "/login"],
+  ["🏦", "Loans", "Loan applications and approvals.", "/login"],
+  ["💳", "Transactions", "View deposits, withdrawals and transfers.", "/login"],
+];
 
 export default function Home() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#f5f7fa",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      {/* Header */}
-      <header
-        style={{
-          background: "#0f7b35",
-          color: "#fff",
-          padding: "18px 40px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <div>
-          <h1 style={{ margin: 0 }}>PWFB Microfinance</h1>
-          <small>Perfect Wisdom For Better Limited</small>
-        </div>
+    <main className={styles.home}>
+      <header className={styles.header}>
+        <Link href="/" className={styles.brand} aria-label="PWFB Microfinance home">
+          <img
+            src="/pwfb-logo.svg"
+            alt="PWFB Microfinance"
+            className={styles.brandLogo}
+          />
+        </Link>
 
-        <nav style={{ display: "flex", gap: 20 }}>
-          <Link href="/dashboard" style={{ color: "#fff" }}>Dashboard</Link>
-          <Link href="/customers" style={{ color: "#fff" }}>Customers</Link>
-          <Link href="/savings" style={{ color: "#fff" }}>Savings</Link>
-          <Link href="/loans" style={{ color: "#fff" }}>Loans</Link>
-          <Link href="/transactions" style={{ color: "#fff" }}>Transactions</Link>
+        <nav className={styles.nav}>
+          <Link href="/login">Dashboard</Link>
+          <Link href="/login">Customers</Link>
+          <Link href="/login">Savings</Link>
+          <Link href="/login">Loans</Link>
+          <Link href="/login">Transactions</Link>
         </nav>
       </header>
 
-      {/* Hero */}
-      <section
-        style={{
-          padding: 50,
-          textAlign: "center",
-          background: "linear-gradient(135deg,#118e3e,#ff8800)",
-          color: "#fff",
-        }}
-      >
-        <h1 style={{ fontSize: 42 }}>
-          Smart Finance. Better Future.
-        </h1>
+      <section className={styles.hero}>
+        <div className={styles.heroInner}>
+          <img
+            src="/pwfb-logo.svg"
+            alt="PWFB Microfinance"
+            className={styles.heroLogo}
+          />
+          <p className={styles.eyebrow}>PWFB MICROFINANCE</p>
+          <h1>Smart Finance. Better Future.</h1>
+          <p className={styles.heroText}>
+            Secure Savings • Fast Loans • Reliable Transactions
+          </p>
 
-        <p style={{ fontSize: 20 }}>
-          Secure Savings • Fast Loans • Reliable Transactions
-        </p>
-
-        <div
-          style={{
-            marginTop: 30,
-            display: "flex",
-            justifyContent: "center",
-            gap: 20,
-          }}
-        >
-          <Link
-            href="/login"
-            style={{
-              background: "#fff",
-              color: "#118e3e",
-              padding: "14px 30px",
-              borderRadius: 10,
-              textDecoration: "none",
-              fontWeight: "bold",
-            }}
-          >
-            Login
-          </Link>
-
-          <Link
-            href="/register"
-            style={{
-              background: "#ff8800",
-              color: "#fff",
-              padding: "14px 30px",
-              borderRadius: 10,
-              textDecoration: "none",
-              fontWeight: "bold",
-            }}
-          >
-            Register
-          </Link>
-        </div>
-      </section>
-
-      {/* Modules */}
-      <section
-        style={{
-          padding: 40,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
-          gap: 25,
-        }}
-      >
-        <div style={cardStyle}>
-          <h2>👥 Customers</h2>
-          <p>Manage customer profiles and KYC.</p>
-          <Link href="/customers">Open Module →</Link>
-        </div>
-
-        <div style={cardStyle}>
-          <h2>💰 Savings</h2>
-          <p>Create and manage savings accounts.</p>
-          <Link href="/savings">Open Module →</Link>
-        </div>
-
-        <div style={cardStyle}>
-          <h2>🏦 Loans</h2>
-          <p>Loan applications and approvals.</p>
-          <Link href="/loans">Open Module →</Link>
-        </div>
-
-        <div style={cardStyle}>
-          <h2>💳 Transactions</h2>
-          <p>View deposits, withdrawals and transfers.</p>
-          <Link href="/transactions">Open Module →</Link>
-        </div>
-      </section>
-
-      {/* Dashboard Preview */}
-      <section style={{ padding: 40 }}>
-        <h2 style={{ textAlign: "center", marginBottom: 30 }}>
-          Dashboard Overview
-        </h2>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))",
-            gap: 20,
-          }}
-        >
-          <div style={cardStyle}>
-            <h3>Total Customers</h3>
-            <h1 style={{ color: "#118e3e" }}>2,453</h1>
-          </div>
-
-          <div style={cardStyle}>
-            <h3>Total Savings</h3>
-            <h1 style={{ color: "#118e3e" }}>₦245M</h1>
-          </div>
-
-          <div style={cardStyle}>
-            <h3>Total Loans</h3>
-            <h1 style={{ color: "#ff8800" }}>₦158M</h1>
-          </div>
-
-          <div style={cardStyle}>
-            <h3>Transactions</h3>
-            <h1 style={{ color: "#118e3e" }}>8,732</h1>
+          <div className={styles.heroActions}>
+            <Link href="/login" className={styles.loginButton}>
+              Login
+            </Link>
+            <Link href="/register" className={styles.registerButton}>
+              Register
+            </Link>
           </div>
         </div>
       </section>
 
-      <footer
-        style={{
-          background: "#0f7b35",
-          color: "#fff",
-          textAlign: "center",
-          padding: 25,
-          marginTop: 40,
-        }}
-      >
+      <section className={styles.section}>
+        <div className={styles.sectionHeading}>
+          <p className={styles.sectionEyebrow}>CORE OPERATIONS</p>
+          <h2>Everything you need to manage PWFB</h2>
+        </div>
+
+        <div className={styles.moduleGrid}>
+          {modules.map(([icon, title, description, href]) => (
+            <Link key={href} href={href} className={styles.moduleCard}>
+              <span className={styles.moduleIcon}>{icon}</span>
+              <h3>{title}</h3>
+              <p>{description}</p>
+              <span className={styles.moduleLink}>Open Module →</span>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHeading}>
+          <p className={styles.sectionEyebrow}>LIVE ACCOUNT DATA</p>
+          <h2>Your current PWFB dashboard</h2>
+          <p>Sign in to view live balances, customer records, loans and transactions. This public page does not show sample financial totals.</p>
+        </div>
+        <div className={styles.heroActions}>
+          <Link href="/login" className={styles.loginButton}>Open Dashboard</Link>
+        </div>
+      </section>
+
+      <footer className={styles.footer}>
         © {new Date().getFullYear()} PWFB Microfinance • Perfect Wisdom For Better Limited
       </footer>
     </main>

@@ -1,20 +1,138 @@
-html, body {
-  margin: 0;
-  padding: 0;
-  font-family: Arial, Helvetica, sans-serif;
-  background: #f8fafc;
-  color: #1f2937;
+@import "tailwindcss";
+
+:root{--pwfb-green:#0f7b35;--pwfb-green-dark:#0a5c28;--pwfb-green-light:#eaf7ef;--pwfb-orange:#f28c18;--pwfb-orange-dark:#d96f00;--pwfb-orange-light:#fff4e5;--pwfb-bg:#f5f7f6;--pwfb-card:#fff;--pwfb-text:#17211b;--pwfb-muted:#66736b;--pwfb-border:#dfe7e2;--pwfb-radius:16px;--pwfb-shadow:0 4px 18px rgba(15,123,53,.08)}
+html,body{margin:0;padding:0;min-height:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--pwfb-bg);color:var(--pwfb-text)}*{box-sizing:border-box}a{color:inherit;text-decoration:none}button,input,select,textarea{font:inherit}button{cursor:pointer}
+.pwfb-shell{min-height:100vh;width:100%;background:radial-gradient(circle at 90% 0%,rgba(242,140,24,.08),transparent 28%),#f5f7fa}.pwfb-sidebar{position:fixed;inset:0 auto 0 0;z-index:60;display:flex;flex-direction:column;width:258px;height:100dvh;max-height:100dvh;padding:18px 13px;overflow:hidden;color:#fff;background:linear-gradient(180deg,#0b682f 0%,#075326 55%,#064a22 100%);box-shadow:8px 0 28px rgba(5,67,31,.13);transition:transform .24s ease}.pwfb-sidebar-header{display:flex;align-items:center;justify-content:space-between;min-height:62px;padding:0 7px 14px;border-bottom:1px solid rgba(255,255,255,.1)}.pwfb-brand{display:flex;align-items:center;min-width:0;gap:10px}.pwfb-sidebar-close{display:none;width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.1);color:#fff;font-size:25px;line-height:1}.pwfb-access{margin:13px 3px;padding:11px 12px;border:1px solid rgba(255,255,255,.09);border-radius:13px;background:rgba(255,255,255,.08)}.pwfb-access small,.pwfb-access strong{display:block}.pwfb-access small{color:#a9d7b8;font-size:9px;font-weight:800;letter-spacing:.12em}.pwfb-access strong{margin-top:4px;color:#fff;font-size:12px}.pwfb-nav{display:flex;flex:1 1 auto;flex-direction:column;gap:4px;min-height:0;overflow-y:auto;overflow-x:hidden;padding-bottom:120px;touch-action:pan-y;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scroll-behavior:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}.pwfb-nav::-webkit-scrollbar{width:5px}.pwfb-nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:999px}.pwfb-nav-group{width:100%;flex-shrink:0}.pwfb-nav-link{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;padding:10px 11px;border:0;border-radius:10px;color:#dcefe2!important;background:transparent;font-size:13px;font-weight:700;text-align:left}.pwfb-nav-link:hover{color:#fff!important;background:rgba(255,255,255,.08)!important}.pwfb-nav-link-active{color:#fff!important;background:linear-gradient(135deg,#f28c18,#e77908)!important}.pwfb-nav-link-parent-active{color:#fff!important;background:rgba(255,255,255,.1)!important}.pwfb-nav-icon{display:inline-grid;flex:0 0 24px;width:24px;place-items:center;font-size:16px}.pwfb-nav-parent{justify-content:flex-start}.pwfb-nav-chevron{margin-left:auto;color:#9fd0ae;font-size:12px}.pwfb-subnav{display:flex;flex-direction:column;gap:2px;margin:2px 0 5px 35px;padding-left:10px;border-left:1px solid rgba(255,255,255,.14)}.pwfb-subnav-link{display:flex;align-items:center;gap:8px;min-height:31px;padding:6px 8px;border-radius:7px;color:#b9dac5!important;font-size:11px;font-weight:650}.pwfb-subnav-link:hover,.pwfb-subnav-link-active{color:#fff!important;background:rgba(255,255,255,.08)}.pwfb-subnav-dot{width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#73bf8e}.pwfb-sidebar-status{flex:0 0 auto;display:flex;align-items:center;gap:9px;margin-top:8px;padding:13px 8px 5px;border-top:1px solid rgba(255,255,255,.1)}.pwfb-sidebar-status strong,.pwfb-sidebar-status small{display:block}.pwfb-sidebar-status strong{color:#fff;font-size:10px}.pwfb-sidebar-status small{margin-top:2px;color:#9fcdb0;font-size:9px}.pwfb-status-dot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#42e47f;box-shadow:0 0 0 4px rgba(66,228,127,.12)}.pwfb-main{min-height:100vh;margin-left:258px;transition:margin-left .24s ease}.pwfb-topbar{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;min-height:70px;padding:0 28px;border-bottom:1px solid #e2e8e4;background:rgba(255,255,255,.96);backdrop-filter:blur(12px)}.pwfb-topbar-left,.pwfb-user{display:flex;align-items:center}.pwfb-topbar-left{gap:12px}.pwfb-topbar-left strong,.pwfb-topbar-left small{display:block}.pwfb-topbar-left strong{color:var(--pwfb-green-dark);font-size:14px}.pwfb-topbar-left small{margin-top:2px;color:var(--pwfb-muted);font-size:10px}.pwfb-menu-button{display:grid;place-items:center;width:40px;height:40px;border:1px solid #dfe8e2;border-radius:10px;background:#fff;color:var(--pwfb-green-dark);font-size:20px}.pwfb-user{gap:10px}.pwfb-user-info strong,.pwfb-user-info small{display:block}.pwfb-user-info strong{color:#17211b;font-size:12px}.pwfb-user-info small{margin-top:2px;color:var(--pwfb-muted);font-size:9px}.pwfb-content{min-height:calc(100vh - 70px);padding:28px}.pwfb-sidebar-overlay{display:none}.pwfb-shell-sidebar-closed .pwfb-sidebar{transform:translateX(-105%)}.pwfb-shell-sidebar-closed .pwfb-main{margin-left:0}
+
+/* Shared page components */
+.pwfb-page-header{display:flex;justify-content:space-between;gap:20px;align-items:center;margin-bottom:22px}.pwfb-eyebrow{margin:0 0 6px;color:var(--pwfb-orange-dark);font-size:10px;font-weight:900;letter-spacing:.12em}.pwfb-page-title{margin:0;color:var(--pwfb-green-dark);font-size:30px;line-height:1.15;font-weight:850}.pwfb-page-description{margin:7px 0 0;color:var(--pwfb-muted);font-size:13px}.pwfb-panel{border:1px solid var(--pwfb-border);border-radius:18px;background:#fff;box-shadow:var(--pwfb-shadow);overflow:hidden}.pwfb-panel-header{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:20px 22px;border-bottom:1px solid #edf1ee}.pwfb-panel-header h2{margin:0;color:var(--pwfb-green-dark);font-size:18px}.pwfb-panel-header p{margin:5px 0 0;color:var(--pwfb-muted);font-size:12px}.pwfb-record-count{padding:6px 10px;border-radius:999px;background:var(--pwfb-green-light);color:var(--pwfb-green-dark);font-size:10px;font-weight:800}.pwfb-primary-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 17px;border:0;border-radius:11px;background:linear-gradient(135deg,var(--pwfb-orange),var(--pwfb-orange-dark));color:#fff!important;font-weight:800;box-shadow:0 6px 14px rgba(242,140,24,.22)}.pwfb-primary-button:hover{filter:brightness(.97);transform:translateY(-1px)}.pwfb-secondary-button{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:0 15px;border:1px solid #cfe0d5;border-radius:11px;background:#fff;color:var(--pwfb-green-dark)!important;font-weight:750}.pwfb-input{width:100%;min-height:44px;padding:10px 12px;border:1px solid #d5e0d9;border-radius:10px;background:#fff;color:#17211b;outline:none}.pwfb-input:focus{border-color:var(--pwfb-green);box-shadow:0 0 0 3px rgba(15,123,53,.1)}
+
+/* Banking operations: explicit PWFB orange + green visual system */
+.pwfb-banking-page{max-width:1500px;margin:0 auto}.pwfb-banking-brand-mark{display:flex;flex-direction:column;align-items:flex-end;gap:2px;padding:12px 16px;border-radius:13px;background:var(--pwfb-green-dark);color:#fff;border-right:5px solid var(--pwfb-orange)}.pwfb-banking-brand-mark span{font-size:17px;font-weight:950;letter-spacing:.08em}.pwfb-banking-brand-mark small{font-size:8px;color:#bfe4ca;letter-spacing:.12em}.pwfb-banking-hero{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;margin-bottom:18px;padding:20px;border-radius:18px;background:linear-gradient(120deg,var(--pwfb-green-dark),var(--pwfb-green));box-shadow:0 10px 28px rgba(10,92,40,.17)}.pwfb-banking-step{display:grid;grid-template-columns:42px minmax(0,1fr);gap:13px;align-items:center}.pwfb-step-number{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:var(--pwfb-orange);color:#fff;font-size:12px;font-weight:900}.pwfb-banking-step label{display:block;margin-bottom:7px;color:#d8f0df;font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}.pwfb-banking-step .pwfb-input{border-color:rgba(255,255,255,.25);background:#fff}.pwfb-banking-balance{display:flex;flex-direction:column;justify-content:center;padding:16px 18px;border-radius:14px;background:#fff;border-top:4px solid var(--pwfb-orange);box-shadow:0 5px 15px rgba(0,0,0,.08)}.pwfb-banking-balance small{color:var(--pwfb-muted);font-size:9px;font-weight:900;letter-spacing:.1em}.pwfb-banking-balance strong{margin:4px 0;color:var(--pwfb-green-dark);font-size:25px}.pwfb-banking-balance span{color:var(--pwfb-muted);font-size:11px}.pwfb-banking-hero-note{display:flex;flex-direction:column;justify-content:center;padding:15px 18px;border:1px dashed rgba(255,255,255,.35);border-radius:14px;color:#fff}.pwfb-banking-hero-note b{font-size:12px}.pwfb-banking-hero-note span{margin-top:4px;color:#bfe4ca;font-size:10px}.pwfb-operation-panel{margin-bottom:18px}.pwfb-banking-operation-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px}.pwfb-banking-operation{min-height:116px;padding:15px;text-align:left;border:1px solid #dfe7e2;border-radius:14px;background:#fff;color:var(--pwfb-green-dark);transition:.18s ease}.pwfb-banking-operation:hover{border-color:var(--pwfb-green);transform:translateY(-2px);box-shadow:0 8px 18px rgba(15,123,53,.08)}.pwfb-banking-operation>span{display:grid;place-items:center;width:35px;height:35px;margin-bottom:11px;border-radius:10px;background:var(--pwfb-green-light);color:var(--pwfb-green);font-size:21px;font-weight:800}.pwfb-banking-operation strong,.pwfb-banking-operation small{display:block}.pwfb-banking-operation strong{font-size:13px}.pwfb-banking-operation small{margin-top:5px;color:var(--pwfb-muted);font-size:10px;line-height:1.35}.pwfb-banking-operation-active{border:2px solid var(--pwfb-orange);background:linear-gradient(180deg,#fff9f0,#fff);box-shadow:0 7px 18px rgba(242,140,24,.13)}.pwfb-banking-operation-active>span{background:var(--pwfb-orange);color:#fff}.pwfb-deposit-card{margin-bottom:18px;border-top:4px solid var(--pwfb-orange)}.pwfb-operation-header{background:linear-gradient(90deg,#f4fbf6,#fffaf3)}.pwfb-operation-badge{padding:7px 11px;border-radius:999px;background:var(--pwfb-green);color:#fff;font-size:9px;font-weight:900;letter-spacing:.1em}.pwfb-banking-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:17px;padding:22px}.pwfb-form-field-wide{grid-column:1/-1}.pwfb-label{display:block;margin-bottom:7px;color:#34443a;font-size:11px;font-weight:800}.pwfb-verify-field{display:flex;align-items:center;justify-content:space-between;min-height:44px;padding:10px 12px;border:1px dashed #ccd8d0;border-radius:10px;background:#f7f9f8;color:#7b877f;font-size:12px}.pwfb-verify-field.verified{border:1px solid #9ed0ac;background:var(--pwfb-green-light);color:var(--pwfb-green-dark);font-weight:800}.pwfb-verify-field b{display:grid;place-items:center;width:21px;height:21px;border-radius:50%;background:var(--pwfb-green);color:#fff}.pwfb-amount-input{display:flex;align-items:center}.pwfb-amount-input>span{display:grid;place-items:center;width:44px;height:44px;border:1px solid #d5e0d9;border-right:0;border-radius:10px 0 0 10px;background:var(--pwfb-green-light);color:var(--pwfb-green-dark);font-weight:900}.pwfb-amount-input .pwfb-input{border-radius:0 10px 10px 0}.pwfb-deposit-actions{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:17px 22px;background:#f7faf8;border-top:1px solid #e5ece7}.pwfb-security-note{display:flex;align-items:center;gap:8px;color:var(--pwfb-muted);font-size:10px}.pwfb-security-note:first-letter{color:var(--pwfb-green)}.pwfb-banking-submit{min-width:170px}.pwfb-alert{margin:0 22px 18px;padding:12px 14px;border-radius:10px;font-size:11px;font-weight:700}.pwfb-alert-success{background:var(--pwfb-green-light);color:var(--pwfb-green-dark);border:1px solid #b9dfc4}.pwfb-alert-error{background:#fff0ed;color:#a43b25;border:1px solid #f0c0b6}.pwfb-banking-empty{padding:38px 20px;text-align:center;color:var(--pwfb-muted);font-size:12px}.pwfb-table-wrap{width:100%;overflow:auto}.pwfb-table{width:100%;border-collapse:collapse;min-width:700px}.pwfb-table th{padding:12px 18px;text-align:left;background:#f7faf8;color:var(--pwfb-green-dark);font-size:9px;text-transform:uppercase;letter-spacing:.07em}.pwfb-table td{padding:13px 18px;border-top:1px solid #edf1ee;color:#4b5a51;font-size:11px}.pwfb-status-badge{display:inline-flex;padding:5px 9px;border-radius:999px;background:var(--pwfb-green-light);color:var(--pwfb-green-dark);font-size:9px;font-weight:800}
+
+@media(max-width:800px){.pwfb-sidebar{width:min(280px,88vw);transform:translateX(-105%);box-shadow:12px 0 35px rgba(0,0,0,.18)}.pwfb-sidebar.pwfb-sidebar-mobile-open{transform:translateX(0)}.pwfb-sidebar-close{display:block}.pwfb-main{width:100%;margin-left:0}.pwfb-menu-button{display:grid}.pwfb-sidebar-overlay{display:block;position:fixed;inset:0;z-index:49;border:0;background:rgba(0,0,0,.42)}.pwfb-content{width:100%;padding:14px!important}.pwfb-sidebar nav{flex:1 1 auto;min-height:0;max-height:calc(100dvh - 145px);overflow-y:auto;overflow-x:hidden;padding-bottom:150px;touch-action:pan-y;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}.pwfb-topbar{height:64px;padding:9px 12px}.pwfb-user-info,.pwfb-logout-button{display:none}.pwfb-user{gap:0}.pwfb-page-header{align-items:flex-start;flex-direction:column}.pwfb-page-title{font-size:25px}.pwfb-banking-brand-mark{align-self:stretch;align-items:flex-start}.pwfb-banking-hero{grid-template-columns:1fr;padding:14px}.pwfb-banking-operation-grid{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px}.pwfb-banking-form-grid{grid-template-columns:1fr;padding:16px}.pwfb-form-field-wide{grid-column:auto}.pwfb-deposit-actions{align-items:stretch;flex-direction:column}.pwfb-banking-submit{width:100%}}
+@media(max-width:480px){.pwfb-banking-operation-grid{grid-template-columns:1fr}.pwfb-banking-operation{min-height:96px}.pwfb-panel-header{padding:16px}.pwfb-banking-form-grid{padding:14px}}
+.pwfb-sidebar{will-change:transform}.pwfb-content{overflow-x:hidden}
+
+/* PWFB mobile sidebar: keep finger scrolling inside navigation instead of handing the gesture to the page/WebView. */
+@media(max-width:800px){.pwfb-sidebar{overscroll-behavior:contain;touch-action:pan-y}.pwfb-sidebar-header,.pwfb-access,.pwfb-sidebar-status{touch-action:pan-y}.pwfb-subnav,.pwfb-nav-group{touch-action:pan-y}}
+
+
+/* PWFB global pull-to-refresh and orange/green bottom brand accent */
+.pwfb-pull-refresh{position:fixed;top:0;left:50%;z-index:9999;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:7px;width:180px;max-width:70vw;overflow:hidden;border-radius:0 0 14px 14px;background:#fff;box-shadow:0 7px 20px rgba(5,78,34,.16);color:var(--pwfb-green-dark);font-size:10px;font-weight:900;pointer-events:none;transition:height .12s ease}
+.pwfb-pull-refresh:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--pwfb-orange) 0 50%,var(--pwfb-green) 50% 100%)}
+.pwfb-pull-refresh-icon{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--pwfb-orange-light);color:var(--pwfb-orange-dark);font-size:17px;line-height:1}
+.pwfb-pull-refresh-icon.ready{background:var(--pwfb-green-light);color:var(--pwfb-green-dark);transform:rotate(180deg)}
+.pwfb-bottom-accent{position:fixed;left:0;right:0;bottom:0;z-index:9998;height:5px;background:linear-gradient(90deg,var(--pwfb-orange) 0 50%,var(--pwfb-green) 50% 100%);box-shadow:0 -2px 10px rgba(15,123,53,.12);pointer-events:none}
+@media(max-width:800px){.pwfb-bottom-accent{height:4px}.pwfb-pull-refresh{font-size:9px}}
+
+.atm-page{max-width:1100px;margin:0 auto}.atm-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}.atm-header h1{margin:4px 0;font-size:30px;font-weight:900}.atm-header p{margin:0;color:#6b776f}.atm-eyebrow{color:#0f7b35!important;font-size:11px;font-weight:900;letter-spacing:.12em}.atm-mark{width:58px;height:42px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,#075d2a,#0f7b35);border:2px solid #f28c18;color:#fff;font-weight:900}.atm-panel{padding:18px;border:1px solid #dfe8e2;border-radius:16px;background:#fff;margin-bottom:16px}.atm-panel h2{margin:0 0 12px;font-size:17px}.atm-label{display:block;font-size:11px;font-weight:800;color:#34443a}.atm-input{display:block;width:100%;margin-top:6px;padding:11px 12px;border:1px solid #d7e2db;border-radius:10px;background:#fff;font-size:13px;box-sizing:border-box}.atm-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}.atm-results{border:1px solid #dfe8e2;border-radius:10px;margin-top:6px;overflow:hidden}.atm-result{display:flex;justify-content:space-between;width:100%;padding:10px 12px;border:0;border-bottom:1px solid #edf2ee;background:#fff;text-align:left;font-size:12px}.atm-security{margin-top:14px;padding:13px;border-radius:12px;background:#fff8ee;border:1px solid #f2d0a6;color:#754300;font-size:11px}.atm-attachments{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.atm-drop{display:flex;flex-direction:column;gap:7px;min-height:130px;padding:13px;border:1px dashed #c7d8cd;border-radius:12px;background:#f8fbf9;font-size:11px}.atm-drop img{width:100%;height:120px;object-fit:contain;border-radius:9px;background:#eef4ef}.atm-submit{margin-top:14px;padding:12px 18px;border:0;border-radius:10px;background:linear-gradient(135deg,#075d2a,#0f7b35);color:#fff;font-weight:900}.atm-ok{font-size:12px;font-weight:800;color:#087a36}.atm-error{font-size:12px;font-weight:800;color:#b45309}.atm-muted{color:#6b776f;font-size:12px}.atm-card-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #edf2ee}.atm-actions{display:flex;gap:7px}.atm-actions button{padding:7px 9px;border:1px solid #d7e2db;border-radius:8px;background:#fff;font-size:10px;font-weight:800}.atm-actions .danger{color:#b42318}@media(max-width:720px){.atm-fields{grid-template-columns:1fr 1fr}.atm-attachments{grid-template-columns:1fr}.atm-card-row{align-items:flex-start;flex-direction:column;width:100%}}
+
+/* Cleanup: preserve the existing sidebar design while making it a true overlay.
+   Dashboard width and position must not change when navigation opens. */
+.pwfb-sidebar-overlay { display: none; }
+.pwfb-shell-sidebar-open .pwfb-sidebar-overlay { display: block !important; }
+.pwfb-shell-sidebar-open .pwfb-main,
+.pwfb-shell-sidebar-closed .pwfb-main { width: 100% !important; min-width: 0 !important; margin-left: 0 !important; }
+@media (min-width: 1024px) {
+  .pwfb-shell-sidebar-open .pwfb-sidebar-overlay { display: block !important; }
+  .pwfb-shell-sidebar-open .pwfb-sidebar { transform: translateX(0) !important; }
+}
+@media (max-width: 1023px) {
+  .pwfb-shell-sidebar-open .pwfb-sidebar { transform: translateX(0) !important; }
 }
 
-* {
-  box-sizing: border-box;
+/* Never allow amount/stat cards to inherit black backgrounds from broad theme rules.
+   Keep PWFB's green/orange identity and readable text in both themes. */
+.pwfb-stat-card,
+.staff-stat-card,
+.staff-module-card,
+.staff-panel,
+.staff-profile-card,
+.op-balance,
+.preview,
+.pwfb-banking-balance {
+  background-color: #fff;
+  color: #17211b;
+}
+html[data-theme="dark"] .pwfb-stat-card,
+html[data-theme="dark"] .staff-stat-card,
+html[data-theme="dark"] .staff-module-card,
+html[data-theme="dark"] .staff-panel,
+html[data-theme="dark"] .op-balance,
+html[data-theme="dark"] .preview,
+html[data-theme="dark"] .pwfb-banking-balance {
+  background-color: #122019 !important;
+  color: #edf5ef !important;
+  border-color: #2b4034 !important;
+}
+html[data-theme="dark"] .staff-stat-card span,
+html[data-theme="dark"] .staff-stat-card small,
+html[data-theme="dark"] .staff-module-card p,
+html[data-theme="dark"] .staff-panel p,
+html[data-theme="dark"] .op-balance small,
+html[data-theme="dark"] .preview span {
+  color: #b8c9bd !important;
 }
 
-a {
-  text-decoration: none;
-  color: inherit;
+/* Explicit field contrast in both themes, including page-local form classes. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+select,
+textarea {
+  color: #17211b;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="file"])::placeholder,
+textarea::placeholder { color: #66736b; opacity: 1; }
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: #101c16 !important;
+  color: #edf5ef !important;
+  border-color: #34483c !important;
+}
+html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"])::placeholder,
+html[data-theme="dark"] textarea::placeholder { color: #9caf9f !important; opacity: 1; }
+
+
+/* Desktop and Android sidebar parity: keep one compact drawer design and explicit close control at every width. */
+.pwfb-sidebar { width: min(280px, 88vw); }
+.pwfb-sidebar-close { display: block; }
+.pwfb-shell-sidebar-open .pwfb-sidebar { transform: translateX(0) !important; }
+.pwfb-shell-sidebar-closed .pwfb-sidebar { transform: translateX(-105%) !important; }
+.pwfb-shell-sidebar-open .pwfb-sidebar-overlay { display: block !important; position: fixed; inset: 0; z-index: 49; border: 0; background: rgba(0,0,0,.42); }
+
+
+/* Keep the same overlay drawer interaction on desktop and Android. */
+.pwfb-sidebar { position: fixed !important; inset: 0 auto 0 0 !important; z-index: 60 !important; width: min(280px, 88vw) !important; height: 100dvh !important; max-height: 100dvh !important; }
+.pwfb-main { width: 100% !important; min-width: 0 !important; margin-left: 0 !important; }
+.pwfb-shell-sidebar-closed .pwfb-sidebar { transform: translateX(-105%) !important; }
+.pwfb-shell-sidebar-open .pwfb-sidebar { transform: translateX(0) !important; }
+.pwfb-sidebar-close { display: grid !important; place-items: center; flex: 0 0 34px; }
+.pwfb-shell-sidebar-open .pwfb-sidebar-overlay { display: block !important; position: fixed !important; inset: 0 !important; z-index: 59 !important; width: 100%; height: 100%; background: rgba(0,0,0,.42) !important; }
+
+
+/* Desktop drawer reliability: explicit open-state selectors and visible toggle above the header. */
+.pwfb-shell { position: relative; }
+.pwfb-topbar { position: sticky; z-index: 70 !important; }
+.pwfb-menu-button { display: grid !important; visibility: visible !important; opacity: 1 !important; cursor: pointer; position: relative; z-index: 71; }
+.pwfb-shell.pwfb-shell-sidebar-closed > .pwfb-sidebar { transform: translateX(-105%) !important; visibility: hidden; pointer-events: none; }
+.pwfb-shell.pwfb-shell-sidebar-open > .pwfb-sidebar { transform: translateX(0) !important; visibility: visible !important; pointer-events: auto !important; }
+.pwfb-shell.pwfb-shell-sidebar-open > .pwfb-sidebar-overlay { display: block !important; visibility: visible !important; opacity: 1 !important; pointer-events: auto !important; }
+.pwfb-sidebar { transition: transform .24s ease, visibility .24s ease !important; }
+.pwfb-sidebar-close { display: grid !important; visibility: visible !important; opacity: 1 !important; cursor: pointer; }
+@media (min-width: 801px) {
+  .pwfb-topbar-left { min-width: 0; }
+  .pwfb-menu-button { flex: 0 0 40px; }
+  .pwfb-content { width: 100%; }
 }
 
-button {
-  cursor: pointer;
+
+/* Desktop parity with the Android slide-out sidebar.
+   Keep these changes desktop-only so Android's existing layout stays unchanged. */
+@media (min-width:801px){
+  .pwfb-sidebar{width:280px}
+  .pwfb-sidebar-close{display:block}
+  .pwfb-main{width:100%;margin-left:0}
+  .pwfb-content{width:100%;min-height:calc(100vh - 70px)}
+  .pwfb-sidebar-overlay{display:block;position:fixed;inset:0;z-index:49;border:0;background:rgba(0,0,0,.42)}
 }

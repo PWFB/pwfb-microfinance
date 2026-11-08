@@ -3,3 +3,12 @@ node_modules
 .env
 
 /generated/prisma
+
+# Local Debian filesystem/build environment
+/debian-fs/
+
+# Local/generated backend artifacts
+/dist/
+/backend@*
+/nest
+/prisma/schema.prisma.tmp

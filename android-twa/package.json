@@ -1,0 +1,9 @@
+{
+  "name": "pwfb-microfinance-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWFB Microfinance Android Trusted Web Activity",
+  "scripts": {
+    "build": "./gradlew bundleRelease"
+  }
+}

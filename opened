@@ -1,2 +1,0 @@
-cd ~/pwfb-microfinance
-nano apps/backend/src/customers/customers.module.ts

@@ -1,57 +1,62 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+
 @Controller('customers')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomersController {
-  constructor(
-    private readonly customersService: CustomersService,
-  ) {}
+  constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  create(
-    @Body() createCustomerDto: CreateCustomerDto,
-  ) {
-    return this.customersService.create(createCustomerDto);
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'STAFF')
+  create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: any) {
+    return this.customersService.create(createCustomerDto, req.user);
   }
+
+  @Get('me')
+  @Roles('CUSTOMER')
+  me(@Req() req: any) { return this.customersService.findMe(req.user); }
 
   @Get()
-  findAll() {
-    return this.customersService.findAll();
-  }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
   @Get(':id')
-  findOne(
-    @Param('id') id: string,
-  ) {
-    return this.customersService.findOne(id);
-  }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  findOne(@Param('id') id: string, @Req() req: any) { return this.customersService.findOne(id, req.user); }
 
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateCustomerDto: UpdateCustomerDto,
-  ) {
-    return this.customersService.update(
-      id,
-      updateCustomerDto,
-    );
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE')
+  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) { return this.customersService.update(id, updateCustomerDto); }
+
+  @Post(':id/reset-password')
+  @Roles('SUPER_ADMIN')
+  resetPassword(@Param('id') id: string) { return this.customersService.resetPassword(id); }
+
+  @Post(':id/identity-override')
+  @Roles('SUPER_ADMIN')
+  overrideIdentity(@Param('id') id: string, @Body() body: { type: 'BVN' | 'NIN'; value: string; reason: string }, @Req() req: any) {
+    return this.customersService.overrideIdentity(id, body?.type, body?.value, body?.reason, req.user);
   }
 
   @Delete(':id')
-  remove(
-    @Param('id') id: string,
-  ) {
-    return this.customersService.remove(id);
-  }
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  remove(@Param('id') id: string) { return this.customersService.remove(id); }
 }

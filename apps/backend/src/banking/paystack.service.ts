@@ -1,0 +1,359 @@
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
+import { PrismaService } from '../prisma/prisma.service';
+
+@Injectable()
+export class PaystackService {
+  private readonly baseUrl = process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co';
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PaystackCardAttemptGuard" (
+      "cardId" TEXT PRIMARY KEY,
+      "customerId" TEXT NOT NULL,
+      "failedAttempts" INTEGER NOT NULL DEFAULT 0,
+      "cooldownUntil" TIMESTAMPTZ,
+      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`);
+  }
+
+  private async assertCardAttemptAllowed(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "PaystackCardAttemptGuard" SET "failedAttempts"=0, "cooldownUntil"=NULL, "updatedAt"=NOW()
+       WHERE "cardId"=$1 AND "customerId"=$2 AND "cooldownUntil" IS NOT NULL AND "cooldownUntil" <= NOW()`,
+      cardId, customerId,
+    );
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ failedAttempts: number; cooldownUntil: Date | null }>>(
+      `SELECT "failedAttempts", "cooldownUntil" FROM "PaystackCardAttemptGuard" WHERE "cardId"=$1 AND "customerId"=$2 LIMIT 1`,
+      cardId, customerId,
+    );
+    const cooldownUntil = rows[0]?.cooldownUntil ? new Date(rows[0].cooldownUntil) : null;
+    if (cooldownUntil && cooldownUntil.getTime() > Date.now()) {
+      throw new BadRequestException(`Too many failed card-payment attempts. Try again after ${cooldownUntil.toISOString()}.`);
+    }
+  }
+
+  private async recordCardAttemptFailure(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "PaystackCardAttemptGuard" ("cardId","customerId","failedAttempts","cooldownUntil","updatedAt")
+       VALUES ($1,$2,1,NULL,NOW())
+       ON CONFLICT ("cardId") DO UPDATE SET
+         "customerId"=EXCLUDED."customerId",
+         "failedAttempts"=CASE
+           WHEN "PaystackCardAttemptGuard"."cooldownUntil" IS NOT NULL AND "PaystackCardAttemptGuard"."cooldownUntil" <= NOW() THEN 1
+           ELSE "PaystackCardAttemptGuard"."failedAttempts"+1
+         END,
+         "cooldownUntil"=CASE
+           WHEN (CASE
+             WHEN "PaystackCardAttemptGuard"."cooldownUntil" IS NOT NULL AND "PaystackCardAttemptGuard"."cooldownUntil" <= NOW() THEN 1
+             ELSE "PaystackCardAttemptGuard"."failedAttempts"+1
+           END) >= 5 THEN NOW() + INTERVAL '1 hour'
+           ELSE NULL
+         END,
+         "updatedAt"=NOW()`,
+      cardId, customerId,
+    );
+  }
+
+  private async clearCardAttemptFailures(customerId: string, cardId: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "PaystackCardAttemptGuard" SET "failedAttempts"=0, "cooldownUntil"=NULL, "updatedAt"=NOW()
+       WHERE "cardId"=$1 AND "customerId"=$2`,
+      cardId, customerId,
+    );
+  }
+
+  private isTerminalCardFailure(status: string) {
+    return ["failed", "rejected", "invalid", "expired", "abandoned", "declined"].includes(status.toLowerCase());
+  }
+
+  private getSecretKey() {
+    const key = process.env.PAYSTACK_SECRET_KEY?.trim();
+    if (!key) throw new BadRequestException('Paystack bank verification is not configured. Add PAYSTACK_SECRET_KEY to the PWFB backend environment.');
+    return key;
+  }
+
+  private async request(path: string, options: RequestInit = {}) {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers: { Authorization: `Bearer ${this.getSecretKey()}`, 'Content-Type': 'application/json', ...(options.headers || {}) },
+    });
+    const data = await response.json().catch(() => null);
+    if (response.status >= 500) throw new BadGatewayException(data?.message || 'Paystack is temporarily unavailable');
+    if (!response.ok || !data?.status) throw new BadRequestException(data?.message || 'Paystack request failed');
+    return data;
+  }
+
+  async listBanks() {
+    const allBanks: any[] = [];
+    const perPage = 100;
+
+    // Paystack can paginate the Nigeria institution list. Fetch all pages so
+    // customer bank search is not limited to the first page of institutions.
+    for (let page = 1; page <= 20; page += 1) {
+      const data = await this.request(`/bank?country=nigeria&perPage=${perPage}&page=${page}`);
+      const pageBanks = Array.isArray(data.data) ? data.data : [];
+      allBanks.push(...pageBanks);
+      if (pageBanks.length < perPage) break;
+    }
+
+    const seen = new Set<string>();
+    return allBanks
+      .map((bank: any) => {
+        const providerName = String(bank?.name || '').trim();
+        // Keep Paystack's actual bank code, but normalize the customer-facing
+        // label for OPay instead of inventing or substituting a bank code.
+        const name = providerName.toLowerCase().includes('opay') ? 'OPAY Digital Service' : providerName;
+        return {
+          name,
+          shortName: providerName.toLowerCase().includes('opay') ? 'OPay' : String(bank?.slug || providerName).trim(),
+          code: String(bank?.code || '').trim(),
+          provider: 'PAYSTACK',
+        };
+      })
+      .filter((bank: any) => {
+        if (!bank.name || !bank.code || seen.has(bank.code)) return false;
+        seen.add(bank.code);
+        return true;
+      })
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }
+
+  async testConnection() {
+    const data = await this.request('/bank');
+    return { ok: true, provider: 'PAYSTACK', message: data.message, bankCount: Array.isArray(data.data) ? data.data.length : 0 };
+  }
+
+  async getCustomer(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
+    if (!customer) throw new NotFoundException('Customer not found');
+    return customer;
+  }
+
+  private validateCardInput(card: any) {
+    const number = String(card?.number || '').replace(/\D/g, '');
+    const cvv = String(card?.cvv || '').replace(/\D/g, '');
+    const expiryMonth = String(card?.expiryMonth || '').replace(/\D/g, '');
+    const expiryYear = String(card?.expiryYear || '').replace(/\D/g, '');
+    const cardholderName = String(card?.cardholderName || '').trim();
+    if (!/^\d{12,19}$/.test(number)) throw new BadRequestException('Enter a valid card number');
+    if (!/^\d{3,4}$/.test(cvv)) throw new BadRequestException('Enter a valid CVV');
+    const month = Number(expiryMonth);
+    const year = Number(expiryYear);
+    if (!Number.isInteger(month) || month < 1 || month > 12) throw new BadRequestException('Enter a valid expiry month');
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new BadRequestException('Enter a valid expiry year');
+    if (!cardholderName) throw new BadRequestException('Cardholder name is required');
+    return { number, cvv, expiryMonth: String(month).padStart(2, '0'), expiryYear: String(year), cardholderName };
+  }
+
+  async chargeCustomerAtmCard(customerId: string, input: any) {
+    const customer = await this.getCustomer(customerId);
+    if (!customer.email) throw new BadRequestException('Customer email is required for card deposit');
+    const amount = Number(input?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const card = this.validateCardInput(input?.card);
+    const cardId = String(input?.cardId || '').trim();
+    if (!cardId) throw new BadRequestException('Select a saved card record before starting card authorization');
+    const savedCard = await this.prisma.customerAtmCard.findFirst({ where: { id: cardId, customerId } });
+    if (!savedCard) throw new NotFoundException('ATM card not found for this customer');
+    await this.assertCardAttemptAllowed(customerId, cardId);
+    const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    let data: any;
+    try {
+      data = await this.request('/charge', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: customer.email,
+        amount: Math.round(amount * 100),
+        currency: 'NGN',
+        reference,
+        card: {
+          number: card.number,
+          cvv: card.cvv,
+          expiry_month: card.expiryMonth,
+          expiry_year: card.expiryYear,
+        },
+        metadata: { customerId: customer.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
+      }),
+      });
+    } catch (error) {
+      // Do not count missing configuration or transport outages as a failed card attempt.
+      if (error instanceof BadRequestException && !String(error.message).toLowerCase().includes('not configured')) {
+        await this.recordCardAttemptFailure(customerId, cardId);
+      }
+      throw error;
+    }
+    const status = String(data?.data?.status || '').toLowerCase();
+    if (status === 'success') {
+      const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
+      const authorizationCode = String(data.data?.authorization?.authorization_code || '').trim();
+      if (authorizationCode) await this.prisma.customerAtmCard.updateMany({ where: { id: cardId, customerId }, data: { providerAuthorizationCode: authorizationCode } });
+      await this.clearCardAttemptFailures(customerId, cardId);
+      return { ok: true, status: 'success', reference, credited, authorization: data.data?.authorization || null };
+    }
+    if (this.isTerminalCardFailure(status)) await this.recordCardAttemptFailure(customerId, cardId);
+    return {
+      ok: true,
+      status,
+      reference,
+      message: data?.message || data?.data?.display_text || 'Additional card authorization is required',
+      authorizationUrl: data?.data?.authorization_url || null,
+      authorization: data.data?.authorization || null,
+      otpRequired: ['send_otp', 'send_pin', 'send_phone'].includes(status),
+    };
+  }
+
+  async chargeCustomerWithSavedAuthorization(customerId: string, cardId: string, amount: number) {
+    const customer = await this.getCustomer(customerId);
+    if (!customer.email) throw new BadRequestException('Customer email is required for card deposit');
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const card = await this.prisma.customerAtmCard.findFirst({ where: { id: cardId, customerId } });
+    if (!card) throw new NotFoundException('ATM card not found');
+    if (!card.providerAuthorizationCode) throw new BadRequestException('This attached card has no reusable payment authorization. Complete a first provider-authorized payment first.');
+    await this.assertCardAttemptAllowed(customerId, cardId);
+    const reference = `PWFB-CARD-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    let data: any;
+    try {
+      data = await this.request('/charge', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: customer.email,
+        amount: Math.round(numericAmount * 100),
+        currency: 'NGN',
+        reference,
+        authorization_code: card.providerAuthorizationCode,
+        metadata: { customerId: customer.id, cardId: card.id, provider: 'PAYSTACK', purpose: 'PWFB_ATM_CARD_DEPOSIT' },
+      }),
+      });
+    } catch (error) {
+      // Do not count missing configuration or transport outages as a failed card attempt.
+      if (error instanceof BadRequestException && !String(error.message).toLowerCase().includes('not configured')) {
+        await this.recordCardAttemptFailure(customerId, cardId);
+      }
+      throw error;
+    }
+    const status = String(data?.data?.status || '').toLowerCase();
+    if (status === 'success') {
+      const credited = await this.handleWebhook({ event: 'charge.success', data: data.data });
+      await this.clearCardAttemptFailures(customerId, cardId);
+      return { ok: true, status: 'success', reference, credited };
+    }
+    if (this.isTerminalCardFailure(status)) await this.recordCardAttemptFailure(customerId, cardId);
+    return { ok: true, status, reference, message: data?.message || data?.data?.display_text || 'Card authorization requires additional action', authorizationUrl: data?.data?.authorization_url || null, authorization: data?.data?.authorization || null, otpRequired: ['send_otp', 'send_phone'].includes(status) };
+  }
+
+  async initializeCustomerPayment(customerId: string, amount: number) {
+    const customer = await this.getCustomer(customerId);
+    if (!customer.email) throw new BadRequestException('Customer email is required for Paystack payment');
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const reference = `PWFB-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const data = await this.request('/transaction/initialize', {
+      method: 'POST',
+      body: JSON.stringify({ email: customer.email, amount: Math.round(numericAmount * 100), currency: 'NGN', reference, metadata: { customerId: customer.id, provider: 'PAYSTACK', purpose: 'PWFB_WALLET_DEPOSIT' } }),
+    });
+    return { ok: true, reference, authorizationUrl: data.data.authorization_url, accessCode: data.data.access_code };
+  }
+
+  verifyWebhookSignature(rawBody: Buffer, signature?: string) {
+    const secret = process.env.PAYSTACK_SECRET_KEY;
+    if (!secret || !signature) return false;
+    const expected = createHmac('sha512', secret).update(rawBody).digest('hex');
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    const suppliedBuffer = Buffer.from(signature, 'utf8');
+    return expectedBuffer.length === suppliedBuffer.length && timingSafeEqual(expectedBuffer, suppliedBuffer);
+  }
+
+  async handleWebhook(event: any) {
+    const eventName = String(event?.event || '').trim().toLowerCase();
+    if (eventName.startsWith('transfer.')) {
+      const transfer = event?.data ?? {};
+      const reference = String(transfer?.reference || '').trim();
+      const providerReference = String(transfer?.id ?? transfer?.transfer_code ?? '').trim();
+      if (!reference) throw new BadRequestException('Paystack transfer webhook is missing reference');
+      if (!['transfer.success','transfer.failed','transfer.reversed'].includes(eventName)) return { ok: true, processed: false, message: 'Transfer event ignored' };
+      return this.prisma.$transaction(async (tx) => {
+        const transaction = await tx.walletTransaction.findUnique({ where: { reference } });
+        if (!transaction) return { ok: true, processed: false, message: 'Withdrawal transaction not found', reference };
+        if (transaction.type !== 'WITHDRAWAL') return { ok: true, processed: false, message: 'Referenced transaction is not a withdrawal', reference };
+        if (eventName === 'transfer.success') {
+          if (transaction.status === 'COMPLETED') return { ok: true, processed: false, duplicate: true, transaction };
+          const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status: 'COMPLETED', provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, processedAt: new Date(), failureReason: null } });
+          return { ok: true, processed: true, action: 'COMPLETED', transaction: updated };
+        }
+        if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') return { ok: true, processed: false, duplicate: true, transaction };
+        const wallet = await tx.customerWallet.findUnique({ where: { customerId: transaction.customerId } });
+        if (!wallet) throw new BadRequestException('Customer wallet not found while reversing Paystack withdrawal');
+        const restoredBalance = Math.round((wallet.balance + transaction.amount) * 100) / 100;
+        const updatedWallet = await tx.customerWallet.update({ where: { id: wallet.id }, data: { balance: restoredBalance } });
+        const status = eventName === 'transfer.reversed' ? 'REVERSED' : 'FAILED';
+        const updated = await tx.walletTransaction.update({ where: { id: transaction.id }, data: { status, provider: 'PAYSTACK', providerReference: providerReference || transaction.providerReference, failureReason: String(transfer?.reason || transfer?.message || 'Paystack reported a failed or reversed transfer'), reversedAt: new Date(), processedAt: new Date(), newBalance: restoredBalance } });
+        return { ok: true, processed: true, action: status, wallet: updatedWallet, transaction: updated };
+      });
+    }
+    if (eventName !== 'charge.success') return { ok: true, processed: false, message: 'Event ignored' };
+    const payment = event?.data;
+    const reference = payment?.reference;
+    const metadata = payment?.metadata;
+    const customerId = metadata?.customerId;
+    if (!reference || !customerId) throw new BadRequestException('Paystack payment is missing reference or customer ID');
+    if (payment?.status !== 'success') return { ok: true, processed: false, message: 'Payment is not successful' };
+    const amount = Number(payment.amount) / 100;
+    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Invalid Paystack payment amount');
+    const providerReference = String(payment.id ?? reference);
+    const existing = await this.prisma.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
+    if (existing) return { ok: true, processed: false, duplicate: true, transactionId: existing.id, reference: existing.reference };
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
+    if (!customer) throw new NotFoundException('Customer not found');
+    return this.prisma.$transaction(async (tx) => {
+      // Serialize concurrent webhook/verify requests for the same provider payment before checking idempotency.
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', String(providerReference));
+      const duplicate = await tx.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
+      if (duplicate) return { ok: true, processed: false, duplicate: true, transactionId: duplicate.id, reference: duplicate.reference };
+      const wallet = await tx.customerWallet.upsert({ where: { customerId }, create: { customerId, balance: 0 }, update: {} });
+      if (wallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+      const newBalance = Math.round((wallet.balance + amount) * 100) / 100;
+      const updatedWallet = await tx.customerWallet.update({ where: { id: wallet.id }, data: { balance: newBalance } });
+      const transaction = await tx.walletTransaction.create({ data: { customerId, type: 'DEPOSIT', amount, previousBalance: wallet.balance, newBalance, reference: `PAY-${reference}`, description: 'Paystack wallet deposit', status: 'COMPLETED', provider: 'PAYSTACK', providerReference, processedAt: new Date() } });
+      return { ok: true, processed: true, transaction, wallet: updatedWallet };
+    });
+  }
+
+  async verifyAndCredit(reference: string, requester?: { role?: string; customerId?: string }) {
+    const data = await this.request(`/transaction/verify/${encodeURIComponent(reference)}`);
+    if (data.data?.status !== 'success') throw new BadRequestException('Paystack payment is not successful');
+    const metadata = data.data.metadata;
+    const customerId = String(metadata?.customerId || '');
+    if (!customerId) throw new BadRequestException('Paystack payment has no customer ID');
+    if (requester?.role === 'CUSTOMER' && (!requester.customerId || requester.customerId !== customerId)) {
+      throw new UnauthorizedException('You can only verify payments belonging to your own customer account');
+    }
+    return this.handleWebhook({ event: 'charge.success', data: data.data });
+  }
+
+  async resolveBankAccount(bankCode: string, accountNumber: string) {
+    const normalizedBankCode = String(bankCode || '').trim();
+    const normalizedAccountNumber = String(accountNumber || '').replace(/\D/g, '');
+    if (!normalizedBankCode || !/^\d{10}$/.test(normalizedAccountNumber)) throw new BadRequestException('Bank code and a valid 10-digit account number are required');
+    const data = await this.request(`/bank/resolve?account_number=${encodeURIComponent(normalizedAccountNumber)}&bank_code=${encodeURIComponent(normalizedBankCode)}`);
+    const returnedNumber = String(data.data?.account_number || '').replace(/\D/g, '');
+    const accountName = String(data.data?.account_name || '').trim();
+    if (!accountName) throw new BadRequestException('Paystack could not resolve this bank account');
+    if (!returnedNumber || returnedNumber !== normalizedAccountNumber) throw new BadRequestException('Paystack returned a different account number. Verification was rejected.');
+    return { ok: true, accountNumber: returnedNumber, accountName, bankCode: normalizedBankCode };
+  }
+
+  async transferToBank(input: { bankCode: string; accountNumber: string; accountName: string; amount: number; narration?: string; reference: string }) {
+    const recipient = await this.request('/transferrecipient', { method: 'POST', body: JSON.stringify({ type: 'nuban', name: input.accountName, account_number: input.accountNumber, bank_code: input.bankCode, currency: 'NGN' }) });
+    const transfer = await this.request('/transfer', { method: 'POST', body: JSON.stringify({ source: 'balance', amount: Math.round(input.amount * 100), recipient: recipient.data.recipient_code, reason: input.narration || 'PWFB wallet withdrawal', reference: input.reference }) });
+    return { ok: true, status: transfer.data?.status, providerReference: String(transfer.data?.id ?? input.reference), transfer: transfer.data };
+  }
+}

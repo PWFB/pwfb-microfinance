@@ -1,0 +1,36 @@
+{
+  "packageId": "com.pwfb.microfinance",
+  "host": "pwfb-microfinance-1.onrender.com",
+  "name": "PWFB Microfinance",
+  "launcherName": "PWFB",
+  "display": "standalone",
+  "displayOverride": ["standalone", "fullscreen"],
+  "themeColor": "#075d2a",
+  "themeColorDark": "#043b1b",
+  "navigationColor": "#075d2a",
+  "navigationColorDark": "#043b1b",
+  "navigationDividerColor": "#064a22",
+  "navigationDividerColorDark": "#064a22",
+  "backgroundColor": "#f5f8f6",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://pwfb-microfinance-1.onrender.com/pwfb-app-icon.svg",
+  "maskableIconUrl": "https://pwfb-microfinance-1.onrender.com/pwfb-app-icon.svg",
+  "webManifestUrl": "https://pwfb-microfinance-1.onrender.com/manifest.webmanifest",
+  "fullScopeUrl": "https://pwfb-microfinance-1.onrender.com/",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "pwfb"
+  },
+  "appVersionCode": 51,
+  "appVersion": "1.0.51",
+  "generatorApp": "PWFB Microfinance",
+  "minSdkVersion": 21,
+  "orientation": "portrait-primary",
+  "fingerprints": [
+    "13:27:5B:63:A3:76:D4:B6:97:D0:B2:EF:C7:84:24:B3:9F:37:CC:85:B9:F8:06:99:3F:9F:FC:BE:C3:72:ED:35"
+  ],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": []
+}

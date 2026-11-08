@@ -1,21 +1,48 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
-
 import { PrismaModule } from './prisma/prisma.module';
 import { StaffModule } from './staff/staff.module';
 import { ReportsModule } from './reports/reports.module';
 import { AuthModule } from './auth/auth.module';
 import { BranchModule } from './branch/branch.module';
-import { CustomerModule } from './customer/customer.module';
+import { CustomersModule } from './customers/customers.module';
+import { LoansModule } from './loans/loans.module';
+import { RepaymentsModule } from './repayments/repayments.module';
+import { SavingsModule } from './savings/savings.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { UsersModule } from './users/users.module';
+import { AdministrationModule } from './administration/administration.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
+import { FinanceModule } from './finance/finance.module';
+import { RiskComplianceModule } from './risk-compliance/risk-compliance.module';
+import { HumanResourcesModule } from './human-resources/human-resources.module';
+import { SuperAdminModule } from './super-admin/super-admin.module';
+import { PeriodsModule } from './periods/periods.module';
+import { PayrollModule } from './payroll/payroll.module';
+import { CashbookModule } from './cashbook/cashbook.module';
+import { CollectionsModule } from './collections/collections.module';
+import { DashboardsModule } from './dashboards/dashboards.module';
+import { BankingModule } from './banking/banking.module';
+import { BalmzAiModule } from './balmz-ai/balmz-ai.module';
+import { CustomerAiModule } from './customer-ai/customer-ai.module';
+import { PermissionsModule } from './permissions/permissions.module';
+import { StaffWalletModule } from './staff-wallet/staff-wallet.module';
+import { AuditModule } from './audit/audit.module';
+import { AccessScopeModule } from './access/access-scope.module';
+import { ApprovalsModule } from './approvals/approvals.module';
+import { ReconciliationModule } from './reconciliation/reconciliation.module';
+import { BranchClosingModule } from './branch-closing/branch-closing.module';
+import { FinancialPortalModule } from './financial-portal/financial-portal.module';
 
 @Module({
   imports: [
-    PrismaModule,
-    StaffModule,
-    ReportsModule,
-    AuthModule,
-    BranchModule,
-    CustomerModule,
+    BankingModule, PrismaModule, AuthModule, UsersModule, AdministrationModule,
+    MonitoringModule, FinanceModule, RiskComplianceModule, HumanResourcesModule,
+    SuperAdminModule, StaffModule, StaffWalletModule, BranchModule, CustomersModule, SavingsModule,
+    LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
+    PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
+    BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule, AccessScopeModule,
+    ApprovalsModule, ReconciliationModule, BranchClosingModule, FinancialPortalModule,
   ],
   controllers: [AppController],
 })

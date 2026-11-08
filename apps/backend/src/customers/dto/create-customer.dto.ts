@@ -9,6 +9,10 @@ export class CreateCustomerDto {
   @IsString()
   firstName: string;
 
+  @IsOptional()
+  @IsString()
+  middleName?: string;
+
   @IsString()
   lastName: string;
 
@@ -27,4 +31,8 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsDateString()
   dateOfBirth?: string;
+
+  @IsOptional()
+  @IsString()
+  groupId?: string;
 }

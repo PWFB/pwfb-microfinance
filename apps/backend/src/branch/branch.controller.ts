@@ -17,7 +17,7 @@ export class BranchController {
   create(@Body() dto: CreateBranchDto) { return this.branchService.create(dto); }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'TELLER', 'CREDIT_OFFICER')
   async findAll(@Req() req: any) {
     const rows = await this.branchService.findAll();
     return this.accessScope.filterList(req.user, 'branches', rows);
@@ -28,7 +28,7 @@ export class BranchController {
   provisionVirtualAccounts() { return this.branchService.provisionVirtualAccounts(); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'TELLER', 'CREDIT_OFFICER')
   async findOne(@Param('id') id: string, @Req() req: any) {
     await this.accessScope.assertBranch(req.user, id);
     return this.branchService.findOne(id);

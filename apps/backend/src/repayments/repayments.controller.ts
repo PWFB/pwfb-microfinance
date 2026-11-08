@@ -26,7 +26,7 @@ export class RepaymentsController {
   }
 
   @Post()
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','LOAN_OFFICER','TELLER')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','LOAN_OFFICER','TELLER','CREDIT_OFFICER')
   async create(@Body() dto: CreateRepaymentDto, @Req() req: any) {
     await this.accessScope.assertLoan(req.user, dto.loanId);
     await this.requireFinancialMfa(req);

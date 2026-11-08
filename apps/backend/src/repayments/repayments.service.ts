@@ -258,10 +258,27 @@ export class RepaymentsService {
       for (let index = 0; index < ids.length; index++) {
         const loanId = ids[index], amount = amounts[index], loan: any = loanById.get(loanId);
         await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', `LOAN-REPAYMENT:${loanId}`);
-        const meta = await tx.$queryRawUnsafe<Array<{ repaymentFrequency: string | null }>>(
-          `SELECT "repaymentFrequency" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`, loanId,
+        const meta = await tx.$queryRawUnsafe<Array<{
+          repaymentFrequency: string | null; duration: number | string | null;
+          totalRepayment: number | string | null; installmentAmount: number | string | null;
+          interestAmount: number | string | null;
+        }>>(
+          `SELECT "repaymentFrequency","duration","totalRepayment","installmentAmount","interestAmount" FROM "PWFBLoanMeta" WHERE "loanId"=$1 LIMIT 1`, loanId,
         );
         if (!String(meta[0]?.repaymentFrequency || '').toLowerCase().includes('daily')) throw new BadRequestException(`Loan ${loanId} is not configured for daily repayments`);
+        const duration = Math.max(1, Math.ceil(Number(meta[0]?.duration || 1)));
+        const fullRepayment = Number(meta[0]?.totalRepayment ?? (Number(loan.amount || 0) + Number(meta[0]?.interestAmount ?? (Number(loan.amount || 0) * Number(loan.interestRate || 0) / 100))));
+        const installment = Number(meta[0]?.installmentAmount ?? (fullRepayment / duration));
+        const loanStart = new Date(loan.createdAt);
+        const dueDays = Math.max(0, Math.min(duration, Math.floor((Date.UTC(paymentDate.getUTCFullYear(), paymentDate.getUTCMonth(), paymentDate.getUTCDate()) - Date.UTC(loanStart.getUTCFullYear(), loanStart.getUTCMonth(), loanStart.getUTCDate())) / 86400000)));
+        const amountDueToDate = Math.round(Math.min(fullRepayment, installment * dueDays) * 100) / 100;
+        const alreadyPaid = await tx.repayment.aggregate({
+          where: { loanId, paymentDate: { lte: paymentDate } },
+          _sum: { amount: true },
+        });
+        const outstandingDue = Math.max(0, Math.round((amountDueToDate - Number(alreadyPaid._sum?.amount || 0)) * 100) / 100);
+        if (outstandingDue <= 0.005) throw new BadRequestException(`Loan ${loanId} is already paid for the selected date`);
+        if (amount > outstandingDue + 0.005) throw new BadRequestException(`Bulk amount for loan ${loanId} exceeds its remaining daily repayment due of ₦${outstandingDue.toFixed(2)}`);
         const reference = `BULK-${batchReference}-${loanId}`, cashbookReference = `REPAY-${reference}`;
         const duplicate = await tx.repayment.findFirst({ where: { reference }, select: { id: true } });
         if (duplicate) throw new BadRequestException(`A repayment already exists for loan ${loanId} with this batch reference`);

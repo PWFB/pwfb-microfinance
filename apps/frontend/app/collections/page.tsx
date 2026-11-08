@@ -131,6 +131,7 @@ export default function CollectionsPage() {
 
       <section className="pwfb-stat-grid">
         <div className="pwfb-stat-card"><span>Total Collections</span><strong>{loading ? '—' : money(summary.total)}</strong><small>{summary.collectionCount || 0} collection records</small></div>
+        <div className="pwfb-stat-card"><span>Daily Cash Collected</span><strong>{loading ? '—' : money(dailySummary.cashCollectedTotal)}</strong><small>Selected date · collections and wallet cash deposits</small></div>
         <div className="pwfb-stat-card pwfb-stat-orange"><span>Settled</span><strong>{loading ? '—' : money(summary.settled)}</strong><small>Posted into financial records</small></div>
         <div className="pwfb-stat-card"><span>Unsettled</span><strong>{loading ? '—' : money(summary.unsettled)}</strong><small>Still awaiting posting</small></div>
         <div className="pwfb-stat-card"><span>Unreconciled</span><strong>{loading ? '—' : money(summary.unreconciled)}</strong><small>Awaiting reconciliation</small></div>
@@ -139,14 +140,14 @@ export default function CollectionsPage() {
       <section className="pwfb-panel">
         <div className="pwfb-panel-header"><div><h2>Cash Collected by Credit Officer</h2><p>Daily figures for the selected date. Branch Admin sees only this branch; credit officers see their own collections.</p></div><label style={{display:'grid',gap:4,fontSize:12,fontWeight:700}}>Work date<input type="date" value={workDate} onChange={e=>setWorkDate(e.target.value)} style={{border:'1px solid #dfe6e2',borderRadius:10,padding:'9px 12px'}} /></label></div>
         <div className="pwfb-table-wrap">
-          <table className="pwfb-table"><thead><tr><th>Credit Officer</th><th>Staff ID</th><th>Branch</th><th>Collections</th><th>Cash Collected</th><th>Settled</th><th>Unsettled</th></tr></thead>
+          <table className="pwfb-table"><thead><tr><th>Credit Officer</th><th>Staff ID</th><th>Branch</th><th>Collection records</th><th>Wallet deposits</th><th>Cash Collected</th><th>Settled</th><th>Unsettled</th></tr></thead>
             <tbody>{(Array.isArray(dailySummary.byOfficer) ? dailySummary.byOfficer : []).map((officer: any) => (
               <tr key={officer.staffId || officer.employeeStaffId || officer.officerName}>
                 <td>{officer.officerName || 'Unassigned'}</td><td>{officer.employeeStaffId || '—'}</td><td>{officer.branchName || officer.branchId || 'Assigned branch'}</td>
-                <td>{officer.collectionCount || 0}</td><td><strong>{money(officer.cashCollected)}</strong></td><td>{money(officer.settled)}</td><td>{money(officer.unsettled)}</td>
+                <td>{officer.collectionCount || 0}</td><td>{officer.depositCount || 0}</td><td><strong>{money(officer.cashCollected)}</strong></td><td>{money(officer.settled)}</td><td>{money(officer.unsettled)}</td>
               </tr>
             ))}
-            {(!Array.isArray(dailySummary.byOfficer) || dailySummary.byOfficer.length === 0) && <tr><td colSpan={7}>No cash collection records for this scope.</td></tr>}
+            {(!Array.isArray(dailySummary.byOfficer) || dailySummary.byOfficer.length === 0) && <tr><td colSpan={8}>No cash collection records for this scope.</td></tr>}
             </tbody>
           </table>
         </div>

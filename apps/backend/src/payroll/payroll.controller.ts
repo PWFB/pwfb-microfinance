@@ -6,7 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { AccessScopeService } from '../access/access-scope.service';
 import { TwoFactorService } from '../auth/two-factor.service';
 
-const READ_ROLES = ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'AUDITOR'] as const;
+const READ_ROLES = ['SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR'] as const;
 const WRITE_ROLES = ['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER'] as const;
 
 @Controller('payroll')

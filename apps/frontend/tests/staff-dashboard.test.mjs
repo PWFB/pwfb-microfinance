@@ -96,8 +96,10 @@ test("ATM card switching clears stale customer cards and unlink failures are rep
 
 test("customer management provides responsive operations, filters, and recovery feedback", () => {
   const customerPage = fs.readFileSync(path.resolve(process.cwd(), "app/customers/page.tsx"), "utf8");
-  assert.ok(customerPage.includes("repeat(auto-fit,minmax(140px,1fr))"));
-  assert.ok(customerPage.includes("repeat(auto-fit,minmax(160px,1fr))"));
+  assert.ok(customerPage.includes("repeat(auto-fit,minmax(145px,1fr))"), "Quick actions should use a responsive auto-fit grid");
+  assert.ok(customerPage.includes("repeat(auto-fit,minmax(170px,1fr))"), "Customer summary cards should use a responsive auto-fit grid");
+  assert.ok(customerPage.includes("repeat(auto-fit,minmax(220px,1fr))"), "Search and filter controls should use a responsive auto-fit grid");
+  assert.ok(customerPage.includes("grid-template-columns: repeat(2,minmax(0,1fr)) !important"), "Summary cards should collapse to two columns on mobile");
   assert.ok(customerPage.includes("Search customer"));
   assert.ok(customerPage.includes("setView(\"recent\")"));
   assert.ok(customerPage.includes("Customer records unavailable"));

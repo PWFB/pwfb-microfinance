@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 import { CreateRepaymentDto } from './dto/create-repayment.dto';
 import { UpdateRepaymentDto } from './dto/update-repayment.dto';
@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { AccessScopeService } from '../access/access-scope.service';
 import { TwoFactorService } from '../auth/two-factor.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 const VIEW_ROLES = ['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER'];
 
@@ -17,6 +18,7 @@ export class RepaymentsController {
     private readonly repaymentsService: RepaymentsService,
     private readonly accessScope: AccessScopeService,
     private readonly twoFactorService: TwoFactorService,
+    private readonly permissions: PermissionsService,
   ) {}
 
   private async requireFinancialMfa(req: any) {
@@ -31,6 +33,23 @@ export class RepaymentsController {
     await this.accessScope.assertLoan(req.user, dto.loanId);
     await this.requireFinancialMfa(req);
     return this.repaymentsService.create(dto, req.user);
+  }
+
+  @Get('bulk/daily')
+  @Roles(...VIEW_ROLES)
+  async bulkDaily(@Query('date') date: string, @Req() req: any) {
+    return this.repaymentsService.listBulkDailyLoans(date, req.user);
+  }
+
+  @Post('bulk')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','CREDIT_OFFICER')
+  async createBulk(@Body() body: {
+    date: string; batchReference: string; cashReceivedConfirmed: boolean;
+    items: Array<{ loanId: string; amount: number }>; notes?: string;
+  }, @Req() req: any) {
+    await this.permissions.assert(req.user.role, 'BULK_REPAYMENT_CREATE');
+    await this.requireFinancialMfa(req);
+    return this.repaymentsService.createBulkCashRepayments(body, req.user);
   }
 
   @Get()

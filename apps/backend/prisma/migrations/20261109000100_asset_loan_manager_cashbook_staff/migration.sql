@@ -36,8 +36,19 @@ INSERT INTO "RolePermission" ("id","role","permission","enabled","updatedAt") VA
 ON CONFLICT ("role","permission") DO UPDATE
 SET "enabled" = EXCLUDED."enabled", "updatedAt" = CURRENT_TIMESTAMP;
 
+-- Ensure the permission table exists even on a clean database before seeding Teller defaults.
+CREATE TABLE IF NOT EXISTS "RolePermission" (
+  "id" TEXT PRIMARY KEY,
+  "role" TEXT NOT NULL,
+  "permission" TEXT NOT NULL,
+  "enabled" BOOLEAN NOT NULL DEFAULT FALSE,
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission" ("role","permission");
+CREATE INDEX IF NOT EXISTS "RolePermission_role_idx" ON "RolePermission" ("role");
+
 -- Existing Individual Loan applications awaiting disbursement also need a second review.
-DO $
+DO $$
 BEGIN
   IF to_regclass('"PWFBLoanMeta"') IS NOT NULL THEN
     EXECUTE 'UPDATE "PWFBLoanMeta" m
@@ -48,4 +59,4 @@ BEGIN
         AND l."status" NOT IN (''DISBURSED'',''DISBURSEMENT_FAILED'')
         AND m."assetReviewStatus" = ''NOT_REQUIRED''';
   END IF;
-END $;
+END $$;

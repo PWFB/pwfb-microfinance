@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
+import { AccessScopeService } from '../access/access-scope.service';
+import { PermissionsService } from '../permissions/permissions.service';
 
 describe('CustomersController', () => {
   let controller: CustomersController;
@@ -13,6 +15,8 @@ describe('CustomersController', () => {
           provide: CustomersService,
           useValue: {},
         },
+        { provide: AccessScopeService, useValue: {} },
+        { provide: PermissionsService, useValue: {} },
       ],
     }).compile();
 

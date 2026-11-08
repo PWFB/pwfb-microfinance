@@ -97,16 +97,48 @@ export class CashbookService {
     return { totalReceipts, totalPayments, netAmount: totalReceipts-totalPayments };
   }
 
-  async create(data:any){
-    const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}}); if(!p)throw new NotFoundException('Financial period not found'); if(p.status==='CLOSED')throw new BadRequestException('Cannot add cashbook entries to a closed period');
-    const b=await this.prisma.branch.findUnique({where:{id:data.branchId}}); if(!b)throw new NotFoundException('Branch not found');
-    const amount=this.number(data.amount); if(amount<=0)throw new BadRequestException('Amount must be greater than zero');
-    if(data.staffId){
-      const staff=await this.prisma.staff.findUnique({where:{id:data.staffId},select:{id:true,branchId:true,employmentStatus:true}});
-      if(!staff||staff.employmentStatus!=='ACTIVE')throw new BadRequestException('Cashbook collector must be an active staff member');
-      if(staff.branchId!==data.branchId)throw new BadRequestException('Cashbook collector must belong to the selected branch');
-    }
-    return this.prisma.cashbookEntry.create({data:{periodId:data.periodId,branchId:data.branchId,staffId:data.staffId||null,type:data.type,amount,reference:data.reference,description:data.description,entryDate:data.entryDate?new Date(data.entryDate):new Date()},include:{period:true,branch:true,staff:true}});
+  async create(data: any) {
+    const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
+    if (!period) throw new NotFoundException('Financial period not found');
+    if (period.status === 'CLOSED') throw new BadRequestException('Cannot add cashbook entries to a closed period');
+    const branch = await this.prisma.branch.findUnique({ where: { id: data.branchId } });
+    if (!branch) throw new NotFoundException('Branch not found');
+    const amount = this.number(data.amount);
+    if (amount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const reference = String(data.reference || '').trim() || null;
+    if (reference && reference.length > 120) throw new BadRequestException('Cashbook reference is too long');
+
+    return this.prisma.$transaction(async tx => {
+      if (reference) {
+        await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', `CASHBOOK:${data.branchId}:${reference}`);
+        const duplicate = await tx.cashbookEntry.findFirst({
+          where: { branchId: data.branchId, reference },
+          select: { id: true },
+        });
+        if (duplicate) throw new BadRequestException('This cashbook reference has already been posted for the branch');
+      }
+      if (data.staffId) {
+        const staff = await tx.staff.findUnique({
+          where: { id: data.staffId },
+          select: { id: true, branchId: true, employmentStatus: true },
+        });
+        if (!staff || staff.employmentStatus !== 'ACTIVE') throw new BadRequestException('Cashbook collector must be an active staff member');
+        if (staff.branchId !== data.branchId) throw new BadRequestException('Cashbook collector must belong to the selected branch');
+      }
+      return tx.cashbookEntry.create({
+        data: {
+          periodId: data.periodId,
+          branchId: data.branchId,
+          staffId: data.staffId || null,
+          type: data.type,
+          amount,
+          reference,
+          description: data.description,
+          entryDate: data.entryDate ? new Date(data.entryDate) : new Date(),
+        },
+        include: { period: true, branch: true, staff: true },
+      });
+    });
   }
   async findAll(periodId?:string,branchId?:string,branchIds?:string[]|null,staffId?:string){
     const allowedBranches = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};

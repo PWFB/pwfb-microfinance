@@ -55,6 +55,9 @@ export class CashbookController {
     staffId?: string;
   }, @Req() req: any) {
     await this.permissions.assert(req.user.role, 'CASHBOOK_CREATE');
+    if (String(req.user?.role || '').toUpperCase() === 'TELLER' && body.type !== 'CASH_IN') {
+      throw new ForbiddenException('Tellers may post cash receipts only. Cash payments require an authorized branch finance role.');
+    }
     await this.accessScope.assertBranch(req.user, body.branchId);
     const scope = await this.accessScope.getScope(req.user);
     const staffId = scope.role === 'TELLER'

@@ -205,8 +205,17 @@ export class CashbookService {
     const id = randomUUID();
     const dayKey = entryDate.toISOString().slice(0, 10);
     await this.prisma.$transaction(async tx => {
-      const lockKey = `DAILY-CASHBOOK:${data.branchId}:${data.staffId || 'UNASSIGNED'}:${dayKey}`;
+      // Serialize all dates for this Staff ID so opening cash is always derived
+      // from the latest committed previous-day closing balance.
+      const lockKey = `DAILY-CASHBOOK:${data.branchId}:${data.staffId || 'UNASSIGNED'}`;
       await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', lockKey);
+      const latest = await tx.$queryRawUnsafe<Array<{ latestDay: string | null }>>(
+        'SELECT MAX(entry_date::date)::text AS "latestDay" FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2',
+        data.branchId, data.staffId || null,
+      );
+      if (latest[0]?.latestDay && latest[0].latestDay > dayKey) {
+        throw new BadRequestException('Daily cashbook work must be posted in date order. Use a correcting-entry workflow for earlier dates.');
+      }
       const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         'SELECT id FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date::date=$3::date LIMIT 1',
         data.branchId, data.staffId || null, dayKey,

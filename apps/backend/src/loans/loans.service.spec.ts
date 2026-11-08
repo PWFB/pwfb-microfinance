@@ -12,7 +12,8 @@ describe('LoansService', () => {
       customer: {
         findUnique: jest.fn(),
       },
-      $executeRawUnsafe: jest.fn(),
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $transaction: jest.fn(async (callback: any) => callback(prisma)),
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       loan: {
         create: jest.fn(),
@@ -237,6 +238,8 @@ describe('LoansService', () => {
       id: 'loan-1',
       customerId: 'customer-1',
       amount: 100000,
+      status: 'PENDING',
+      repayments: [],
     };
 
     prisma.loan.findUnique.mockResolvedValue(existingLoan);

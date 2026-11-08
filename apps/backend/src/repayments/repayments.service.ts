@@ -200,7 +200,7 @@ export class RepaymentsService {
       }
     }
     const duplicateAccounts = [...accountGroups.entries()]
-      .filter(([, group]) => new Set(group.map(item => item.clientId)).size > 1)
+      .filter(([, group]) => group.length > 1)
       .map(([key, customers]) => ({ key, accountNumber: customers[0].accountNumber, bankName: customers[0].bankName, customers }));
     for (const loan of rows) {
       const key = loan.account ? `${loan.account.bankCode}:${String(loan.account.accountNumber || '').replace(/\D/g, '')}` : '';

@@ -201,7 +201,10 @@ export class CashbookService {
     // Opening cash is calculated on the server; ignore client-supplied opening cash.
     const opening = await this.getOpeningBalance(data.branchId, data.staffId, entryDate.toISOString().slice(0,10));
     v.previousCashAtHand = opening.previousCashAtHand;
-    const id=randomUUID(); const rowTotals=this.totals(v); v.otherAfterTotal=Math.max(0,rowTotals.totalReceipts-rowTotals.totalPayments); const cols=ALL_FIELDS.map(snake);
+    const id=randomUUID(); const rowTotals=this.totals(v);
+    const closingCash = Math.round((rowTotals.totalReceipts - rowTotals.totalPayments) * 100) / 100;
+    if (closingCash < 0) throw new BadRequestException('Cashbook payments exceed available receipts and opening cash. Reconcile the deficit before posting.');
+    v.otherAfterTotal=closingCash; const cols=ALL_FIELDS.map(snake);
     const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,entryDate,data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
     const placeholders=params.map((_,i)=>`$${i+1}`);
     await this.prisma.$executeRawUnsafe(`INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,...params);

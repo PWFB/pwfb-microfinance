@@ -16,7 +16,7 @@ export class BranchController {
   create(@Body() dto: CreateBranchDto) { return this.branchService.create(dto); }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
   findAll() { return this.branchService.findAll(); }
 
   @Get('provision-virtual-accounts')
@@ -24,7 +24,7 @@ export class BranchController {
   provisionVirtualAccounts() { return this.branchService.provisionVirtualAccounts(); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
   findOne(@Param('id') id: string) { return this.branchService.findOne(id); }
 
   @Patch(':id')

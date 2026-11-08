@@ -8,6 +8,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TwoFactorService } from '../auth/two-factor.service';
+import { AccessScopeService } from '../access/access-scope.service';
 const BANKING_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','TELLER','AUDITOR','CREDIT_OFFICER','STAFF','CUSTOMER'] as const;
 @Controller('banking') @UseGuards(JwtAuthGuard, RolesGuard)
 export class BankingController {
@@ -18,6 +19,7 @@ export class BankingController {
     private readonly permissionsService: PermissionsService,
     private readonly prisma: PrismaService,
     private readonly twoFactorService: TwoFactorService,
+    private readonly accessScope: AccessScopeService,
   ) {}
 
   private async requireTransferMfa(req: any) {
@@ -43,7 +45,37 @@ export class BankingController {
   @Get('institutions') @Roles(...BANKING_ROLES) listInstitutions(){return this.externalBankTransferService.listInstitutions()}
   @Get('institutions/search') @Roles(...BANKING_ROLES) searchInstitutions(@Query('q') q?:string){return this.externalBankTransferService.searchInstitutions(q)}
   @Get('account-name') @Roles(...BANKING_ROLES) async nameEnquiry(@Query('bankCode') bankCode:string,@Query('accountNumber') accountNumber:string,@Query('provider') provider:string|undefined,@Req() req:any){const role=String(req.user?.role||'').toUpperCase();if(role==='CUSTOMER'){const customerId=await this.resolveCustomerId('',req.user);return this.externalBankTransferService.checkCustomerBankAccount(customerId,bankCode,accountNumber,provider)}return this.externalBankTransferService.nameEnquiry(bankCode,accountNumber,provider)}
-  private async resolveCustomerId(customerId:string,user:any){const requested=String(customerId||'').trim();const role=String(user?.role||'').toUpperCase();if(role==='CUSTOMER'){const authId=String(user?.sub||user?.id||user?.userId||'').trim();if(authId){const authUser=await this.prisma.user.findUnique({where:{id:authId},select:{customerId:true}});if(authUser?.customerId){if(requested&&requested!=='undefined'&&requested!=='null'&&requested!==authUser.customerId)throw new ForbiddenException('You can only access your own customer account');return authUser.customerId}}const authCustomerId=String(user?.customerId||user?.user?.customerId||'').trim();if(authCustomerId){if(requested&&requested!=='undefined'&&requested!=='null'&&requested!==authCustomerId)throw new ForbiddenException('You can only access your own customer account');return authCustomerId}throw new UnauthorizedException('Customer account could not be identified. Please sign out and sign in again.')}if(requested&&requested!=='undefined'&&requested!=='null')return requested;const authCustomerId=String(user?.customerId||user?.user?.customerId||'').trim();if(authCustomerId)return authCustomerId;throw new BadRequestException('Customer account is required')}
+  private async resolveCustomerId(customerId: string, user: any) {
+    const requested = String(customerId || '').trim();
+    const role = String(user?.role || '').toUpperCase();
+    if (role === 'CUSTOMER') {
+      const authId = String(user?.sub || user?.id || user?.userId || '').trim();
+      if (authId) {
+        const authUser = await this.prisma.user.findUnique({ where: { id: authId }, select: { customerId: true } });
+        if (authUser?.customerId) {
+          if (requested && requested !== 'undefined' && requested !== 'null' && requested !== authUser.customerId) {
+            throw new ForbiddenException('You can only access your own customer account');
+          }
+          return authUser.customerId;
+        }
+      }
+      const ownCustomerId = String(user?.customerId || user?.user?.customerId || '').trim();
+      if (ownCustomerId) {
+        if (requested && requested !== 'undefined' && requested !== 'null' && requested !== ownCustomerId) {
+          throw new ForbiddenException('You can only access your own customer account');
+        }
+        return ownCustomerId;
+      }
+      throw new UnauthorizedException('Customer account could not be identified. Please sign out and sign in again.');
+    }
+
+    const customerRecordId = requested && requested !== 'undefined' && requested !== 'null'
+      ? requested
+      : String(user?.customerId || user?.user?.customerId || '').trim();
+    if (!customerRecordId) throw new BadRequestException('Customer account is required');
+    await this.accessScope.assertCustomer(user, customerRecordId);
+    return customerRecordId;
+  }
   private async assertPermission(user:any,permission:'WALLET_DEPOSIT'|'WALLET_WITHDRAWAL'|'BANK_TRANSFER'){const role=String(user?.role||'').toUpperCase();if(!(await this.permissionsService.get(role,permission)))throw new ForbiddenException(`Your role does not have ${permission==='WALLET_DEPOSIT'?'deposit':permission==='WALLET_WITHDRAWAL'?'withdrawal':'bank transfer'} permission`)}
   @Get('customers/:customerId/accounts') @Roles(...BANKING_ROLES) async getCustomerAccounts(@Param('customerId') customerId:string,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);return this.bankingService.getCustomerAccounts(id)}
   @Post('customers/:customerId/accounts') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','STAFF','CUSTOMER') async addCustomerAccount(@Param('customerId') customerId:string,@Body() body:any,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);const institutionId=String(body?.institutionId||'').trim();const accountNumber=String(body?.accountNumber||'').replace(/\D/g,'');if(!institutionId)throw new BadRequestException('Bank or payment institution is required');if(!/^\d{10}$/.test(accountNumber))throw new BadRequestException('Enter a valid 10-digit account number');const institution=await this.prisma.bankInstitution.findFirst({where:{OR:[{id:institutionId},{code:institutionId}]}});if(!institution||!institution.active)throw new BadRequestException('Bank or payment institution is not available');if(!institution.code)throw new BadRequestException('Selected institution does not have a bank verification code');const verified=await this.externalBankTransferService.verifyCustomerBankAccount(id,institution.code,accountNumber,body?.provider);const verifiedName=String(verified?.accountName||'').trim();if(!verifiedName||verified.customerNameVerified===false)throw new BadRequestException('cust name not verified. Your bank account name must match at least two name components on your PWFB profile.');const saved=await this.bankingService.addCustomerAccount({customerId:id,institutionId,accountNumber,accountName:verifiedName,isPrimary:body?.isPrimary??false,verified:true,verifiedAccountName:verifiedName,verifiedAt:new Date()});/* A consented DVA request may have been left pending until KYC/bank details were verified. Retry it after saving this verified account, without blocking bank-account registration if Paystack is temporarily unavailable. */try{await this.customerVirtualAccountService.ensure(id)}catch{}return saved}

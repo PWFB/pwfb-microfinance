@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, BadRequestException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { CashbookService } from './cashbook.service';
 import type { CashbookDailyInput } from './cashbook.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -54,6 +54,15 @@ export class CashbookController {
     await this.accessScope.assertBranch(req.user, body.branchId);
     await this.requireFinancialMfa(req);
     return this.cashbookService.create(body);
+  }
+
+  @Get('daily/opening-balance')
+  @Roles(...DAILY_WORK_ROLES)
+  async openingBalance(@Req() req: any, @Query('branchId') branchId?: string, @Query('staffId') staffId?: string, @Query('entryDate') entryDate?: string) {
+    const filters = await this.filters(req.user, branchId, staffId);
+    const selectedBranchId = filters.branchId || (filters.branchIds?.length === 1 ? filters.branchIds[0] : undefined);
+    if (!selectedBranchId) throw new BadRequestException('Select a branch to calculate its previous cash-at-hand balance');
+    return this.cashbookService.getOpeningBalance(selectedBranchId, filters.staffId, entryDate);
   }
 
   @Get('daily/summary')

@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { CustomersService } from './customers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CustomerVirtualAccountService } from '../banking/customer-virtual-account.service';
+import { AccessScopeService } from '../access/access-scope.service';
+import { ChargesService } from '../charges/charges.service';
 
 describe('CustomersService', () => {
   let service: CustomersService;
@@ -15,6 +17,8 @@ describe('CustomersService', () => {
           useValue: {},
         },
         { provide: CustomerVirtualAccountService, useValue: {} },
+        { provide: AccessScopeService, useValue: {} },
+        { provide: ChargesService, useValue: {} },
       ],
     }).compile();
 

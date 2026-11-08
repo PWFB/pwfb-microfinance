@@ -99,14 +99,20 @@ export class CashbookService {
 
   async create(data:any){
     const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}}); if(!p)throw new NotFoundException('Financial period not found'); if(p.status==='CLOSED')throw new BadRequestException('Cannot add cashbook entries to a closed period');
-    const b=await this.prisma.branch.findUnique({where:{id:data.branchId}}); if(!b)throw new NotFoundException('Branch not found'); const amount=this.number(data.amount); if(amount<=0)throw new BadRequestException('Amount must be greater than zero');
-    return this.prisma.cashbookEntry.create({data:{periodId:data.periodId,branchId:data.branchId,type:data.type,amount,reference:data.reference,description:data.description,entryDate:data.entryDate?new Date(data.entryDate):new Date()},include:{period:true,branch:true}});
+    const b=await this.prisma.branch.findUnique({where:{id:data.branchId}}); if(!b)throw new NotFoundException('Branch not found');
+    const amount=this.number(data.amount); if(amount<=0)throw new BadRequestException('Amount must be greater than zero');
+    if(data.staffId){
+      const staff=await this.prisma.staff.findUnique({where:{id:data.staffId},select:{id:true,branchId:true,employmentStatus:true}});
+      if(!staff||staff.employmentStatus!=='ACTIVE')throw new BadRequestException('Cashbook collector must be an active staff member');
+      if(staff.branchId!==data.branchId)throw new BadRequestException('Cashbook collector must belong to the selected branch');
+    }
+    return this.prisma.cashbookEntry.create({data:{periodId:data.periodId,branchId:data.branchId,staffId:data.staffId||null,type:data.type,amount,reference:data.reference,description:data.description,entryDate:data.entryDate?new Date(data.entryDate):new Date()},include:{period:true,branch:true,staff:true}});
   }
-  async findAll(periodId?:string,branchId?:string,branchIds?:string[]|null){
+  async findAll(periodId?:string,branchId?:string,branchIds?:string[]|null,staffId?:string){
     const allowedBranches = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
-    return this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...allowedBranches},orderBy:{entryDate:'desc'},include:{period:true,branch:true}});
+    return this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...allowedBranches,...(staffId?{staffId}:{})},orderBy:{entryDate:'desc'},include:{period:true,branch:true,staff:true}});
   }
-  async findOne(id:string){const e=await this.prisma.cashbookEntry.findUnique({where:{id},include:{period:true,branch:true}});if(!e)throw new NotFoundException('Cashbook entry not found');return e;}
+  async findOne(id:string){const e=await this.prisma.cashbookEntry.findUnique({where:{id},include:{period:true,branch:true,staff:true}});if(!e)throw new NotFoundException('Cashbook entry not found');return e;}
   async summary(periodId?:string,branchId?:string){const rows=await this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...(branchId?{branchId}:{})}});const cashIn=rows.filter(r=>r.type==='CASH_IN').reduce((s,r)=>s+r.amount,0),cashOut=rows.filter(r=>r.type==='CASH_OUT').reduce((s,r)=>s+r.amount,0);return{cashIn,cashOut,balance:cashIn-cashOut,entryCount:rows.length};}
 
   private map(r:any){const out:any={id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,branch:{name:r.branch_name},period:{name:r.period_name}};for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);return {...out,...this.totals(out)};}

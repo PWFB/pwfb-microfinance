@@ -3,9 +3,10 @@ import { CollectionsController } from './collections.controller';
 import { CollectionsService } from './collections.service';
 import { StaffWalletModule } from '../staff-wallet/staff-wallet.module';
 import { PermissionsModule } from '../permissions/permissions.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [StaffWalletModule, PermissionsModule],
+  imports: [StaffWalletModule, PermissionsModule, AuthModule],
   controllers: [CollectionsController],
   providers: [CollectionsService],
 })

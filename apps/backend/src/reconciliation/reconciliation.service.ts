@@ -10,11 +10,13 @@ export class ReconciliationService {
     const access = await this.scope.getScope(user);
     if (branchId) await this.scope.assertBranch(user, branchId);
     const branchIds = access.global ? null : await this.scope.getBranchIds(user);
-    const emptyScope = !access.global && !branchIds?.length;
-    const branchFilter = access.global ? {} : emptyScope ? { id: { in: [] } } : { branchId: { in: branchIds } };
-    const customerFilter = access.global ? {} : emptyScope ? { id: { in: [] } } : { customer: { branchId: { in: branchIds } } };
-    const repaymentFilter = access.global ? {} : emptyScope ? { id: { in: [] } } : { loan: { customer: { branchId: { in: branchIds } } } };
     const effectiveBranchIds = branchId ? [branchId] : branchIds;
+    const hasRequestedBranch = Boolean(branchId);
+    const emptyScope = !access.global && !effectiveBranchIds?.length;
+    const hasBranchRestriction = !access.global || hasRequestedBranch;
+    const branchFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { branchId: { in: effectiveBranchIds } };
+    const customerFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { customer: { branchId: { in: effectiveBranchIds } } };
+    const repaymentFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { loan: { customer: { branchId: { in: effectiveBranchIds } } } };
 
     const [period, collections, cashbook, savings, loans, repayments, payroll] = await Promise.all([
       periodId ? this.prisma.financialPeriod.findUnique({ where: { id: periodId } }) : this.prisma.financialPeriod.findFirst({ where: { status: 'OPEN' }, orderBy: { startDate: 'desc' } }),
@@ -44,8 +46,8 @@ export class ReconciliationService {
     if (access.global || !emptyScope) {
       try {
         const rows: any[] = await this.prisma.$queryRawUnsafe(
-          `SELECT COUNT(*)::int AS wallets, COALESCE(SUM(w.balance),0)::float AS balance FROM staff_wallets w ${access.global ? '' : 'WHERE w.branch_id = ANY($1::text[])'}`,
-          ...(access.global ? [] : [effectiveBranchIds]),
+          `SELECT COUNT(*)::int AS wallets, COALESCE(SUM(w.balance),0)::float AS balance FROM staff_wallets w ${hasBranchRestriction ? 'WHERE w.branch_id = ANY($1::text[])' : ''}`,
+          ...(hasBranchRestriction ? [effectiveBranchIds] : []),
         );
         staffWallet = { wallets: Number(rows[0]?.wallets || 0), balance: Number(rows[0]?.balance || 0) };
       } catch (_) {}

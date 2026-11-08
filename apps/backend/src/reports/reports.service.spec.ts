@@ -18,6 +18,7 @@ describe('ReportsService', () => {
 
     service = new ReportsService(
       prisma as PrismaService,
+      { getScope: jest.fn().mockResolvedValue({ role: 'SUPER_ADMIN', global: true }) } as any,
     );
   });
 
@@ -53,7 +54,7 @@ describe('ReportsService', () => {
       .mockResolvedValueOnce({ _sum: { amount: 20000 } })
       .mockResolvedValueOnce({ _sum: { amount: 5000 } });
 
-    await expect(service.getSummary()).resolves.toEqual({
+    await expect(service.getSummary({ role: 'SUPER_ADMIN' })).resolves.toEqual({
       customers: { count: 10 },
       savings: { count: 5, amount: 50000 },
       loans: { count: 4, amount: 100000 },
@@ -62,6 +63,7 @@ describe('ReportsService', () => {
       collections: { count: 2, amount: 12000 },
       cashbook: { cashIn: 20000, cashOut: 5000, net: 15000 },
       portfolio: { amount: 150000 },
+      scope: 'ORGANIZATION',
     });
   });
 
@@ -90,7 +92,7 @@ describe('ReportsService', () => {
       .mockResolvedValueOnce({ _sum: { amount: null } })
       .mockResolvedValueOnce({ _sum: { amount: null } });
 
-    await expect(service.getSummary()).resolves.toEqual({
+    await expect(service.getSummary({ role: 'SUPER_ADMIN' })).resolves.toEqual({
       customers: { count: 0 },
       savings: { count: 0, amount: 0 },
       loans: { count: 0, amount: 0 },
@@ -99,6 +101,7 @@ describe('ReportsService', () => {
       collections: { count: 0, amount: 0 },
       cashbook: { cashIn: 0, cashOut: 0, net: 0 },
       portfolio: { amount: 0 },
+      scope: 'ORGANIZATION',
     });
   });
 });

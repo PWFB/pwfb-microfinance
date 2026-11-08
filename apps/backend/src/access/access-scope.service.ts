@@ -43,7 +43,7 @@ export class AccessScopeService {
     if (scope.global) return true;
     if (!target) throw new ForbiddenException('Access denied: record not found');
     const same = (a: unknown, b: unknown) => Boolean(a && b && String(a) === String(b));
-    if (['CREDIT_OFFICER', 'TELLER'].includes(scope.role) && ('staffId' in target || 'assignedStaffId' in target)) {
+    if (scope.role === 'CREDIT_OFFICER' && ('staffId' in target || 'assignedStaffId' in target)) {
       const owner = target.staffId ?? target.assignedStaffId;
       if (same(scope.staffId, owner)) return true;
       throw new ForbiddenException('Access denied: credit officers may access only their own assigned work');
@@ -62,7 +62,7 @@ export class AccessScopeService {
     const ids = rows.map((row) => String(row?.id || '')).filter(Boolean);
     if (!ids.length) return rows;
     let allowed: any[] = [];
-    if (['CREDIT_OFFICER', 'TELLER'].includes(scope.role)) {
+    if (scope.role === 'CREDIT_OFFICER') {
       if (!scope.staffId) return [];
       if (resource === 'staff') {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.staffId);
@@ -74,10 +74,21 @@ export class AccessScopeService {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" WHERE s."id" = ANY($1::text[]) AND c."assignedStaffId" = $2`, ids, scope.staffId);
       } else if (resource === 'collections') {
         allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "DailyCollection" WHERE "id" = ANY($1::text[]) AND "staffId" = $2`, ids, scope.staffId);
+      } else return rows;
+    } else if (scope.role === 'TELLER') {
+      if (!scope.staffId || !scope.branchId) return [];
+      if (resource === 'staff') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.staffId);
+      } else if (resource === 'customers') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Customer" WHERE "id" = ANY($1::text[]) AND "branchId" = $2`, ids, scope.branchId);
+      } else if (resource === 'loans') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id" FROM "Loan" l JOIN "Customer" c ON c."id"=l."customerId" WHERE l."id" = ANY($1::text[]) AND c."branchId" = $2`, ids, scope.branchId);
+      } else if (resource === 'savings') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" WHERE s."id" = ANY($1::text[]) AND c."branchId" = $2`, ids, scope.branchId);
+      } else if (resource === 'collections') {
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "DailyCollection" WHERE "id" = ANY($1::text[]) AND "branchId" = $2`, ids, scope.branchId);
       } else if (resource === 'branches') {
-        allowed = scope.branchId
-          ? await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.branchId)
-          : [];
+        allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND "id" = $2`, ids, scope.branchId);
       } else return rows;
     } else if (resource === 'staff') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Staff')})`, ids);

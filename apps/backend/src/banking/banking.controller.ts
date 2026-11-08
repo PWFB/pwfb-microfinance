@@ -34,8 +34,9 @@ export class BankingController {
       : userId
         ? await this.prisma.staff.findUnique({ where: { userId }, select: { id: true, staffId: true, branchId: true, employmentStatus: true } })
         : null;
-    if (user?.role === 'CREDIT_OFFICER' && (!staff || staff.employmentStatus !== 'ACTIVE')) {
-      throw new ForbiddenException('Credit officer must have an active Staff ID and branch assignment');
+    const staffOperatedRoles = ['ADMIN', 'BRANCH_MANAGER', 'TELLER', 'CREDIT_OFFICER', 'STAFF'];
+    if (staffOperatedRoles.includes(String(user?.role || '').toUpperCase()) && (!staff || !staff.branchId || staff.employmentStatus !== 'ACTIVE')) {
+      throw new ForbiddenException('This staff financial operation requires an active Staff ID and branch assignment');
     }
     return staff;
   }

@@ -97,7 +97,7 @@ export class ReportsService {
     const customerFilter = customerId ? { customerId } : {};
     const staffFilter = staffId ? { staffId } : {};
     const customerScope = this.customerScope(filters);
-    const relationScope = filters.global ? {} : { customer: customerScope };
+    const relationScope = filters.global ? {} : { customer: { is: customerScope } };
     const branchScope = filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
     const cashbookScope = filters.global ? {} : filters.empty || filters.staffId ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
     const staffScope = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { id: filters.staffId } : { branchId: { in: filters.branchIds } };

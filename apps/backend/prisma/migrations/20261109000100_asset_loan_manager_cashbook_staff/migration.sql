@@ -32,16 +32,20 @@ INSERT INTO "RolePermission" ("id","role","permission","enabled","updatedAt") VA
   ('rp_TELLER_COLLECTION_SETTLE','TELLER','COLLECTION_SETTLE',TRUE,CURRENT_TIMESTAMP),
   ('rp_TELLER_CASHBOOK_CREATE','TELLER','CASHBOOK_CREATE',TRUE,CURRENT_TIMESTAMP),
   ('rp_TELLER_CASHBOOK_DAILY_CREATE','TELLER','CASHBOOK_DAILY_CREATE',TRUE,CURRENT_TIMESTAMP),
-  ('rp_CREDIT_OFFICER_CASHBOOK_DAILY_CREATE','CREDIT_OFFICER','CASHBOOK_DAILY_CREATE',TRUE,CURRENT_TIMESTAMP),
-  ('rp_ASSET_LOAN_MANAGER_ASSET_LOAN_REVIEW','ASSET_LOAN_MANAGER','ASSET_LOAN_REVIEW',TRUE,CURRENT_TIMESTAMP)
+  ('rp_CREDIT_OFFICER_CASHBOOK_DAILY_CREATE','CREDIT_OFFICER','CASHBOOK_DAILY_CREATE',TRUE,CURRENT_TIMESTAMP)
 ON CONFLICT ("role","permission") DO UPDATE
 SET "enabled" = EXCLUDED."enabled", "updatedAt" = CURRENT_TIMESTAMP;
 
 -- Existing Individual Loan applications awaiting disbursement also need a second review.
-UPDATE "PWFBLoanMeta" m
-SET "assetReviewStatus" = 'PENDING_ASSET_REVIEW', "updatedAt" = CURRENT_TIMESTAMP
-FROM "Loan" l
-WHERE l."id" = m."loanId"
-  AND m."loanType" = 'Individual Loan'
-  AND l."status" NOT IN ('DISBURSED','DISBURSEMENT_FAILED')
-  AND m."assetReviewStatus" = 'NOT_REQUIRED';
+DO $
+BEGIN
+  IF to_regclass('"PWFBLoanMeta"') IS NOT NULL THEN
+    EXECUTE 'UPDATE "PWFBLoanMeta" m
+      SET "assetReviewStatus" = ''PENDING_ASSET_REVIEW'', "updatedAt" = CURRENT_TIMESTAMP
+      FROM "Loan" l
+      WHERE l."id" = m."loanId"
+        AND m."loanType" = ''Individual Loan''
+        AND l."status" NOT IN (''DISBURSED'',''DISBURSEMENT_FAILED'')
+        AND m."assetReviewStatus" = ''NOT_REQUIRED''';
+  END IF;
+END $;

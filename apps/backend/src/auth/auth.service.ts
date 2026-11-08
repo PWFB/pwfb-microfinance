@@ -216,8 +216,137 @@ export class AuthService {
   private verifyTotp(secret: string, code: string) { const normalized = String(code || '').replace(/\s/g, ''); if (!/^\d{6}$/.test(normalized)) return false; const now = Date.now(); return [-1, 0, 1].some((window) => this.totp(secret, now + window * 30000) === normalized); }
   private generateRecoveryCodes() { return Array.from({ length: 8 }, () => randomBytes(5).toString('hex').toUpperCase().match(/.{1,5}/g)!.join('-')); }
   private buildOtpUri(secret: string, email: string) { const issuer = 'PWFB Microfinance'; const label = `${issuer}:${email}`; return `otpauth://totp/${encodeURIComponent(label)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`; }
-  async authenticatorStatus(authUser: any) { await this.ensureAuthenticatorTable(); const rows = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean; createdAt: Date; updatedAt: Date }>>(`SELECT \"enabled\", \"createdAt\", \"updatedAt\" FROM \"UserAuthenticator\" WHERE \"userId\" = $1 LIMIT 1`, authUser.sub); return { enabled: Boolean(rows[0]?.enabled), configured: Boolean(rows.length), createdAt: rows[0]?.createdAt || null }; }
-  async authenticatorSetup(authUser: any) { const user = await this.prisma.user.findUnique({ where: { id: authUser.sub } }); if (!user) throw new UnauthorizedException('User not found'); await this.ensureAuthenticatorTable(); const existing = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(`SELECT \"enabled\" FROM \"UserAuthenticator\" WHERE \"userId\" = $1 LIMIT 1`, user.id); if (existing[0]?.enabled) throw new BadRequestException('Authenticator is already enabled'); const secret = this.base32Encode(randomBytes(20)); const encrypted = this.encryptAuthenticatorSecret(secret); await this.prisma.$executeRawUnsafe(`INSERT INTO \"UserAuthenticator\" (\"userId\", \"secretEnc\", \"enabled\") VALUES ($1, $2, FALSE) ON CONFLICT (\"userId\") DO UPDATE SET \"secretEnc\" = EXCLUDED.\"secretEnc\", \"enabled\" = FALSE, \"recoveryCodes\" = NULL, \"updatedAt\" = CURRENT_TIMESTAMP`, user.id, encrypted); return { configured: true, enabled: false, secret, otpauthUri: this.buildOtpUri(secret, user.email), message: 'Scan the QR code in your authenticator app or enter the 6-digit code.' }; }
-  async authenticatorVerify(authUser: any, code: string) { await this.ensureAuthenticatorTable(); const rows = await this.prisma.$queryRawUnsafe<Array<{ secretEnc: string; enabled: boolean }>>(`SELECT \"secretEnc\",\"enabled\" FROM \"UserAuthenticator\" WHERE \"userId\"=$1 LIMIT 1`, authUser.sub); if (!rows[0]) throw new BadRequestException('Start authenticator setup first'); if (rows[0].enabled) return { enabled: true, message: 'Authenticator is already enabled' }; const secret = this.decryptAuthenticatorSecret(rows[0].secretEnc); if (!this.verifyTotp(secret, code)) throw new UnauthorizedException('Invalid authenticator code'); const recoveryCodes = this.generateRecoveryCodes(); const hashes = await Promise.all(recoveryCodes.map((value) => bcrypt.hash(value, 10))); await this.prisma.$executeRawUnsafe(`UPDATE \"UserAuthenticator\" SET \"enabled\"=TRUE,\"recoveryCodes\"=$2,\"updatedAt\"=CURRENT_TIMESTAMP WHERE \"userId\"=$1`, authUser.sub, JSON.stringify(hashes)); return { enabled: true, recoveryCodes, message: 'Google Authenticator enabled successfully.' }; }
-  async authenticatorDisable(authUser: any, code: string) { await this.ensureAuthenticatorTable(); const rows = await this.prisma.$queryRawUnsafe<Array<{ secretEnc: string; enabled: boolean }>>(`SELECT \"secretEnc\",\"enabled\" FROM \"UserAuthenticator\" WHERE \"userId\"=$1 LIMIT 1`, authUser.sub); if (!rows[0]?.enabled) return { enabled: false, message: 'Authenticator is already disabled' }; const secret = this.decryptAuthenticatorSecret(rows[0].secretEnc); if (!this.verifyTotp(secret, code)) throw new UnauthorizedException('Invalid authenticator code'); await this.prisma.$executeRawUnsafe(`DELETE FROM \"UserAuthenticator\" WHERE \"userId\"=$1`, authUser.sub); return { enabled: false, message: 'Authenticator has been disabled' }; }
+  private authenticatedUserId(authUser: any) {
+    const userId = String(authUser?.id || authUser?.sub || authUser?.userId || '').trim();
+    if (!userId) throw new UnauthorizedException('Authenticated user could not be identified');
+    return userId;
+  }
+
+  private async verifyCurrentPassword(userId: string, password: string) {
+    const supplied = String(password || '');
+    if (!supplied) throw new UnauthorizedException('Enter your current password to change authenticator security');
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, password: true } });
+    if (!user?.password || !await bcrypt.compare(supplied, user.password)) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    return true;
+  }
+
+  private async ensureAuthenticatorAttemptTable() {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "AuthenticatorAttempt" (
+        "userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE,
+        "attempts" INTEGER NOT NULL DEFAULT 0,
+        "windowStartedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "blockedUntil" TIMESTAMP(3),
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  }
+
+  private async assertAuthenticatorAttemptAllowed(userId: string) {
+    await this.ensureAuthenticatorAttemptTable();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ blockedUntil: Date | null }>>(
+      `SELECT "blockedUntil" FROM "AuthenticatorAttempt" WHERE "userId"=$1 AND "blockedUntil">CURRENT_TIMESTAMP LIMIT 1`,
+      userId,
+    );
+    if (rows.length) throw new UnauthorizedException('Too many authenticator attempts. Wait 15 minutes before trying again.');
+  }
+
+  private async recordAuthenticatorFailure(userId: string) {
+    await this.ensureAuthenticatorAttemptTable();
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "AuthenticatorAttempt" ("userId","attempts","windowStartedAt","updatedAt")
+      VALUES ($1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT ("userId") DO UPDATE SET
+        "attempts" = CASE WHEN "AuthenticatorAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN 1 ELSE "AuthenticatorAttempt"."attempts"+1 END,
+        "windowStartedAt" = CASE WHEN "AuthenticatorAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN CURRENT_TIMESTAMP ELSE "AuthenticatorAttempt"."windowStartedAt" END,
+        "blockedUntil" = CASE
+          WHEN "AuthenticatorAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN NULL
+          WHEN "AuthenticatorAttempt"."attempts"+1 >= 5 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+          ELSE "AuthenticatorAttempt"."blockedUntil"
+        END,
+        "updatedAt"=CURRENT_TIMESTAMP
+    `, userId);
+  }
+
+  private async clearAuthenticatorFailures(userId: string) {
+    await this.prisma.$executeRawUnsafe(`DELETE FROM "AuthenticatorAttempt" WHERE "userId"=$1`, userId);
+  }
+
+  async authenticatorStatus(authUser: any) {
+    const userId = this.authenticatedUserId(authUser);
+    await this.ensureAuthenticatorTable();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean; createdAt: Date; updatedAt: Date }>>(
+      `SELECT "enabled", "createdAt", "updatedAt" FROM "UserAuthenticator" WHERE "userId" = $1 LIMIT 1`,
+      userId,
+    );
+    return { enabled: Boolean(rows[0]?.enabled), configured: Boolean(rows.length), createdAt: rows[0]?.createdAt || null };
+  }
+
+  async authenticatorSetup(authUser: any, password: string) {
+    const userId = this.authenticatedUserId(authUser);
+    await this.verifyCurrentPassword(userId, password);
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+    if (!user) throw new UnauthorizedException('User not found');
+    await this.ensureAuthenticatorTable();
+    const existing = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(
+      `SELECT "enabled" FROM "UserAuthenticator" WHERE "userId" = $1 LIMIT 1`,
+      user.id,
+    );
+    if (existing[0]?.enabled) throw new BadRequestException('Authenticator is already enabled. Verify your current code before attempting any security change.');
+    const secret = this.base32Encode(randomBytes(20));
+    const encrypted = this.encryptAuthenticatorSecret(secret);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "UserAuthenticator" ("userId", "secretEnc", "enabled") VALUES ($1, $2, FALSE)
+       ON CONFLICT ("userId") DO UPDATE SET "secretEnc" = EXCLUDED."secretEnc", "enabled" = FALSE, "recoveryCodes" = NULL, "updatedAt" = CURRENT_TIMESTAMP`,
+      user.id, encrypted,
+    );
+    return { configured: true, enabled: false, secret, otpauthUri: this.buildOtpUri(secret, user.email), message: 'Scan the QR code in your authenticator app or enter the 6-digit code.' };
+  }
+
+  async authenticatorVerify(authUser: any, code: string) {
+    const userId = this.authenticatedUserId(authUser);
+    await this.assertAuthenticatorAttemptAllowed(userId);
+    await this.ensureAuthenticatorTable();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ secretEnc: string; enabled: boolean }>>(
+      `SELECT "secretEnc","enabled" FROM "UserAuthenticator" WHERE "userId"=$1 LIMIT 1`,
+      userId,
+    );
+    if (!rows[0]) throw new BadRequestException('Start authenticator setup first');
+    if (rows[0].enabled) return { enabled: true, message: 'Authenticator is already enabled' };
+    const secret = this.decryptAuthenticatorSecret(rows[0].secretEnc);
+    if (!this.verifyTotp(secret, code)) {
+      await this.recordAuthenticatorFailure(userId);
+      throw new UnauthorizedException('Invalid authenticator code');
+    }
+    const recoveryCodes = this.generateRecoveryCodes();
+    const hashes = await Promise.all(recoveryCodes.map((value) => bcrypt.hash(value, 10)));
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "UserAuthenticator" SET "enabled"=TRUE,"recoveryCodes"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1`,
+      userId, JSON.stringify(hashes),
+    );
+    await this.clearAuthenticatorFailures(userId);
+    return { enabled: true, recoveryCodes, message: 'Google Authenticator enabled successfully.' };
+  }
+
+  async authenticatorDisable(authUser: any, password: string, code: string) {
+    const userId = this.authenticatedUserId(authUser);
+    await this.verifyCurrentPassword(userId, password);
+    await this.assertAuthenticatorAttemptAllowed(userId);
+    await this.ensureAuthenticatorTable();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ secretEnc: string; enabled: boolean }>>(
+      `SELECT "secretEnc","enabled" FROM "UserAuthenticator" WHERE "userId"=$1 LIMIT 1`,
+      userId,
+    );
+    if (!rows[0]?.enabled) return { enabled: false, message: 'Authenticator is already disabled' };
+    const secret = this.decryptAuthenticatorSecret(rows[0].secretEnc);
+    if (!this.verifyTotp(secret, code)) {
+      await this.recordAuthenticatorFailure(userId);
+      throw new UnauthorizedException('Invalid authenticator code');
+    }
+    await this.prisma.$executeRawUnsafe(`DELETE FROM "UserAuthenticator" WHERE "userId"=$1`, userId);
+    await this.clearAuthenticatorFailures(userId);
+    return { enabled: false, message: 'Authenticator has been disabled' };
+  }
 }

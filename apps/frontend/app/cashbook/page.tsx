@@ -8,7 +8,8 @@ import styles from "./cashbook.module.css";
 type Branch={id:string;name:string};
 type Period={id:string;name:string;status?:string};
 type Staff={id:string;firstName?:string;lastName?:string;position?:string;branchId?:string};
-type Row={id:string;entryDate:string;description?:string;referenceNo?:string;staffId?:string;branch?:{name?:string};[key:string]:any};
+type Row={id:string;entryDate:string;description?:string;referenceNo?:string;staffId?:string;staff?:{staffId?:string;firstName?:string;lastName?:string}|null;branch?:{name?:string};[key:string]:any};
+type PostedEntry={id:string;entryDate:string;type:'CASH_IN'|'CASH_OUT';amount:number;reference?:string|null;description?:string|null;staffId?:string|null;staff?:{staffId?:string;firstName?:string;lastName?:string}|null};
 
 const receipts=[
   ["previousCashAtHand","Previous day's cash-in-hand"],
@@ -84,6 +85,7 @@ export default function CashbookPage(){
   const [periodId,setPeriodId]=useState("");
   const [form,setForm]=useState<any>(blank());
   const [rows,setRows]=useState<Row[]>([]);
+  const [postedEntries,setPostedEntries]=useState<PostedEntry[]>([]);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
@@ -110,7 +112,12 @@ export default function CashbookPage(){
       setLoading(true);
       const q=new URLSearchParams({periodId,branchId});
       if(from)q.set("from",from);if(to)q.set("to",`${to}T23:59:59`);
-      const d=await apiRequest(`/cashbook/daily?${q}`);setRows(Array.isArray(d)?d:[]);
+      const [d,posted]=await Promise.all([
+        apiRequest(`/cashbook/daily?${q}`),
+        apiRequest(`/cashbook?${q}`),
+      ]);
+      setRows(Array.isArray(d)?d:[]);
+      setPostedEntries(Array.isArray(posted)?posted:[]);
     }catch(e:any){setError(e?.message||"Unable to load cashbook");}finally{setLoading(false);}
   }
   async function loadOpeningBalance(){
@@ -198,7 +205,7 @@ export default function CashbookPage(){
                   <th colSpan={21} className="border p-2 text-left text-sm">Payments / Credit</th>
                 </tr>
                 <tr className="bg-emerald-50 text-emerald-950">
-                  <th rowSpan={2} className="border p-2">Date</th><th rowSpan={2} className="border p-2 min-w-[120px]">Description</th>
+                  <th rowSpan={2} className="border p-2">Date</th><th rowSpan={2} className="border p-2 min-w-[160px]">Description / Field Officer</th>
                   {receipts.map(([k,l])=><th rowSpan={2} key={k} className="border p-2 min-w-[95px]">{l}</th>)}
                   <th rowSpan={2} className="border p-2 min-w-[105px]">Total</th>
                   <th rowSpan={2} className="border p-2">Date</th><th rowSpan={2} className="border p-2 min-w-[120px]">Description</th>
@@ -231,6 +238,28 @@ export default function CashbookPage(){
         </div>
         <div className="border-t p-4 text-xs font-bold text-slate-500">BM Register · BM (Name/Sign.) · Horizontal scrolling is intentional on phone so the complete 37-column register remains readable.</div>
       </section>
+      <section className="mt-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
+        <div className="border-b p-4">
+          <h2 className="text-lg font-black text-emerald-950">Posted Branch Cashbook Entries</h2>
+          <p className="text-xs text-slate-500">Receipts and payments posted by the banking, collection and finance workflows. Cash deposits display the collecting Staff ID; this list is separate from the physical daily register to avoid double counting.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[850px] w-full border-collapse text-sm">
+            <thead className="bg-emerald-950 text-left text-xs uppercase text-white">
+              <tr><th className="p-3">Date</th><th className="p-3">Branch / Staff ID</th><th className="p-3">Reference</th><th className="p-3">Description</th><th className="p-3">Type</th><th className="p-3 text-right">Amount</th></tr>
+            </thead>
+            <tbody>
+              {postedEntries.length===0?<tr><td colSpan={6} className="p-6 text-center text-slate-500">No posted cashbook entries for this branch and period.</td></tr>:postedEntries.map(entry=><tr key={entry.id} className="border-t">
+                <td className="p-3">{new Date(entry.entryDate).toLocaleString("en-NG")}</td>
+                <td className="p-3"><strong>{entry.staff?.staffId||entry.staffId||"Branch entry"}</strong><small className="block text-slate-500">{[entry.staff?.firstName,entry.staff?.lastName].filter(Boolean).join(" ")}</small></td>
+                <td className="p-3">{entry.reference||"—"}</td><td className="p-3">{entry.description||"—"}</td>
+                <td className="p-3">{entry.type==="CASH_IN"?"Cash received":"Cash paid"}</td>
+                <td className="p-3 text-right font-black">{money(Number(entry.amount||0))}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </main>;
 }
@@ -256,7 +285,10 @@ function WeekRows({week,items}:{week:number;items:Row[]}){
   return <>
     {items.map(r=><tr key={r.id} className="odd:bg-white even:bg-slate-50">
       <td className="border p-2">{new Date(r.entryDate).toLocaleDateString("en-NG",{day:"2-digit",month:"2-digit"})}</td>
-      <td className="border p-2">{staffName(r)||"—"}</td>
+      <td className="border p-2">
+        {r.staff&&<div className="mb-1"><strong className="block text-emerald-900">{r.staff.staffId||r.staffId||"Staff ID unavailable"}</strong><small className="text-slate-500">{[r.staff.firstName,r.staff.lastName].filter(Boolean).join(" ")}</small></div>}
+        <span>{r.description||"—"}</span>
+      </td>
       {receipts.map(([k])=><td key={k} className="border p-2 text-right">{n(r[k])?money(r[k]):""}</td>)}
       <td className="border p-2 text-right font-black text-emerald-800">{money(receiptTotal(r))}</td>
       <td className="border p-2">{new Date(r.entryDate).toLocaleDateString("en-NG",{day:"2-digit",month:"2-digit"})}</td>

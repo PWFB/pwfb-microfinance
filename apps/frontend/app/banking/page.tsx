@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { pwfbApi } from "../../lib/pwfb-api";
+import { useAuth } from "../../context/AuthContext";
 import BankSearchSelect from "../../components/BankSearchSelect";
 
 type Customer = { id: string; firstName?: string; lastName?: string; name?: string; phone?: string; email?: string };
@@ -21,6 +22,9 @@ const fallbackBanks: Bank[] = [
 ];
 
 export default function BankingPage() {
+  const { user } = useAuth();
+  const role = String(user?.role || "").toUpperCase();
+  const allowedOperations = role === "TELLER" || role === "CREDIT_OFFICER" ? ["deposit"] as Operation[] : role === "ASSET_LOAN_MANAGER" ? [] as Operation[] : operations;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -46,13 +50,19 @@ export default function BankingPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (!user?.role) return;
     const selected = new URLSearchParams(window.location.search).get("operation") as Operation | null;
-    if (selected && operations.includes(selected)) setOperation(selected);
+    if (selected && allowedOperations.includes(selected)) setOperation(selected);
+    else if (!allowedOperations.includes(operation) && allowedOperations[0]) setOperation(allowedOperations[0]);
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (role === "ASSET_LOAN_MANAGER") return;
     Promise.all([pwfbApi.customers.search(), pwfbApi.banking.institutions()]).then(([customerData, bankData]) => {
       setCustomers(unwrap<Customer>(customerData));
       {const loaded=unwrap<any>(bankData).map((bank:any)=>({code:String(bank.code??bank.bankCode??""),name:String(bank.name??bank.bankName??bank.institutionName??""),shortName:bank.shortName,provider:String(bank.provider||"").toUpperCase()})).filter((bank:Bank)=>bank.code&&bank.name);const merged=new Map<string,Bank>();[...loaded,...fallbackBanks].forEach((b)=>{const key=b.code||b.name.toLowerCase();if(!merged.has(key))merged.set(key,b)});setBanks([...merged.values()].sort((a,b)=>a.name.localeCompare(b.name)));}
     }).catch(() => setMessage("Some banking reference data could not be loaded."));
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     if (!customerId) { setWallet(null); setTransactions([]); return; }
@@ -115,6 +125,7 @@ export default function BankingPage() {
   }
 
   async function submit() {
+    if (!allowedOperations.includes(operation)) return setMessage("This banking operation is not available to your role.");
     if (!customerId) return setMessage("Select a customer first.");
     const numericAmount = Number(amount);
     if (!numericAmount || numericAmount <= 0) return setMessage("Enter a valid amount greater than zero.");
@@ -149,7 +160,7 @@ export default function BankingPage() {
   return <main className="pwfb-banking-page">
     <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">LAB BANKING • OPERATIONS</p><h1 className="pwfb-page-title">Banking Operations</h1><p className="pwfb-page-description">Manage deposits, withdrawals and transfers with live account verification.</p></div><div className="pwfb-banking-brand-mark"><span>LAB</span><small>FINANCIAL OPERATIONS</small></div></div>
     <section className="pwfb-banking-hero"><div className="pwfb-banking-step"><span className="pwfb-step-number">01</span><div style={{width:"100%"}}><label>Select Customer</label><input className="pwfb-input" value={customerSearch} onChange={(e)=>setCustomerSearch(e.target.value)} placeholder="Search customer by name, ID, phone or email" style={{marginBottom:8}}/><select className="pwfb-input" value={customerId} onChange={(e)=>setCustomerId(e.target.value)}><option value="">Choose a customer account</option>{filteredCustomers.map((customer)=><option key={customer.id} value={customer.id}>{customerName(customer)} • {customer.id}</option>)}</select></div></div>{selectedCustomer && wallet ? <div className="pwfb-banking-balance"><small>AVAILABLE WALLET BALANCE</small><strong>{wallet.currency || "NGN"} {Number(wallet.balance || 0).toLocaleString()}</strong><span>{customerName(selectedCustomer)} • Active account</span></div> : <div className="pwfb-banking-hero-note"><b>Ready for banking operations</b><span>Select a customer to begin.</span></div>}</section>
-    <section className="pwfb-panel pwfb-operation-panel"><div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">TRANSACTION WORKFLOW</p><h2>Choose Banking Operation</h2><p>Select the service you want to perform.</p></div></div><div className="pwfb-banking-operation-grid">{operations.map((item)=><button key={item} type="button" className={`pwfb-banking-operation ${operation===item?"pwfb-banking-operation-active":""} ${item==="deposit"?"pwfb-op-deposit":""}`} onClick={()=>choose(item)}><span>{item==="deposit"?"＋":item==="cash-withdraw"||item==="bank-withdraw"?"−":item==="transfer"?"↔":"⌁"}</span><strong>{item==="cash-withdraw"?"Cash Withdrawal":item==="bank-withdraw"?"Bank Withdrawal":item==="bank-transfer"?"Bank Transfer":item[0].toUpperCase()+item.slice(1)}</strong><small>{item==="deposit"?"Credit customer wallet":item==="cash-withdraw"?"Pay cash and debit wallet":item==="bank-withdraw"?"Send wallet funds to verified bank":item==="transfer"?"Move funds between customers":"Send funds to external bank"}</small></button>)}</div></section>
+    <section className="pwfb-panel pwfb-operation-panel"><div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">TRANSACTION WORKFLOW</p><h2>Choose Banking Operation</h2><p>Select the service you want to perform.</p></div></div><div className="pwfb-banking-operation-grid">{allowedOperations.map((item)=><button key={item} type="button" className={`pwfb-banking-operation ${operation===item?"pwfb-banking-operation-active":""} ${item==="deposit"?"pwfb-op-deposit":""}`} onClick={()=>choose(item)}><span>{item==="deposit"?"＋":item==="cash-withdraw"||item==="bank-withdraw"?"−":item==="transfer"?"↔":"⌁"}</span><strong>{item==="cash-withdraw"?"Cash Withdrawal":item==="bank-withdraw"?"Bank Withdrawal":item==="bank-transfer"?"Bank Transfer":item[0].toUpperCase()+item.slice(1)}</strong><small>{item==="deposit"?"Credit customer wallet":item==="cash-withdraw"?"Pay cash and debit wallet":item==="bank-withdraw"?"Send wallet funds to verified bank":item==="transfer"?"Move funds between customers":"Send funds to external bank"}</small></button>)}</div></section>
     <section className="pwfb-panel pwfb-deposit-card"><div className="pwfb-panel-header pwfb-operation-header"><div><p className="pwfb-eyebrow">02 / {operation.toUpperCase()}</p><h2>{title}</h2><p>{operation==="deposit"?"Cash received is recorded with the collecting Staff ID, branch and an automatic cashbook receipt.":"Verify the exact bank account with the selected provider before processing."}</p></div><span className="pwfb-operation-badge">{operation.toUpperCase()}</span></div>
       <div className="pwfb-banking-form-grid">
         {(operation === "bank-withdraw" || operation === "bank-transfer") && <>

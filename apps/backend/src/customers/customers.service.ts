@@ -213,7 +213,11 @@ export class CustomersService {
 
   async update(id: string, dto: UpdateCustomerDto) {
     const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } }); if (!customer) throw new NotFoundException('Customer not found');
-    if (dto.branchId !== undefined || dto.assignedStaffId !== undefined || dto.groupId !== undefined) throw new BadRequestException('Customer branch, registering credit officer and group are permanent creation records and cannot be reassigned');
+    if ((dto.branchId !== undefined && dto.branchId !== customer.branchId)
+      || (dto.assignedStaffId !== undefined && dto.assignedStaffId !== customer.assignedStaffId)
+      || (dto.groupId !== undefined && dto.groupId !== customer.groupId)) {
+      throw new BadRequestException('Customer branch, registering credit officer and group are permanent creation records and cannot be reassigned');
+    }
     if (dto.branchId && !(await this.prisma.branch.findUnique({ where: { id: dto.branchId } }))) throw new BadRequestException('Branch not found');
     if (dto.assignedStaffId && !(await this.prisma.staff.findUnique({ where: { id: dto.assignedStaffId } }))) throw new BadRequestException('Assigned staff not found');
     if (dto.groupId && !(await this.prisma.clientGroup.findUnique({ where: { id: dto.groupId } }))) throw new BadRequestException('Client group not found');

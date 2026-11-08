@@ -209,6 +209,7 @@ export class CollectionsService {
         where: {
           type: 'DEPOSIT',
           status: 'COMPLETED',
+          provider: 'MANUAL_CASH',
           createdAt: { gte: start, lte: end },
           ...branchFilter,
           ...(staffId ? { staffId } : {}),

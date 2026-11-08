@@ -14,7 +14,7 @@ export class CustomersService {
 
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.prisma.user.findUnique({ where: { email } })) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
-  private generateTemporaryPassword() { return `PWFB-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; }
+  private generateTemporaryPassword() { return `PWFB-${randomBytes(8).toString('hex').toUpperCase()}`; }
   private async generateCustomerId() { const count = await this.prisma.customer.count(); let number = count + 1; let customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; while (await this.prisma.customer.findUnique({ where: { id: customerId } })) { number++; customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; } return customerId; }
 
   private async ensureClientGroupOwnershipTable() {
@@ -42,6 +42,10 @@ export class CustomersService {
     if (dto.virtualAccountConsent !== true) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
     if (dto.registrationFeeConfirmed !== true) throw new BadRequestException('Confirm that the current client registration fee has actually been collected before creating this client');
     const registrationCharge = await this.charges.getClientRegistrationCharge();
+    const submittedChargeAmount = Number(dto.registrationChargeAmount);
+    if (!Number.isFinite(submittedChargeAmount) || Math.round(submittedChargeAmount * 100) !== Math.round(Number(registrationCharge.amount) * 100)) {
+      throw new BadRequestException('The registration fee changed after this form was opened. Refresh the current amount and confirm collection again.');
+    }
     const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id }, include: { branch: true } });
     if (!staff || staff.employmentStatus !== 'ACTIVE') throw new UnauthorizedException('An active Staff ID and branch assignment are required to register a customer');
     const registrationType = dto.registrationType || (dto.groupId || dto.groupName ? 'GROUP' : 'INDIVIDUAL');

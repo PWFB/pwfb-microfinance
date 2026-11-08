@@ -9,7 +9,7 @@ type Staff = { id:string; staffId?:string; firstName?:string; middleName?:string
 type Assignment = { id:string; role:string; active?:boolean; startsAt?:string; endsAt?:string; notes?:string; region?:{name?:string}; division?:{name?:string}; area?:{name?:string}; branch?:{name?:string} };
 type Node = { id:string; name:string; regionId?:string; divisionId?:string; areaId?:string };
 type Region = Node & { divisions?:Node[]; areas?:Node[]; branches?:Node[] };
-const roles=['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'];
+const roles=['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','ASSET_LOAN_MANAGER','LOAN_OFFICER','STAFF'];
 
 export default function StaffWorkspace(){
  const params=useParams<{id:string}>(); const id=params.id;

@@ -4,6 +4,9 @@ export class CreateLoanDto {
   @IsString() customerId: string;
   @IsNumber() amount: number;
   @IsOptional() @IsNumber() interestRate?: number;
+  @IsOptional() @IsIn(['INDIVIDUAL', 'GROUP', 'STAFF']) borrowerType?: 'INDIVIDUAL' | 'GROUP' | 'STAFF';
+  @IsOptional() @IsString() groupId?: string;
+  @IsOptional() @IsString() registeredStaffId?: string;
   @IsOptional() @IsString() loanType?: string;
   @IsOptional() @IsNumber() duration?: number;
   @IsOptional() @IsString() repaymentFrequency?: string;

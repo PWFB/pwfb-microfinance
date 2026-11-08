@@ -15,6 +15,9 @@ const labels: Record<string, string> = {
   LOAN_DISBURSE: "Approve / disburse loan",
   COLLECTION_CREATE: "Record collection",
   COLLECTION_SETTLE: "Settle collection",
+  CASHBOOK_CREATE: "Post branch cashbook",
+  CASHBOOK_DAILY_CREATE: "Post daily field cashbook",
+  ASSET_LOAN_REVIEW: "Review eligible individual loans",
 };
 
 const routes: Record<string, { href: string; label: string; description: string }> = {
@@ -29,6 +32,9 @@ const routes: Record<string, { href: string; label: string; description: string 
   LOAN_DISBURSE: { href: "/loans", label: "Loan Disbursement", description: "Review loans and perform authorized disbursement." },
   COLLECTION_CREATE: { href: "/collections", label: "Record Collection", description: "Record a customer collection against the correct operation." },
   COLLECTION_SETTLE: { href: "/collections", label: "Settle Collection", description: "Settle and reconcile recorded collections." },
+  CASHBOOK_CREATE: { href: "/cashbook", label: "Branch Cashbook", description: "Post attributed branch receipts and payments." },
+  CASHBOOK_DAILY_CREATE: { href: "/cashbook", label: "Daily Field Cashbook", description: "Record the Staff ID, branch, receipts, payments and closing cash for field work." },
+  ASSET_LOAN_REVIEW: { href: "/loans", label: "Asset Loan Review", description: "Review and approve eligible individual loan applications before branch disbursement." },
 };
 
 export default function StaffAccessPage() {

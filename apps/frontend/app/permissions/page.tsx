@@ -15,6 +15,9 @@ const permissionLabels: Record<string, string> = {
   LOAN_DISBURSE: "Loan disbursement",
   COLLECTION_CREATE: "Create collections",
   COLLECTION_SETTLE: "Settle collections",
+  CASHBOOK_CREATE: "Post branch cashbook receipts and payments",
+  CASHBOOK_DAILY_CREATE: "Post daily field cashbook work",
+  ASSET_LOAN_REVIEW: "Review eligible individual loans",
 };
 
 export default function PermissionsPage() {

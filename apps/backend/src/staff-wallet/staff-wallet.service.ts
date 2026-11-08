@@ -45,9 +45,18 @@ export class StaffWalletService {
     return created[0];
   }
 
-  async list(branchId?: string) {
+  async list(branchId?: string, branchIds?: string[] | null) {
     await this.ensureTables();
-    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT w.id, w.staff_id AS "staffId", w.branch_id AS "branchId", w.balance, w.currency, s."firstName", s."middleName", s."lastName", s."position", s."employmentStatus", b.name AS "branchName" FROM staff_wallets w JOIN "Staff" s ON s.id=w.staff_id JOIN "Branch" b ON b.id=w.branch_id ${branchId ? 'WHERE w.branch_id=$1' : ''} ORDER BY s."firstName", s."lastName"`, ...(branchId ? [branchId] : []));
+    if (branchIds && !branchIds.length) return [];
+    if (branchId && branchIds && !branchIds.includes(branchId)) throw new BadRequestException('Requested branch is outside your assigned scope');
+    const where = branchId ? 'WHERE w.branch_id=$1'
+      : branchIds ? 'WHERE w.branch_id = ANY($1::text[])'
+      : '';
+    const params = branchId ? [branchId] : branchIds ? [branchIds] : [];
+    const rows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT w.id, w.staff_id AS "staffId", w.branch_id AS "branchId", w.balance, w.currency, s."firstName", s."middleName", s."lastName", s."position", s."employmentStatus", b.name AS "branchName" FROM staff_wallets w JOIN "Staff" s ON s.id=w.staff_id JOIN "Branch" b ON b.id=w.branch_id ${where} ORDER BY s."firstName", s."lastName"`,
+      ...params,
+    );
     return rows;
   }
 

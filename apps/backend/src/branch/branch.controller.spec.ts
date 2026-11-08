@@ -14,7 +14,7 @@ describe('BranchController', () => {
       remove: jest.fn(),
     } as unknown as jest.Mocked<BranchService>;
 
-    controller = new BranchController(service);
+    controller = new BranchController(service, { filterList: jest.fn((user, resource, rows) => rows), assertBranch: jest.fn().mockResolvedValue(true) } as any);
   });
 
   it('should be defined', () => {
@@ -38,7 +38,7 @@ describe('BranchController', () => {
     expect(service.create).toHaveBeenCalledWith(dto);
   });
 
-  it('should return all branches', () => {
+  it('should return all branches', async () => {
     const result = [
       {
         id: 1,
@@ -48,11 +48,11 @@ describe('BranchController', () => {
 
     service.findAll.mockReturnValue(result as any);
 
-    expect(controller.findAll()).toBe(result);
+    await expect(controller.findAll({ user: { id: 'admin', role: 'ADMIN' } } as any)).resolves.toBe(result);
     expect(service.findAll).toHaveBeenCalled();
   });
 
-  it('should return one branch', () => {
+  it('should return one branch', async () => {
     const result = {
       id: 1,
       name: 'Main Branch',
@@ -60,7 +60,7 @@ describe('BranchController', () => {
 
     service.findOne.mockReturnValue(result as any);
 
-    expect(controller.findOne('1')).toBe(result);
+    await expect(controller.findOne('1', { user: { id: 'admin', role: 'ADMIN' } } as any)).resolves.toBe(result);
     expect(service.findOne).toHaveBeenCalledWith('1');
   });
 

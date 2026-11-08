@@ -5,28 +5,113 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CustomerVirtualAccountService } from '../banking/customer-virtual-account.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { AccessScopeService } from '../access/access-scope.service';
+import { ChargesService } from '../charges/charges.service';
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly prisma: PrismaService, private readonly customerVirtualAccounts: CustomerVirtualAccountService) {}
+  constructor(private readonly prisma: PrismaService, private readonly customerVirtualAccounts: CustomerVirtualAccountService, private readonly accessScope: AccessScopeService, private readonly charges: ChargesService) {}
 
   private normalizeName(value: string) { return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, ''); }
   private async generateLoginEmail(firstName: string, lastName: string) { const base = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}`; let email = `${base}@pwfb.com`; let counter = 1; while (await this.prisma.user.findUnique({ where: { email } })) { email = `${base}${counter}@pwfb.com`; counter++; } return email; }
-  private generateTemporaryPassword() { return `PWFB-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`; }
+  private generateTemporaryPassword() { return `PWFB-${randomBytes(8).toString('hex').toUpperCase()}`; }
   private async generateCustomerId() { const count = await this.prisma.customer.count(); let number = count + 1; let customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; while (await this.prisma.customer.findUnique({ where: { id: customerId } })) { number++; customerId = `PWFB-CUS-${String(number).padStart(4, '0')}`; } return customerId; }
+
+  private async ensureClientGroupOwnershipTable() {
+    await this.prisma.$executeRawUnsafe('CREATE TABLE IF NOT EXISTS "PWFBClientGroupOwner" ("groupId" TEXT PRIMARY KEY REFERENCES "ClientGroup"("id") ON DELETE CASCADE, "ownerStaffId" TEXT NOT NULL REFERENCES "Staff"("id") ON DELETE RESTRICT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+    await this.prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "PWFBClientGroupOwner_ownerStaffId_idx" ON "PWFBClientGroupOwner" ("ownerStaffId")');
+  }
+
+  async listClientGroups(authUser: any) {
+    await this.ensureClientGroupOwnershipTable();
+    const scope = await this.accessScope.getScope(authUser);
+    const branchIds = scope.global ? null : await this.accessScope.getBranchIds(authUser);
+    if (!scope.global && !branchIds?.length) return [];
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
+      if (!scope.staffId) return [];
+      return this.prisma.$queryRawUnsafe<any[]>(
+        'SELECT g."id", g."name", g."branchId", g."createdAt", COUNT(c."id")::int AS "memberCount" FROM "ClientGroup" g JOIN "PWFBClientGroupOwner" o ON o."groupId"=g."id" LEFT JOIN "Customer" c ON c."groupId"=g."id" AND c."assignedStaffId"=$1 WHERE o."ownerStaffId"=$1 GROUP BY g."id", g."name", g."branchId", g."createdAt" ORDER BY g."createdAt" DESC',
+        scope.staffId,
+      );
+    }
+    if (scope.global) return this.prisma.clientGroup.findMany({ orderBy: { createdAt: 'desc' }, include: { _count: { select: { members: true } } } });
+    return this.prisma.clientGroup.findMany({ where: { branchId: { in: branchIds! } }, orderBy: { createdAt: 'desc' }, include: { _count: { select: { members: true } } } });
+  }
 
   async create(dto: CreateCustomerDto, authUser: any) {
     if (dto.virtualAccountConsent !== true) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
+    if (dto.registrationFeeConfirmed !== true) throw new BadRequestException('Confirm that the current client registration fee has actually been collected before creating this client');
+    const registrationCharge = await this.charges.getClientRegistrationCharge();
+    const submittedChargeAmount = Number(dto.registrationChargeAmount);
+    if (!Number.isFinite(submittedChargeAmount) || Math.round(submittedChargeAmount * 100) !== Math.round(Number(registrationCharge.amount) * 100)) {
+      throw new BadRequestException('The registration fee changed after this form was opened. Refresh the current amount and confirm collection again.');
+    }
     const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id }, include: { branch: true } });
-    if (!staff) throw new UnauthorizedException('Staff account is not linked to a staff record');
-    const customerId = await this.generateCustomerId(); const email = String(dto.email || '').trim().toLowerCase() || await this.generateLoginEmail(dto.firstName, dto.lastName); const temporaryPassword = this.generateTemporaryPassword(); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
+    if (!staff || staff.employmentStatus !== 'ACTIVE') throw new UnauthorizedException('An active Staff ID and branch assignment are required to register a customer');
+    const registrationType = dto.registrationType || (dto.groupId || dto.groupName ? 'GROUP' : 'INDIVIDUAL');
+    if (registrationType === 'INDIVIDUAL' && (dto.groupId || dto.groupName?.trim())) throw new BadRequestException('Choose Group registration before attaching a client group');
+    if (registrationType === 'GROUP' && !dto.groupId && !dto.groupName?.trim()) throw new BadRequestException('Select an existing client group or enter a new group name');
+    await this.ensureClientGroupOwnershipTable();
+
+    const customerId = await this.generateCustomerId();
+    const email = String(dto.email || '').trim().toLowerCase() || await this.generateLoginEmail(dto.firstName, dto.lastName);
+    const temporaryPassword = this.generateTemporaryPassword();
+    const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
     try {
       const result = await this.prisma.$transaction(async (tx) => {
         let group: any = null;
-        if (dto.groupId) { group = await tx.clientGroup.findUnique({ where: { id: dto.groupId } }); if (!group) throw new BadRequestException('Client group not found'); if (group.branchId && group.branchId !== staff.branchId) throw new BadRequestException('Client group belongs to another branch'); }
-        const customer = await tx.customer.create({ data: { id: customerId, firstName: dto.firstName, middleName: dto.middleName?.trim() || undefined, lastName: dto.lastName, email, phone: dto.phone, address: dto.address, dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined, branch: { connect: { id: staff.branchId } }, assignedStaff: { connect: { id: staff.id } }, ...(dto.groupId ? { clientGroup: { connect: { id: dto.groupId } } } : {}), wallet: { create: {} } } });
-        const user = await tx.user.create({ data: { email, password: hashedPassword, firstName: dto.firstName, lastName: dto.lastName, phone: dto.phone, role: 'CUSTOMER', customer: { connect: { id: customer.id } } } });
-        return { customer, user };
+        if (registrationType === 'GROUP') {
+          if (dto.groupId) {
+            group = await tx.clientGroup.findUnique({ where: { id: dto.groupId } });
+            if (!group) throw new BadRequestException('Client group not found');
+            if (group.branchId !== staff.branchId) throw new BadRequestException('Client group belongs to another branch');
+            const owners = await tx.$queryRawUnsafe<Array<{ ownerStaffId: string }>>('SELECT "ownerStaffId" FROM "PWFBClientGroupOwner" WHERE "groupId"=$1 LIMIT 1', group.id);
+            if (!owners.length || owners[0].ownerStaffId !== staff.id) throw new BadRequestException('This group belongs to another credit officer or has no verified owner');
+          } else {
+            const groupName = String(dto.groupName || '').trim();
+            if (!groupName) throw new BadRequestException('Group name is required');
+            group = await tx.clientGroup.create({ data: { name: groupName, branchId: staff.branchId } });
+            await tx.$executeRawUnsafe('INSERT INTO "PWFBClientGroupOwner" ("groupId","ownerStaffId") VALUES ($1,$2)', group.id, staff.id);
+          }
+        }
+
+        const customer = await tx.customer.create({
+          data: {
+            id: customerId,
+            firstName: dto.firstName,
+            middleName: dto.middleName?.trim() || undefined,
+            lastName: dto.lastName,
+            email,
+            phone: dto.phone,
+            address: dto.address,
+            dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+            branch: { connect: { id: staff.branchId } },
+            assignedStaff: { connect: { id: staff.id } },
+            ...(group ? { clientGroup: { connect: { id: group.id } } } : {}),
+            wallet: { create: {} },
+          },
+        });
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            phone: dto.phone,
+            role: 'CUSTOMER',
+            customer: { connect: { id: customer.id } },
+          },
+        });
+        const registrationFeeReceipt = await this.charges.recordClientRegistrationFee(tx, {
+          customerId: customer.id,
+          staffId: staff.id,
+          branchId: staff.branchId,
+          userId: authUser.id,
+          userEmail: authUser.email,
+          customerName: [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' '),
+          amount: Number(registrationCharge.amount),
+        });
+        return { customer, user, group, registrationFeeReceipt };
       });
 
       let virtualAccounts: any[] = [];
@@ -38,8 +123,31 @@ export class CustomersService {
         try { virtualAccounts = await this.customerVirtualAccounts.list(result.customer.id); } catch { virtualAccounts = []; }
       }
 
-      return { message: 'Client created successfully', client: { id: result.customer.id, customerId: result.customer.id, firstName: result.customer.firstName, middleName: result.customer.middleName, lastName: result.customer.lastName, email: result.customer.email, branchId: result.customer.branchId, assignedStaffId: result.customer.assignedStaffId, groupId: result.customer.groupId }, wallet: { customerId: result.customer.id, currency: 'NGN', status: 'ACTIVE' }, virtualAccounts, virtualAccountWarning, login: { email, temporaryPassword } };
-    } catch (error) { if (error instanceof BadRequestException) throw error; throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create client'); }
+      return {
+        message: 'Client created successfully',
+        client: {
+          id: result.customer.id,
+          customerId: result.customer.id,
+          firstName: result.customer.firstName,
+          middleName: result.customer.middleName,
+          lastName: result.customer.lastName,
+          email: result.customer.email,
+          branchId: result.customer.branchId,
+          assignedStaffId: result.customer.assignedStaffId,
+          groupId: result.customer.groupId,
+          registrationType,
+          groupName: result.group?.name || null,
+        },
+        registrationFeeReceipt: result.registrationFeeReceipt,
+        wallet: { customerId: result.customer.id, currency: 'NGN', status: 'ACTIVE' },
+        virtualAccounts,
+        virtualAccountWarning,
+        login: { email, temporaryPassword },
+      };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(error instanceof Error ? error.message : 'Unable to create client');
+    }
   }
 
   async findMe(authUser: any) {
@@ -48,7 +156,35 @@ export class CustomersService {
     if (!user?.customer) throw new NotFoundException('Customer profile not found'); return { ...user.customer, identityVerification: await this.getIdentityVerification(user.customer.id) };
   }
 
-  async findAll(authUser?: any, search?: string) { const staff = authUser ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } }) : null; const q = String(search || '').trim(); const where: any = staff ? { assignedStaffId: staff.id } : {}; if (q) { where.OR = [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { id: { contains: q, mode: 'insensitive' } }, { phone: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }]; } return this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } }); }
+  async findAll(authUser?: any, search?: string) {
+    const role = String(authUser?.role || '').toUpperCase();
+    const scope = authUser ? await this.accessScope.getScope(authUser) : { global: false, role, staffId: null };
+    const branchIds = authUser && !scope.global ? await this.accessScope.getBranchIds(authUser) : null;
+    if (authUser && !scope.global && !branchIds?.length) return [];
+    const personalRoles = ['CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'];
+    const staff = authUser && personalRoles.includes(role)
+      ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } })
+      : null;
+    if (authUser && personalRoles.includes(role) && !staff) throw new UnauthorizedException('Your staff login is not linked to an active Staff ID');
+    const q = String(search || '').trim();
+    const where: any = scope.global ? {} : { branchId: { in: branchIds! } };
+    if (staff) where.assignedStaffId = staff.id;
+    if (q) {
+      where.OR = [
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+        { id: { contains: q, mode: 'insensitive' } },
+        { phone: { contains: q } },
+        { email: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    return this.prisma.customer.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true },
+    });
+  }
 
   async history(id: string, authUser: any) {
     const customer = await this.findOne(id, authUser);
@@ -77,10 +213,35 @@ export class CustomersService {
   private maskIdentity(value?: string | null) { if (!value) return null; return `${'•'.repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`; }
   private async getIdentityVerification(customerId: string) { const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT id, bvn, bvn_status AS "bvnStatus", bvn_verified_at AS "bvnVerifiedAt", bvn_overridden_at AS "bvnOverriddenAt", bvn_override_by_email AS "bvnOverrideByEmail", bvn_override_reason AS "bvnOverrideReason", nin, nin_status AS "ninStatus", nin_verified_at AS "ninVerifiedAt", nin_overridden_at AS "ninOverriddenAt", nin_override_by_email AS "ninOverrideByEmail", nin_override_reason AS "ninOverrideReason", created_at AS "createdAt", updated_at AS "updatedAt" FROM customer_identity_verifications WHERE customer_id = $1`, customerId); const row = rows[0]; if (!row) return null; return { id: row.id, bvn: this.maskIdentity(row.bvn), bvnStatus: row.bvnStatus, bvnVerifiedAt: row.bvnVerifiedAt, bvnOverriddenAt: row.bvnOverriddenAt, bvnOverrideByEmail: row.bvnOverrideByEmail, bvnOverrideReason: row.bvnOverrideReason, nin: this.maskIdentity(row.nin), ninStatus: row.ninStatus, ninVerifiedAt: row.ninVerifiedAt, ninOverriddenAt: row.ninOverriddenAt, ninOverrideByEmail: row.ninOverrideByEmail, ninOverrideReason: row.ninOverrideReason, createdAt: row.createdAt, updatedAt: row.updatedAt }; }
 
-  async findOne(id: string, authUser?: any) { const customer = await this.prisma.customer.findUnique({ where: { id }, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, createdAt: true, updatedAt: true } } } }); if (!customer) throw new NotFoundException('Customer not found'); if (authUser) { const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id } }); if (staff && customer.assignedStaffId !== staff.id) throw new UnauthorizedException('You can only access your assigned clients'); } return { ...customer, identityVerification: await this.getIdentityVerification(customer.id) }; }
+  async getRegistrationFeeReceipt(id: string, authUser?: any) {
+    await this.findOne(id, authUser);
+    const receipt = await this.charges.getRegistrationReceipt(id);
+    if (!receipt) throw new NotFoundException('Registration fee receipt not found');
+    return receipt;
+  }
+
+  async findOne(id: string, authUser?: any) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: {
+        savings: true, loans: true, transactions: true, branch: true, assignedStaff: true,
+        clientGroup: true, bankAccounts: { include: { institution: true } },
+        virtualAccounts: { include: { institution: true, branch: true } }, wallet: true,
+        user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, createdAt: true, updatedAt: true } },
+      },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+    if (authUser) await this.accessScope.assertCustomer(authUser, customer.id);
+    return { ...customer, identityVerification: await this.getIdentityVerification(customer.id) };
+  }
 
   async update(id: string, dto: UpdateCustomerDto) {
     const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } }); if (!customer) throw new NotFoundException('Customer not found');
+    if ((dto.branchId !== undefined && dto.branchId !== customer.branchId)
+      || (dto.assignedStaffId !== undefined && dto.assignedStaffId !== customer.assignedStaffId)
+      || (dto.groupId !== undefined && dto.groupId !== customer.groupId)) {
+      throw new BadRequestException('Customer branch, registering credit officer and group are permanent creation records and cannot be reassigned');
+    }
     if (dto.branchId && !(await this.prisma.branch.findUnique({ where: { id: dto.branchId } }))) throw new BadRequestException('Branch not found');
     if (dto.assignedStaffId && !(await this.prisma.staff.findUnique({ where: { id: dto.assignedStaffId } }))) throw new BadRequestException('Assigned staff not found');
     if (dto.groupId && !(await this.prisma.clientGroup.findUnique({ where: { id: dto.groupId } }))) throw new BadRequestException('Client group not found');

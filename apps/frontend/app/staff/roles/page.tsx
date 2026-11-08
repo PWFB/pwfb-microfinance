@@ -13,7 +13,8 @@ const roles = [
   ['AREA_MANAGER','Area-level operational management'],
   ['BRANCH_MANAGER','Branch management and branch operations'],
   ['CREDIT_OFFICER','Credit and loan operations'],
-  ['TELLER','Cash, deposits and withdrawals'],
+  ['TELLER','Branch cash desk, customer deposits and daily cashbook'],
+  ['ASSET_LOAN_MANAGER','Independent review of eligible individual loan disbursements'],
   ['LOAN_OFFICER','Loan servicing and collections'],
   ['STAFF','General staff operational access'],
 ] as const;

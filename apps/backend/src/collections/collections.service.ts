@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { StaffWalletService } from '../staff-wallet/staff-wallet.service';
 
@@ -39,26 +40,63 @@ export class CollectionsService {
   }
 
   async create(data: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }) {
-    const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
-    if (!period) throw new NotFoundException('Financial period not found');
-    if (period.status === 'CLOSED') throw new BadRequestException('Cannot add collections to a closed period');
-    const branch = await this.prisma.branch.findUnique({ where: { id: data.branchId } });
-    if (!branch) throw new NotFoundException('Branch not found');
-    const staff = await this.prisma.staff.findUnique({ where: { id: data.staffId } });
-    if (!staff) throw new NotFoundException('Collector/staff not found');
-    if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
-    const customer = await this.prisma.customer.findUnique({ where: { id: data.customerId } });
-    if (!customer) throw new NotFoundException('Customer not found');
     const amount = Number(data.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Collection amount must be greater than zero');
-    const created = await this.prisma.dailyCollection.create({ data: { periodId: data.periodId, branchId: data.branchId, staffId: data.staffId, customerId: data.customerId, type: data.type, amount, reference: data.reference, notes: data.notes, collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date() }, include: { period: true, branch: true, staff: true, customer: true } });
+    const reference = String(data.reference || '').trim() || `COL-${randomUUID()}`;
+    if (reference.length > 120) throw new BadRequestException('Collection reference is too long');
+
+    const created = await this.prisma.$transaction(async tx => {
+      // Serialize requests sharing the same reference and reject duplicate submissions.
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', 'DAILY-COLLECTION-REFERENCE:' + reference);
+      const existing = await tx.dailyCollection.findFirst({ where: { reference }, select: { id: true } });
+      if (existing) throw new BadRequestException('This collection reference has already been recorded');
+
+      const period = await tx.financialPeriod.findUnique({ where: { id: data.periodId } });
+      if (!period) throw new NotFoundException('Financial period not found');
+      if (period.status === 'CLOSED') throw new BadRequestException('Cannot add collections to a closed period');
+      const branch = await tx.branch.findUnique({ where: { id: data.branchId } });
+      if (!branch) throw new NotFoundException('Branch not found');
+      const staff = await tx.staff.findUnique({ where: { id: data.staffId } });
+      if (!staff) throw new NotFoundException('Collector/staff not found');
+      if (staff.employmentStatus !== 'ACTIVE') throw new BadRequestException('Collector must be an active staff member');
+      if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
+      const customer = await tx.customer.findUnique({ where: { id: data.customerId } });
+      if (!customer) throw new NotFoundException('Customer not found');
+      if (customer.branchId !== data.branchId) throw new BadRequestException('Collection customer must belong to the selected collection branch');
+
+      return tx.dailyCollection.create({
+        data: {
+          periodId: data.periodId,
+          branchId: data.branchId,
+          staffId: data.staffId,
+          customerId: data.customerId,
+          type: data.type,
+          amount,
+          reference,
+          notes: data.notes,
+          collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date(),
+        },
+        include: { period: true, branch: true, staff: true, customer: true },
+      });
+    });
+
     if (!data.settleNow) return created;
     const targetId = await this.resolveSettlementTarget(data.customerId, data.type);
     return this.settle(created.id, targetId);
   }
 
-  async findAll(periodId?: string, branchId?: string, staffId?: string, type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER') {
-    return this.prisma.dailyCollection.findMany({ where: { ...(periodId ? { periodId } : {}), ...(branchId ? { branchId } : {}), ...(staffId ? { staffId } : {}), ...(type ? { type } : {}) }, orderBy: { collectionDate: 'desc' }, include: { period: true, branch: true, staff: true, customer: true } });
+  async findAll(periodId?: string, branchId?: string, staffId?: string, type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER', branchIds?: string[] | null) {
+    const branchFilter = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
+    if (branchIds && !branchIds.length && !branchId) return [];
+    return this.prisma.dailyCollection.findMany({
+      where: { ...(periodId ? { periodId } : {}), ...branchFilter, ...(staffId ? { staffId } : {}), ...(type ? { type } : {}) },
+      orderBy: { collectionDate: 'desc' },
+      include: {
+        period: true, branch: true,
+        staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } },
+        customer: true,
+      },
+    });
   }
 
   async findOne(id: string) {
@@ -75,6 +113,11 @@ export class CollectionsService {
     if (!targetId) targetId = await this.resolveSettlementTarget(collection.customerId, collection.type);
     await this.staffWallet.ensureTables();
     return this.prisma.$transaction(async tx => {
+      await tx.$queryRawUnsafe(`SELECT id FROM "DailyCollection" WHERE id=$1 FOR UPDATE`, id);
+      const latest = await tx.dailyCollection.findUnique({ where: { id }, include: { period: true } });
+      if (!latest) throw new NotFoundException('Daily collection not found');
+      if (latest.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period');
+      if (latest.settled) throw new BadRequestException('Collection has already been settled');
       await this.ensureAllocationTable(tx);
       let transactionId: string;
       let recordId: string | undefined;
@@ -92,7 +135,7 @@ export class CollectionsService {
         const loan = await tx.loan.findUnique({ where: { id: targetId } });
         if (!loan) throw new NotFoundException('Loan not found');
         if (loan.customerId !== collection.customerId) throw new BadRequestException('Loan does not belong to the collection customer');
-        const repayment = await tx.repayment.create({ data: { loanId: loan.id, amount, paymentDate: collection.collectionDate, method: 'FIELD_COLLECTION', notes: collection.notes || description, periodId: collection.periodId } });
+        const repayment = await tx.repayment.create({ data: { loanId: loan.id, amount, paymentDate: collection.collectionDate, method: 'FIELD_COLLECTION', notes: collection.notes || description, periodId: collection.periodId, branchId: collection.branchId, staffId: collection.staffId, reference: `FIELD-${reference}` } });
         recordId = repayment.id;
         allocation = await this.allocateLoanRepayment(tx, loan.id, repayment.id, amount);
         const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'LOAN_REPAYMENT', amount, description: `${description} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`, periodId: collection.periodId } });
@@ -102,17 +145,210 @@ export class CollectionsService {
         transactionId = transaction.id;
       }
       await this.staffWallet.debit(collection.staffId, amount, reference, `Field collection settled — ${collection.type}`, tx);
-      await tx.cashbookEntry.create({ data: { periodId: collection.periodId, branchId: collection.branchId, type: 'CASH_IN', amount, reference, description, entryDate: collection.collectionDate } });
+      await tx.cashbookEntry.create({ data: { periodId: collection.periodId, branchId: collection.branchId, staffId: collection.staffId, type: 'CASH_IN', amount, reference, description, entryDate: collection.collectionDate } });
       return tx.dailyCollection.update({ where: { id }, data: { settled: true, settledAt: new Date(), settlementTransactionId: transactionId, settlementRecordId: recordId, reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } });
     });
   }
 
-  async summary(periodId?: string, branchId?: string, staffId?: string) {
-    const collections = await this.prisma.dailyCollection.findMany({ where: { ...(periodId ? { periodId } : {}), ...(branchId ? { branchId } : {}), ...(staffId ? { staffId } : {}) } });
-    return collections.reduce((summary, collection) => { summary.total += collection.amount; if (collection.type === 'SAVINGS') summary.savings += collection.amount; if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += collection.amount; if (collection.type === 'OTHER') summary.other += collection.amount; if (collection.reconciled) summary.reconciled += collection.amount; else summary.unreconciled += collection.amount; if (collection.settled) summary.settled += collection.amount; else summary.unsettled += collection.amount; summary.collectionCount++; return summary; }, { total: 0, savings: 0, loanRepayments: 0, other: 0, reconciled: 0, unreconciled: 0, settled: 0, unsettled: 0, collectionCount: 0 });
+  async summary(periodId?: string, branchId?: string, staffId?: string, branchIds?: string[] | null) {
+    const collections = await this.findAll(periodId, branchId, staffId, undefined, branchIds);
+    const summary: any = { total: 0, savings: 0, loanRepayments: 0, other: 0, reconciled: 0, unreconciled: 0, settled: 0, unsettled: 0, collectionCount: 0 };
+    const officers = new Map<string, any>();
+    for (const collection of collections as any[]) {
+      const amount = Number(collection.amount || 0);
+      summary.total += amount;
+      if (collection.type === 'SAVINGS') summary.savings += amount;
+      if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += amount;
+      if (collection.type === 'OTHER') summary.other += amount;
+      if (collection.reconciled) summary.reconciled += amount; else summary.unreconciled += amount;
+      if (collection.settled) summary.settled += amount; else summary.unsettled += amount;
+      summary.collectionCount++;
+      const staff = collection.staff || {};
+      const key = String(collection.staffId || 'UNASSIGNED');
+      const officer = officers.get(key) || {
+        staffId: collection.staffId,
+        employeeStaffId: staff.staffId || null,
+        officerName: [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim() || 'Unknown officer',
+        branchId: collection.branchId,
+        branchName: collection.branch?.name || null,
+        collectionCount: 0,
+        cashCollected: 0,
+        settled: 0,
+        unsettled: 0,
+      };
+      officer.collectionCount++;
+      officer.cashCollected += amount;
+      if (collection.settled) officer.settled += amount; else officer.unsettled += amount;
+      officers.set(key, officer);
+    }
+    return { ...summary, byOfficer: [...officers.values()].sort((a, b) => b.cashCollected - a.cashCollected) };
   }
 
   async reconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } }); }
   async unreconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); if (collection.settled) throw new BadRequestException('A settled collection cannot be unreconciled'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: false } }); }
-  async dailySummary(date: string, branchId?: string) { const start = new Date(`${date}T00:00:00.000Z`), end = new Date(`${date}T23:59:59.999Z`); if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date'); const collections = await this.prisma.dailyCollection.findMany({ where: { collectionDate: { gte: start, lte: end }, ...(branchId ? { branchId } : {}) } }); return collections.reduce((summary, collection) => { summary.total += collection.amount; if (collection.type === 'SAVINGS') summary.savings += collection.amount; if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += collection.amount; if (collection.type === 'OTHER') summary.other += collection.amount; if (collection.settled) summary.settled += collection.amount; else summary.unsettled += collection.amount; summary.collectionCount++; return summary; }, { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0 }); }
+  async dailySummary(date: string, branchId?: string, staffId?: string, branchIds?: string[] | null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new BadRequestException('Invalid collection date');
+    const start = new Date(`${date}T00:00:00.000+01:00`);
+    const end = new Date(`${date}T23:59:59.999+01:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date');
+
+    const branchFilter = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
+    if (branchIds && !branchIds.length && !branchId) {
+      return { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, registrationFees: 0, registrationFeeCount: 0, cashRepayments: 0, cashRepaymentCount: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: 0, byOfficer: [] };
+    }
+
+    const [collections, walletDeposits, cashRepayments] = await Promise.all([
+      this.prisma.dailyCollection.findMany({
+        where: { collectionDate: { gte: start, lte: end }, ...branchFilter, ...(staffId ? { staffId } : {}) },
+        include: {
+          staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } },
+          branch: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.walletTransaction.findMany({
+        where: {
+          type: 'DEPOSIT',
+          status: 'COMPLETED',
+          provider: 'MANUAL_CASH',
+          createdAt: { gte: start, lte: end },
+          ...branchFilter,
+          ...(staffId ? { staffId } : {}),
+        },
+        select: { id: true, customerId: true, amount: true, reference: true, branchId: true, staffId: true, createdAt: true },
+      }),
+      this.prisma.repayment.findMany({
+        where: {
+          method: 'CASH',
+          paymentDate: { gte: start, lte: end },
+          ...branchFilter,
+          ...(staffId ? { staffId } : {}),
+        },
+        select: { id: true, amount: true, reference: true, branchId: true, staffId: true, paymentDate: true },
+      }),
+    ]);
+
+    // Registration fees are separately receipted and cashbook-posted, not wallet credits.
+    // Count them as collected cash once, using their immutable receipt rows.
+    let registrationReceipts: any[] = [];
+    try {
+      const conditions = ['r."collectedAt" >= $1', 'r."collectedAt" <= $2'];
+      const params: any[] = [start, end];
+      if (branchId) {
+        params.push(branchId);
+        conditions.push(`r."branchId" = $${params.length}`);
+      } else if (branchIds) {
+        params.push(branchIds);
+        conditions.push(`r."branchId" = ANY($${params.length}::text[])`);
+      }
+      if (staffId) {
+        params.push(staffId);
+        conditions.push(`r."staffId" = $${params.length}`);
+      }
+      registrationReceipts = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT r."id",r."amount",r."branchId",r."staffId",r."reference",
+          s."staffId" AS "employeeStaffId",s."firstName",s."lastName",b."name" AS "branchName"
+         FROM "PWFBRegistrationFeeReceipt" r
+         JOIN "Staff" s ON s."id"=r."staffId"
+         JOIN "Branch" b ON b."id"=r."branchId"
+         WHERE ${conditions.join(' AND ')} ORDER BY r."collectedAt"`,
+        ...params,
+      );
+    } catch {
+      registrationReceipts = [];
+    }
+
+    const collectionReferences = new Set((collections as any[]).map(row => String(row.reference || '').trim()).filter(Boolean));
+    const deposits = (walletDeposits as any[]).filter(row => !row.reference || !collectionReferences.has(String(row.reference).trim()));
+    const staffIds = [...new Set([
+      ...deposits.map(row => String(row.staffId || '')),
+      ...registrationReceipts.map(row => String(row.staffId || '')),
+      ...(cashRepayments as any[]).map(row => String(row.staffId || '')),
+    ].filter(Boolean))];
+    const depositBranchIds = [...new Set([
+      ...deposits.map(row => String(row.branchId || '')),
+      ...registrationReceipts.map(row => String(row.branchId || '')),
+      ...(cashRepayments as any[]).map(row => String(row.branchId || '')),
+    ].filter(Boolean))];
+    const [staffRows, branchRows] = await Promise.all([
+      staffIds.length ? this.prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } }) : Promise.resolve([]),
+      depositBranchIds.length ? this.prisma.branch.findMany({ where: { id: { in: depositBranchIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
+    ]);
+    const staffById = new Map((staffRows as any[]).map(row => [String(row.id), row]));
+    const branchById = new Map((branchRows as any[]).map(row => [String(row.id), row]));
+    const summary: any = { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, registrationFees: 0, registrationFeeCount: registrationReceipts.length, cashRepayments: 0, cashRepaymentCount: cashRepayments.length, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: deposits.length };
+    const officers = new Map<string, any>();
+
+    const officerFor = (staffIdValue: string | null, branchIdValue: string | null, staff: any, branchName: string | null) => {
+      const key = String(staffIdValue || 'UNASSIGNED');
+      const officer = officers.get(key) || {
+        staffId: staffIdValue,
+        employeeStaffId: staff?.staffId || null,
+        officerName: [staff?.firstName, staff?.lastName].filter(Boolean).join(' ').trim() || 'Unassigned collector',
+        branchId: branchIdValue,
+        branchName,
+        collectionCount: 0,
+        depositCount: 0,
+        registrationFeeCount: 0,
+        repaymentCount: 0,
+        cashCollected: 0,
+        settled: 0,
+        unsettled: 0,
+      };
+      officers.set(key, officer);
+      return officer;
+    };
+
+    for (const collection of collections as any[]) {
+      const amount = Number(collection.amount || 0);
+      summary.total += amount;
+      if (collection.type === 'SAVINGS') summary.savings += amount;
+      if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += amount;
+      if (collection.type === 'OTHER') summary.other += amount;
+      if (collection.settled) summary.settled += amount; else summary.unsettled += amount;
+      summary.collectionCount++;
+      const officer = officerFor(collection.staffId || null, collection.branchId || null, collection.staff, collection.branch?.name || null);
+      officer.collectionCount++;
+      officer.cashCollected += amount;
+      if (collection.settled) officer.settled += amount; else officer.unsettled += amount;
+    }
+
+    for (const deposit of deposits) {
+      const amount = Number(deposit.amount || 0);
+      summary.cashDeposits += amount;
+      summary.settled += amount;
+      const staff = deposit.staffId ? staffById.get(String(deposit.staffId)) : null;
+      const branch = deposit.branchId ? branchById.get(String(deposit.branchId)) : null;
+      const officer = officerFor(deposit.staffId || null, deposit.branchId || null, staff, branch?.name || null);
+      officer.depositCount++;
+      officer.cashCollected += amount;
+      officer.settled += amount;
+    }
+
+    for (const receipt of registrationReceipts) {
+      const amount = Number(receipt.amount || 0);
+      summary.registrationFees += amount;
+      summary.settled += amount;
+      const staff = receipt.staffId ? staffById.get(String(receipt.staffId)) : null;
+      const branch = receipt.branchId ? branchById.get(String(receipt.branchId)) : null;
+      const officer = officerFor(receipt.staffId || null, receipt.branchId || null, staff, branch?.name || null);
+      officer.registrationFeeCount++;
+      officer.cashCollected += amount;
+      officer.settled += amount;
+    }
+
+    for (const repayment of cashRepayments as any[]) {
+      const amount = Number(repayment.amount || 0);
+      summary.cashRepayments += amount;
+      summary.settled += amount;
+      const staff = repayment.staffId ? staffById.get(String(repayment.staffId)) : null;
+      const branch = repayment.branchId ? branchById.get(String(repayment.branchId)) : null;
+      const officer = officerFor(repayment.staffId || null, repayment.branchId || null, staff, branch?.name || null);
+      officer.repaymentCount++;
+      officer.cashCollected += amount;
+      officer.settled += amount;
+    }
+
+    summary.cashCollectedTotal = summary.total + summary.cashDeposits + summary.registrationFees + summary.cashRepayments;
+    return { ...summary, byOfficer: [...officers.values()].sort((a, b) => b.cashCollected - a.cashCollected) };
+  }
 }

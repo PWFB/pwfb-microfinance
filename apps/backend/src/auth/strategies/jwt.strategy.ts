@@ -5,11 +5,12 @@ import { createHash } from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
-const jwtSecret =
-  process.env.JWT_SECRET ||
-  (process.env.NODE_ENV === 'test'
-    ? 'pwfb-test-only-secret'
-    : 'pwfb-development-only-secret');
+const jwtSecret = process.env.JWT_SECRET?.trim() ||
+  (process.env.NODE_ENV === 'test' ? 'pwfb-test-only-secret' : '');
+
+if (!jwtSecret) {
+  throw new Error('JWT_SECRET must be configured before PWFB authentication can start.');
+}
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {

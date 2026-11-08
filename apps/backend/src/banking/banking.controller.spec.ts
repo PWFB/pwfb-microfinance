@@ -9,6 +9,8 @@ describe('BankingController customer virtual-account consent forwarding', () => 
       {} as any,
       {} as any,
       {} as any,
+      { assertVerified: jest.fn().mockResolvedValue(true) } as any,
+      { assertCustomer: jest.fn().mockResolvedValue(true) } as any,
     );
 
     const result = await controller.ensureCustomerVirtualAccount(
@@ -29,6 +31,8 @@ describe('BankingController customer virtual-account consent forwarding', () => 
       {} as any,
       {} as any,
       {} as any,
+      { assertVerified: jest.fn().mockResolvedValue(true) } as any,
+      { assertCustomer: jest.fn().mockResolvedValue(true) } as any,
     );
 
     await controller.ensureCustomerVirtualAccount(

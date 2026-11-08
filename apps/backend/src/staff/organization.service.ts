@@ -5,7 +5,7 @@ import { Role } from '@prisma/client';
 @Injectable()
 export class OrganizationService {
   constructor(private readonly prisma: PrismaService) {}
-  private readonly fullRoles: Role[] = [Role.SUPER_ADMIN, Role.ADMIN];
+  private readonly fullRoles: Role[] = [Role.SUPER_ADMIN];
 
   private async getScope(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -13,10 +13,10 @@ export class OrganizationService {
       include: { staff: { include: { assignments: { where: { active: true }, orderBy: { startsAt: 'desc' } } } } },
     });
     if (!user) throw new NotFoundException('User not found');
-    if (this.fullRoles.includes(user.role)) return { role: user.role, full: true };
+    if (this.fullRoles.includes(user.role)) return { role: user.role, full: true, staffId: null };
     const assignment = user.staff?.assignments[0];
     if (!assignment) throw new ForbiddenException('No active organizational assignment');
-    return { role: assignment.role, assignment, full: false };
+    return { role: assignment.role, assignment, full: false, staffId: user.staff?.id || null };
   }
 
   private async ensureLegacyBranchHierarchy() {
@@ -39,20 +39,39 @@ export class OrganizationService {
       where,
       orderBy: { name: 'asc' },
       include: {
-        divisions: { orderBy: { name: 'asc' }, include: { areas: true, branches: true, staff: true } },
-        areas: { orderBy: { name: 'asc' }, include: { branches: true, staff: true } },
+        divisions: { orderBy: { name: 'asc' }, include: {
+          areas: { include: { staff: true, branches: { include: { staff: true } } } },
+          branches: { include: { staff: true } },
+          staff: true,
+        } },
+        areas: { orderBy: { name: 'asc' }, include: { branches: { include: { staff: true } }, staff: true } },
         branches: { orderBy: { name: 'asc' }, include: { staff: true } },
         staff: true,
       },
     });
     if (scope.full || scope.assignment?.role === Role.REGIONAL_MANAGER || scope.assignment?.role === Role.MONITORING_TEAM || scope.assignment?.role === Role.AUDITOR) return regions;
     const assignment = scope.assignment!;
+    const ownStaff = (members: any[]) => scope.role === Role.CREDIT_OFFICER
+      ? members.filter((member) => member.id === scope.staffId)
+      : assignment.branchId
+        ? members.filter((member) => member.branchId === assignment.branchId)
+        : members;
     return regions.map((region) => ({
       ...region,
-      divisions: assignment.divisionId ? region.divisions.filter((d) => d.id === assignment.divisionId) : region.divisions,
-      areas: assignment.areaId ? region.areas.filter((a) => a.id === assignment.areaId) : region.areas,
-      branches: assignment.branchId ? region.branches.filter((b) => b.id === assignment.branchId) : region.branches,
-      staff: assignment.branchId ? region.staff.filter((s) => s.branchId === assignment.branchId) : region.staff,
+      divisions: (assignment.divisionId ? region.divisions.filter((d) => d.id === assignment.divisionId) : region.divisions)
+        .map((division) => ({
+          ...division,
+          staff: ownStaff(division.staff || []),
+          branches: (division.branches || []).filter((branch) => !assignment.branchId || branch.id === assignment.branchId)
+            .map((branch) => ({ ...branch, staff: ownStaff(branch.staff || []) })),
+          areas: (division.areas || []).filter((area) => !assignment.areaId || area.id === assignment.areaId)
+            .map((area) => ({ ...area, staff: ownStaff(area.staff || []), branches: (area.branches || []).filter((branch) => !assignment.branchId || branch.id === assignment.branchId).map((branch) => ({ ...branch, staff: ownStaff(branch.staff || []) })) })),
+        })),
+      areas: (assignment.areaId ? region.areas.filter((a) => a.id === assignment.areaId) : region.areas)
+        .map((area) => ({ ...area, staff: ownStaff(area.staff || []), branches: (area.branches || []).filter((branch) => !assignment.branchId || branch.id === assignment.branchId).map((branch) => ({ ...branch, staff: ownStaff(branch.staff || []) })) })),
+      branches: (assignment.branchId ? region.branches.filter((b) => b.id === assignment.branchId) : region.branches)
+        .map((branch) => ({ ...branch, staff: ownStaff(branch.staff || []) })),
+      staff: ownStaff(region.staff || []),
     }));
   }
 
@@ -99,11 +118,23 @@ export class OrganizationService {
   createArea(body: { name: string; regionId: string; divisionId?: string }) {
     return this.prisma.area.create({ data: { name: body.name, regionId: body.regionId, divisionId: body.divisionId } });
   }
-  async regionStaff(regionId: string) {
+  async regionStaff(regionId: string, userId: string) {
+    const scope = await this.getScope(userId);
     const region = await this.prisma.region.findUnique({ where: { id: regionId }, select: { id: true } });
     if (!region) throw new NotFoundException('Region not found');
+    const where: any = { regionId };
+    if (!scope.full) {
+      const assignment = scope.assignment!;
+      if (assignment.role === Role.REGIONAL_MANAGER) {
+        if (assignment.regionId !== regionId) throw new ForbiddenException('Region is outside your assignment');
+      } else if (assignment.divisionId) where.divisionId = assignment.divisionId;
+      else if (assignment.areaId) where.areaId = assignment.areaId;
+      else if (assignment.branchId) where.branchId = assignment.branchId;
+      else throw new ForbiddenException('Your organization assignment has no branch scope');
+      if (assignment.role === Role.CREDIT_OFFICER) throw new ForbiddenException('Credit officers cannot browse other staff records');
+    }
     return this.prisma.staff.findMany({
-      where: { regionId }, orderBy: [{ position: 'asc' }, { lastName: 'asc' }],
+      where, orderBy: [{ position: 'asc' }, { lastName: 'asc' }],
       include: { branch: true, department: true, assignments: { orderBy: { startsAt: 'desc' } } },
     });
   }

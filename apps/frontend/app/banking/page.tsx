@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { pwfbApi } from "../../lib/pwfb-api";
+import { useAuth } from "../../context/AuthContext";
 import BankSearchSelect from "../../components/BankSearchSelect";
 
 type Customer = { id: string; firstName?: string; lastName?: string; name?: string; phone?: string; email?: string };
@@ -21,6 +23,9 @@ const fallbackBanks: Bank[] = [
 ];
 
 export default function BankingPage() {
+  const { user } = useAuth();
+  const role = String(user?.role || "").toUpperCase();
+  const allowedOperations = role === "TELLER" || role === "CREDIT_OFFICER" ? ["deposit"] as Operation[] : role === "ASSET_LOAN_MANAGER" ? [] as Operation[] : operations;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerId, setCustomerId] = useState("");
@@ -39,19 +44,26 @@ export default function BankingPage() {
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [reference, setReference] = useState("");
+  const [cashReceivedConfirmed, setCashReceivedConfirmed] = useState(false);
   const [recipientId, setRecipientId] = useState("");
   const [loading, setLoading] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    if (!user?.role) return;
     const selected = new URLSearchParams(window.location.search).get("operation") as Operation | null;
-    if (selected && operations.includes(selected)) setOperation(selected);
+    if (selected && allowedOperations.includes(selected)) setOperation(selected);
+    else if (!allowedOperations.includes(operation) && allowedOperations[0]) setOperation(allowedOperations[0]);
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (role === "ASSET_LOAN_MANAGER") return;
     Promise.all([pwfbApi.customers.search(), pwfbApi.banking.institutions()]).then(([customerData, bankData]) => {
       setCustomers(unwrap<Customer>(customerData));
       {const loaded=unwrap<any>(bankData).map((bank:any)=>({code:String(bank.code??bank.bankCode??""),name:String(bank.name??bank.bankName??bank.institutionName??""),shortName:bank.shortName,provider:String(bank.provider||"").toUpperCase()})).filter((bank:Bank)=>bank.code&&bank.name);const merged=new Map<string,Bank>();[...loaded,...fallbackBanks].forEach((b)=>{const key=b.code||b.name.toLowerCase();if(!merged.has(key))merged.set(key,b)});setBanks([...merged.values()].sort((a,b)=>a.name.localeCompare(b.name)));}
     }).catch(() => setMessage("Some banking reference data could not be loaded."));
-  }, []);
+  }, [role]);
 
   useEffect(() => {
     if (!customerId) { setWallet(null); setTransactions([]); return; }
@@ -109,16 +121,18 @@ export default function BankingPage() {
   }
 
   function choose(next: Operation) {
-    setOperation(next); setMessage(""); if (next !== "transfer") clearVerification();
+    setOperation(next); setMessage(""); setCashReceivedConfirmed(false); if (next !== "transfer") clearVerification();
     const url = new URL(window.location.href); url.searchParams.set("operation", next); window.history.replaceState({}, "", url.toString());
   }
 
   async function submit() {
+    if (!allowedOperations.includes(operation)) return setMessage("This banking operation is not available to your role.");
     if (!customerId) return setMessage("Select a customer first.");
     const numericAmount = Number(amount);
     if (!numericAmount || numericAmount <= 0) return setMessage("Enter a valid amount greater than zero.");
     if (!reference.trim()) return setMessage("Enter a transaction reference.");
-    if (operation === "bank-withdraw" || operation === "bank-transfer" || operation === "deposit") {
+    if (operation === "deposit" && !cashReceivedConfirmed) return setMessage("Confirm that the physical cash has been received and counted before crediting the customer wallet.");
+    if (operation === "bank-withdraw" || operation === "bank-transfer") {
       if (!bankCode || !/^\d{10}$/.test(accountNumber)) return setMessage("Select a bank and enter a valid 10-digit account number.");
       if (!bankProvider) return setMessage("The selected bank has no verification provider.");
       if (!verified || verifiedAccountNumber !== accountNumber || verifiedBankCode !== bankCode || verificationProvider !== bankProvider) return setMessage("Verify this exact bank account with the selected provider before processing the operation.");
@@ -128,40 +142,46 @@ export default function BankingPage() {
     setLoading(true); setMessage("");
     try {
       const common = { amount: numericAmount, description, reference: reference.trim(), provider: bankProvider };
-      if (operation === "deposit") await pwfbApi.banking.deposit(customerId, { ...common, bankCode, accountNumber, accountName });
+      if (operation === "deposit") await pwfbApi.banking.deposit(customerId, { ...common, cashReceivedConfirmed: true });
       else if (operation === "cash-withdraw") await pwfbApi.banking.withdraw(customerId, { ...common, destination: "CASH" });
       else if (operation === "bank-withdraw") await pwfbApi.banking.withdraw(customerId, { ...common, destination: "BANK", bankCode, accountNumber, accountName });
       else if (operation === "bank-transfer") await pwfbApi.banking.bankTransfer(customerId, { ...common, bankCode, accountNumber, accountName });
       else await pwfbApi.banking.transfer(customerId, { ...common, recipientCustomerId: recipientId });
       const [nextWallet, nextTransactions] = await Promise.all([pwfbApi.banking.customerWallet(customerId), pwfbApi.banking.customerTransactions(customerId)]);
       setWallet(nextWallet); setTransactions(unwrap<Tx>(nextTransactions));
-      setAmount(""); setDescription(""); setReference(""); setAccountNumber(""); clearVerification();
+      setAmount(""); setDescription(""); setReference(""); setAccountNumber(""); setCashReceivedConfirmed(false); clearVerification();
       setMessage("Operation completed successfully.");
     } catch (error) { setMessage(error instanceof Error ? error.message : "Operation could not be completed."); }
     finally { setLoading(false); }
   }
 
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
-  const title = { deposit: "Deposit to Wallet", "cash-withdraw": "Cash Withdrawal", "bank-withdraw": "Withdrawal to Bank", transfer: "Customer Transfer", "bank-transfer": "Bank Transfer" }[operation];
+  const title = { deposit: "Cash Deposit to Wallet", "cash-withdraw": "Cash Withdrawal", "bank-withdraw": "Withdrawal to Bank", transfer: "Customer Transfer", "bank-transfer": "Bank Transfer" }[operation];
 
   return <main className="pwfb-banking-page">
-    <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">LAB BANKING • OPERATIONS</p><h1 className="pwfb-page-title">Banking Operations</h1><p className="pwfb-page-description">Manage deposits, withdrawals and transfers with live account verification.</p></div><div className="pwfb-banking-brand-mark"><span>LAB</span><small>FINANCIAL OPERATIONS</small></div></div>
+    <div className="pwfb-page-header"><div><p className="pwfb-eyebrow">LAB BANKING • OPERATIONS</p><h1 className="pwfb-page-title">Banking Operations</h1><p className="pwfb-page-description">Manage deposits, withdrawals and transfers with live account verification.</p></div><div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>{["TELLER","CREDIT_OFFICER","BRANCH_MANAGER","ADMIN","SUPER_ADMIN"].includes(role)&&<Link href="/repayments/bulk" style={{display:"inline-flex",alignItems:"center",justifyContent:"center",padding:"12px 16px",borderRadius:12,background:"#f7931e",color:"#fff",textDecoration:"none",fontWeight:800,fontSize:13}}>Bulk Daily Loan Payment →</Link>}<div className="pwfb-banking-brand-mark"><span>LAB</span><small>FINANCIAL OPERATIONS</small></div></div></div>
     <section className="pwfb-banking-hero"><div className="pwfb-banking-step"><span className="pwfb-step-number">01</span><div style={{width:"100%"}}><label>Select Customer</label><input className="pwfb-input" value={customerSearch} onChange={(e)=>setCustomerSearch(e.target.value)} placeholder="Search customer by name, ID, phone or email" style={{marginBottom:8}}/><select className="pwfb-input" value={customerId} onChange={(e)=>setCustomerId(e.target.value)}><option value="">Choose a customer account</option>{filteredCustomers.map((customer)=><option key={customer.id} value={customer.id}>{customerName(customer)} • {customer.id}</option>)}</select></div></div>{selectedCustomer && wallet ? <div className="pwfb-banking-balance"><small>AVAILABLE WALLET BALANCE</small><strong>{wallet.currency || "NGN"} {Number(wallet.balance || 0).toLocaleString()}</strong><span>{customerName(selectedCustomer)} • Active account</span></div> : <div className="pwfb-banking-hero-note"><b>Ready for banking operations</b><span>Select a customer to begin.</span></div>}</section>
-    <section className="pwfb-panel pwfb-operation-panel"><div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">TRANSACTION WORKFLOW</p><h2>Choose Banking Operation</h2><p>Select the service you want to perform.</p></div></div><div className="pwfb-banking-operation-grid">{operations.map((item)=><button key={item} type="button" className={`pwfb-banking-operation ${operation===item?"pwfb-banking-operation-active":""} ${item==="deposit"?"pwfb-op-deposit":""}`} onClick={()=>choose(item)}><span>{item==="deposit"?"＋":item==="cash-withdraw"||item==="bank-withdraw"?"−":item==="transfer"?"↔":"⌁"}</span><strong>{item==="cash-withdraw"?"Cash Withdrawal":item==="bank-withdraw"?"Bank Withdrawal":item==="bank-transfer"?"Bank Transfer":item[0].toUpperCase()+item.slice(1)}</strong><small>{item==="deposit"?"Credit customer wallet":item==="cash-withdraw"?"Pay cash and debit wallet":item==="bank-withdraw"?"Send wallet funds to verified bank":item==="transfer"?"Move funds between customers":"Send funds to external bank"}</small></button>)}</div></section>
-    <section className="pwfb-panel pwfb-deposit-card"><div className="pwfb-panel-header pwfb-operation-header"><div><p className="pwfb-eyebrow">02 / {operation.toUpperCase()}</p><h2>{title}</h2><p>Account names are never hard-coded. Click Verify Account to query the selected provider for this exact 10-digit account.</p></div><span className="pwfb-operation-badge">{operation.toUpperCase()}</span></div>
+    <section className="pwfb-panel pwfb-operation-panel"><div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">TRANSACTION WORKFLOW</p><h2>Choose Banking Operation</h2><p>Select the service you want to perform.</p></div></div><div className="pwfb-banking-operation-grid">{allowedOperations.map((item)=><button key={item} type="button" className={`pwfb-banking-operation ${operation===item?"pwfb-banking-operation-active":""} ${item==="deposit"?"pwfb-op-deposit":""}`} onClick={()=>choose(item)}><span>{item==="deposit"?"＋":item==="cash-withdraw"||item==="bank-withdraw"?"−":item==="transfer"?"↔":"⌁"}</span><strong>{item==="cash-withdraw"?"Cash Withdrawal":item==="bank-withdraw"?"Bank Withdrawal":item==="bank-transfer"?"Bank Transfer":item[0].toUpperCase()+item.slice(1)}</strong><small>{item==="deposit"?"Credit customer wallet":item==="cash-withdraw"?"Pay cash and debit wallet":item==="bank-withdraw"?"Send wallet funds to verified bank":item==="transfer"?"Move funds between customers":"Send funds to external bank"}</small></button>)}</div></section>
+    <section className="pwfb-panel pwfb-deposit-card"><div className="pwfb-panel-header pwfb-operation-header"><div><p className="pwfb-eyebrow">02 / {operation.toUpperCase()}</p><h2>{title}</h2><p>{operation==="deposit"?"Cash received is recorded with the collecting Staff ID, branch and an automatic cashbook receipt.":"Verify the exact bank account with the selected provider before processing."}</p></div><span className="pwfb-operation-badge">{operation.toUpperCase()}</span></div>
       <div className="pwfb-banking-form-grid">
-        {(operation === "deposit" || operation === "bank-withdraw" || operation === "bank-transfer") && <>
+        {(operation === "bank-withdraw" || operation === "bank-transfer") && <>
           <div className="pwfb-form-field-wide"><label className="pwfb-label">Bank Search</label><BankSearchSelect banks={banks} value={bankCode} onChange={changeBank} /></div>
           <div><label className="pwfb-label">Account Number</label><input className="pwfb-input" inputMode="numeric" maxLength={10} value={accountNumber} onChange={(e)=>changeAccount(e.target.value)} placeholder="10-digit account number"/><button type="button" className="pwfb-primary-button" style={{marginTop:10,width:"100%"}} disabled={verifying || !bankCode || !bankProvider || !/^\d{10}$/.test(accountNumber)} onClick={verifyAccount}>{verifying?"Verifying…":"Verify Account"}</button></div>
           <div><label className="pwfb-label">Verified Account Name</label><div className={`pwfb-verify-field ${verified?"verified":""}`}>{verified?accountName:verifying?"Verifying with bank…":"Not verified"}{verified&&<b>✓</b>}</div>{bankProvider&&<small style={{display:"block",marginTop:6}}>Provider: {bankProvider}</small>}{verified&&<small style={{display:"block",marginTop:4}}>Verified for {verifiedAccountNumber} • {verificationProvider}</small>}</div>
         </>}
         {operation === "transfer" && <div><label className="pwfb-label">Transfer Recipient</label><select className="pwfb-input" value={recipientId} onChange={(e)=>setRecipientId(e.target.value)}><option value="">Select LAB customer</option>{customers.filter(c=>c.id!==customerId).map(c=><option key={c.id} value={c.id}>{customerName(c)} • {c.id}</option>)}</select></div>}
+        {operation === "deposit" && <div className="pwfb-form-field-wide" style={{border:"1px solid #f1d9b8",borderRadius:12,padding:14,background:"#fffaf3"}}>
+          <label className="pwfb-label" style={{display:"flex",alignItems:"flex-start",gap:10,textTransform:"none",fontSize:13}}>
+            <input type="checkbox" checked={cashReceivedConfirmed} onChange={e=>setCashReceivedConfirmed(e.target.checked)} style={{width:18,height:18,marginTop:2}} />
+            <span><strong>Cash physically received and counted</strong><small style={{display:"block",fontWeight:400,marginTop:4}}>I confirm the exact amount above has been physically received at this branch. The system will credit the wallet and post a matching cashbook receipt linked to my Staff ID.</small></span>
+          </label>
+        </div>}
         <div><label className="pwfb-label">Amount</label><div className="pwfb-amount-input"><span>₦</span><input className="pwfb-input" type="number" min="0" value={amount} onChange={(e)=>setAmount(e.target.value)} placeholder="0.00"/></div></div>
         <div><label className="pwfb-label">Transaction Reference</label><input className="pwfb-input" value={reference} onChange={(e)=>setReference(e.target.value)} placeholder="e.g. LAB-DEP-001"/></div>
         <div className="pwfb-form-field-wide"><label className="pwfb-label">Narration</label><input className="pwfb-input" value={description} onChange={(e)=>setDescription(e.target.value)} placeholder="Optional transaction description"/></div>
       </div>
       {message&&<div className="pwfb-security-note" style={{marginTop:16}}>{message}</div>}
-      <div className="pwfb-deposit-actions"><div className="pwfb-security-note">🔐 <span>Live verification required • The verified name must belong to the exact bank/account number currently entered.</span></div><button type="button" className="pwfb-primary-button" disabled={loading} onClick={submit}>{loading?"Processing…":"Process Operation"}</button></div>
+      <div className="pwfb-deposit-actions"><div className="pwfb-security-note">🔐 <span>{operation==="deposit"?"MFA required • The wallet credit and cashbook receipt are committed together.":"Live verification required • The verified name must belong to the exact bank/account number currently entered."}</span></div><button type="button" className="pwfb-primary-button" disabled={loading} onClick={submit}>{loading?"Processing…":"Process Operation"}</button></div>
     </section>
     <section className="pwfb-panel" style={{marginTop:20}}><div className="pwfb-panel-header"><div><p className="pwfb-eyebrow">ACCOUNT ACTIVITY</p><h2>Recent Transactions</h2></div></div>{transactions.length===0?<p>No transactions found for this customer.</p>:<div style={{overflowX:"auto"}}><table className="pwfb-table"><thead><tr><th>Type</th><th>Reference</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{transactions.slice(0,20).map((tx)=><tr key={tx.id}><td>{tx.type||"—"}</td><td>{tx.reference||tx.id}</td><td>₦{Number(tx.amount||0).toLocaleString()}</td><td>{tx.status||"—"}</td><td>{tx.createdAt||tx.created_at?new Date(tx.createdAt||tx.created_at!).toLocaleString():"—"}</td></tr>)}</tbody></table></div>}</section>
   </main>;

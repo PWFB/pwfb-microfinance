@@ -7,8 +7,9 @@ import styles from "./cashbook.module.css";
 
 type Branch={id:string;name:string};
 type Period={id:string;name:string;status?:string};
-type Staff={id:string;firstName?:string;lastName?:string;position?:string;branchId?:string};
-type Row={id:string;entryDate:string;description?:string;referenceNo?:string;staffId?:string;branch?:{name?:string};[key:string]:any};
+type Staff={id:string;staffId?:string;firstName?:string;lastName?:string;position?:string;branchId?:string};
+type Row={id:string;entryDate:string;description?:string;referenceNo?:string;staffId?:string;staff?:{staffId?:string;firstName?:string;lastName?:string}|null;branch?:{name?:string};[key:string]:any};
+type PostedEntry={id:string;entryDate:string;type:'CASH_IN'|'CASH_OUT';amount:number;reference?:string|null;description?:string|null;staffId?:string|null;staff?:{staffId?:string;firstName?:string;lastName?:string}|null};
 
 const receipts=[
   ["previousCashAtHand","Previous day's cash-in-hand"],
@@ -84,6 +85,7 @@ export default function CashbookPage(){
   const [periodId,setPeriodId]=useState("");
   const [form,setForm]=useState<any>(blank());
   const [rows,setRows]=useState<Row[]>([]);
+  const [postedEntries,setPostedEntries]=useState<PostedEntry[]>([]);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
   const [error,setError]=useState("");
@@ -103,18 +105,35 @@ export default function CashbookPage(){
       if(open)setPeriodId(open.id);
     }catch(e:any){setError(e?.message||"Unable to load cashbook settings");}
   }
-  async function loadStaff(){try{const s=await apiRequest("/staff");setStaff(Array.isArray(s)?s:[]);}catch{setStaff([]);}}
+  async function loadStaff(){try{const s=await apiRequest("/staff");const list=Array.isArray(s)?s:[];setStaff(list);if(list.length===1)setForm((current:any)=>({...current,staffId:list[0].id}));}catch{setStaff([]);}}
   async function load(){
     if(!periodId||!branchId)return;
     try{
       setLoading(true);
       const q=new URLSearchParams({periodId,branchId});
       if(from)q.set("from",from);if(to)q.set("to",`${to}T23:59:59`);
-      const d=await apiRequest(`/cashbook/daily?${q}`);setRows(Array.isArray(d)?d:[]);
+      const [d,posted]=await Promise.all([
+        apiRequest(`/cashbook/daily?${q}`),
+        apiRequest(`/cashbook?${q}`),
+      ]);
+      setRows(Array.isArray(d)?d:[]);
+      setPostedEntries(Array.isArray(posted)?posted:[]);
     }catch(e:any){setError(e?.message||"Unable to load cashbook");}finally{setLoading(false);}
+  }
+  async function loadOpeningBalance(){
+    if(!branchId)return;
+    try{
+      const q=new URLSearchParams({branchId,entryDate:form.entryDate});
+      if(form.staffId)q.set("staffId",form.staffId);
+      const value=await apiRequest(`/cashbook/daily/opening-balance?${q}`);
+      setForm((current:any)=>({...current,previousCashAtHand:String(Number(value?.previousCashAtHand||0))}));
+    }catch(e:any){
+      setError(e?.message||"Unable to calculate the previous closing cash balance.");
+    }
   }
   useEffect(()=>{void init();void loadStaff();},[]);
   useEffect(()=>{void load();},[periodId,branchId,from,to]);
+  useEffect(()=>{void loadOpeningBalance();},[branchId,form.staffId,form.entryDate]);
 
   async function submit(e:React.FormEvent){
     e.preventDefault();setError("");setMessage("");
@@ -156,12 +175,12 @@ export default function CashbookPage(){
       {message&&<div className={`mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-900 ${styles.cashbookSuccess}`}>{message}</div>}
 
       <section className="mb-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
-        <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">The input fields follow the same categories and No./N columns as the physical register.</p></div>
+        <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">Opening cash is carried forward automatically from the previous closing balance. All other daily fields start fresh.</p></div>
         <form onSubmit={submit} className="p-4">
           <div className="grid gap-3 md:grid-cols-4">
             <label className="field">Date<input type="date" value={form.entryDate} onChange={e=>set("entryDate",e.target.value)}/></label>
             <label className="field">Description<input value={form.description} onChange={e=>set("description",e.target.value)} placeholder="Customer / daily description"/></label>
-            <label className="field">Field staff / collector<select value={form.staffId} onChange={e=>set("staffId",e.target.value)}><option value="">Not assigned</option>{staff.filter(s=>!s.branchId||s.branchId===branchId).map(s=><option key={s.id} value={s.id}>{s.firstName} {s.lastName} — {s.position||"Staff"}</option>)}</select></label>
+            <label className="field">Field staff / collector<select value={form.staffId} onChange={e=>set("staffId",e.target.value)}><option value="">Not assigned</option>{staff.filter(s=>!s.branchId||s.branchId===branchId).map(s=><option key={s.id} value={s.id}>{s.staffId||s.id} · {s.firstName} {s.lastName} — {s.position||"Staff"}</option>)}</select></label>
             <label className="field">Reference<input value={form.referenceNo} onChange={e=>set("referenceNo",e.target.value)} placeholder="Voucher / reference"/></label>
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -186,7 +205,7 @@ export default function CashbookPage(){
                   <th colSpan={21} className="border p-2 text-left text-sm">Payments / Credit</th>
                 </tr>
                 <tr className="bg-emerald-50 text-emerald-950">
-                  <th rowSpan={2} className="border p-2">Date</th><th rowSpan={2} className="border p-2 min-w-[120px]">Description</th>
+                  <th rowSpan={2} className="border p-2">Date</th><th rowSpan={2} className="border p-2 min-w-[160px]">Description / Field Officer</th>
                   {receipts.map(([k,l])=><th rowSpan={2} key={k} className="border p-2 min-w-[95px]">{l}</th>)}
                   <th rowSpan={2} className="border p-2 min-w-[105px]">Total</th>
                   <th rowSpan={2} className="border p-2">Date</th><th rowSpan={2} className="border p-2 min-w-[120px]">Description</th>
@@ -219,6 +238,28 @@ export default function CashbookPage(){
         </div>
         <div className="border-t p-4 text-xs font-bold text-slate-500">BM Register · BM (Name/Sign.) · Horizontal scrolling is intentional on phone so the complete 37-column register remains readable.</div>
       </section>
+      <section className="mt-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
+        <div className="border-b p-4">
+          <h2 className="text-lg font-black text-emerald-950">Posted Branch Cashbook Entries</h2>
+          <p className="text-xs text-slate-500">Receipts and payments posted by the banking, collection and finance workflows. Cash deposits display the collecting Staff ID; this list is separate from the physical daily register to avoid double counting.</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="min-w-[850px] w-full border-collapse text-sm">
+            <thead className="bg-emerald-950 text-left text-xs uppercase text-white">
+              <tr><th className="p-3">Date</th><th className="p-3">Branch / Staff ID</th><th className="p-3">Reference</th><th className="p-3">Description</th><th className="p-3">Type</th><th className="p-3 text-right">Amount</th></tr>
+            </thead>
+            <tbody>
+              {postedEntries.length===0?<tr><td colSpan={6} className="p-6 text-center text-slate-500">No posted cashbook entries for this branch and period.</td></tr>:postedEntries.map(entry=><tr key={entry.id} className="border-t">
+                <td className="p-3">{new Date(entry.entryDate).toLocaleString("en-NG")}</td>
+                <td className="p-3"><strong>{entry.staff?.staffId||entry.staffId||"Branch entry"}</strong><small className="block text-slate-500">{[entry.staff?.firstName,entry.staff?.lastName].filter(Boolean).join(" ")}</small></td>
+                <td className="p-3">{entry.reference||"—"}</td><td className="p-3">{entry.description||"—"}</td>
+                <td className="p-3">{entry.type==="CASH_IN"?"Cash received":"Cash paid"}</td>
+                <td className="p-3 text-right font-black">{money(Number(entry.amount||0))}</td>
+              </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </main>;
 }
@@ -232,7 +273,7 @@ function InputGroup({title,items,form,set,payment=false}:{title:string;items:rea
     <div className="divide-y divide-slate-200">
       {items.map(([k,l])=><div key={k} className="grid grid-cols-[minmax(0,1fr)_minmax(112px,0.8fr)] items-center gap-3 px-3 py-2">
         <label htmlFor={`cashbook-${k}`} className="text-sm font-bold text-slate-900">{l}</label>
-        <input id={`cashbook-${k}`} className={styles.cashbookAmountInput} aria-label={`${l} amount in naira`} type="number" min="0" step="0.01" inputMode="decimal" value={form[k]||"0"} onChange={e=>set(k,e.target.value)}/>
+        <input id={`cashbook-${k}`} className={styles.cashbookAmountInput} aria-label={`${l} amount in naira`} type="number" min="0" step="0.01" inputMode="decimal" value={form[k]||"0"} readOnly={k==="previousCashAtHand"} aria-readonly={k==="previousCashAtHand"} title={k==="previousCashAtHand"?"Calculated automatically from the previous daily closing balance":undefined} onChange={k==="previousCashAtHand"?undefined:e=>set(k,e.target.value)}/>
       </div>)}
     </div>
   </div>;
@@ -240,11 +281,14 @@ function InputGroup({title,items,form,set,payment=false}:{title:string;items:rea
 
 function WeekRows({week,items}:{week:number;items:Row[]}){
   const totalR=items.reduce((s,r)=>s+receiptTotal(r),0),totalP=items.reduce((s,r)=>s+paymentTotal(r),0),other=items.reduce((s,r)=>s+n(r.otherAfterTotal),0);
-  const staffName=(r:Row)=>r.description||"";
+  const staffName=(r:Row)=>r.narration||"";
   return <>
     {items.map(r=><tr key={r.id} className="odd:bg-white even:bg-slate-50">
       <td className="border p-2">{new Date(r.entryDate).toLocaleDateString("en-NG",{day:"2-digit",month:"2-digit"})}</td>
-      <td className="border p-2">{staffName(r)||"—"}</td>
+      <td className="border p-2">
+        {r.staff&&<div className="mb-1"><strong className="block text-emerald-900">{r.staff.staffId||r.staffId||"Staff ID unavailable"}</strong><small className="text-slate-500">{[r.staff.firstName,r.staff.lastName].filter(Boolean).join(" ")}</small></div>}
+        <span>{r.description||"—"}</span>
+      </td>
       {receipts.map(([k])=><td key={k} className="border p-2 text-right">{n(r[k])?money(r[k]):""}</td>)}
       <td className="border p-2 text-right font-black text-emerald-800">{money(receiptTotal(r))}</td>
       <td className="border p-2">{new Date(r.entryDate).toLocaleDateString("en-NG",{day:"2-digit",month:"2-digit"})}</td>

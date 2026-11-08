@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -7,11 +7,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Controller('staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class StaffController {
-  constructor(private readonly staffService: StaffService) {}
+  constructor(private readonly staffService: StaffService, private readonly accessScope: AccessScopeService) {}
 
   @Get('bvn/banks')
   @Roles('SUPER_ADMIN', 'ADMIN')
@@ -36,24 +37,33 @@ export class StaffController {
   create(@Body() createStaffDto: CreateStaffDto) { return this.staffService.create(createStaffDto); }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN')
-  findAll(@Query() filter: StaffFilterDto) { return this.staffService.findAll(filter); }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'TELLER', 'CREDIT_OFFICER')
+  async findAll(@Query() filter: StaffFilterDto, @Req() req: any) {
+    const rows = await this.staffService.findAll(filter);
+    return this.accessScope.filterList(req.user, 'staff', rows);
+  }
 
   @Get(':id/virtual-account')
   @Roles('SUPER_ADMIN', 'ADMIN')
   virtualAccount(@Param('id') id: string) { return this.staffService.virtualAccount(id); }
 
   @Get(':id/assignments')
-  @Roles('SUPER_ADMIN', 'ADMIN')
-  assignmentHistory(@Param('id') id: string) { return this.staffService.assignmentHistory(id); }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
+  async assignmentHistory(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertStaff(req.user, id);
+    return this.staffService.assignmentHistory(id);
+  }
 
   @Post(':id/assignments')
   @Roles('SUPER_ADMIN', 'ADMIN')
   assign(@Param('id') id: string, @Body() body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) { return this.staffService.assign(id, body); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN')
-  findOne(@Param('id') id: string) { return this.staffService.findOne(id); }
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'TELLER', 'CREDIT_OFFICER')
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertStaff(req.user, id);
+    return this.staffService.findOne(id);
+  }
 
   @Patch(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')

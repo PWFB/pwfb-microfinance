@@ -16,17 +16,20 @@ type Collection = {
   settlementTransactionId?: string;
   settlementRecordId?: string;
   customer?: { id?: string; firstName: string; lastName: string };
-  staff?: { firstName: string; lastName: string };
+  staff?: { id?: string; staffId?: string; firstName: string; lastName: string };
   branch?: { name: string };
 };
 
 type Target = { id: string; label: string; customerId?: string; amount?: number; status?: string };
 
 const money = (v: number) => new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN', maximumFractionDigits: 0 }).format(Number(v) || 0);
+const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
 
 export default function CollectionsPage() {
   const [collections, setCollections] = useState<Collection[]>([]);
   const [summary, setSummary] = useState<any>({});
+  const [dailySummary, setDailySummary] = useState<any>({});
+  const [workDate, setWorkDate] = useState(localToday());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
@@ -39,9 +42,14 @@ export default function CollectionsPage() {
 
   async function load() {
     try {
-      const [rows, totals] = await Promise.all([apiRequest('/collections'), apiRequest('/collections/summary')]);
+      const [rows, totals, daily] = await Promise.all([
+        apiRequest('/collections'),
+        apiRequest('/collections/summary'),
+        apiRequest(`/collections/daily/${encodeURIComponent(workDate)}`),
+      ]);
       setCollections(Array.isArray(rows) ? rows : []);
       setSummary(totals || {});
+      setDailySummary(daily || {});
     } catch (e: any) {
       setError(e.message || 'Unable to load collections.');
     } finally {
@@ -49,7 +57,7 @@ export default function CollectionsPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [workDate]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -123,9 +131,26 @@ export default function CollectionsPage() {
 
       <section className="pwfb-stat-grid">
         <div className="pwfb-stat-card"><span>Total Collections</span><strong>{loading ? '—' : money(summary.total)}</strong><small>{summary.collectionCount || 0} collection records</small></div>
+        <div className="pwfb-stat-card"><span>Daily Cash Collected</span><strong>{loading ? '—' : money(dailySummary.cashCollectedTotal)}</strong><small>Selected date · field collections, cash deposits, registration fees and loan repayments</small></div>
         <div className="pwfb-stat-card pwfb-stat-orange"><span>Settled</span><strong>{loading ? '—' : money(summary.settled)}</strong><small>Posted into financial records</small></div>
         <div className="pwfb-stat-card"><span>Unsettled</span><strong>{loading ? '—' : money(summary.unsettled)}</strong><small>Still awaiting posting</small></div>
         <div className="pwfb-stat-card"><span>Unreconciled</span><strong>{loading ? '—' : money(summary.unreconciled)}</strong><small>Awaiting reconciliation</small></div>
+      </section>
+
+      <section className="pwfb-panel">
+        <div className="pwfb-panel-header"><div><h2>Cash Collected by Staff ID</h2><p>Daily cash received by collector, including field collections, manual wallet deposits and registration-fee receipts. Branch managers see their assigned branch; credit officers see only their own work.</p></div><label style={{display:'grid',gap:4,fontSize:12,fontWeight:700}}>Work date<input type="date" value={workDate} onChange={e=>setWorkDate(e.target.value)} style={{border:'1px solid #dfe6e2',borderRadius:10,padding:'9px 12px'}} /></label></div>
+        <div className="pwfb-table-wrap">
+          <table className="pwfb-table"><thead><tr><th>Credit Officer</th><th>Staff ID</th><th>Branch</th><th>Collection records</th><th>Wallet deposits</th><th>Registration fees</th><th>Cash repayments</th><th>Cash Collected</th><th>Settled</th><th>Unsettled</th></tr></thead>
+            <tbody>{(Array.isArray(dailySummary.byOfficer) ? dailySummary.byOfficer : []).map((officer: any) => (
+              <tr key={officer.staffId || officer.employeeStaffId || officer.officerName}>
+                <td>{officer.officerName || 'Unassigned'}</td><td>{officer.employeeStaffId || '—'}</td><td>{officer.branchName || officer.branchId || 'Assigned branch'}</td>
+                <td>{officer.collectionCount || 0}</td><td>{officer.depositCount || 0}</td><td>{officer.registrationFeeCount || 0}</td><td>{officer.repaymentCount || 0}</td><td><strong>{money(officer.cashCollected)}</strong></td><td>{money(officer.settled)}</td><td>{money(officer.unsettled)}</td>
+              </tr>
+            ))}
+            {(!Array.isArray(dailySummary.byOfficer) || dailySummary.byOfficer.length === 0) && <tr><td colSpan={10}>No cash collection records for this scope.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="pwfb-panel">
@@ -143,7 +168,7 @@ export default function CollectionsPage() {
               <tr key={collection.id}>
                 <td>{new Date(collection.collectionDate).toLocaleDateString('en-NG')}</td>
                 <td>{collection.customer ? `${collection.customer.firstName} ${collection.customer.lastName}` : '—'}<br/><small>{collection.reference || collection.id}</small></td>
-                <td>{collection.staff ? `${collection.staff.firstName} ${collection.staff.lastName}` : '—'}</td>
+                <td>{collection.staff ? <>{`${collection.staff.firstName} ${collection.staff.lastName}`}<br/><small>{collection.staff.staffId || collection.staff.id || 'Staff ID unavailable'}</small></> : '—'}</td>
                 <td>{collection.type}</td>
                 <td><strong>{money(collection.amount)}</strong></td>
                 <td><span className="pwfb-status-badge">{collection.settled ? 'SETTLED' : collection.reconciled ? 'RECONCILED · UNSETTLED' : 'PENDING'}</span></td>

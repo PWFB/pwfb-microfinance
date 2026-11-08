@@ -97,31 +97,167 @@ export class CashbookService {
     return { totalReceipts, totalPayments, netAmount: totalReceipts-totalPayments };
   }
 
-  async create(data:any){
-    const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}}); if(!p)throw new NotFoundException('Financial period not found'); if(p.status==='CLOSED')throw new BadRequestException('Cannot add cashbook entries to a closed period');
-    const b=await this.prisma.branch.findUnique({where:{id:data.branchId}}); if(!b)throw new NotFoundException('Branch not found'); const amount=this.number(data.amount); if(amount<=0)throw new BadRequestException('Amount must be greater than zero');
-    return this.prisma.cashbookEntry.create({data:{periodId:data.periodId,branchId:data.branchId,type:data.type,amount,reference:data.reference,description:data.description,entryDate:data.entryDate?new Date(data.entryDate):new Date()},include:{period:true,branch:true}});
-  }
-  async findAll(periodId?:string,branchId?:string){return this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...(branchId?{branchId}:{})},orderBy:{entryDate:'desc'},include:{period:true,branch:true}})}
-  async findOne(id:string){const e=await this.prisma.cashbookEntry.findUnique({where:{id},include:{period:true,branch:true}});if(!e)throw new NotFoundException('Cashbook entry not found');return e;}
-  async summary(periodId?:string,branchId?:string){const rows=await this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...(branchId?{branchId}:{})}});const cashIn=rows.filter(r=>r.type==='CASH_IN').reduce((s,r)=>s+r.amount,0),cashOut=rows.filter(r=>r.type==='CASH_OUT').reduce((s,r)=>s+r.amount,0);return{cashIn,cashOut,balance:cashIn-cashOut,entryCount:rows.length};}
+  async create(data: any) {
+    const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
+    if (!period) throw new NotFoundException('Financial period not found');
+    if (period.status === 'CLOSED') throw new BadRequestException('Cannot add cashbook entries to a closed period');
+    const branch = await this.prisma.branch.findUnique({ where: { id: data.branchId } });
+    if (!branch) throw new NotFoundException('Branch not found');
+    const amount = this.number(data.amount);
+    if (amount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const reference = String(data.reference || '').trim() || null;
+    if (reference && reference.length > 120) throw new BadRequestException('Cashbook reference is too long');
 
-  private map(r:any){const out:any={id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,branch:{name:r.branch_name},period:{name:r.period_name}};for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);return {...out,...this.totals(out)};}
+    return this.prisma.$transaction(async tx => {
+      if (reference) {
+        await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', `CASHBOOK:${data.branchId}:${reference}`);
+        const duplicate = await tx.cashbookEntry.findFirst({
+          where: { branchId: data.branchId, reference },
+          select: { id: true },
+        });
+        if (duplicate) throw new BadRequestException('This cashbook reference has already been posted for the branch');
+      }
+      if (data.staffId) {
+        const staff = await tx.staff.findUnique({
+          where: { id: data.staffId },
+          select: { id: true, branchId: true, employmentStatus: true },
+        });
+        if (!staff || staff.employmentStatus !== 'ACTIVE') throw new BadRequestException('Cashbook collector must be an active staff member');
+        if (staff.branchId !== data.branchId) throw new BadRequestException('Cashbook collector must belong to the selected branch');
+      }
+      return tx.cashbookEntry.create({
+        data: {
+          periodId: data.periodId,
+          branchId: data.branchId,
+          staffId: data.staffId || null,
+          type: data.type,
+          amount,
+          reference,
+          description: data.description,
+          entryDate: data.entryDate ? new Date(data.entryDate) : new Date(),
+        },
+        include: { period: true, branch: true, staff: true },
+      });
+    });
+  }
+  async findAll(periodId?:string,branchId?:string,branchIds?:string[]|null,staffId?:string){
+    const allowedBranches = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
+    return this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...allowedBranches,...(staffId?{staffId}:{})},orderBy:{entryDate:'desc'},include:{period:true,branch:true,staff:true}});
+  }
+  async findOne(id:string){const e=await this.prisma.cashbookEntry.findUnique({where:{id},include:{period:true,branch:true,staff:true}});if(!e)throw new NotFoundException('Cashbook entry not found');return e;}
+  async summary(periodId?:string,branchId?:string,branchIds?:string[]|null,staffId?:string){
+    const where:any={...(periodId?{periodId}:{}),...(branchId?{branchId}:{}),...(branchIds&&!branchId?{branchId:{in:branchIds}}:{}),...(staffId?{staffId}:{})};
+    const rows=await this.prisma.cashbookEntry.findMany({where});
+    const cashIn=rows.filter(r=>r.type==='CASH_IN').reduce((s,r)=>s+r.amount,0);
+    const cashOut=rows.filter(r=>r.type==='CASH_OUT').reduce((s,r)=>s+r.amount,0);
+    return {cashIn,cashOut,balance:cashIn-cashOut,entryCount:rows.length};
+  }
+
+  private map(r:any){
+    const out:any={
+      id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,
+      staff:r.staff_id?{id:r.staff_id,staffId:r.staff_code||null,firstName:r.staff_first_name||null,lastName:r.staff_last_name||null}:null,
+      entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,
+      branch:{name:r.branch_name},period:{name:r.period_name},
+    };
+    for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);
+    return {...out,...this.totals(out)};
+  }
+
+  async getOpeningBalance(branchId: string, staffId?: string, entryDate?: string) {
+    await this.ensureDailyTable();
+    const date = entryDate ? new Date(entryDate + 'T00:00:00.000') : new Date();
+    if (Number.isNaN(date.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
+    const previousRows: any[] = await this.prisma.$queryRawUnsafe(
+      `SELECT * FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date < $3 ORDER BY entry_date DESC, created_at DESC LIMIT 1`,
+      branchId, staffId || null, date,
+    );
+    if (!previousRows[0]) return { previousCashAtHand: 0, previousEntryDate: null, previousEntryId: null };
+    const previous = this.map(previousRows[0]);
+    const closing = Number(previous.totalReceipts || 0) - Number(previous.totalPayments || 0);
+    if (!Number.isFinite(closing) || closing < 0) {
+      throw new BadRequestException('The previous cashbook closing balance is negative or invalid. Reconcile the previous daily record before opening a new day.');
+    }
+    return {
+      previousCashAtHand: Math.round(closing * 100) / 100,
+      previousEntryDate: previousRows[0].entry_date,
+      previousEntryId: previousRows[0].id,
+    };
+  }
 
   async createDaily(data:CashbookDailyInput){
     await this.ensureDailyTable();
     const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}});if(!p)throw new NotFoundException('Financial period not found');if(p.status==='CLOSED')throw new BadRequestException('Cannot add entries to a closed period');
     const b=await this.prisma.branch.findUnique({where:{id:data.branchId}});if(!b)throw new NotFoundException('Branch not found');
-    if(data.staffId){const staff=await this.prisma.staff.findUnique({where:{id:data.staffId}});if(!staff)throw new NotFoundException('Field staff not found');if(staff.branchId!==data.branchId)throw new BadRequestException('Field staff must belong to the selected branch');}
-    const v=this.values(data),id=randomUUID(); const rowTotals=this.totals(v); v.otherAfterTotal=Math.max(0,rowTotals.totalReceipts-rowTotals.totalPayments); const cols=ALL_FIELDS.map(snake);
-    const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,data.entryDate?new Date(data.entryDate):new Date(),data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
-    const placeholders=params.map((_,i)=>`$${i+1}`);
-    await this.prisma.$executeRawUnsafe(`INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,...params);
+    if(data.staffId){
+      const staff=await this.prisma.staff.findUnique({where:{id:data.staffId}});
+      if(!staff)throw new NotFoundException('Field staff not found');
+      if(staff.employmentStatus!=='ACTIVE')throw new BadRequestException('Field cashbook work requires an active staff member');
+      if(staff.branchId!==data.branchId)throw new BadRequestException('Field staff must belong to the selected branch');
+    }
+    const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
+    if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
+    const entryDay = entryDate.toISOString().slice(0, 10);
+    const periodStartDay = new Date(p.startDate).toISOString().slice(0, 10);
+    const periodEndDay = new Date(p.endDate).toISOString().slice(0, 10);
+    if (entryDay < periodStartDay || entryDay > periodEndDay) throw new BadRequestException('Cashbook work date must fall inside the selected open financial period');
+    const v = this.values(data);
+    const id = randomUUID();
+    const dayKey = entryDate.toISOString().slice(0, 10);
+    await this.prisma.$transaction(async tx => {
+      // Serialize all dates for this Staff ID so opening cash is always derived
+      // from the latest committed previous-day closing balance.
+      const lockKey = `DAILY-CASHBOOK:${data.branchId}:${data.staffId || 'UNASSIGNED'}`;
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', lockKey);
+      const latest = await tx.$queryRawUnsafe<Array<{ latestDay: string | null }>>(
+        'SELECT MAX(entry_date::date)::text AS "latestDay" FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2',
+        data.branchId, data.staffId || null,
+      );
+      if (latest[0]?.latestDay && latest[0].latestDay > dayKey) {
+        throw new BadRequestException('Daily cashbook work must be posted in date order. Use a correcting-entry workflow for earlier dates.');
+      }
+      const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        'SELECT id FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date::date=$3::date LIMIT 1',
+        data.branchId, data.staffId || null, dayKey,
+      );
+      if (existing.length) throw new BadRequestException('A daily cashbook record already exists for this Staff ID, branch and date. Use the correcting-entry workflow instead of posting a duplicate.');
+      const opening = await this.getOpeningBalance(data.branchId, data.staffId, dayKey);
+      v.previousCashAtHand = opening.previousCashAtHand;
+      const rowTotals = this.totals(v);
+      const closingCash = Math.round((rowTotals.totalReceipts - rowTotals.totalPayments) * 100) / 100;
+      if (closingCash < 0) throw new BadRequestException('Cashbook payments exceed available receipts and opening cash. Reconcile the deficit before posting.');
+      v.otherAfterTotal = closingCash;
+      const cols = ALL_FIELDS.map(snake);
+      const params: any[] = [id, data.periodId, data.branchId, data.staffId ?? null, entryDate, data.description ?? null, ...ALL_FIELDS.map(field => v[field]), data.narration ?? null, data.referenceNo ?? null];
+      const placeholders = params.map((_, i) => `$${i + 1}`);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,
+        ...params,
+      );
+    });
     return this.dailyOne(id);
   }
-  async dailyOne(id:string){await this.ensureDailyTable();const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id WHERE r.id=$1`,id);if(!rows[0])throw new NotFoundException('Daily cashbook record not found');return this.map(rows[0]);}
-  async findDaily(periodId?:string,branchId?:string,from?:string,to?:string){await this.ensureDailyTable();const c:string[]=[],p:any[]=[];if(periodId){p.push(periodId);c.push(`r.period_id=$${p.length}`)}if(branchId){p.push(branchId);c.push(`r.branch_id=$${p.length}`)}if(from){p.push(new Date(from));c.push(`r.entry_date>=$${p.length}`)}if(to){p.push(new Date(to));c.push(`r.entry_date<=$${p.length}`)}const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id ${c.length?'WHERE '+c.join(' AND '):''} ORDER BY r.entry_date DESC,r.created_at DESC`,...p);return rows.map(r=>this.map(r));}
-  async dailySummary(periodId?:string,branchId?:string,from?:string,to?:string){const rows=await this.findDaily(periodId,branchId,from,to),totals:any={records:rows.length};for(const f of ALL_FIELDS)totals[f]=rows.reduce((s,r)=>s+Number(r[f]||0),0);totals.totalReceipts=rows.reduce((s,r)=>s+Number(r.totalReceipts||0),0);totals.totalPayments=rows.reduce((s,r)=>s+Number(r.totalPayments||0),0);totals.netAmount=totals.totalReceipts-totals.totalPayments;return totals;}
+  async dailyOne(id:string){await this.ensureDailyTable();const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name,s."staffId" AS staff_code,s."firstName" AS staff_first_name,s."lastName" AS staff_last_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id WHERE r.id=$1`,id);if(!rows[0])throw new NotFoundException('Daily cashbook record not found');return this.map(rows[0]);}
+  async findDaily(periodId?:string,branchId?:string,from?:string,to?:string,staffId?:string,branchIds?:string[]|null){
+    await this.ensureDailyTable();
+    const c:string[]=[],p:any[]=[];
+    if(periodId){p.push(periodId);c.push(`r.period_id=${p.length}`)}
+    if(branchId){p.push(branchId);c.push(`r.branch_id=${p.length}`)}
+    else if(branchIds){if(!branchIds.length)return [];p.push(branchIds);c.push(`r.branch_id = ANY(${p.length}::text[])`)}
+    if(staffId){p.push(staffId);c.push(`r.staff_id=${p.length}`)}
+    if(from){p.push(new Date(from));c.push(`r.entry_date>=${p.length}`)}
+    if(to){p.push(new Date(to));c.push(`r.entry_date<=${p.length}`)}
+    const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name,s."staffId" AS staff_code,s."firstName" AS staff_first_name,s."lastName" AS staff_last_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id ${c.length?'WHERE '+c.join(' AND '):''} ORDER BY r.entry_date DESC,r.created_at DESC`,...p);
+    return rows.map(r=>this.map(r));
+  }
+  async dailySummary(periodId?:string,branchId?:string,from?:string,to?:string,staffId?:string,branchIds?:string[]|null){
+    const rows=await this.findDaily(periodId,branchId,from,to,staffId,branchIds),totals:any={records:rows.length};
+    for(const f of ALL_FIELDS)totals[f]=rows.reduce((s,r)=>s+Number(r[f]||0),0);
+    totals.totalReceipts=rows.reduce((s,r)=>s+Number(r.totalReceipts||0),0);
+    totals.totalPayments=rows.reduce((s,r)=>s+Number(r.totalPayments||0),0);
+    totals.netAmount=totals.totalReceipts-totals.totalPayments;
+    return totals;
+  }
   async updateDaily(id:string,_data:Partial<CashbookDailyInput>){await this.dailyOne(id);throw new BadRequestException('Daily cashbook records are immutable. Create a correcting cashbook entry instead of editing the original record.');}
   async removeDaily(id:string){await this.dailyOne(id);throw new BadRequestException('Daily cashbook records are immutable and cannot be deleted. Create a correcting cashbook entry instead.');}
   async remove(id:string){await this.findOne(id);throw new BadRequestException('Cashbook entries are immutable and cannot be deleted. Create a correcting cashbook entry instead.');}

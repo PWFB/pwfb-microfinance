@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessScopeService } from '../access/access-scope.service';
 
 export type AuditWrite = {
   actorId?: string | null; actorEmail?: string | null; actorRole?: string | null;
@@ -11,7 +12,7 @@ export type AuditWrite = {
 @Injectable()
 export class AuditService {
   private readonly logger = new Logger(AuditService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly accessScope: AccessScopeService) {}
 
   async record(entry: AuditWrite) {
     try {
@@ -24,9 +25,22 @@ export class AuditService {
     } catch (error) { this.logger.error(`Audit write failed: ${error instanceof Error ? error.message : String(error)}`); }
   }
 
-  async list(params: { page?: number; limit?: number; search?: string; action?: string; role?: string; from?: string; to?: string }) {
+  async list(user: any, params: { page?: number; limit?: number; search?: string; action?: string; role?: string; from?: string; to?: string }) {
     const page = Math.max(1, Number(params.page) || 1), limit = Math.min(100, Math.max(1, Number(params.limit) || 25)), offset = (page - 1) * limit;
-    const values: any[] = [], where: string[] = []; const add = (value: any) => { values.push(value); return `$${values.length}`; };
+    const values: any[] = [], where: string[] = []; const add = (value: any) => { values.push(value); return `${values.length}`; };
+    const role = String(user?.role || '').toUpperCase();
+    if (role !== 'SUPER_ADMIN' && role !== 'AUDITOR') {
+      const branchIds = await this.accessScope.getBranchIds(user);
+      if (!branchIds?.length) {
+        where.push('1=0');
+      } else {
+        const branchParam = add(branchIds);
+        const actorParam = add(String(user?.id || ''));
+        where.push(`(COALESCE("details"->>'branchId','') = ANY(${branchParam}::text[])
+          OR "actorId" = ANY(SELECT "userId" FROM "Staff" WHERE "branchId" = ANY(${branchParam}::text[]) AND "userId" IS NOT NULL)
+          OR "actorId" = ${actorParam})`);
+      }
+    }
     if (params.search) { const p = add(`%${params.search}%`); where.push(`("actorEmail" ILIKE ${p} OR "resource" ILIKE ${p} OR "action" ILIKE ${p} OR COALESCE("recordId",'') ILIKE ${p})`); }
     if (params.action) where.push(`"action" = ${add(params.action)}`); if (params.role) where.push(`"actorRole" = ${add(params.role)}`);
     if (params.from) where.push(`"createdAt" >= ${add(new Date(params.from))}`); if (params.to) where.push(`"createdAt" <= ${add(new Date(params.to))}`);

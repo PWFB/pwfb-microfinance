@@ -3,6 +3,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateRepaymentDto {
@@ -23,4 +24,10 @@ export class CreateRepaymentDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsString()
+  reference: string;
+
+  @IsBoolean()
+  cashReceivedConfirmed: boolean;
 }

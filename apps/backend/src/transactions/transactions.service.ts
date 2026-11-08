@@ -5,12 +5,25 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessScopeService } from '../access/access-scope.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 
 @Injectable()
 export class TransactionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly accessScope: AccessScopeService) {}
+
+  private async customerWhere(user: any) {
+    const scope = await this.accessScope.getScope(user);
+    if (scope.global) return {};
+    const branchIds = await this.accessScope.getBranchIds(user);
+    if (!branchIds?.length) return { id: { in: [] } };
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
+      if (!scope.staffId) return { id: { in: [] } };
+      return { branchId: { in: branchIds }, assignedStaffId: scope.staffId };
+    }
+    return { branchId: { in: branchIds } };
+  }
 
   async create(createTransactionDto: CreateTransactionDto) {
     const customer = await this.prisma.customer.findUnique({
@@ -30,13 +43,16 @@ export class TransactionsService {
     });
   }
 
-  async findAll() {
+  async findAll(user: any) {
+    const customer = await this.customerWhere(user);
     const [ledgerTransactions, walletTransactions] = await Promise.all([
       this.prisma.transaction.findMany({
+        where: { customer: { is: customer } },
         orderBy: { createdAt: 'desc' },
         include: { customer: true },
       }),
       this.prisma.walletTransaction.findMany({
+        where: { customer: { is: customer } },
         orderBy: { createdAt: 'desc' },
         include: { customer: true },
       }),
@@ -81,13 +97,14 @@ export class TransactionsService {
     );
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: any) {
     const walletTransaction = await this.prisma.walletTransaction.findUnique({
       where: { id },
       include: { customer: true },
     });
 
     if (walletTransaction) {
+      if (user) await this.accessScope.assertCustomer(user, walletTransaction.customerId);
       return {
         id: walletTransaction.id,
         customerId: walletTransaction.customerId,
@@ -117,6 +134,7 @@ export class TransactionsService {
     });
 
     if (!transaction) throw new NotFoundException('Transaction not found');
+    if (user) await this.accessScope.assertCustomer(user, transaction.customerId);
 
     return {
       ...transaction,

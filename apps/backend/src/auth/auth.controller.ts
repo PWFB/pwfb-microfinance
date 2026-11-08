@@ -22,26 +22,32 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto) { return this.authService.register(dto); }
+  async register(@Body() dto: RegisterDto, @Req() req: any) {
+    await this.authService.consumeAuthEndpointRateLimit('register', req?.ip);
+    return this.authService.register(dto);
+  }
 
   @Post('login')
-  login(@Body() dto: LoginDto) { return this.authService.login(dto); }
+  login(@Body() dto: LoginDto, @Req() req: any) { return this.authService.login(dto, req?.ip); }
 
   @Get('google/config')
   googleConfig() { return this.authService.googleConfig(); }
 
   @Post('google')
-  googleLogin(@Body() body: { credential: string; client_id?: string; nonce?: string; loginMode?: string }, @Headers('origin') origin?: string) {
+  async googleLogin(@Body() body: { credential: string; client_id?: string; nonce?: string; loginMode?: string }, @Headers('origin') origin?: string, @Req() req?: any) {
+    await this.authService.consumeAuthEndpointRateLimit('google-login', req?.ip, body?.loginMode || '');
     return this.authService.googleLogin(body?.credential, origin, body?.client_id, body?.nonce, body?.loginMode);
   }
 
   @Post('google/android')
-  googleAndroidLogin(@Body() body: { credential: string; loginMode?: string }) {
+  async googleAndroidLogin(@Body() body: { credential: string; loginMode?: string }, @Req() req: any) {
+    await this.authService.consumeAuthEndpointRateLimit('google-android-login', req?.ip, body?.loginMode || '');
     return this.authService.googleLogin(body?.credential, 'android-app', undefined, undefined, body?.loginMode);
   }
 
   @Post('2fa/verify')
-  verifyTwoFactor(@Body() body: { token: string; code?: string; recoveryCode?: string }) {
+  async verifyTwoFactor(@Body() body: { token: string; code?: string; recoveryCode?: string }, @Req() req: any) {
+    await this.authService.consumeAuthEndpointRateLimit('two-factor-verify', req?.ip);
     return this.twoFactorService.verify(body?.token, body?.code, body?.recoveryCode);
   }
 
@@ -53,31 +59,38 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/setup')
-  authenticatorSetup(@Req() req: any) {
-    return this.authService.authenticatorSetup(req.user);
+  async authenticatorSetup(@Req() req: any, @Body() body: { password: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('authenticator-setup', req?.ip, req?.user?.id);
+    return this.authService.authenticatorSetup(req.user, body?.password);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/verify')
-  authenticatorVerify(@Req() req: any, @Body() body: { code: string }) {
+  async authenticatorVerify(@Req() req: any, @Body() body: { code: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('authenticator-enrollment', req?.ip, req?.user?.id);
     return this.authService.authenticatorVerify(req.user, body?.code);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('authenticator/disable')
-  authenticatorDisable(@Req() req: any, @Body() body: { code: string }) {
-    return this.authService.authenticatorDisable(req.user, body?.code);
+  async authenticatorDisable(@Req() req: any, @Body() body: { password: string; code: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('security-change', req?.ip, req?.user?.id);
+    return this.authService.authenticatorDisable(req.user, body?.password, body?.code);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('passkey/unregister-all')
-  passkeyUnregisterAll(@Req() req: any) {
+  async passkeyUnregisterAll(@Req() req: any, @Body() body: { password: string; code?: string }) {
+    await this.authService.consumeAuthEndpointRateLimit('security-change', req?.ip, req?.user?.id);
+    await this.authService.reauthenticateSecurityAction(req.user, body?.password, body?.code);
     return this.authService.passkeyUnregisterAll(req.user);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('passkey/register/options')
-  passkeyRegisterOptions(@Req() req: any, @Body() body: { replaceExisting?: boolean }, @Headers('origin') origin?: string) {
+  async passkeyRegisterOptions(@Req() req: any, @Body() body: { replaceExisting?: boolean; password: string; code?: string }, @Headers('origin') origin?: string) {
+    await this.authService.consumeAuthEndpointRateLimit('security-change', req?.ip, req?.user?.id);
+    await this.authService.reauthenticateSecurityAction(req.user, body?.password, body?.code);
     return this.authService.passkeyRegisterOptions(req.user, origin, !!body?.replaceExisting);
   }
 
@@ -88,12 +101,15 @@ export class AuthController {
   }
 
   @Post('passkey/login/options')
-  passkeyLoginOptions(@Body() body: { email?: string }, @Headers('origin') origin?: string) {
+  async passkeyLoginOptions(@Body() body: { email?: string }, @Headers('origin') origin?: string, @Req() req?: any) {
+    await this.authService.consumeAuthEndpointRateLimit('passkey-login-options', req?.ip, body?.email || '');
     return this.authService.passkeyLoginOptions(body?.email, origin);
   }
 
   @Post('passkey/login/verify')
-  passkeyLoginVerify(@Body() body: any, @Headers('origin') origin?: string) {
+  async passkeyLoginVerify(@Body() body: any, @Headers('origin') origin?: string, @Req() req?: any) {
+    const credentialId = String(body?.credential?.id || body?.id || '');
+    await this.authService.consumeAuthEndpointRateLimit('passkey-login-verify', req?.ip, credentialId);
     return this.authService.passkeyLoginVerify(body, origin);
   }
 

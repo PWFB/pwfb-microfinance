@@ -4,6 +4,9 @@ import {
   IsOptional,
   IsString,
   IsBoolean,
+  IsIn,
+  IsNumber,
+  MaxLength,
 } from 'class-validator';
 
 export class CreateCustomerDto {
@@ -34,9 +37,24 @@ export class CreateCustomerDto {
   dateOfBirth?: string;
 
   @IsOptional()
+  @IsIn(['INDIVIDUAL', 'GROUP'])
+  registrationType?: 'INDIVIDUAL' | 'GROUP';
+
+  @IsOptional()
   @IsString()
   groupId?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  groupName?: string;
+
   @IsBoolean()
   virtualAccountConsent: boolean;
+
+  @IsBoolean()
+  registrationFeeConfirmed: boolean;
+
+  @IsNumber()
+  registrationChargeAmount: number;
 }

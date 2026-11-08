@@ -5,24 +5,38 @@ import { CustomerVirtualAccountService } from './customer-virtual-account.servic
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { TwoFactorService } from '../auth/two-factor.service';
 
 @Controller()
 export class PaystackController {
-  constructor(private readonly paystackService: PaystackService, private readonly branchDvaService: PaystackBranchDvaService, private readonly customerVirtualAccountService: CustomerVirtualAccountService) {}
+  constructor(
+    private readonly paystackService: PaystackService,
+    private readonly branchDvaService: PaystackBranchDvaService,
+    private readonly customerVirtualAccountService: CustomerVirtualAccountService,
+    private readonly twoFactorService: TwoFactorService,
+  ) {}
+
+  private async requirePaymentMfa(req: any) {
+    const authorization = String(req?.headers?.authorization || '');
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    return this.twoFactorService.assertVerified(String(req?.user?.id || ''), token);
+  }
 
   @Post('banking/customers/:customerId/paystack/card-charge')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'STAFF', 'CUSTOMER')
-  chargeAtmCard(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
+  async chargeAtmCard(@Param('customerId') customerId: string, @Body() body: any, @Req() req: any) {
     if (req.user?.role === 'CUSTOMER' && (!req.user.customerId || req.user.customerId !== customerId)) throw new UnauthorizedException('You can only create payments for your own customer account');
+    await this.requirePaymentMfa(req);
     return this.paystackService.chargeCustomerAtmCard(customerId, body);
   }
 
   @Post('banking/customers/:customerId/paystack/card-charge-saved')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'STAFF', 'CUSTOMER')
-  chargeSavedAtmCard(@Param('customerId') customerId: string, @Body() body: { cardId: string; amount: number }, @Req() req: any) {
+  async chargeSavedAtmCard(@Param('customerId') customerId: string, @Body() body: { cardId: string; amount: number }, @Req() req: any) {
     if (req.user?.role === 'CUSTOMER' && (!req.user.customerId || req.user.customerId !== customerId)) throw new UnauthorizedException('You can only create payments for your own customer account');
+    await this.requirePaymentMfa(req);
     return this.paystackService.chargeCustomerWithSavedAuthorization(customerId, String(body?.cardId || ''), body?.amount);
   }
 

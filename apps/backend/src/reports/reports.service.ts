@@ -1,33 +1,71 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly accessScope: AccessScopeService) {}
 
-  async getSummary() {
+  private async scopedFilters(user: any) {
+    const scope = await this.accessScope.getScope(user);
+    if (scope.global) return { global: true, branchIds: [] as string[], staffId: null as string | null, empty: false };
+    const branchIds = await this.accessScope.getBranchIds(user);
+    const assignedBranchIds = branchIds || [];
+    return {
+      global: false,
+      branchIds: assignedBranchIds,
+      staffId: scope.role === 'CREDIT_OFFICER' ? scope.staffId : null,
+      empty: assignedBranchIds.length === 0,
+    };
+  }
+
+  private customerScope(filters: any) {
+    if (filters.global) return {};
+    if (filters.empty) return { id: { in: [] } };
+    return {
+      branchId: { in: filters.branchIds },
+      ...(filters.staffId ? { assignedStaffId: filters.staffId } : {}),
+    };
+  }
+
+  private async scopedCashbookWhere(user: any) {
+    const filters = await this.scopedFilters(user);
+    if (filters.global) return {};
+    if (filters.empty) return { id: { in: [] } };
+    return { branchId: { in: filters.branchIds } };
+  }
+
+  async getSummary(user: any) {
+    const filters = await this.scopedFilters(user);
+    const customersWhere: any = this.customerScope(filters);
+    const customerRelation: any = filters.global ? {} : { customer: { is: customersWhere } };
+    // Cashbook entries now carry the collector Staff ID; officers can safely
+    // see only their own attributed entries while managers see their assigned branches.
+    const cashbookWhere: any = filters.global ? {} : filters.empty
+      ? { id: { in: [] } }
+      : filters.staffId ? { staffId: filters.staffId } : { branchId: { in: filters.branchIds } };
     const [totalCustomers, savingsCount, savingsTotal, loansCount, loansTotal, transactionsCount, transactionsTotal, repaymentsCount, repaymentsTotal, collectionsCount, collectionsTotal, cashInTotal, cashOutTotal] = await Promise.all([
-      this.prisma.customer.count(),
-      this.prisma.savings.count(),
-      this.prisma.savings.aggregate({ _sum: { amount: true } }),
-      this.prisma.loan.count(),
-      this.prisma.loan.aggregate({ _sum: { amount: true } }),
-      this.prisma.transaction.count(),
-      this.prisma.transaction.aggregate({ _sum: { amount: true } }),
-      this.prisma.repayment.count(),
-      this.prisma.repayment.aggregate({ _sum: { amount: true } }),
-      this.prisma.dailyCollection.count(),
-      this.prisma.dailyCollection.aggregate({ _sum: { amount: true } }),
-      this.prisma.cashbookEntry.aggregate({ where: { type: 'CASH_IN' }, _sum: { amount: true } }),
-      this.prisma.cashbookEntry.aggregate({ where: { type: 'CASH_OUT' }, _sum: { amount: true } }),
+      this.prisma.customer.count({ where: customersWhere }),
+      this.prisma.savings.count({ where: customerRelation }),
+      this.prisma.savings.aggregate({ where: customerRelation, _sum: { amount: true } }),
+      this.prisma.loan.count({ where: customerRelation }),
+      this.prisma.loan.aggregate({ where: customerRelation, _sum: { amount: true } }),
+      this.prisma.transaction.count({ where: customerRelation }),
+      this.prisma.transaction.aggregate({ where: customerRelation, _sum: { amount: true } }),
+      this.prisma.repayment.count({ where: filters.global ? {} : { loan: { is: { customer: { is: customersWhere } } } } }),
+      this.prisma.repayment.aggregate({ where: filters.global ? {} : { loan: { is: { customer: { is: customersWhere } } } }, _sum: { amount: true } }),
+      this.prisma.dailyCollection.count({ where: filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds }, ...(filters.staffId ? { staffId: filters.staffId } : {}) } }),
+      this.prisma.dailyCollection.aggregate({ where: filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds }, ...(filters.staffId ? { staffId: filters.staffId } : {}) }, _sum: { amount: true } }),
+      this.prisma.cashbookEntry.aggregate({ where: { ...cashbookWhere, type: 'CASH_IN' }, _sum: { amount: true } }),
+      this.prisma.cashbookEntry.aggregate({ where: { ...cashbookWhere, type: 'CASH_OUT' }, _sum: { amount: true } }),
     ]);
-    const totalSavings = savingsTotal._sum.amount ?? 0;
-    const totalLoans = loansTotal._sum.amount ?? 0;
-    const totalTransactions = transactionsTotal._sum.amount ?? 0;
-    const totalRepayments = repaymentsTotal._sum.amount ?? 0;
-    const totalCollections = collectionsTotal._sum.amount ?? 0;
-    const cashIn = cashInTotal._sum.amount ?? 0;
-    const cashOut = cashOutTotal._sum.amount ?? 0;
+    const totalSavings = savingsTotal._sum?.amount ?? 0;
+    const totalLoans = loansTotal._sum?.amount ?? 0;
+    const totalTransactions = transactionsTotal._sum?.amount ?? 0;
+    const totalRepayments = repaymentsTotal._sum?.amount ?? 0;
+    const totalCollections = collectionsTotal._sum?.amount ?? 0;
+    const cashIn = cashInTotal._sum?.amount ?? 0;
+    const cashOut = cashOutTotal._sum?.amount ?? 0;
     return {
       customers: { count: totalCustomers },
       savings: { count: savingsCount, amount: totalSavings },
@@ -37,15 +75,20 @@ export class ReportsService {
       collections: { count: collectionsCount, amount: totalCollections },
       cashbook: { cashIn, cashOut, net: cashIn - cashOut },
       portfolio: { amount: totalSavings + totalLoans },
+      scope: filters.global ? 'ORGANIZATION' : filters.staffId ? 'ASSIGNED_OFFICER' : 'ASSIGNED_BRANCHES',
     };
   }
 
-  async getOperations(query: Record<string, string> = {}) {
+  async getOperations(query: Record<string, string> = {}, user: any) {
+    const filters = await this.scopedFilters(user);
     const section = query.section || 'all';
     const search = (query.search || '').trim();
     const type = (query.type || '').trim().toUpperCase();
     const customerId = query.customerId?.trim();
-    const staffId = query.staffId?.trim();
+    const requestedStaffId = query.staffId?.trim();
+    if (requestedStaffId && !filters.global) await this.accessScope.assertStaff(user, requestedStaffId);
+    if (customerId && !filters.global) await this.accessScope.assertCustomer(user, customerId);
+    const staffId = filters.staffId || requestedStaffId;
     const page = Math.max(Number.parseInt(query.page || '1', 10) || 1, 1);
     const pageSize = Math.min(Math.max(Number.parseInt(query.pageSize || '50', 10) || 50, 1), 200);
     const from = query.from ? new Date(query.from) : undefined;
@@ -56,15 +99,20 @@ export class ReportsService {
       : {};
     const customerFilter = customerId ? { customerId } : {};
     const staffFilter = staffId ? { staffId } : {};
+    const customerScope: any = this.customerScope(filters);
+    const relationScope: any = filters.global ? {} : { customer: { is: customerScope } };
+    const branchScope: any = filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
+    const cashbookScope: any = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { staffId: filters.staffId } : { branchId: { in: filters.branchIds } };
+    const staffScope: any = filters.global ? {} : filters.empty ? { id: { in: [] } } : filters.staffId ? { id: filters.staffId } : { branchId: { in: filters.branchIds } };
 
     const [customers, staff, loans, savings, walletTransactions, collections, cashbook] = await Promise.all([
-      this.prisma.customer.findMany({ where: search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { middleName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : undefined, orderBy: { createdAt: 'desc' } }),
-      this.prisma.staff.findMany({ where: search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : undefined, orderBy: { createdAt: 'desc' } }),
-      this.prisma.loan.findMany({ where: { ...customerFilter, ...dateFilter }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.savings.findMany({ where: { ...customerFilter, ...dateFilter }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.walletTransaction.findMany({ where: { ...customerFilter, ...staffFilter, ...dateFilter, ...(type ? { type: type as any } : {}) }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.dailyCollection.findMany({ where: { ...customerFilter, ...staffFilter, ...dateFilter }, include: { customer: true, staff: true, branch: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.cashbookEntry.findMany({ where: { ...dateFilter }, include: { branch: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.customer.findMany({ where: { ...customerScope, ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { middleName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : {}) }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.staff.findMany({ where: { ...staffScope, ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : {}) }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.loan.findMany({ where: { ...customerFilter, ...dateFilter, ...relationScope }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.savings.findMany({ where: { ...customerFilter, ...dateFilter, ...relationScope }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.walletTransaction.findMany({ where: { ...customerFilter, ...staffFilter, ...dateFilter, ...(type ? { type: type as any } : {}), ...relationScope }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.dailyCollection.findMany({ where: { ...customerFilter, ...staffFilter, ...dateFilter, ...branchScope }, include: { customer: true, staff: true, branch: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.cashbookEntry.findMany({ where: { ...dateFilter, ...cashbookScope }, include: { branch: true }, orderBy: { createdAt: 'desc' } }),
     ]);
 
     const deposits = walletTransactions.filter((x) => x.type === 'DEPOSIT');
@@ -106,7 +154,7 @@ export class ReportsService {
     return {
       ...result,
       pagination: { page, pageSize, total, totalPages: Math.max(Math.ceil(total / pageSize), 1) },
-      filters: { section, search, type, customerId: customerId || '', staffId: staffId || '', from: query.from || '', to: query.to || '' },
+      filters: { section, search, type, customerId: customerId || '', staffId: staffId || '', from: query.from || '', to: query.to || '', scope: filters.global ? 'ORGANIZATION' : filters.staffId ? 'ASSIGNED_OFFICER' : 'ASSIGNED_BRANCHES' },
     };
   }
 }

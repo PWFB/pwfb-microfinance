@@ -7,6 +7,7 @@ import { apiRequest } from "../../lib/api";
 export default function CustomerAuthenticatorPage() {
   const [enabled, setEnabled] = useState(false);
   const [configured, setConfigured] = useState(false);
+  const [authPassword, setAuthPassword] = useState("");
   const [secret, setSecret] = useState("");
   const [otpauthUri, setOtpauthUri] = useState("");
   const [code, setCode] = useState("");
@@ -33,7 +34,9 @@ export default function CustomerAuthenticatorPage() {
   async function beginSetup() {
     setBusy(true); setError(""); setMessage(""); setRecoveryCodes([]);
     try {
-      const result = await apiRequest("/auth/authenticator/setup", { method: "POST" });
+      if (!authPassword.trim()) throw new Error("Enter your current PWFB password to start setup.");
+      const result = await apiRequest("/auth/authenticator/setup", { method: "POST", body: JSON.stringify({ password: authPassword }) });
+      setAuthPassword("");
       setSecret(result.secret || "");
       setOtpauthUri(result.otpauthUri || "");
       setConfigured(true);
@@ -60,14 +63,15 @@ export default function CustomerAuthenticatorPage() {
   }
 
   async function disableAuthenticator() {
+    if (!authPassword.trim()) { setError("Enter your current PWFB password first."); return; }
     if (!code.trim()) { setError("Enter your current 6-digit authenticator code first."); return; }
     setBusy(true); setError(""); setMessage("");
     try {
       const result = await apiRequest("/auth/authenticator/disable", {
         method: "POST",
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ password: authPassword, code }),
       });
-      setEnabled(false); setConfigured(false); setSecret(""); setOtpauthUri(""); setCode("");
+      setEnabled(false); setConfigured(false); setSecret(""); setOtpauthUri(""); setCode(""); setAuthPassword("");
       setMessage(result?.message || "Authenticator disabled.");
     } catch (e: any) {
       setError(e?.message || "Unable to disable authenticator.");
@@ -102,9 +106,12 @@ export default function CustomerAuthenticatorPage() {
           </div>
 
           {!enabled && !secret && (
-            <button disabled={busy || loading} onClick={beginSetup} className="mt-5 w-full rounded-2xl bg-emerald-700 px-5 py-3.5 text-sm font-bold text-white shadow-sm disabled:opacity-50">
-              {busy ? "Preparing setup…" : "Set up Google Authenticator"}
-            </button>
+            <div className="mt-5 space-y-3">
+              <label className="block text-sm font-semibold text-slate-700">Current PWFB password<input type="password" autoComplete="current-password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3" /></label>
+              <button disabled={busy || loading || !authPassword.trim()} onClick={beginSetup} className="w-full rounded-2xl bg-emerald-700 px-5 py-3.5 text-sm font-bold text-white shadow-sm disabled:opacity-50">
+                {busy ? "Preparing setup…" : "Set up Google Authenticator"}
+              </button>
+            </div>
           )}
 
           {secret && !enabled && (
@@ -139,9 +146,10 @@ export default function CustomerAuthenticatorPage() {
                 <p className="mt-1 text-sm leading-5 text-emerald-800">Keep the authenticator app on a device you control. Never share your 6-digit codes with anyone.</p>
               </div>
               <div>
-                <label className="text-sm font-bold text-slate-900">Current 6-digit code</label>
+                <label className="block text-sm font-bold text-slate-900">Current PWFB password<input type="password" autoComplete="current-password" value={authPassword} onChange={e=>setAuthPassword(e.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3" /></label>
+                <label className="mt-3 block text-sm font-bold text-slate-900">Current 6-digit code</label>
                 <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" className="mt-2 w-full rounded-2xl border border-slate-200 px-4 py-4 text-center text-2xl font-bold tracking-[0.45em] outline-none focus:border-red-400" />
-                <button disabled={busy || code.length !== 6} onClick={disableAuthenticator} className="mt-3 w-full rounded-2xl border border-red-200 bg-white px-5 py-3.5 text-sm font-bold text-red-600 disabled:opacity-50">{busy ? "Disabling…" : "Disable Authenticator"}</button>
+                <button disabled={busy || code.length !== 6 || !authPassword.trim()} onClick={disableAuthenticator} className="mt-3 w-full rounded-2xl border border-red-200 bg-white px-5 py-3.5 text-sm font-bold text-red-600 disabled:opacity-50">{busy ? "Disabling…" : "Disable Authenticator"}</button>
               </div>
             </div>
           )}

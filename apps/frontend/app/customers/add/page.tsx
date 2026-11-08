@@ -10,6 +10,7 @@ import styles from "./page.module.css";
 
 type CustomerForm = { firstName: string; middleName: string; lastName: string; email: string; phone: string; address: string; dateOfBirth: string };
 type BankOption = { code: string; name: string; shortName?: string; provider?: string };
+type ClientGroupOption = { id: string; name: string; memberCount?: number };
 const initialForm: CustomerForm = { firstName: "", middleName: "", lastName: "", email: "", phone: "", address: "", dateOfBirth: "" };
 
 export default function AddCustomerPage() {
@@ -18,6 +19,12 @@ export default function AddCustomerPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [virtualAccountConsent, setVirtualAccountConsent] = useState(false);
+  const [registrationFeeConfirmed, setRegistrationFeeConfirmed] = useState(false);
+  const [registrationCharge, setRegistrationCharge] = useState<{ amount: number; currency: string; name: string } | null>(null);
+  const [registrationType, setRegistrationType] = useState<'INDIVIDUAL' | 'GROUP'>('INDIVIDUAL');
+  const [groups, setGroups] = useState<ClientGroupOption[]>([]);
+  const [groupId, setGroupId] = useState('');
+  const [groupName, setGroupName] = useState('');
   const [bvn, setBvn] = useState("");
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -28,6 +35,15 @@ export default function AddCustomerPage() {
       const list = Array.isArray(result) ? result : result?.data ?? [];
       if (alive) setBanks(list.filter((bank: any) => bank?.code && bank?.name).map((bank: any) => ({ code: String(bank.code), name: String(bank.name), shortName: bank.shortName, provider: bank.provider })));
     }).catch(() => { if (alive) setBanks([]); });
+    apiRequest("/customers/groups").then((result: any) => {
+      const list = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
+      if (alive) setGroups(list.map((group: any) => ({ id: String(group.id), name: String(group.name || "Unnamed group"), memberCount: Number(group.memberCount ?? group._count?.members ?? 0) })));
+    }).catch(() => { if (alive) setGroups([]); });
+    apiRequest("/charges").then((result: any) => {
+      const list = Array.isArray(result) ? result : Array.isArray(result?.data) ? result.data : [];
+      const charge = list.find((item: any) => item.chargeKey === "CLIENT_REGISTRATION" && item.active !== false);
+      if (alive && charge) setRegistrationCharge({ amount: Number(charge.amount), currency: String(charge.currency || "NGN"), name: String(charge.name || "Client registration fee") });
+    }).catch(() => { if (alive) setRegistrationCharge(null); });
     return () => { alive = false; };
   }, []);
   const fullName = useMemo(() => [form.firstName, form.middleName, form.lastName].filter(Boolean).join(" "), [form.firstName, form.middleName, form.lastName]);
@@ -47,9 +63,25 @@ export default function AddCustomerPage() {
       setMessage("Customer consent is required before sending identity details to Paystack.");
       return;
     }
+    if (!registrationCharge || !Number.isFinite(registrationCharge.amount) || registrationCharge.amount <= 0) {
+      setMessage("The current client registration charge is unavailable. Ask the Super Admin to check charge settings.");
+      return;
+    }
+    if (!registrationFeeConfirmed) {
+      setMessage("Confirm that the current registration fee has actually been collected in cash before creating the client.");
+      return;
+    }
+    if (registrationType === 'GROUP' && !groupId && !groupName.trim()) {
+      setMessage("Select an existing client group or enter a name to create a new group.");
+      return;
+    }
+    if (registrationType === 'INDIVIDUAL' && (groupId || groupName.trim())) {
+      setMessage("Clear the group selection or choose Group registration.");
+      return;
+    }
     setLoading(true);
     try {
-      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent }) });
+      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent, registrationFeeConfirmed, registrationChargeAmount: registrationCharge?.amount, registrationType, groupId: registrationType === 'GROUP' && groupId ? groupId : undefined, groupName: registrationType === 'GROUP' && !groupId ? groupName.trim() : undefined }) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
       if (!customerId) {
         setMessage("Customer profile was submitted, but the server response did not include a customer ID. Wallet and virtual-account setup could not be confirmed.");
@@ -66,12 +98,14 @@ export default function AddCustomerPage() {
           return;
         }
       }
+      const registrationReceipt = created?.registrationFeeReceipt;
+      const feeReceiptText = registrationReceipt ? ` Registration fee receipt: ${registrationReceipt.reference} · ₦${Number(registrationReceipt.amount).toLocaleString("en-NG")}.` : "";
       const assignedAccounts = Array.isArray(created?.virtualAccounts) ? created.virtualAccounts : [];
       const activeAccount = assignedAccounts.find((account: any) => account?.provider === "PAYSTACK" && account?.status === "ACTIVE" && account?.accountNumber);
       if (activeAccount) {
-        setMessage("Customer profile created and Paystack virtual account assigned.");
+        setMessage("Customer profile created and Paystack virtual account assigned." + feeReceiptText);
       } else if (identityResult) {
-        setMessage("Customer profile created. Paystack identity verification is pending; the virtual account will be assigned automatically after Paystack confirms it.");
+        setMessage("Customer profile created. Paystack identity verification is pending; the virtual account will be assigned automatically after Paystack confirms it." + feeReceiptText);
       } else {
         const reason = String(created?.virtualAccountWarning || "Virtual-account assignment is waiting for verified BVN and bank-account details.");
         setMessage("Customer profile created. Virtual account is pending. " + reason);
@@ -116,13 +150,23 @@ export default function AddCustomerPage() {
             </div>
           </section>
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
+            <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Choose an individual record or register this customer under a group.</p></div></div>
             <div className={styles.gridTwo}>
+              <label className={styles.full}>REGISTRATION TYPE<select value={registrationType} onChange={e => { const value = e.target.value as 'INDIVIDUAL' | 'GROUP'; setRegistrationType(value); if (value === 'INDIVIDUAL') { setGroupId(''); setGroupName(''); } }}><option value="INDIVIDUAL">Individual customer</option><option value="GROUP">Group member</option></select></label>
+              {registrationType === 'GROUP' && <>
+                <label>EXISTING GROUP <small>Choose a group you own</small><select value={groupId} onChange={e => { setGroupId(e.target.value); if (e.target.value) setGroupName(''); }}><option value="">Create a new group instead…</option>{groups.map(group => <option key={group.id} value={group.id}>{group.name} · {group.memberCount || 0} members</option>)}</select></label>
+                <label>NEW GROUP NAME <small>Leave blank when selecting an existing group</small><input value={groupName} onChange={e => { setGroupName(e.target.value); if (e.target.value.trim()) setGroupId(''); }} maxLength={80} placeholder="Enter the group name" /></label>
+              </>}
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
               <label>BVN <em>*</em> <small>Required for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="11-digit BVN" required /></label>
               <div><label>Bank <em>*</em> <small>Required for identity validation</small></label><BankSearchSelect banks={banks} value={bankCode} onChange={setBankCode} disabled={loading} /></div>
               <label>Bank Account Number <em>*</em> <small>Required · 10 digits</small><input inputMode="numeric" autoComplete="off" maxLength={10} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 10))} placeholder="10-digit account number" required /></label>
               <div className={styles.infoBox}><span>✓</span><div><b>PWFB Microfinance virtual account</b><small>BVN, bank, and account number are required to start verification. Paystack must confirm the identity and assign the account before a real account number can be displayed. BVN is never displayed in the account UI.</small></div></div>
+              <div className={styles.infoBox}><span>₦</span><div><b>{registrationCharge ? `${registrationCharge.name}: ₦${registrationCharge.amount.toLocaleString("en-NG")}` : "Registration fee amount unavailable"}</b><small>This amount is managed centrally by the Super Admin. A unique receipt and branch cashbook cash-in entry are created with the client registration.</small></div></div>
+              <label className={styles.full} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
+                <input type="checkbox" checked={registrationFeeConfirmed} onChange={(e) => setRegistrationFeeConfirmed(e.target.checked)} required style={{ width: 18, height: 18, marginTop: 3 }} />
+                <span>I confirm the current client registration fee shown above has actually been received in cash from this customer. I understand that confirming it creates a permanent fee receipt and cashbook entry.</span>
+              </label>
               <label className={styles.full} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
               <input type="checkbox" checked={virtualAccountConsent} onChange={(e) => setVirtualAccountConsent(e.target.checked)} required style={{ width: 18, height: 18, marginTop: 3 }} />
               <span>I confirm the customer has expressly consented to PWFB Microfinance sharing their details with Paystack for identity validation and dedicated virtual-account creation.</span>

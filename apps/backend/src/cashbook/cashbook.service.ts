@@ -197,17 +197,32 @@ export class CashbookService {
     }
     const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
     if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('Cashbook entry date is invalid');
-    const v=this.values(data);
-    // Opening cash is calculated on the server; ignore client-supplied opening cash.
-    const opening = await this.getOpeningBalance(data.branchId, data.staffId, entryDate.toISOString().slice(0,10));
-    v.previousCashAtHand = opening.previousCashAtHand;
-    const id=randomUUID(); const rowTotals=this.totals(v);
-    const closingCash = Math.round((rowTotals.totalReceipts - rowTotals.totalPayments) * 100) / 100;
-    if (closingCash < 0) throw new BadRequestException('Cashbook payments exceed available receipts and opening cash. Reconcile the deficit before posting.');
-    v.otherAfterTotal=closingCash; const cols=ALL_FIELDS.map(snake);
-    const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,entryDate,data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
-    const placeholders=params.map((_,i)=>`$${i+1}`);
-    await this.prisma.$executeRawUnsafe(`INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,...params);
+    if (entryDate < p.startDate || entryDate > p.endDate) throw new BadRequestException('Cashbook work date must fall inside the selected open financial period');
+    const v = this.values(data);
+    const id = randomUUID();
+    const dayKey = entryDate.toISOString().slice(0, 10);
+    await this.prisma.$transaction(async tx => {
+      const lockKey = `DAILY-CASHBOOK:${data.branchId}:${data.staffId || 'UNASSIGNED'}:${dayKey}`;
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', lockKey);
+      const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        'SELECT id FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date::date=$3::date LIMIT 1',
+        data.branchId, data.staffId || null, dayKey,
+      );
+      if (existing.length) throw new BadRequestException('A daily cashbook record already exists for this Staff ID, branch and date. Use the correcting-entry workflow instead of posting a duplicate.');
+      const opening = await this.getOpeningBalance(data.branchId, data.staffId, dayKey);
+      v.previousCashAtHand = opening.previousCashAtHand;
+      const rowTotals = this.totals(v);
+      const closingCash = Math.round((rowTotals.totalReceipts - rowTotals.totalPayments) * 100) / 100;
+      if (closingCash < 0) throw new BadRequestException('Cashbook payments exceed available receipts and opening cash. Reconcile the deficit before posting.');
+      v.otherAfterTotal = closingCash;
+      const cols = ALL_FIELDS.map(snake);
+      const params: any[] = [id, data.periodId, data.branchId, data.staffId ?? null, entryDate, data.description ?? null, ...ALL_FIELDS.map(field => v[field]), data.narration ?? null, data.referenceNo ?? null];
+      const placeholders = params.map((_, i) => `$${i + 1}`);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,
+        ...params,
+      );
+    });
     return this.dailyOne(id);
   }
   async dailyOne(id:string){await this.ensureDailyTable();const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name,s."staffId" AS staff_code,s."firstName" AS staff_first_name,s."lastName" AS staff_last_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id WHERE r.id=$1`,id);if(!rows[0])throw new NotFoundException('Daily cashbook record not found');return this.map(rows[0]);}

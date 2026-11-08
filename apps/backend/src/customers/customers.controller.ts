@@ -26,7 +26,7 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService, private readonly accessScope: AccessScopeService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'TELLER', 'STAFF')
   create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: any) {
     return this.customersService.create(createCustomerDto, req.user);
   }

@@ -18,7 +18,7 @@ export class TransactionsService {
     if (scope.global) return {};
     const branchIds = await this.accessScope.getBranchIds(user);
     if (!branchIds?.length) return { id: { in: [] } };
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (scope.role === 'CREDIT_OFFICER' || scope.role === 'TELLER') {
       if (!scope.staffId) return { id: { in: [] } };
       return { branchId: { in: branchIds }, assignedStaffId: scope.staffId };
     }

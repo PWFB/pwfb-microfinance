@@ -38,7 +38,7 @@ describe('BranchController', () => {
     expect(service.create).toHaveBeenCalledWith(dto);
   });
 
-  it('should return all branches', () => {
+  it('should return all branches', async () => {
     const result = [
       {
         id: 1,
@@ -48,11 +48,11 @@ describe('BranchController', () => {
 
     service.findAll.mockReturnValue(result as any);
 
-    expect(controller.findAll({ user: { id: 'admin', role: 'ADMIN' } } as any)).resolves.toBe(result);
+    await expect(controller.findAll({ user: { id: 'admin', role: 'ADMIN' } } as any)).resolves.toBe(result);
     expect(service.findAll).toHaveBeenCalled();
   });
 
-  it('should return one branch', () => {
+  it('should return one branch', async () => {
     const result = {
       id: 1,
       name: 'Main Branch',

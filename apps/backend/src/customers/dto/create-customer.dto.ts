@@ -5,6 +5,7 @@ import {
   IsString,
   IsBoolean,
   IsIn,
+  IsNumber,
   MaxLength,
 } from 'class-validator';
 
@@ -53,4 +54,7 @@ export class CreateCustomerDto {
 
   @IsBoolean()
   registrationFeeConfirmed: boolean;
+
+  @IsNumber()
+  registrationChargeAmount: number;
 }

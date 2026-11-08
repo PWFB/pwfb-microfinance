@@ -155,6 +155,35 @@ export class AuthService {
     );
   }
 
+  async consumeAuthEndpointRateLimit(bucket: string, ipAddress?: string, identifier = '') {
+    await this.ensureLoginThrottleTable();
+    const normalizedBucket = String(bucket || 'auth').trim().toLowerCase();
+    const normalizedIp = String(ipAddress || 'unknown').trim();
+    const normalizedIdentifier = String(identifier || '').trim().toLowerCase();
+    const keyHash = createHash('sha256')
+      .update(`endpoint:${normalizedBucket}:${normalizedIp}:${normalizedIdentifier}`)
+      .digest('hex');
+    const limit = normalizedBucket.startsWith('passkey') ? 20 : normalizedBucket.startsWith('google') ? 20 : 15;
+    await this.prisma.$executeRawUnsafe(`
+      INSERT INTO "AuthLoginAttempt" ("keyHash","attempts","windowStartedAt","updatedAt")
+      VALUES ($1,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+      ON CONFLICT ("keyHash") DO UPDATE SET
+        "attempts" = CASE WHEN "AuthLoginAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN 1 ELSE "AuthLoginAttempt"."attempts"+1 END,
+        "windowStartedAt" = CASE WHEN "AuthLoginAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN CURRENT_TIMESTAMP ELSE "AuthLoginAttempt"."windowStartedAt" END,
+        "blockedUntil" = CASE
+          WHEN "AuthLoginAttempt"."windowStartedAt" < CURRENT_TIMESTAMP - INTERVAL '15 minutes' THEN NULL
+          WHEN "AuthLoginAttempt"."attempts"+1 >= $2 THEN CURRENT_TIMESTAMP + INTERVAL '15 minutes'
+          ELSE "AuthLoginAttempt"."blockedUntil"
+        END,
+        "updatedAt"=CURRENT_TIMESTAMP
+    `, keyHash, limit);
+    const blocked = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT "keyHash" FROM "AuthLoginAttempt" WHERE "keyHash"=$1 AND "blockedUntil">CURRENT_TIMESTAMP LIMIT 1`,
+      keyHash,
+    );
+    if (blocked.length) throw new UnauthorizedException('Too many authentication requests. Please wait 15 minutes before trying again.');
+  }
+
   async login(dto: LoginDto, ipAddress?: string) {
     const identifier = String(dto.identifier || dto.email || '').trim();
     const password = String(dto.password || '');

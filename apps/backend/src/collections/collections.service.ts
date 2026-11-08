@@ -159,7 +159,7 @@ export class CollectionsService {
   async reconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } }); }
   async unreconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); if (collection.settled) throw new BadRequestException('A settled collection cannot be unreconciled'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: false } }); }
   async dailySummary(date: string, branchId?: string, staffId?: string, branchIds?: string[] | null) {
-    const start = new Date(`${date}T00:00:00.000Z`), end = new Date(`${date}T23:59:59.999Z`);
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) throw new BadRequestException('Invalid collection date'); const start = new Date(`${date}T00:00:00.000+01:00`), end = new Date(`${date}T23:59:59.999+01:00`);
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date');
     const branchFilter = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
     if (branchIds && !branchIds.length && !branchId) return { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, byOfficer: [] };

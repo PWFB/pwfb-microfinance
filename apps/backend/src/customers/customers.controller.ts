@@ -32,7 +32,7 @@ export class CustomersController {
   }
 
   @Get('groups')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF')
   listGroups(@Req() req: any) { return this.customersService.listClientGroups(req.user); }
 
   @Get('me')
@@ -44,7 +44,7 @@ export class CustomersController {
   findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
   @Get(':id/registration-fee')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF')
   registrationFee(@Param('id') id: string, @Req() req: any) {
     return this.customersService.getRegistrationFeeReceipt(id, req.user);
   }

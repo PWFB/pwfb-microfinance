@@ -50,4 +50,7 @@ export class CreateCustomerDto {
 
   @IsBoolean()
   virtualAccountConsent: boolean;
+
+  @IsBoolean()
+  registrationFeeConfirmed: boolean;
 }

@@ -6,6 +6,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PermissionsService } from '../permissions/permissions.service';
+import { TwoFactorService } from '../auth/two-factor.service';
 
 const VIEW_ROLES = ['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'];
 const OPERATION_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF'];
@@ -13,7 +14,17 @@ const OPERATION_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF'
 @Controller('savings')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SavingsController {
-  constructor(private readonly savingsService: SavingsService, private readonly permissions: PermissionsService) {}
+  constructor(
+    private readonly savingsService: SavingsService,
+    private readonly permissions: PermissionsService,
+    private readonly twoFactorService: TwoFactorService,
+  ) {}
+
+  private async requireFinancialMfa(req: any) {
+    const authorization = String(req?.headers?.authorization || '');
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    return this.twoFactorService.assertVerified(String(req?.user?.id || ''), token);
+  }
 
   @Post()
   @Roles(...OPERATION_ROLES)
@@ -33,6 +44,7 @@ export class SavingsController {
   @Roles(...OPERATION_ROLES)
   async withdraw(@Req() req: any, @Param('id') id: string, @Body() body: { amount: number; description?: string }) {
     await this.permissions.assert(req.user.role, 'SAVINGS_WITHDRAW');
+    await this.requireFinancialMfa(req);
     return this.savingsService.withdraw(id, body?.amount, body?.description);
   }
 

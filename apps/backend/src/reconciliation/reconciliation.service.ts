@@ -15,8 +15,8 @@ export class ReconciliationService {
     const emptyScope = !access.global && !effectiveBranchIds?.length;
     const hasBranchRestriction = !access.global || hasRequestedBranch;
     const branchFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { branchId: { in: effectiveBranchIds } };
-    const customerFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { customer: { branchId: { in: effectiveBranchIds } } };
-    const repaymentFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { loan: { customer: { branchId: { in: effectiveBranchIds } } } };
+    const customerFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { customer: { is: { branchId: { in: effectiveBranchIds } } } };
+    const repaymentFilter = !hasBranchRestriction ? {} : emptyScope ? { id: { in: [] } } : { loan: { is: { customer: { is: { branchId: { in: effectiveBranchIds } } } } } };
 
     const [period, collections, cashbook, savings, loans, repayments, payroll] = await Promise.all([
       periodId ? this.prisma.financialPeriod.findUnique({ where: { id: periodId } }) : this.prisma.financialPeriod.findFirst({ where: { status: 'OPEN' }, orderBy: { startDate: 'desc' } }),

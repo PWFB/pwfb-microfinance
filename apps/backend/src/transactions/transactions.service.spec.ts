@@ -19,7 +19,7 @@ describe('TransactionsService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new TransactionsService(prisma);
+    service = new TransactionsService(prisma, { getScope: jest.fn().mockResolvedValue({ role: 'SUPER_ADMIN', global: true }) } as any);
   });
 
   it('should be defined', () => {
@@ -74,7 +74,7 @@ describe('TransactionsService', () => {
       customer: { id: 'customer-1' },
     }]);
 
-    const result = await service.findAll();
+    const result = await service.findAll({ role: 'SUPER_ADMIN' });
 
     expect(result.map((row: any) => row.id)).toEqual(['wallet-1', 'legacy-1']);
     expect(result[0]).toMatchObject({

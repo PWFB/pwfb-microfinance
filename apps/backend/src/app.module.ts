@@ -34,6 +34,7 @@ import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import { BranchClosingModule } from './branch-closing/branch-closing.module';
 import { FinancialPortalModule } from './financial-portal/financial-portal.module';
 import { ImplementationWorkModule } from './implementation-work/implementation-work.module';
+import { ChargesModule } from './charges/charges.module';
 
 @Module({
   imports: [
@@ -43,7 +44,7 @@ import { ImplementationWorkModule } from './implementation-work/implementation-w
     LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
     PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
     BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule, AccessScopeModule,
-    ApprovalsModule, ReconciliationModule, BranchClosingModule, FinancialPortalModule, ImplementationWorkModule,
+    ApprovalsModule, ReconciliationModule, BranchClosingModule, FinancialPortalModule, ImplementationWorkModule, ChargesModule,
   ],
   controllers: [AppController],
 })

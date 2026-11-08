@@ -7,8 +7,8 @@ import { useTheme } from "./ThemeProvider";
 import PWFBCompanyBrand from "./PWFBCompanyBrand";
 import { getDashboardPath } from "../lib/role-routing";
 type NavItem={label:string;href:string;roles:string[]}; type NavGroup={key:string;label:string;icon:string;href:string;roles:string[];children:NavItem[]};
-const allStaff=["SUPER_ADMIN","ADMIN","REGIONAL_MANAGER","DIVISIONAL_MANAGER","AREA_MANAGER","BRANCH_MANAGER","LOAN_OFFICER","TELLER","AUDITOR","MONITORING_TEAM","COLLECTOR","CREDIT_OFFICER","STAFF"];
-const management=["SUPER_ADMIN","ADMIN","REGIONAL_MANAGER","DIVISIONAL_MANAGER","AREA_MANAGER","BRANCH_MANAGER"]; const finance=[...management,"LOAN_OFFICER","TELLER","AUDITOR","COLLECTOR","CREDIT_OFFICER"]; const admin=["SUPER_ADMIN","ADMIN"];
+const allStaff=["SUPER_ADMIN","ADMIN","REGIONAL_MANAGER","DIVISIONAL_MANAGER","AREA_MANAGER","BRANCH_MANAGER","LOAN_OFFICER","TELLER","ASSET_LOAN_MANAGER","AUDITOR","MONITORING_TEAM","COLLECTOR","CREDIT_OFFICER","STAFF"];
+const management=["SUPER_ADMIN","ADMIN","REGIONAL_MANAGER","DIVISIONAL_MANAGER","AREA_MANAGER","BRANCH_MANAGER"]; const finance=[...management,"LOAN_OFFICER","TELLER","AUDITOR","COLLECTOR","CREDIT_OFFICER","ASSET_LOAN_MANAGER"]; const admin=["SUPER_ADMIN","ADMIN"];
 const groups:NavGroup[]=[
 {key:"customers",label:"Customer Management",icon:"👥",href:"/customers",roles:finance,children:[{label:"Customer Overview",href:"/customers",roles:finance},{label:"Add Customer",href:"/customers/add",roles:finance}]},
 {key:"savings",label:"Savings",icon:"💰",href:"/savings",roles:finance,children:[{label:"Savings Overview",href:"/savings",roles:finance},{label:"Add Savings",href:"/savings/add",roles:finance},{label:"Deposit",href:"/savings",roles:finance},{label:"Withdrawal",href:"/savings",roles:finance}]},

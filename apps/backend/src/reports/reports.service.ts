@@ -37,7 +37,7 @@ export class ReportsService {
   async getSummary(user: any) {
     const filters = await this.scopedFilters(user);
     const customersWhere = this.customerScope(filters);
-    const customerRelation = filters.global ? {} : { customer: customersWhere };
+    const customerRelation = filters.global ? {} : { customer: { is: customersWhere } };
     // CashbookEntry has no collector Staff ID yet. Do not expose whole-branch
     // cashbook totals to an individual Credit Officer until attribution is reliable.
     const cashbookWhere = filters.global ? {} : filters.empty || filters.staffId ? { id: { in: [] } } : { branchId: { in: filters.branchIds } };
@@ -49,7 +49,7 @@ export class ReportsService {
       this.prisma.loan.aggregate({ where: customerRelation, _sum: { amount: true } }),
       this.prisma.transaction.count({ where: customerRelation }),
       this.prisma.transaction.aggregate({ where: customerRelation, _sum: { amount: true } }),
-      this.prisma.repayment.count({ where: filters.global ? {} : { loan: { customer: customersWhere } } }),
+      this.prisma.repayment.count({ where: filters.global ? {} : { loan: { is: { customer: { is: customersWhere } } } } }),
       this.prisma.repayment.aggregate({ where: filters.global ? {} : { loan: { customer: customersWhere } }, _sum: { amount: true } }),
       this.prisma.dailyCollection.count({ where: filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds }, ...(filters.staffId ? { staffId: filters.staffId } : {}) } }),
       this.prisma.dailyCollection.aggregate({ where: filters.global ? {} : filters.empty ? { id: { in: [] } } : { branchId: { in: filters.branchIds }, ...(filters.staffId ? { staffId: filters.staffId } : {}) }, _sum: { amount: true } }),

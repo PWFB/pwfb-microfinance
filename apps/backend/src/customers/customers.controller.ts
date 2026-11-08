@@ -25,7 +25,7 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'STAFF')
   create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: any) {
     return this.customersService.create(createCustomerDto, req.user);
   }
@@ -35,7 +35,7 @@ export class CustomersController {
   me(@Req() req: any) { return this.customersService.findMe(req.user); }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
   @Get(':id/history')

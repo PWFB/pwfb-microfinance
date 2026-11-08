@@ -17,6 +17,9 @@ export class AccessScopeInterceptor implements NestInterceptor {
     if (isCustomerBankingRoute) return next.handle();
 
     const path = String(request.route?.path || request.path || '').toLowerCase();
+    // A client-group list is not a Customer[] collection. Its ownership was
+    // already filtered by CustomersService.listClientGroups.
+    if (path.includes('groups')) return next.handle();
     const id = request.params?.id;
     const branchId = request.params?.branchId || request.body?.branchId || request.query?.branchId;
     const staffId = request.params?.staffId || request.body?.staffId || request.query?.staffId;

@@ -232,12 +232,19 @@ model Repayment {
   method String?
   notes String?
   periodId String?
+  branchId String?
+  staffId String?
+  reference String? @unique
   period FinancialPeriod? @relation(fields: [periodId], references: [id])
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  staff Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
   @@index([loanId])
   @@index([periodId])
+  @@index([branchId])
+  @@index([staffId])
 }
 
 model Department {
@@ -313,6 +320,7 @@ model Branch {
   customers Customer[]
   groups ClientGroup[]
   cashbookEntries CashbookEntry[]
+  repayments Repayment[]
   collections DailyCollection[]
   payrolls Payroll[]
   branchAccounts BranchVirtualAccount[]
@@ -356,6 +364,7 @@ model Staff {
   salaryDisbursements SalaryDisbursement[]
   collections DailyCollection[]
   cashbookEntries CashbookEntry[]
+  repayments Repayment[]
   assignments StaffAssignment[]
   virtualAccounts StaffVirtualAccount[]
   @@index([branchId])

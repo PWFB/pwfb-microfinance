@@ -194,7 +194,7 @@ export class CollectionsService {
 
     const branchFilter = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
     if (branchIds && !branchIds.length && !branchId) {
-      return { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: 0, byOfficer: [] };
+      return { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, registrationFees: 0, registrationFeeCount: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: 0, byOfficer: [] };
     }
 
     const [collections, walletDeposits] = await Promise.all([
@@ -218,17 +218,53 @@ export class CollectionsService {
       }),
     ]);
 
+    // Registration fees are separately receipted and cashbook-posted, not wallet credits.
+    // Count them as collected cash once, using their immutable receipt rows.
+    let registrationReceipts: any[] = [];
+    try {
+      const conditions = ['r."collectedAt" >= $1', 'r."collectedAt" <= $2'];
+      const params: any[] = [start, end];
+      if (branchId) {
+        params.push(branchId);
+        conditions.push(`r."branchId" = $${params.length}`);
+      } else if (branchIds) {
+        params.push(branchIds);
+        conditions.push(`r."branchId" = ANY($${params.length}::text[])`);
+      }
+      if (staffId) {
+        params.push(staffId);
+        conditions.push(`r."staffId" = $${params.length}`);
+      }
+      registrationReceipts = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT r."id",r."amount",r."branchId",r."staffId",r."reference",
+          s."staffId" AS "employeeStaffId",s."firstName",s."lastName",b."name" AS "branchName"
+         FROM "PWFBRegistrationFeeReceipt" r
+         JOIN "Staff" s ON s."id"=r."staffId"
+         JOIN "Branch" b ON b."id"=r."branchId"
+         WHERE ${conditions.join(' AND ')} ORDER BY r."collectedAt"`,
+        ...params,
+      );
+    } catch {
+      registrationReceipts = [];
+    }
+
     const collectionReferences = new Set((collections as any[]).map(row => String(row.reference || '').trim()).filter(Boolean));
     const deposits = (walletDeposits as any[]).filter(row => !row.reference || !collectionReferences.has(String(row.reference).trim()));
-    const staffIds = [...new Set(deposits.map(row => String(row.staffId || '')).filter(Boolean))];
-    const depositBranchIds = [...new Set(deposits.map(row => String(row.branchId || '')).filter(Boolean))];
+    const staffIds = [...new Set([
+      ...deposits.map(row => String(row.staffId || '')),
+      ...registrationReceipts.map(row => String(row.staffId || '')),
+    ].filter(Boolean))];
+    const depositBranchIds = [...new Set([
+      ...deposits.map(row => String(row.branchId || '')),
+      ...registrationReceipts.map(row => String(row.branchId || '')),
+    ].filter(Boolean))];
     const [staffRows, branchRows] = await Promise.all([
       staffIds.length ? this.prisma.staff.findMany({ where: { id: { in: staffIds } }, select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } }) : Promise.resolve([]),
       depositBranchIds.length ? this.prisma.branch.findMany({ where: { id: { in: depositBranchIds } }, select: { id: true, name: true } }) : Promise.resolve([]),
     ]);
     const staffById = new Map((staffRows as any[]).map(row => [String(row.id), row]));
     const branchById = new Map((branchRows as any[]).map(row => [String(row.id), row]));
-    const summary: any = { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: deposits.length };
+    const summary: any = { date, total: 0, cashDeposits: 0, cashCollectedTotal: 0, registrationFees: 0, registrationFeeCount: registrationReceipts.length, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, depositCount: deposits.length };
     const officers = new Map<string, any>();
 
     const officerFor = (staffIdValue: string | null, branchIdValue: string | null, staff: any, branchName: string | null) => {
@@ -241,6 +277,7 @@ export class CollectionsService {
         branchName,
         collectionCount: 0,
         depositCount: 0,
+        registrationFeeCount: 0,
         cashCollected: 0,
         settled: 0,
         unsettled: 0,
@@ -275,7 +312,19 @@ export class CollectionsService {
       officer.settled += amount;
     }
 
-    summary.cashCollectedTotal = summary.total + summary.cashDeposits;
+    for (const receipt of registrationReceipts) {
+      const amount = Number(receipt.amount || 0);
+      summary.registrationFees += amount;
+      summary.settled += amount;
+      const staff = receipt.staffId ? staffById.get(String(receipt.staffId)) : null;
+      const branch = receipt.branchId ? branchById.get(String(receipt.branchId)) : null;
+      const officer = officerFor(receipt.staffId || null, receipt.branchId || null, staff, branch?.name || null);
+      officer.registrationFeeCount++;
+      officer.cashCollected += amount;
+      officer.settled += amount;
+    }
+
+    summary.cashCollectedTotal = summary.total + summary.cashDeposits + summary.registrationFees;
     return { ...summary, byOfficer: [...officers.values()].sort((a, b) => b.cashCollected - a.cashCollected) };
   }
 }

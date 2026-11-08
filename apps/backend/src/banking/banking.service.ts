@@ -53,19 +53,40 @@ export class BankingService {
   async getCustomerTransactions(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.walletTransaction.findMany({where:{customerId},orderBy:{createdAt:'desc'}})}
   async deposit(customerId: string, data: any) {
     const amount = this.amount(data.amount);
+    if (data.cashReceivedConfirmed !== true) throw new BadRequestException('Physical cash receipt confirmation is required');
+    const branchId = String(data.branchId || '').trim();
+    const staffId = String(data.staffId || '').trim();
+    const reference = String(data.reference || '').trim();
+    if (!branchId || !staffId) throw new BadRequestException('An assigned branch and collecting Staff ID are required');
+    if (!reference || reference.length > 120) throw new BadRequestException('A valid cash receipt reference is required');
+
     return this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findUnique({ where: { id: customerId } });
       if (!customer) throw new NotFoundException('Customer not found');
+      if (!customer.branchId || customer.branchId !== branchId) {
+        throw new BadRequestException('Customer and cash collector must belong to the same branch');
+      }
+
+      const collector = await tx.staff.findUnique({
+        where: { id: staffId },
+        select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true, employmentStatus: true },
+      });
+      if (!collector || collector.employmentStatus !== 'ACTIVE' || collector.branchId !== branchId) {
+        throw new BadRequestException('Cash collector is not an active staff member of this branch');
+      }
+
+      const period = await tx.financialPeriod.findFirst({
+        where: { status: 'OPEN' },
+        orderBy: { startDate: 'desc' },
+      });
+      if (!period) throw new BadRequestException('No open financial period is available. Open the branch financial period before accepting cash deposits.');
 
       const wallet = await tx.customerWallet.upsert({
         where: { customerId },
         create: { customerId, balance: 0 },
         update: {},
       });
-      await tx.$queryRawUnsafe(
-        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
-        wallet.id,
-      );
+      await tx.$queryRawUnsafe('SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE', wallet.id);
       const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!lockedWallet) throw new NotFoundException('Customer wallet not found');
       if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
@@ -76,13 +97,9 @@ export class BankingService {
         where: { id: lockedWallet.id },
         data: { balance: newBalance },
       });
-      const provider = String(data.verificationProvider || data.provider || '').trim().toUpperCase() || null;
-      const bankCode = String(data.bankCode || data.bank_code || '').trim() || null;
-      const accountNumber = String(data.accountNumber || '').replace(/\D/g, '') || null;
-      const accountName = String(data.accountName || '').trim() || null;
-      const description = data.description ?? (accountName
-        ? 'Bank deposit from ' + accountName + (bankCode ? ' • ' + bankCode : '') + (accountNumber ? ' • ' + accountNumber : '')
-        : 'Wallet deposit');
+
+      const description = data.description?.trim()
+        || `Physical cash received at branch from ${[customer.firstName, customer.lastName].filter(Boolean).join(' ')} by ${collector.staffId}`;
       const transaction = await tx.walletTransaction.create({
         data: {
           customerId,
@@ -90,17 +107,28 @@ export class BankingService {
           amount,
           previousBalance,
           newBalance,
-          reference: data.reference?.trim() || this.ref('DEP'),
+          reference,
           description,
-          branchId: data.branchId,
-          staffId: data.staffId,
-          provider,
-          providerReference: data.providerReference || null,
+          branchId,
+          staffId,
+          provider: 'MANUAL_CASH',
           status: 'COMPLETED',
           processedAt: new Date(),
         },
       });
-      return { wallet: updatedWallet, transaction };
+      const cashbookEntry = await tx.cashbookEntry.create({
+        data: {
+          periodId: period.id,
+          branchId,
+          staffId,
+          type: 'CASH_IN',
+          amount,
+          reference,
+          description: `Cash received and credited to ${customer.id} by Staff ID ${collector.staffId}`,
+          entryDate: new Date(),
+        },
+      });
+      return { wallet: updatedWallet, transaction, cashbookEntry, collector: { id: collector.id, staffId: collector.staffId, name: [collector.firstName, collector.lastName].filter(Boolean).join(' ') } };
     });
   }
   async withdraw(customerId: string, data: any) {

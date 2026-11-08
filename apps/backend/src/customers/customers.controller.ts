@@ -43,6 +43,12 @@ export class CustomersController {
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
+  @Get(':id/registration-fee')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF')
+  registrationFee(@Param('id') id: string, @Req() req: any) {
+    return this.customersService.getRegistrationFeeReceipt(id, req.user);
+  }
+
   @Get(':id/history')
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   history(@Param('id') id: string, @Req() req: any) { return this.customersService.history(id, req.user); }

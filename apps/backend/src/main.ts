@@ -7,15 +7,22 @@ function getCorsOrigins() {
     .map((origin) => origin.trim())
     .filter(Boolean);
 
-  if (configured.length) return configured;
-  if (process.env.NODE_ENV !== 'production') {
-    return ['http://localhost:3000', 'http://localhost:3001'];
-  }
-  return [
-    process.env.FRONTEND_URL || 'https://pwfb-microfinance-965u.onrender.com',
-    'https://pwfb-microfinance-1.onrender.com',
-    'https://pwfb-frontend.onrender.com',
-  ].filter(Boolean);
+  const defaults = process.env.NODE_ENV !== 'production'
+    ? ['http://localhost:3000', 'http://localhost:3001']
+    : [
+        process.env.FRONTEND_URL || 'https://pwfb-microfinance-965u.onrender.com',
+        'https://pwfb-microfinance-1.onrender.com',
+        'https://pwfb-frontend.onrender.com',
+      ];
+
+  // The staging web client is hosted on Vercel and must be allowed even when
+  // CORS_ORIGINS is explicitly configured. Keep every existing configured
+  // origin and add the stable staging-branch alias.
+  const stagingFrontendOrigins = [
+    'https://pwfb-microfinance-33ne-git-staging-alaba-busaris-projects.vercel.app',
+  ];
+
+  return [...new Set([...defaults, ...configured, ...stagingFrontendOrigins])];
 }
 
 async function bootstrap() {

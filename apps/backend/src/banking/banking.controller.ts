@@ -93,15 +93,32 @@ export class BankingController {
     const id = await this.resolveCustomerId(customerId, req.user);
     await this.assertPermission(req.user, 'WALLET_DEPOSIT');
     await this.requireTransferMfa(req);
-    const staff = await this.authenticatedStaff(req.user);
-    const attributed = staff ? { ...body, branchId: staff.branchId, staffId: staff.id } : { ...body, branchId: undefined, staffId: undefined };
-    const bankCode = String(body?.bankCode || body?.bank_code || '').trim();
-    const accountNumber = String(body?.accountNumber || '').replace(/\D/g, '');
-    if (bankCode || accountNumber) {
-      if (!bankCode || !/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Select a bank and enter a valid 10-digit account number for bank-funded deposit');
-      const verified = await this.externalBankTransferService.verifyCustomerBankAccount(id, bankCode, accountNumber, body?.provider);
-      return this.bankingService.deposit(id, { ...attributed, bankCode, accountNumber, accountName: String(verified.accountName).trim(), verificationProvider: (verified as any).provider || undefined, accountVerified: true, customerNameVerified: true });
+    if (body?.cashReceivedConfirmed !== true) {
+      throw new BadRequestException('Cash receipt confirmation is required. Electronic bank funding must be verified through the provider settlement workflow.');
     }
+
+    const authenticated = await this.authenticatedStaff(req.user);
+    let collector = authenticated;
+    if (!collector && String(req.user?.role || '').toUpperCase() === 'SUPER_ADMIN') {
+      const requestedStaffId = String(body?.staffId || '').trim();
+      if (!requestedStaffId) throw new BadRequestException('Select the active Staff ID that physically collected this cash');
+      collector = await this.prisma.staff.findUnique({
+        where: { id: requestedStaffId },
+        select: { id: true, staffId: true, branchId: true, employmentStatus: true },
+      }) as any;
+      if (!collector || collector.employmentStatus !== 'ACTIVE' || !collector.branchId) {
+        throw new BadRequestException('Cash collector must be an active staff member assigned to a branch');
+      }
+    }
+    if (!collector?.id || !collector?.branchId) {
+      throw new ForbiddenException('This cash deposit must be attributed to an active branch Staff ID');
+    }
+    const attributed = {
+      ...body,
+      branchId: collector.branchId,
+      staffId: collector.id,
+      cashReceivedConfirmed: true,
+    };
     return this.bankingService.deposit(id, attributed);
   }
   @Post('customers/:customerId/withdraw')

@@ -105,6 +105,7 @@ export class CustomersService {
           userId: authUser.id,
           userEmail: authUser.email,
           customerName: [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' '),
+          amount: Number(registrationCharge.amount),
         });
         return { customer, user, group, registrationFeeReceipt };
       });

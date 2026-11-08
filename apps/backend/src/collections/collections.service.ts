@@ -57,8 +57,18 @@ export class CollectionsService {
     return this.settle(created.id, targetId);
   }
 
-  async findAll(periodId?: string, branchId?: string, staffId?: string, type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER') {
-    return this.prisma.dailyCollection.findMany({ where: { ...(periodId ? { periodId } : {}), ...(branchId ? { branchId } : {}), ...(staffId ? { staffId } : {}), ...(type ? { type } : {}) }, orderBy: { collectionDate: 'desc' }, include: { period: true, branch: true, staff: true, customer: true } });
+  async findAll(periodId?: string, branchId?: string, staffId?: string, type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER', branchIds?: string[] | null) {
+    const branchFilter = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
+    if (branchIds && !branchIds.length && !branchId) return [];
+    return this.prisma.dailyCollection.findMany({
+      where: { ...(periodId ? { periodId } : {}), ...branchFilter, ...(staffId ? { staffId } : {}), ...(type ? { type } : {}) },
+      orderBy: { collectionDate: 'desc' },
+      include: {
+        period: true, branch: true,
+        staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } },
+        customer: true,
+      },
+    });
   }
 
   async findOne(id: string) {
@@ -107,12 +117,67 @@ export class CollectionsService {
     });
   }
 
-  async summary(periodId?: string, branchId?: string, staffId?: string) {
-    const collections = await this.prisma.dailyCollection.findMany({ where: { ...(periodId ? { periodId } : {}), ...(branchId ? { branchId } : {}), ...(staffId ? { staffId } : {}) } });
-    return collections.reduce((summary, collection) => { summary.total += collection.amount; if (collection.type === 'SAVINGS') summary.savings += collection.amount; if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += collection.amount; if (collection.type === 'OTHER') summary.other += collection.amount; if (collection.reconciled) summary.reconciled += collection.amount; else summary.unreconciled += collection.amount; if (collection.settled) summary.settled += collection.amount; else summary.unsettled += collection.amount; summary.collectionCount++; return summary; }, { total: 0, savings: 0, loanRepayments: 0, other: 0, reconciled: 0, unreconciled: 0, settled: 0, unsettled: 0, collectionCount: 0 });
+  async summary(periodId?: string, branchId?: string, staffId?: string, branchIds?: string[] | null) {
+    const collections = await this.findAll(periodId, branchId, staffId, undefined, branchIds);
+    const summary: any = { total: 0, savings: 0, loanRepayments: 0, other: 0, reconciled: 0, unreconciled: 0, settled: 0, unsettled: 0, collectionCount: 0 };
+    const officers = new Map<string, any>();
+    for (const collection of collections as any[]) {
+      const amount = Number(collection.amount || 0);
+      summary.total += amount;
+      if (collection.type === 'SAVINGS') summary.savings += amount;
+      if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += amount;
+      if (collection.type === 'OTHER') summary.other += amount;
+      if (collection.reconciled) summary.reconciled += amount; else summary.unreconciled += amount;
+      if (collection.settled) summary.settled += amount; else summary.unsettled += amount;
+      summary.collectionCount++;
+      const staff = collection.staff || {};
+      const key = String(collection.staffId || 'UNASSIGNED');
+      const officer = officers.get(key) || {
+        staffId: collection.staffId,
+        employeeStaffId: staff.staffId || null,
+        officerName: [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim() || 'Unknown officer',
+        branchId: collection.branchId,
+        collectionCount: 0,
+        cashCollected: 0,
+        settled: 0,
+        unsettled: 0,
+      };
+      officer.collectionCount++;
+      officer.cashCollected += amount;
+      if (collection.settled) officer.settled += amount; else officer.unsettled += amount;
+      officers.set(key, officer);
+    }
+    return { ...summary, byOfficer: [...officers.values()].sort((a, b) => b.cashCollected - a.cashCollected) };
   }
 
   async reconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } }); }
   async unreconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); if (collection.settled) throw new BadRequestException('A settled collection cannot be unreconciled'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: false } }); }
-  async dailySummary(date: string, branchId?: string) { const start = new Date(`${date}T00:00:00.000Z`), end = new Date(`${date}T23:59:59.999Z`); if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date'); const collections = await this.prisma.dailyCollection.findMany({ where: { collectionDate: { gte: start, lte: end }, ...(branchId ? { branchId } : {}) } }); return collections.reduce((summary, collection) => { summary.total += collection.amount; if (collection.type === 'SAVINGS') summary.savings += collection.amount; if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += collection.amount; if (collection.type === 'OTHER') summary.other += collection.amount; if (collection.settled) summary.settled += collection.amount; else summary.unsettled += collection.amount; summary.collectionCount++; return summary; }, { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0 }); }
+  async dailySummary(date: string, branchId?: string, staffId?: string, branchIds?: string[] | null) {
+    const start = new Date(`${date}T00:00:00.000Z`), end = new Date(`${date}T23:59:59.999Z`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date');
+    const branchFilter = branchId ? { branchId } : branchIds ? { branchId: { in: branchIds } } : {};
+    if (branchIds && !branchIds.length && !branchId) return { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0, byOfficer: [] };
+    const collections = await this.prisma.dailyCollection.findMany({
+      where: { collectionDate: { gte: start, lte: end }, ...branchFilter, ...(staffId ? { staffId } : {}) },
+      include: { staff: { select: { id: true, staffId: true, firstName: true, lastName: true, branchId: true } } },
+    });
+    const summary: any = { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0 };
+    const officers = new Map<string, any>();
+    for (const collection of collections as any[]) {
+      const amount = Number(collection.amount || 0);
+      summary.total += amount;
+      if (collection.type === 'SAVINGS') summary.savings += amount;
+      if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += amount;
+      if (collection.type === 'OTHER') summary.other += amount;
+      if (collection.settled) summary.settled += amount; else summary.unsettled += amount;
+      summary.collectionCount++;
+      const staff = collection.staff || {}, key = String(collection.staffId || 'UNASSIGNED');
+      const officer = officers.get(key) || { staffId: collection.staffId, employeeStaffId: staff.staffId || null, officerName: [staff.firstName, staff.lastName].filter(Boolean).join(' ').trim() || 'Unknown officer', branchId: collection.branchId, collectionCount: 0, cashCollected: 0, settled: 0, unsettled: 0 };
+      officer.collectionCount++;
+      officer.cashCollected += amount;
+      if (collection.settled) officer.settled += amount; else officer.unsettled += amount;
+      officers.set(key, officer);
+    }
+    return { ...summary, byOfficer: [...officers.values()].sort((a, b) => b.cashCollected - a.cashCollected) };
+  }
 }

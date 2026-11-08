@@ -5,6 +5,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PermissionsService } from '../permissions/permissions.service';
 import { AccessScopeService } from '../access/access-scope.service';
+import { TwoFactorService } from '../auth/two-factor.service';
 
 const VIEW_ROLES = ['SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'];
 const SETTLE_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'];
@@ -16,7 +17,14 @@ export class CollectionsController {
     private readonly collectionsService: CollectionsService,
     private readonly permissions: PermissionsService,
     private readonly accessScope: AccessScopeService,
+    private readonly twoFactorService: TwoFactorService,
   ) {}
+
+  private async requireFinancialMfa(req: any) {
+    const authorization = String(req?.headers?.authorization || '');
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    return this.twoFactorService.assertVerified(String(req?.user?.id || ''), token);
+  }
 
   private async filters(user: any, requestedBranchId?: string, requestedStaffId?: string) {
     const scope = await this.accessScope.getScope(user);
@@ -37,6 +45,7 @@ export class CollectionsController {
   @Roles(...SETTLE_ROLES)
   async create(@Req() req: any, @Body() body: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }) {
     await this.permissions.assert(req.user.role, 'COLLECTION_CREATE');
+    await this.requireFinancialMfa(req);
     const scope = await this.accessScope.getScope(req.user);
     let input = { ...body };
     if (scope.role === 'CREDIT_OFFICER') {
@@ -83,6 +92,7 @@ export class CollectionsController {
   @Roles(...SETTLE_ROLES)
   async settle(@Req() req: any, @Param('id') id: string, @Body() body: { targetId?: string }) {
     await this.permissions.assert(req.user.role, 'COLLECTION_SETTLE');
+    await this.requireFinancialMfa(req);
     await this.accessScope.assertCollection(req.user, id);
     return this.collectionsService.settle(id, body.targetId);
   }
@@ -91,6 +101,7 @@ export class CollectionsController {
   @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER')
   async reconcile(@Param('id') id: string, @Req() req: any) {
     await this.accessScope.assertCollection(req.user, id);
+    await this.requireFinancialMfa(req);
     return this.collectionsService.reconcile(id);
   }
 
@@ -98,6 +109,7 @@ export class CollectionsController {
   @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER')
   async unreconcile(@Param('id') id: string, @Req() req: any) {
     await this.accessScope.assertCollection(req.user, id);
+    await this.requireFinancialMfa(req);
     return this.collectionsService.unreconcile(id);
   }
 }

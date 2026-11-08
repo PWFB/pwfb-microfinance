@@ -141,7 +141,7 @@ export class RepaymentsService {
 
     const customerWhere: any = scope.global ? {} : { branchId: { in: branchIds }, ...(scope.role === 'CREDIT_OFFICER' ? { assignedStaffId: scope.staffId } : {}) };
     const loans = await this.prisma.loan.findMany({
-      where: { customer: { is: customerWhere }, status: { notIn: ['PENDING', 'REJECTED', 'DISBURSEMENT_FAILED'] } },
+      where: { customer: { is: customerWhere }, status: { in: ['DISBURSED', 'ACTIVE'] } },
       orderBy: { createdAt: 'asc' },
       include: { customer: { include: { bankAccounts: { where: { status: 'ACTIVE' }, include: { institution: true }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }] } } }, repayments: true },
     });
@@ -241,7 +241,7 @@ export class RepaymentsService {
     for (const id of ids) {
       const loan: any = loanById.get(id);
       if (!loan || !loan.customer?.branchId || loan.customer.branchId !== staff.branchId) throw new BadRequestException('Every selected loan and borrower must belong to your assigned branch');
-      if (['PENDING', 'REJECTED', 'DISBURSEMENT_FAILED'].includes(String(loan.status || '').toUpperCase())) throw new BadRequestException(`Loan ${id} is not a disbursed loan eligible for repayment`);
+      if (!['DISBURSED', 'ACTIVE'].includes(String(loan.status || '').toUpperCase())) throw new BadRequestException(`Loan ${id} is not an active disbursed loan eligible for repayment`);
       await this.accessScope.assertLoan(user, id);
     }
     const period = await this.prisma.financialPeriod.findFirst({ where: { status: 'OPEN' }, orderBy: { startDate: 'desc' } });

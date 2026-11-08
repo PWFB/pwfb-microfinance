@@ -18,17 +18,22 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Controller('customers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(private readonly customersService: CustomersService, private readonly accessScope: AccessScopeService) {}
 
   @Post()
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'STAFF')
   create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: any) {
     return this.customersService.create(createCustomerDto, req.user);
   }
+
+  @Get('groups')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF')
+  listGroups(@Req() req: any) { return this.customersService.listClientGroups(req.user); }
 
   @Get('me')
   @Roles('CUSTOMER')
@@ -39,16 +44,16 @@ export class CustomersController {
   findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
   @Get(':id/history')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   history(@Param('id') id: string, @Req() req: any) { return this.customersService.history(id, req.user); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'CREDIT_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findOne(@Param('id') id: string, @Req() req: any) { return this.customersService.findOne(id, req.user); }
 
   @Patch(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) { return this.customersService.update(id, updateCustomerDto); }
+  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto, @Req() req: any) { await this.accessScope.assertCustomer(req.user, id); return this.customersService.update(id, updateCustomerDto); }
 
   @Post(':id/reset-password')
   @Roles('SUPER_ADMIN')

@@ -71,13 +71,15 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Post('passkey/unregister-all')
-  passkeyUnregisterAll(@Req() req: any) {
+  async passkeyUnregisterAll(@Req() req: any, @Body() body: { password: string; code?: string }) {
+    await this.authService.reauthenticateSecurityAction(req.user, body?.password, body?.code);
     return this.authService.passkeyUnregisterAll(req.user);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('passkey/register/options')
-  passkeyRegisterOptions(@Req() req: any, @Body() body: { replaceExisting?: boolean }, @Headers('origin') origin?: string) {
+  async passkeyRegisterOptions(@Req() req: any, @Body() body: { replaceExisting?: boolean; password: string; code?: string }, @Headers('origin') origin?: string) {
+    await this.authService.reauthenticateSecurityAction(req.user, body?.password, body?.code);
     return this.authService.passkeyRegisterOptions(req.user, origin, !!body?.replaceExisting);
   }
 

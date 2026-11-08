@@ -37,7 +37,7 @@ export class StaffController {
   create(@Body() createStaffDto: CreateStaffDto) { return this.staffService.create(createStaffDto); }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'TELLER', 'CREDIT_OFFICER')
   async findAll(@Query() filter: StaffFilterDto, @Req() req: any) {
     const rows = await this.staffService.findAll(filter);
     return this.accessScope.filterList(req.user, 'staff', rows);
@@ -59,7 +59,7 @@ export class StaffController {
   assign(@Param('id') id: string, @Body() body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) { return this.staffService.assign(id, body); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'TELLER', 'CREDIT_OFFICER')
   async findOne(@Param('id') id: string, @Req() req: any) {
     await this.accessScope.assertStaff(req.user, id);
     return this.staffService.findOne(id);

@@ -48,7 +48,31 @@ export class CustomersService {
     if (!user?.customer) throw new NotFoundException('Customer profile not found'); return { ...user.customer, identityVerification: await this.getIdentityVerification(user.customer.id) };
   }
 
-  async findAll(authUser?: any, search?: string) { const staff = authUser ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } }) : null; const q = String(search || '').trim(); const where: any = staff ? { assignedStaffId: staff.id } : {}; if (q) { where.OR = [{ firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } }, { id: { contains: q, mode: 'insensitive' } }, { phone: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }]; } return this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' }, take: 50, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } }); }
+  async findAll(authUser?: any, search?: string) {
+    const role = String(authUser?.role || '').toUpperCase();
+    const personalAssignmentRoles = ['CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'];
+    const staff = authUser && personalAssignmentRoles.includes(role)
+      ? await this.prisma.staff.findUnique({ where: { userId: authUser.id } })
+      : null;
+    if (authUser && personalAssignmentRoles.includes(role) && !staff) {
+      throw new UnauthorizedException('Your staff login is not linked to an active Staff ID');
+    }
+    const q = String(search || '').trim();
+    const where: any = staff ? { assignedStaffId: staff.id } : {};
+    if (q) {
+      where.OR = [
+        { firstName: { contains: q, mode: 'insensitive' } },
+        { lastName: { contains: q, mode: 'insensitive' } },
+        { id: { contains: q } },
+        { phone: { contains: q } },
+        { email: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+    return this.prisma.customer.findMany({
+      where, orderBy: { createdAt: 'desc' }, take: 50,
+      include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true },
+    });
+  }
 
   async history(id: string, authUser: any) {
     const customer = await this.findOne(id, authUser);
@@ -77,7 +101,19 @@ export class CustomersService {
   private maskIdentity(value?: string | null) { if (!value) return null; return `${'•'.repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`; }
   private async getIdentityVerification(customerId: string) { const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT id, bvn, bvn_status AS "bvnStatus", bvn_verified_at AS "bvnVerifiedAt", bvn_overridden_at AS "bvnOverriddenAt", bvn_override_by_email AS "bvnOverrideByEmail", bvn_override_reason AS "bvnOverrideReason", nin, nin_status AS "ninStatus", nin_verified_at AS "ninVerifiedAt", nin_overridden_at AS "ninOverriddenAt", nin_override_by_email AS "ninOverrideByEmail", nin_override_reason AS "ninOverrideReason", created_at AS "createdAt", updated_at AS "updatedAt" FROM customer_identity_verifications WHERE customer_id = $1`, customerId); const row = rows[0]; if (!row) return null; return { id: row.id, bvn: this.maskIdentity(row.bvn), bvnStatus: row.bvnStatus, bvnVerifiedAt: row.bvnVerifiedAt, bvnOverriddenAt: row.bvnOverriddenAt, bvnOverrideByEmail: row.bvnOverrideByEmail, bvnOverrideReason: row.bvnOverrideReason, nin: this.maskIdentity(row.nin), ninStatus: row.ninStatus, ninVerifiedAt: row.ninVerifiedAt, ninOverriddenAt: row.ninOverriddenAt, ninOverrideByEmail: row.ninOverrideByEmail, ninOverrideReason: row.ninOverrideReason, createdAt: row.createdAt, updatedAt: row.updatedAt }; }
 
-  async findOne(id: string, authUser?: any) { const customer = await this.prisma.customer.findUnique({ where: { id }, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, createdAt: true, updatedAt: true } } } }); if (!customer) throw new NotFoundException('Customer not found'); if (authUser) { const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id } }); if (staff && customer.assignedStaffId !== staff.id) throw new UnauthorizedException('You can only access your assigned clients'); } return { ...customer, identityVerification: await this.getIdentityVerification(customer.id) }; }
+  async findOne(id: string, authUser?: any) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id },
+      include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, createdAt: true, updatedAt: true } } },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+    const role = String(authUser?.role || '').toUpperCase();
+    if (authUser && ['CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF'].includes(role)) {
+      const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id } });
+      if (!staff || customer.assignedStaffId !== staff.id) throw new UnauthorizedException('You can only access your assigned clients');
+    }
+    return { ...customer, identityVerification: await this.getIdentityVerification(customer.id) };
+  }
 
   async update(id: string, dto: UpdateCustomerDto) {
     const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } }); if (!customer) throw new NotFoundException('Customer not found');

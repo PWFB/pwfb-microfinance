@@ -213,7 +213,7 @@ describe('LoansService', () => {
     }));
   });
 
-  it('should reject update when the new customer does not exist', async () => {
+  it('should reject reassignment to a different customer', async () => {
     prisma.loan.findUnique.mockResolvedValue({
       id: 'loan-1',
       customerId: 'customer-1',
@@ -228,7 +228,7 @@ describe('LoansService', () => {
 
     await expect(
       service.update('loan-1', dto, { role: 'SUPER_ADMIN' }),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toThrow('Loan customer ownership cannot be changed after creation');
 
     expect(prisma.loan.update).not.toHaveBeenCalled();
   });

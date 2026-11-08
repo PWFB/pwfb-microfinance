@@ -39,8 +39,12 @@ export class OrganizationService {
       where,
       orderBy: { name: 'asc' },
       include: {
-        divisions: { orderBy: { name: 'asc' }, include: { areas: true, branches: true, staff: true } },
-        areas: { orderBy: { name: 'asc' }, include: { branches: true, staff: true } },
+        divisions: { orderBy: { name: 'asc' }, include: {
+          areas: { include: { staff: true, branches: { include: { staff: true } } } },
+          branches: { include: { staff: true } },
+          staff: true,
+        } },
+        areas: { orderBy: { name: 'asc' }, include: { branches: { include: { staff: true } }, staff: true } },
         branches: { orderBy: { name: 'asc' }, include: { staff: true } },
         staff: true,
       },

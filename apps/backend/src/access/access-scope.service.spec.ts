@@ -5,11 +5,19 @@ import { lastValueFrom, of } from 'rxjs';
 
 describe('AccessScopeService', () => {
   let query: jest.Mock;
+  let assignments: jest.Mock;
+  let branches: jest.Mock;
   let service: AccessScopeService;
 
   beforeEach(() => {
     query = jest.fn();
-    service = new AccessScopeService({ $queryRawUnsafe: query } as any);
+    assignments = jest.fn().mockResolvedValue([]);
+    branches = jest.fn().mockResolvedValue([]);
+    service = new AccessScopeService({
+      $queryRawUnsafe: query,
+      staffAssignment: { findMany: assignments },
+      branch: { findMany: branches },
+    } as any);
   });
 
   it('grants global scope only to Super Admin', async () => {
@@ -87,6 +95,46 @@ describe('AccessScopeService', () => {
     );
     expect(query.mock.calls[0][0]).toContain('a."active" = TRUE');
     expect(query.mock.calls[0][0]).toContain('a."startsAt" <= CURRENT_TIMESTAMP');
+    expect(assignments).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ staffId: 'staff-manager', role: 'AREA_MANAGER', active: true }),
+    }));
+  });
+
+  it('returns all active area assignments without broadening an Area Manager to the staff profile region', async () => {
+    query.mockResolvedValueOnce([{
+      id: 'staff-manager', branchId: 'home-branch', areaId: 'profile-area',
+      divisionId: 'profile-division', regionId: 'profile-region',
+    }]);
+    assignments.mockResolvedValueOnce([
+      { branchId: 'assigned-branch-a', areaId: 'area-a', divisionId: 'division-a', regionId: 'region-a' },
+      { branchId: 'assigned-branch-b', areaId: 'area-b', divisionId: 'division-b', regionId: 'region-b' },
+    ]);
+    branches.mockResolvedValueOnce([{ id: 'home-branch' }, { id: 'assigned-branch-a' }, { id: 'assigned-branch-b' }, { id: 'area-a-branch' }, { id: 'area-b-branch' }]);
+
+    await expect(service.getScopedBranchIds({ id: 'manager-user', role: 'AREA_MANAGER' }))
+      .resolves.toEqual(['home-branch', 'assigned-branch-a', 'assigned-branch-b', 'area-a-branch', 'area-b-branch']);
+
+    const branchWhere = branches.mock.calls[0][0].where;
+    expect(branchWhere.OR).toEqual(expect.arrayContaining([
+      { id: { in: expect.arrayContaining(['home-branch', 'assigned-branch-a', 'assigned-branch-b']) } },
+      { areaId: { in: expect.arrayContaining(['profile-area', 'area-a', 'area-b']) } },
+    ]));
+    expect(branchWhere.OR).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ regionId: expect.anything() }),
+    ]));
+  });
+
+  it('denies a repayment associated with another officer customer', async () => {
+    query
+      .mockResolvedValueOnce([{
+        id: 'repayment-b', branchId: 'branch-a', assignedStaffId: 'staff-b',
+        areaId: null, divisionId: null, regionId: null,
+      }])
+      .mockResolvedValueOnce([{
+        id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null,
+      }]);
+    await expect(service.assertRepayment({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'repayment-b'))
+      .rejects.toBeInstanceOf(ForbiddenException);
   });
 
 });

@@ -93,20 +93,30 @@ export class CollectionsController {
 
   @Get(':id')
   @Roles(...VIEW_ROLES)
-  findOne(@Param('id') id:string) { return this.collectionsService.findOne(id); }
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertCollection(req.user, id);
+    return this.collectionsService.findOne(id);
+  }
 
   @Post(':id/settle')
   @Roles(...SETTLE_ROLES)
-  async settle(@Req() req:any,@Param('id') id:string,@Body() body:{targetId?:string}) {
-    await this.permissions.assert(req.user.role,'COLLECTION_SETTLE');
+  async settle(@Req() req: any, @Param('id') id: string, @Body() body: { targetId?: string }) {
+    await this.permissions.assert(req.user.role, 'COLLECTION_SETTLE');
+    await this.accessScope.assertCollection(req.user, id);
     return this.collectionsService.settle(id, body.targetId);
   }
 
   @Patch(':id/reconcile')
-  @Roles('SUPER_ADMIN','ADMIN')
-  reconcile(@Param('id') id:string) { return this.collectionsService.reconcile(id); }
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  async reconcile(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertCollection(req.user, id);
+    return this.collectionsService.reconcile(id);
+  }
 
   @Patch(':id/unreconcile')
-  @Roles('SUPER_ADMIN','ADMIN')
-  unreconcile(@Param('id') id:string) { return this.collectionsService.unreconcile(id); }
+  @Roles('SUPER_ADMIN', 'ADMIN')
+  async unreconcile(@Param('id') id: string, @Req() req: any) {
+    await this.accessScope.assertCollection(req.user, id);
+    return this.collectionsService.unreconcile(id);
+  }
 }

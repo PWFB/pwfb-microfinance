@@ -118,6 +118,14 @@ describe('CashbookService manual ledger entries', () => {
     };
     const tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      financialPeriod: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'period-1',
+          status: 'OPEN',
+          startDate: new Date('2026-11-01T00:00:00.000Z'),
+          endDate: new Date('2026-11-30T23:59:59.999Z'),
+        }),
+      },
       cashbookEntry: {
         findFirst: jest.fn().mockResolvedValue(duplicate),
         create: jest.fn().mockResolvedValue(entry),

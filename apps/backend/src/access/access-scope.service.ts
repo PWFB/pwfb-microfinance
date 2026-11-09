@@ -78,9 +78,13 @@ export class AccessScopeService {
     if (scope.role === 'REGIONAL_MANAGER' && same(scope.regionId, target.regionId)) return true;
     if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;
     if (scope.role === 'AREA_MANAGER' && same(scope.areaId, target.areaId)) return true;
-    if (scope.role === 'CREDIT_OFFICER' && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
+    if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
       if (same(scope.staffId, target.assignedStaffId)) return true;
       throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
+    }
+    if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'staffId')) {
+      if (same(scope.staffId, target.staffId)) return true;
+      throw new ForbiddenException('Access denied: this record is not linked to your Staff ID');
     }
     // Credit Officers still need access to their own branch metadata; record
     // ownership is checked only for Customer/Loan targets that carry assignedStaffId.
@@ -157,7 +161,7 @@ export class AccessScopeService {
   }
   async assertStaff(user: AccessUser, targetStaffId: string) {
     const scope = await this.getScope(user);
-    if (scope.role === 'CREDIT_OFFICER' && String(scope.staffId || '') !== String(targetStaffId || '')) {
+    if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && String(scope.staffId || '') !== String(targetStaffId || '')) {
       throw new ForbiddenException('A Credit Officer can only access their own staff record');
     }
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, targetStaffId);
@@ -188,7 +192,7 @@ export class AccessScopeService {
   async assertCollection(user: AccessUser, collectionId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id", dc."branchId", dc."staffId", b."areaId", b."divisionId", b."regionId" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id" = dc."branchId" WHERE dc."id" = $1 LIMIT 1`, collectionId);
     const scope = await this.getScope(user);
-    if (scope.role === 'CREDIT_OFFICER' && String(rows[0]?.staffId || '') !== String(scope.staffId || '')) {
+    if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && String(rows[0]?.staffId || '') !== String(scope.staffId || '')) {
       throw new ForbiddenException('A Credit Officer can only access their own collection records');
     }
     return this.assertOrg(user, rows[0]);

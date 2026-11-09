@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { apiRequest } from "../lib/api";
 import { getDashboardPath, isDashboardPathAllowed } from "../lib/role-routing";
 
-export type AuthUser = { id: string; email: string; role: string; firstName?: string; lastName?: string };
+export type AuthUser = { id: string; userId?: string; publicUserId?: string; email: string; role: string; firstName?: string; lastName?: string };
 
 type AuthContextValue = { user: AuthUser | null; loading: boolean; logout: () => void; refreshProfile: () => Promise<AuthUser | null> };
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);

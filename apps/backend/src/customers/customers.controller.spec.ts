@@ -12,7 +12,7 @@ describe('CustomersController', () => {
       providers: [
         {
           provide: CustomersService,
-          useValue: {},
+          useValue: { verifyMyIdentifier: jest.fn(), verifyCustomerIdentifier: jest.fn(), },
         },
         { provide: AccessScopeService, useValue: { assertCustomer: jest.fn().mockResolvedValue(undefined) }
         },

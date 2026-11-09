@@ -11,7 +11,7 @@ const MAX_RECEIPT_BYTES = 6 * 1024 * 1024;
 
 @Controller('balmz-ai')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','CUSTOMER','AUDITOR','MONITORING_TEAM')
+@Roles('SUPER_ADMIN')
 export class BalmzAiController {
   constructor(private readonly balmzAi: BalmzAiService, private readonly receipts: BalmzReceiptService) {}
 
@@ -32,6 +32,7 @@ export class BalmzAiController {
   }
 
   @Post('receipts/verify')
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','CUSTOMER','AUDITOR','MONITORING_TEAM')
   @UseInterceptors(FileInterceptor('receipt', {
     limits: { fileSize: MAX_RECEIPT_BYTES },
     fileFilter: (_req, file, callback) => {

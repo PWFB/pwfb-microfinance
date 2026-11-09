@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, TooManyRequestsException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, HttpException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'crypto';
@@ -29,7 +29,7 @@ export class AuthService {
     );
     const counts = new Map(rows.map((row) => [row.keyHash, Number(row.attempts)]));
     if ((counts.get(emailKey) || 0) >= 5 || (counts.get(ipKey) || 0) >= 30) {
-      throw new TooManyRequestsException('Too many failed login attempts. Please wait 15 minutes and try again.');
+      throw new HttpException('Too many failed login attempts. Please wait 15 minutes and try again.', 429);
     }
     return { emailKey, ipKey };
   }

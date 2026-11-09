@@ -56,6 +56,7 @@ export const pwfbApi = {
   messages: {
     context: () => apiRequest("/messages/context"),
     staff: (branchId: string) => apiRequest(`/messages/staff${query({ branchId })}`),
+    roles: (branchId: string) => apiRequest(`/messages/roles${query({ branchId })}`),
     list: () => apiRequest("/messages"),
     conversation: (conversationId: string) => apiRequest(`/messages/${encodeURIComponent(conversationId)}`),
     markRead: (conversationId: string) => apiRequest(`/messages/${encodeURIComponent(conversationId)}/read`, { method: "POST" }),

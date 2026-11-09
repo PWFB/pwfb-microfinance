@@ -5,7 +5,7 @@ import { Role } from '@prisma/client';
 @Injectable()
 export class OrganizationService {
   constructor(private readonly prisma: PrismaService) {}
-  private readonly fullRoles: Role[] = [Role.SUPER_ADMIN, Role.ADMIN];
+  private readonly fullRoles: Role[] = [Role.SUPER_ADMIN];
 
   private async getScope(userId: string) {
     const user = await this.prisma.user.findUnique({

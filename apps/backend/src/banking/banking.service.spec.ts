@@ -220,4 +220,42 @@ describe('BankingService wallet flows', () => {
     expect(tx.financialPeriod.findFirst).not.toHaveBeenCalled();
   });
 
+  it('rechecks the financial period after locking it for a branch virtual-account deposit', async () => {
+    tx.branchVirtualAccount = {
+      findUnique: jest.fn().mockResolvedValue({
+        branchId: 'branch-1',
+        status: 'ACTIVE',
+        accountNumber: '1234567890',
+        branch: { id: 'branch-1' },
+        institution: { id: 'bank-1' },
+      }),
+    };
+    tx.cashbookEntry = {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+    };
+    tx.financialPeriod = {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'period-1',
+        status: 'OPEN',
+      }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'period-1',
+        status: 'CLOSED',
+      }),
+    };
+
+    await expect(service.recordBranchDeposit({
+      accountNumber: '1234567890',
+      amount: 50,
+      reference: 'BANK-REF-CLOSED',
+    })).rejects.toThrow('financial period closed before this branch deposit');
+
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT id FROM "FinancialPeriod" WHERE id = $1 FOR UPDATE',
+      'period-1',
+    );
+    expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
+  });
+
 });

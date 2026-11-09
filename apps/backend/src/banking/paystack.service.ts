@@ -14,15 +14,6 @@ export class PaystackService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async onModuleInit() {
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PaystackCardAttemptGuard" (
-      "cardId" TEXT PRIMARY KEY,
-      "customerId" TEXT NOT NULL,
-      "failedAttempts" INTEGER NOT NULL DEFAULT 0,
-      "cooldownUntil" TIMESTAMPTZ,
-      "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )`);
-  }
 
   private async assertCardAttemptAllowed(customerId: string, cardId: string) {
     await this.prisma.$executeRawUnsafe(

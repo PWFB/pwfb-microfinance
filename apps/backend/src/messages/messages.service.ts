@@ -188,12 +188,12 @@ export class MessagesService {
 
   private async insertMessage(tx: any, conversationId: string, actor: any, staffId: string | null, body: string) {
     const id = randomUUID();
-    const rows = await tx.$queryRawUnsafe<any[]>(
+    const rows = await tx.$queryRawUnsafe(
       'INSERT INTO "BranchMessage" ("id", "conversationId", "senderUserId", "senderStaffId", "body", "createdAt") ' +
       'VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) ' +
       'RETURNING "id", "conversationId", "senderUserId", "senderStaffId", "body", "createdAt"',
       id, conversationId, actor.id, staffId, body,
-    );
+    ) as any[];
     await tx.$executeRawUnsafe(
       'UPDATE "BranchMessageConversation" SET "lastMessageAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $1',
       conversationId,

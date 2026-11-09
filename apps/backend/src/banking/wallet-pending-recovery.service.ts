@@ -127,7 +127,8 @@ export class WalletPendingRecoveryService implements OnModuleInit, OnModuleDestr
       const status = String(verified.status || '').toLowerCase();
       if (status === 'success') {
         const result = await this.paystack.handleWebhook({ event: 'charge.success', data: verified });
-        return result?.processed || result?.duplicate ? 'COMPLETED' : 'PENDING';
+        const state = result as { processed?: boolean; duplicate?: boolean } | null;
+        return state?.processed || state?.duplicate ? 'COMPLETED' : 'PENDING';
       }
       if (['failed', 'abandoned', 'reversed'].includes(status)) {
         const terminal = status === 'reversed' ? 'REVERSED' : 'FAILED';
@@ -158,7 +159,7 @@ export class WalletPendingRecoveryService implements OnModuleInit, OnModuleDestr
             : '';
       if (!event) return 'PENDING';
       const result = await this.paystack.handleWebhook({ event, data: verified });
-      if (result?.conflict) return 'PENDING';
+      if ((result as { conflict?: boolean } | null)?.conflict) return 'PENDING';
       if (event === 'transfer.success') return 'COMPLETED';
       if (event === 'transfer.reversed') return 'REVERSED';
       return 'FAILED';

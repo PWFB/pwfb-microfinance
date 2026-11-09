@@ -13,11 +13,12 @@ function getCorsOrigins() {
         process.env.FRONTEND_URL || 'https://pwfb-microfinance-965u.onrender.com',
         'https://pwfb-microfinance-1.onrender.com',
         'https://pwfb-frontend.onrender.com',
+        'https://pwfb-microfinance-33ne.vercel.app',
       ];
 
-  // The staging web client is hosted on Vercel and must be allowed even when
-  // CORS_ORIGINS is explicitly configured. Keep every existing configured
-  // origin and add the stable staging-branch alias.
+  // Keep the stable Vercel frontend origin allowed alongside Render origins,
+  // even when CORS_ORIGINS is explicitly configured. The optional staging
+  // alias remains configurable for branch-specific testing.
   const stagingFrontendOrigin = process.env.STAGING_FRONTEND_URL?.trim();
 
   return [

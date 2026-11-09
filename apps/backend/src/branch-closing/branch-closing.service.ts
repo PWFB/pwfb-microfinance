@@ -17,12 +17,7 @@ export class BranchClosingService {
     return rows[0];
   }
 
-  private async ensureTable() {
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "BranchClosing" ("id" text PRIMARY KEY,"branchId" text NOT NULL,"periodId" text NOT NULL,"closingDate" date NOT NULL,"status" text NOT NULL DEFAULT 'SUBMITTED',"submittedBy" text,"submittedAt" timestamptz NOT NULL DEFAULT NOW(),"approvedBy" text,"approvedAt" timestamptz,"checklist" jsonb NOT NULL DEFAULT '{}'::jsonb,"createdAt" timestamptz NOT NULL DEFAULT NOW(),"updatedAt" timestamptz NOT NULL DEFAULT NOW(), UNIQUE("branchId","periodId","closingDate"))`);
-  }
-
   async checklist(user: any, branchId: string, periodId: string, closingDate: string) {
-    await this.ensureTable();
     await this.scope.assertBranch(user, branchId);
     const branch = await this.branch(branchId);
     const date = new Date(`${closingDate}T23:59:59.999Z`);
@@ -51,7 +46,6 @@ export class BranchClosingService {
     if (!MANAGERS.includes(String(user.role))) throw new ForbiddenException('Only authorized management can submit branch closing');
     const check = await this.checklist(user,branchId,periodId,closingDate);
     if (!check.canSubmit) throw new BadRequestException(`Branch closing blocked: ${check.blockers.join(', ')}`);
-    await this.ensureTable();
     const id=randomUUID();
     try { await this.prisma.$executeRawUnsafe(`INSERT INTO "BranchClosing" ("id","branchId","periodId","closingDate","status","submittedBy","checklist") VALUES ($1,$2,$3,$4,'SUBMITTED',$5,$6::jsonb)`,id,branchId,periodId,closingDate,user.id||null,JSON.stringify(check)); }
     catch { throw new BadRequestException('A branch closing already exists for this date and period'); }
@@ -61,7 +55,6 @@ export class BranchClosingService {
 
   async approve(user:any,id:string) {
     if (!FINALIZERS.includes(String(user.role))) throw new ForbiddenException('Only Admin or Super Admin can finalize branch closing');
-    await this.ensureTable();
     const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT * FROM "BranchClosing" WHERE id=$1 LIMIT 1`,id);
     if(!rows[0]) throw new NotFoundException('Branch closing not found');
     if(rows[0].status!=='SUBMITTED') throw new BadRequestException('Branch closing is not awaiting approval');
@@ -71,7 +64,6 @@ export class BranchClosingService {
   }
 
   async list(user:any, periodId?:string) {
-    await this.ensureTable();
     const access=await this.scope.getScope(user);
     const values:any[]=[]; let where='';
     if(periodId){values.push(periodId);where=' WHERE "periodId"=$1';}

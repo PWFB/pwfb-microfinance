@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BalmzAiService } from './balmz-ai.service';
 import { BalmzReceiptService } from './balmz-receipt.service';
@@ -11,7 +11,7 @@ const MAX_RECEIPT_BYTES = 6 * 1024 * 1024;
 
 @Controller('balmz-ai')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN')
+@Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','CUSTOMER','AUDITOR','MONITORING_TEAM')
 export class BalmzAiController {
   constructor(private readonly balmzAi: BalmzAiService, private readonly receipts: BalmzReceiptService) {}
 
@@ -39,8 +39,8 @@ export class BalmzAiController {
       callback(null, allowed.includes(file.mimetype));
     },
   }))
-  verifyReceipt(@UploadedFile() file: { buffer: Buffer; mimetype: string; originalname: string }) {
+  verifyReceipt(@Req() req: any, @UploadedFile() file: { buffer: Buffer; mimetype: string; originalname: string }) {
     if (!file) throw new BadRequestException('Upload a JPG, PNG, WEBP or GIF payment receipt image.');
-    return this.receipts.verifyReceipt(file);
+    return this.receipts.verifyReceipt(file, req.user);
   }
 }

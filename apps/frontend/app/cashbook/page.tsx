@@ -169,6 +169,7 @@ export default function CashbookPage(){
       {error&&<div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
       {message&&<div className={`mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-900 ${styles.cashbookSuccess}`}>{message}</div>}
 
+      {access?.canWrite && periods.find(p=>p.id===periodId)?.status!=="CLOSED" ? <>
       <section className="mb-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
         <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">The input fields follow the Admin cashbook categories. Staff ID is attached automatically; only the previous closing Cash at Hand carries forward.</p></div>
         <form onSubmit={submit} className="p-4">
@@ -189,6 +190,8 @@ export default function CashbookPage(){
         </form>
       </section>
 
+      </> : null}
+      {!access?.canWrite&&access ? <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-bold text-amber-950">Read-only cashbook access. You can review records in your assigned scope, but cannot post or change daily entries.</div> : null}
       <section className="rounded-2xl border bg-white shadow-sm">
         <div className="border-b p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-black text-emerald-950">Cash Book for the Month</h2><p className="text-xs text-slate-500">Weekly Total and Monthly Total are shown like the physical summary sheet.</p></div><div className="text-sm font-bold">Receipts {money(monthReceipts)} · Payments {money(monthPayments)} · Other {money(monthOther)} · Final {money(monthReceipts-monthPayments+monthOther)}</div></div></div>
         <div className="overflow-x-auto">

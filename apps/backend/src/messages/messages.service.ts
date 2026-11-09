@@ -107,9 +107,13 @@ export class MessagesService {
       'UNION ' +
       'SELECT a."role"::text AS roleTarget FROM "StaffAssignment" a ' +
       'JOIN "Staff" s ON s."id" = a."staffId" ' +
+      'JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
+      'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
+      'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
       'WHERE a."branchId" = $1 AND a."active" = TRUE ' +
       'AND a."startsAt" <= CURRENT_TIMESTAMP ' +
       'AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP) ' +
+      'AND a."role"::text = u."role"::text ' +
       'AND s."employmentStatus" = \'ACTIVE\'' +
       ') available WHERE roleTarget = ANY($2::text[])',
       id, allowed,
@@ -128,10 +132,11 @@ export class MessagesService {
       'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
       'LEFT JOIN LATERAL (SELECT a."role" FROM "StaffAssignment" a ' +
       'WHERE a."staffId" = s."id" AND a."branchId" = $1 AND a."active" = TRUE ' +
+      'AND a."role"::text = u."role"::text ' +
       'AND a."startsAt" <= CURRENT_TIMESTAMP AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP) ' +
       'ORDER BY a."startsAt" DESC, a."updatedAt" DESC LIMIT 1) sa ON TRUE ' +
       'WHERE s."employmentStatus" = \'ACTIVE\' AND (s."branchId" = $1 OR sa."role" IS NOT NULL) ' +
-      'AND (u."role" <> \'CUSTOMER\' OR sa."role" IS NOT NULL) ' +
+      'AND u."role" <> \'CUSTOMER\' ' +
       'ORDER BY s."id", s."firstName", s."lastName"',
       id,
     );
@@ -249,13 +254,13 @@ export class MessagesService {
   private async hasActiveRoleInBranch(branchId: string, roleTarget: string) {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ count: number }>>(
       'SELECT COUNT(DISTINCT s."id")::int AS "count" FROM "Staff" s ' +
-      'LEFT JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
+      'JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
       'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
       'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
       'WHERE s."employmentStatus" = \'ACTIVE\' AND (' +
       '(s."branchId" = $1 AND u."role"::text = $2) OR EXISTS (' +
       'SELECT 1 FROM "StaffAssignment" a WHERE a."staffId" = s."id" ' +
-      'AND a."branchId" = $1 AND a."role"::text = $2 AND a."active" = TRUE ' +
+      'AND a."branchId" = $1 AND a."role"::text = $2 AND a."role"::text = u."role"::text AND a."active" = TRUE ' +
       'AND a."startsAt" <= CURRENT_TIMESTAMP ' +
       'AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP)))',
       branchId, roleTarget,

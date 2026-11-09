@@ -35,7 +35,7 @@ export default function AdminWalletPage() {
     <div className="mx-auto max-w-6xl">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-emerald-900 to-emerald-700 p-6 text-white shadow-lg">
         <div><p className="text-xs font-black tracking-[.2em] text-orange-300">PWFB SUPER ADMIN</p><h1 className="text-3xl font-black">Charges Wallet</h1><p className="mt-1 text-sm text-emerald-100">Dedicated account for storing PWFB administrative charges and fee income.</p></div>
-        <Link href="/dashboard" className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-black">Dashboard</Link>
+        <div className="flex flex-wrap gap-2"><Link href="/charges" className="rounded-xl border border-white/40 px-4 py-2 text-sm font-black">Central Charges</Link><Link href="/dashboard" className="rounded-xl bg-orange-500 px-4 py-2 text-sm font-black">Dashboard</Link></div>
       </header>
       {message && <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</div>}
       <section className="mb-5 grid gap-4 md:grid-cols-3">

@@ -24,7 +24,7 @@ export class PayrollController {
   summary(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string) { return this.payrollService.summary(periodId, branchId); }
 
   @Get('head-office-balance')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   headOfficeBalance() { return this.payrollService.headOfficeBalance(); }
 
   @Get(':id')
@@ -32,14 +32,14 @@ export class PayrollController {
   findOne(@Param('id') id: string) { return this.payrollService.findOne(id); }
 
   @Post(':id/items')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   addItem(@Param('id') id: string, @Body() body: { staffId: string; basicSalary?: number; allowances?: number; deductions?: number }) { return this.payrollService.addItem(id, body); }
 
   @Patch(':id/approve')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   approve(@Param('id') id: string) { return this.payrollService.approve(id); }
 
   @Patch(':id/pay')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   markPaid(@Param('id') id: string) { return this.payrollService.markPaid(id); }
 }

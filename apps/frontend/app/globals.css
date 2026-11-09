@@ -233,7 +233,7 @@ html[data-theme="dark"] textarea::placeholder { color: #9caf9f !important; opaci
 .pwfb-call-listener-actions button:disabled{opacity:.55}
 .pwfb-call-listener-note{display:block;margin-top:18px;color:#929c95;font-size:9px}
 .pwfb-call-error{margin:10px 0 0!important;color:#a33b3b!important}
-@keyframes pwfb-call-ring-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 10px #f3faf5,0 0 0 18px #fafdfb}
+@keyframes pwfb-call-ring-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 10px #f3faf5,0 0 0 18px #fafdfb}50%{transform:scale(1.08);box-shadow:0 0 0 13px #f3faf5,0 0 0 23px #fafdfb}}
 html[data-theme="dark"] .pwfb-call-incoming-card{background:#122019!important;border-color:#34483c!important;color:#e8f1eb!important}
 html[data-theme="dark"] .pwfb-call-incoming-card h2{color:#edf5ef!important}
 html[data-theme="dark"] .pwfb-call-incoming-card>p{color:#b5c6ba!important}

@@ -29,7 +29,11 @@ export class LoansController {
     if(!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate))throw new BadRequestException('Date must use YYYY-MM-DD');
     const loans=await this.loansService.findAll();
     const visible=await this.accessScope.filterList(req.user,'loans',loans);
-    const schedules=await Promise.all(visible.map(async(loan:any)=>({loan,schedule:await this.loansService.getRepaymentSchedule(loan.id)})));
+    const eligibleDailyLoans=visible.filter((loan:any)=>
+      String(loan.status||'').toUpperCase()==='DISBURSED'
+      && String(loan.repaymentFrequency||'').toLowerCase().includes('daily'),
+    );
+    const schedules=await Promise.all(eligibleDailyLoans.map(async(loan:any)=>({loan,schedule:await this.loansService.getRepaymentSchedule(loan.id)})));
     const items=schedules.flatMap(({loan,schedule}:any)=>(schedule.schedule||[])
       .filter((row:any)=>String(row.dueDate).slice(0,10)===selectedDate)
       .map((row:any)=>({

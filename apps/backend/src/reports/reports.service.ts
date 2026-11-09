@@ -92,21 +92,23 @@ export class ReportsService {
       this.prisma.staff.findMany({ where: { ...scope.staff, ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : {}) }, orderBy: { createdAt: 'desc' } }),
       this.prisma.loan.findMany({ where: { ...scope.loans, ...dateFilter, ...(customerId ? { customer: { ...scope.customers, id: customerId } } : {}) }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.savings.findMany({ where: { ...scope.savings, ...dateFilter, ...(customerId ? { customer: { ...scope.customers, id: customerId } } : {}) }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.walletTransaction.findMany({ where: { ...scope.walletTransactions, ...customerFilter, ...staffFilter, ...dateFilter, ...(type ? { type: type as any } : {}) }, include: { customer: true, staff: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.walletTransaction.findMany({ where: { ...scope.walletTransactions, ...customerFilter, ...staffFilter, ...dateFilter, ...(type ? { type: type as any } : {}) }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.dailyCollection.findMany({ where: { ...scope.collections, ...customerFilter, ...staffFilter, ...dateFilter }, include: { customer: true, staff: true, branch: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.cashbookEntry.findMany({ where: { ...scope.cashbook, ...dateFilter }, include: { branch: true }, orderBy: { createdAt: 'desc' } }),
     ]);
 
-    const deposits = walletTransactions.filter((x) => x.type === 'DEPOSIT');
-    const withdrawals = walletTransactions.filter((x) => x.type === 'WITHDRAWAL');
-    const transfers = walletTransactions.filter((x) => x.type === 'TRANSFER_OUT' || x.type === 'TRANSFER_IN');
+    const staffById = new Map(staff.map((member: any) => [member.id, member]));
+    const attributedWalletTransactions = walletTransactions.map((item: any) => ({ ...item, staff: staffById.get(item.staffId) || null }));
+    const deposits = attributedWalletTransactions.filter((x) => x.type === 'DEPOSIT');
+    const withdrawals = attributedWalletTransactions.filter((x) => x.type === 'WITHDRAWAL');
+    const transfers = attributedWalletTransactions.filter((x) => x.type === 'TRANSFER_OUT' || x.type === 'TRANSFER_IN');
     const cashIn = cashbook.filter((x) => x.type === 'CASH_IN');
     const cashOut = cashbook.filter((x) => x.type === 'CASH_OUT');
     const filterBySearch = (rows: any[]) => search ? rows.filter((x) => {
       const customer = x.customer || {};
       const staffMember = x.staff || {};
       const branch = x.branch || {};
-      const haystack = [x.id, x.reference, x.description, x.notes, customer.firstName, customer.middleName, customer.lastName, customer.email, customer.phone, staffMember.staffId, staffMember.firstName, staffMember.lastName, branch.name, x.status, x.type].filter(Boolean).join(' ').toLowerCase();
+      const haystack = [x.id, x.staffId, x.reference, x.description, x.notes, customer.firstName, customer.middleName, customer.lastName, customer.email, customer.phone, staffMember.staffId, staffMember.firstName, staffMember.lastName, branch.name, x.status, x.type].filter(Boolean).join(' ').toLowerCase();
       return haystack.includes(search.toLowerCase());
     }) : rows;
 

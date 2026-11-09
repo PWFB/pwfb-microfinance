@@ -67,6 +67,21 @@ export class AccessScopeService {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE s."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'collections') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id"=dc."branchId" WHERE dc."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND dc."staffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
+    } else if (resource === 'transactions') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT t."id" FROM "Transaction" t
+         JOIN "Customer" c ON c."id"=t."customerId"
+         LEFT JOIN "Branch" b ON b."id"=c."branchId"
+         WHERE t."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})
+         ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}
+         UNION
+         SELECT w."id" FROM "WalletTransaction" w
+         JOIN "Customer" c ON c."id"=w."customerId"
+         LEFT JOIN "Branch" b ON b."id"=COALESCE(w."branchId",c."branchId")
+         WHERE w."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})
+         ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`,
+        ids,
+      );
     } else if (resource === 'cashbook_daily') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(
         `SELECT r.id FROM cashbook_daily_records r JOIN "Branch" b ON b.id = r.branch_id
@@ -115,6 +130,19 @@ export class AccessScopeService {
   }
   async assertLoan(user: AccessUser, loanId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Loan" l JOIN "Customer" c ON c."id" = l."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE l."id" = $1 LIMIT 1`, loanId); return this.assertOrg(user, rows[0]);
+  }
+  async assertTransaction(user: AccessUser, transactionId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT t."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId"
+       FROM "Transaction" t JOIN "Customer" c ON c."id"=t."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId"
+       WHERE t."id"=$1
+       UNION
+       SELECT w."id", COALESCE(w."branchId",c."branchId") AS "branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId"
+       FROM "WalletTransaction" w JOIN "Customer" c ON c."id"=w."customerId"
+       LEFT JOIN "Branch" b ON b."id"=COALESCE(w."branchId",c."branchId") WHERE w."id"=$1 LIMIT 1`,
+      transactionId,
+    );
+    return this.assertOrg(user, rows[0]);
   }
   async assertSavings(user: AccessUser, savingsId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Savings" s JOIN "Customer" c ON c."id" = s."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE s."id" = $1 LIMIT 1`, savingsId); return this.assertOrg(user, rows[0]);

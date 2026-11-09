@@ -89,3 +89,71 @@ describe('CashbookService daily posting safeguards', () => {
     expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
   });
 });
+
+describe('CashbookService manual ledger entries', () => {
+  function setup(duplicate: any = null) {
+    const entry = {
+      id: 'cashbook-entry-1',
+      periodId: 'period-1',
+      branchId: 'branch-1',
+      type: 'CASH_IN',
+      amount: 50,
+      reference: 'BANK-REF-001',
+    };
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      cashbookEntry: {
+        findFirst: jest.fn().mockResolvedValue(duplicate),
+        create: jest.fn().mockResolvedValue(entry),
+      },
+    };
+    const prisma: any = {
+      financialPeriod: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'period-1',
+          status: 'OPEN',
+          startDate: new Date('2026-11-01T00:00:00.000Z'),
+          endDate: new Date('2026-11-30T23:59:59.999Z'),
+        }),
+      },
+      branch: { findUnique: jest.fn().mockResolvedValue({ id: 'branch-1' }) },
+      $transaction: jest.fn(async (callback: (client: any) => Promise<any>) => callback(tx)),
+    };
+    return { service: new CashbookService(prisma), prisma, tx, entry };
+  }
+
+  it('serializes manual entries and rejects duplicate branch references', async () => {
+    const { service, tx, entry } = setup({ id: 'existing-entry' });
+
+    await expect(service.create({
+      periodId: 'period-1',
+      branchId: 'branch-1',
+      type: 'CASH_IN',
+      amount: 50,
+      reference: 'BANK-REF-001',
+      entryDate: '2026-11-09T12:00:00.000Z',
+    })).rejects.toThrow('already been recorded');
+
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      'CASHBOOK-ENTRY:branch-1:BANK-REF-001',
+    );
+    expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a unique reference when a manual entry has no reference', async () => {
+    const { service, tx, entry } = setup();
+
+    await expect(service.create({
+      periodId: 'period-1',
+      branchId: 'branch-1',
+      type: 'CASH_IN',
+      amount: 50,
+      entryDate: '2026-11-09T12:00:00.000Z',
+    })).resolves.toBe(entry);
+
+    expect(tx.cashbookEntry.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ reference: expect.stringMatching(/^MANUAL-CASHBOOK-/) }),
+    }));
+  });
+});

@@ -81,9 +81,14 @@ export class BankingService {
       if (duplicate) throw new BadRequestException('This branch deposit reference has already been recorded');
 
       const period = await this.openPeriod(tx);
+      await tx.$queryRawUnsafe('SELECT id FROM "FinancialPeriod" WHERE id = $1 FOR UPDATE', period.id);
+      const lockedPeriod = await tx.financialPeriod.findUnique({ where: { id: period.id } });
+      if (!lockedPeriod || lockedPeriod.status !== 'OPEN') {
+        throw new BadRequestException('The financial period closed before this branch deposit could be posted');
+      }
       const entry = await tx.cashbookEntry.create({
         data: {
-          periodId: period.id,
+          periodId: lockedPeriod.id,
           branchId: account.branchId,
           type: 'CASH_IN',
           amount,

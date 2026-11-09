@@ -57,6 +57,7 @@ export class BranchClosingService {
     if (!FINALIZERS.includes(String(user.role))) throw new ForbiddenException('Only Admin or Super Admin can finalize branch closing');
     const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT * FROM "BranchClosing" WHERE id=$1 LIMIT 1`,id);
     if(!rows[0]) throw new NotFoundException('Branch closing not found');
+    await this.scope.assertBranch(user, String(rows[0].branchId));
     if(rows[0].status!=='SUBMITTED') throw new BadRequestException('Branch closing is not awaiting approval');
     await this.prisma.$executeRawUnsafe(`UPDATE "BranchClosing" SET status='CLOSED',"approvedBy"=$1,"approvedAt"=NOW(),"updatedAt"=NOW() WHERE id=$2`,user.id||null,id);
     await this.audit.record({actorId:user.id,actorEmail:user.email,actorRole:user.role,action:'BRANCH_CLOSING_APPROVED',method:'POST',resource:'BranchClosing',recordId:id,details:{branchId:rows[0].branchId,periodId:rows[0].periodId,closingDate:rows[0].closingDate}});

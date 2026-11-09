@@ -232,6 +232,7 @@ export class WorkLogService {
     if (input.deploymentUrl !== undefined) { data.deploymentUrl = this.url(input.deploymentUrl, 'deploymentUrl') ?? null; changeLog.deploymentUrl = data.deploymentUrl; }
     if (input.evidenceUrl !== undefined) { data.evidenceUrl = this.url(input.evidenceUrl, 'evidenceUrl') ?? null; changeLog.evidenceUrl = data.evidenceUrl; }
     const nextStatus = input.status !== undefined ? this.status(input.status) : current.status;
+    const note = this.cleanText(input.note, 'note', 2000);
     if (input.status !== undefined) { data.status = nextStatus; changeLog.status = nextStatus; }
     const verificationSummary = (data as any).verificationSummary !== undefined ? (data as any).verificationSummary : current.verificationSummary;
     const evidence = {
@@ -242,11 +243,10 @@ export class WorkLogService {
       evidenceUrl: (data as any).evidenceUrl !== undefined ? (data as any).evidenceUrl : current.evidenceUrl,
     };
     if (nextStatus === WorkItemStatus.COMPLETED) this.completionEvidence(evidence);
-    if (current.status === WorkItemStatus.COMPLETED && nextStatus !== WorkItemStatus.COMPLETED && !input.note?.trim()) {
+    if (current.status === WorkItemStatus.COMPLETED && nextStatus !== WorkItemStatus.COMPLETED && !note) {
       throw new BadRequestException('Add a note explaining why completed work is being reopened.');
     }
     if (nextStatus !== current.status) data.completedAt = nextStatus === WorkItemStatus.COMPLETED ? new Date() : null;
-    const note = this.cleanText(input.note, 'note', 2000);
     if (Object.keys(changeLog).length === 0 && !note) throw new BadRequestException('Provide at least one field to update or a note.');
     return this.prisma.$transaction(async (tx) => {
       const item = await tx.workItem.update({ where: { id: current.id }, data });

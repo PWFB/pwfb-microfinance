@@ -135,6 +135,47 @@ describe('CollectionsController', () => {
     expect(collectionsService.create).not.toHaveBeenCalled();
   });
 
+
+  it('checks collection ownership before returning a single collection', async () => {
+    collectionsService.findOne.mockResolvedValue({ id: 'collection-1' });
+
+    await controller.findOne('collection-1', {
+      user: { id: 'branch-user', role: 'BRANCH_MANAGER' },
+    });
+
+    expect(accessScope.assertCollection).toHaveBeenCalledWith(
+      { id: 'branch-user', role: 'BRANCH_MANAGER' },
+      'collection-1',
+    );
+    expect(collectionsService.findOne).toHaveBeenCalledWith('collection-1');
+  });
+
+  it('checks collection ownership and settle permission before financial settlement', async () => {
+    collectionsService.settle.mockResolvedValue({ id: 'collection-1', settled: true });
+    const user = { id: 'teller-user', role: 'TELLER' };
+
+    await controller.settle(
+      { user },
+      'collection-1',
+      { targetId: 'loan-1' },
+    );
+
+    expect(permissions.assert).toHaveBeenCalledWith('TELLER', 'COLLECTION_SETTLE');
+    expect(accessScope.assertCollection).toHaveBeenCalledWith(user, 'collection-1');
+    expect(collectionsService.settle).toHaveBeenCalledWith('collection-1', 'loan-1');
+  });
+
+  it('does not reconcile a collection outside the caller organizational scope', async () => {
+    accessScope.assertCollection.mockRejectedValueOnce(new Error('outside your organizational scope'));
+
+    await expect(controller.reconcile(
+      'collection-1',
+      { user: { id: 'admin-user', role: 'ADMIN' } },
+    )).rejects.toThrow('outside your organizational scope');
+
+    expect(collectionsService.reconcile).not.toHaveBeenCalled();
+  });
+
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });

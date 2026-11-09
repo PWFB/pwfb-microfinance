@@ -66,7 +66,7 @@ export class BalmzReceiptService {
       if (!customerId) return { matched: false, source: null, id: null, amount: null, status: null };
       transactionScope.customerId = customerId;
       collectionScope.customerId = customerId;
-      walletCustomerScope.customerId = customerId;
+      walletScope.customerId = customerId;
     } else if (role !== 'SUPER_ADMIN') {
       const scopeActor = { id: user.id, role: user.role, ...(user.staffId ? { staffId: user.staffId } : {}) };
       const scope = await this.accessScope.getScope(scopeActor);

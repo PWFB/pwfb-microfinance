@@ -2,6 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import vm from "node:vm";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const ts = require("typescript");
 
 // npm workspace tests run with apps/frontend as the working directory.
 const pagePath = path.resolve(process.cwd(), "app/staff-dashboard/page.tsx");
@@ -169,4 +174,31 @@ test("Super Admin financial action cards have consistent hover, keyboard focus, 
   assert.ok(brandCss.includes('a[style*="min-height: 82px"]'));
   assert.ok(brandCss.includes(":focus-visible"));
   assert.ok(brandCss.includes("@media (prefers-reduced-motion: reduce)"));
+});
+
+
+test("Staff Dashboard navigation does not redirect authorized Super Admins back to the default dashboard", () => {
+  const roleRoutingPath = path.resolve(process.cwd(), "lib/role-routing.ts");
+  const roleRoutingSource = fs.readFileSync(roleRoutingPath, "utf8");
+  const compiled = ts.transpileModule(roleRoutingSource, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+  }).outputText;
+  const sandbox = { exports: {} };
+  vm.runInNewContext(compiled, sandbox);
+  const { canAccessDashboardPath } = sandbox.exports;
+
+  assert.equal(canAccessDashboardPath("SUPER_ADMIN", "/staff-dashboard"), true);
+  assert.equal(canAccessDashboardPath("STAFF", "/staff-dashboard"), true);
+  assert.equal(canAccessDashboardPath("TELLER", "/staff-dashboard"), true);
+  assert.equal(canAccessDashboardPath("CUSTOMER", "/staff-dashboard"), false);
+  assert.equal(canAccessDashboardPath("SUPER_ADMIN", "/dashboard"), true);
+  assert.equal(canAccessDashboardPath("SUPER_ADMIN", "/customer-dashboard"), false);
+
+  const authPath = path.resolve(process.cwd(), "context/AuthContext.tsx");
+  const authSource = fs.readFileSync(authPath, "utf8");
+  assert.ok(authSource.includes("canAccessDashboardPath(currentUser.role, pathname || \"\")"));
+  assert.ok(!authSource.includes('pathname !== dashboardPath'));
 });

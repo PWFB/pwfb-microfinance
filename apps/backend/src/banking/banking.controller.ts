@@ -21,10 +21,23 @@ export class BankingController {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true, branchId: true, assignedStaffId: true } });
     if (!customer) throw new BadRequestException('Customer was not found');
     if (role === 'SUPER_ADMIN' && !user?.staffId) return { staffId: undefined, branchId: customer.branchId ?? undefined };
-    const staffId = String(user?.staffId || '').trim();
-    if (!staffId) throw new ForbiddenException('This staff login is not linked to a staff record');
-    const staff = await this.prisma.staff.findUnique({ where: { id: staffId }, select: { id: true, branchId: true } });
-    if (!staff?.branchId) throw new ForbiddenException('Your staff account has no assigned branch');
+    const claimedStaffId = String(user?.staffId || '').trim();
+    const userId = String(user?.id || user?.sub || '').trim();
+    if (!claimedStaffId && !userId) {
+      throw new ForbiddenException('This staff login is not linked to a staff record');
+    }
+    const staff = await this.prisma.staff.findFirst({
+      where: {
+        OR: [
+          ...(claimedStaffId ? [{ id: claimedStaffId }] : []),
+          ...(userId ? [{ userId }] : []),
+        ],
+      },
+      select: { id: true, branchId: true, employmentStatus: true },
+    });
+    if (!staff || staff.employmentStatus !== 'ACTIVE' || !staff.branchId) {
+      throw new ForbiddenException('Your login must be linked to an active staff member with an assigned branch');
+    }
     if (!customer.branchId || customer.branchId !== staff.branchId) throw new ForbiddenException('You may only process customers belonging to your assigned branch');
     if (role === 'CREDIT_OFFICER' && customer.assignedStaffId !== staff.id) {
       throw new ForbiddenException('You may only process deposits for customers assigned to you');

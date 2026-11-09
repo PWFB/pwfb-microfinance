@@ -89,27 +89,23 @@ export class AccessScopeService {
     const scope = await this.getScope(user);
     if (scope.global) return null;
     let rows: any[] = [];
-    if ((scope.role === 'REGIONAL_MANAGER' || ['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) && scope.regionId) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id" FROM "Branch" WHERE "regionId" = $1 ORDER BY "name" ASC`,
-        scope.regionId,
-      );
-    } else if ((scope.role === 'DIVISIONAL_MANAGER' || ['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) && scope.divisionId) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id" FROM "Branch" WHERE "divisionId" = $1 ORDER BY "name" ASC`,
-        scope.divisionId,
-      );
-    } else if ((scope.role === 'AREA_MANAGER' || ['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) && scope.areaId) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id" FROM "Branch" WHERE "areaId" = $1 ORDER BY "name" ASC`,
-        scope.areaId,
-      );
+    if (scope.role === 'REGIONAL_MANAGER' && scope.regionId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "regionId" = $1 ORDER BY "name" ASC`, scope.regionId);
+    } else if (scope.role === 'DIVISIONAL_MANAGER' && scope.divisionId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "divisionId" = $1 ORDER BY "name" ASC`, scope.divisionId);
+    } else if (scope.role === 'AREA_MANAGER' && scope.areaId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "areaId" = $1 ORDER BY "name" ASC`, scope.areaId);
     } else if (scope.branchId) {
       rows = [{ id: scope.branchId }];
-    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && !scope.regionId && !scope.divisionId && !scope.areaId) {
-      // Audit and monitoring assignments without a narrower organizational
-      // target are organization-wide read scopes; controller roles remain read-only.
-      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT \"id\" FROM \"Branch\" ORDER BY \"name\" ASC`);
+    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.areaId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "areaId" = $1 ORDER BY "name" ASC`, scope.areaId);
+    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.divisionId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "divisionId" = $1 ORDER BY "name" ASC`, scope.divisionId);
+    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.regionId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "regionId" = $1 ORDER BY "name" ASC`, scope.regionId);
+    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
+      // Un-narrowed oversight assignments are organization-wide read scopes.
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" ORDER BY "name" ASC`);
     }
     return rows.map((row) => String(row.id)).filter(Boolean);
   }
@@ -123,10 +119,10 @@ export class AccessScopeService {
     if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;
     if (scope.role === 'AREA_MANAGER' && same(scope.areaId, target.areaId)) return true;
     if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
-      if (scope.regionId) return same(scope.regionId, target.regionId);
-      if (scope.divisionId) return same(scope.divisionId, target.divisionId);
-      if (scope.areaId) return same(scope.areaId, target.areaId);
       if (scope.branchId) return same(scope.branchId, target.branchId);
+      if (scope.areaId) return same(scope.areaId, target.areaId);
+      if (scope.divisionId) return same(scope.divisionId, target.divisionId);
+      if (scope.regionId) return same(scope.regionId, target.regionId);
       return true;
     }
     if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
@@ -197,20 +193,23 @@ export class AccessScopeService {
   }
 
   private branchCondition(scope: any) {
-    if (scope.role === 'REGIONAL_MANAGER' || (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.regionId)) return `"regionId" = '${this.escape(scope.regionId)}'`;
-    if (scope.role === 'DIVISIONAL_MANAGER' || (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.divisionId)) return `"divisionId" = '${this.escape(scope.divisionId)}'`;
-    if (scope.role === 'AREA_MANAGER' || (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.areaId)) return `"areaId" = '${this.escape(scope.areaId)}'`;
+    if (scope.role === 'REGIONAL_MANAGER') return `"regionId" = '${this.escape(scope.regionId)}'`;
+    if (scope.role === 'DIVISIONAL_MANAGER') return `"divisionId" = '${this.escape(scope.divisionId)}'`;
+    if (scope.role === 'AREA_MANAGER') return `"areaId" = '${this.escape(scope.areaId)}'`;
     if (scope.branchId) return `"id" = '${this.escape(scope.branchId)}'`;
+    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.areaId) return `"areaId" = '${this.escape(scope.areaId)}'`;
+    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.divisionId) return `"divisionId" = '${this.escape(scope.divisionId)}'`;
+    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && scope.regionId) return `"regionId" = '${this.escape(scope.regionId)}'`;
     if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) return 'TRUE';
     return `"id" = '__no_access__'`;
   }
 
   private orgCondition(scope: any, alias: string) {
     if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
-      if (scope.regionId) return `"${alias}"."regionId" = '${this.escape(scope.regionId)}'`;
-      if (scope.divisionId) return `"${alias}"."divisionId" = '${this.escape(scope.divisionId)}'`;
-      if (scope.areaId) return `"${alias}"."areaId" = '${this.escape(scope.areaId)}'`;
       if (scope.branchId) return alias === 'b' ? `"${alias}"."id" = '${this.escape(scope.branchId)}'` : `"${alias}"."branchId" = '${this.escape(scope.branchId)}'`;
+      if (scope.areaId) return `"${alias}"."areaId" = '${this.escape(scope.areaId)}'`;
+      if (scope.divisionId) return `"${alias}"."divisionId" = '${this.escape(scope.divisionId)}'`;
+      if (scope.regionId) return `"${alias}"."regionId" = '${this.escape(scope.regionId)}'`;
       return 'TRUE';
     }
     if (scope.role === 'REGIONAL_MANAGER') return `"${alias}"."regionId" = '${this.escape(scope.regionId)}'`;

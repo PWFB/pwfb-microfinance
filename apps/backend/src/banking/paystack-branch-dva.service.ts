@@ -123,6 +123,63 @@ export class PaystackBranchDvaService {
     return a.length === b.length && timingSafeEqual(a, b);
   }
 
+  /**
+   * Ask Paystack to replay any bank credits not yet delivered to the branch
+   * cashbook webhook. Each dedicated account is claimed for at most one
+   * requery in a ten-minute window, across all PWFB backend instances.
+   */
+  async requeryDueAccounts(limit = 50) {
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(Number(limit) || 50)));
+    const accounts = await this.prisma.$transaction(async (tx) => {
+      const due = await tx.$queryRawUnsafe<any[]>(
+        'SELECT "id", "accountNumber", "providerSlug" FROM "BranchVirtualAccount" ' +
+        'WHERE "provider" = \'PAYSTACK\' AND "status" = \'ACTIVE\' ' +
+        'AND "accountNumber" ~ \'^[0-9]{10}$\' ' +
+        'AND ("lastRequeryAt" IS NULL OR "lastRequeryAt" <= CURRENT_TIMESTAMP - INTERVAL \'10 minutes\') ' +
+        'ORDER BY COALESCE("lastRequeryAt", "generatedAt", "createdAt") ASC, "id" ASC ' +
+        'LIMIT $1 FOR UPDATE SKIP LOCKED',
+        safeLimit,
+      );
+      const ids = due.map((row) => String(row.id));
+      if (ids.length) {
+        await tx.$executeRawUnsafe(
+          'UPDATE "BranchVirtualAccount" SET "lastRequeryAt" = CURRENT_TIMESTAMP WHERE "id" = ANY($1::text[])',
+          ids,
+        );
+      }
+      return due;
+    });
+
+    if (!accounts.length) return { checked: 0, requested: 0, errors: 0 };
+    let requested = 0;
+    let errors = 0;
+    const configuredSlug = String(process.env.PAYSTACK_DVA_PREFERRED_BANK || '').trim();
+    const secret = String(process.env.PAYSTACK_SECRET_KEY || '').trim();
+    const fallbackSlug = secret.startsWith('sk_test_') ? 'test-bank' : configuredSlug;
+    const date = new Date().toISOString().slice(0, 10);
+    for (const account of accounts) {
+      const accountNumber = String(account.accountNumber || '').replace(/\D/g, '');
+      const providerSlug = String(account.providerSlug || fallbackSlug).trim();
+      if (!/^\d{10}$/.test(accountNumber) || !providerSlug) {
+        errors += 1;
+        continue;
+      }
+      try {
+        await this.request(
+          '/dedicated_account/requery?account_number=' + encodeURIComponent(accountNumber) +
+          '&provider_slug=' + encodeURIComponent(providerSlug) +
+          '&date=' + encodeURIComponent(date),
+          { method: 'GET' },
+        );
+        requested += 1;
+      } catch {
+        // Keep the cooldown when a request outcome is uncertain.
+        errors += 1;
+      }
+    }
+    return { checked: accounts.length, requested, errors };
+  }
+
   async handleWebhook(event: any) {
     const type = String(event?.event || ''); const data = event?.data || {};
     if (type === 'dedicatedaccount.assign.failed') {

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -34,6 +34,10 @@ export class StaffController {
   @Post()
   @Roles('SUPER_ADMIN', 'ADMIN')
   create(@Body() createStaffDto: CreateStaffDto) { return this.staffService.create(createStaffDto); }
+
+  @Get('me')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF')
+  findMe(@Req() req: any) { return this.staffService.findMe(req.user); }
 
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN')

@@ -19,11 +19,14 @@ interface Loan {
 
 
 const modules = [
+  { title: "My Profile", description: "View your staff ID, role and assigned branch.", icon: "👤", href: "/profile", tone: "green" },
   { title: "Customers", description: "Customer records, KYC and account support.", icon: "👥", href: "/customers", tone: "green" },
   { title: "Loans", description: "Applications, approvals, balances and repayments.", icon: "💼", href: "/loans", tone: "orange" },
   { title: "Savings", description: "Manage savings accounts and customer deposits.", icon: "💰", href: "/savings", tone: "green" },
   { title: "Transactions", description: "Review and process daily financial activity.", icon: "↔", href: "/transactions", tone: "orange" },
   { title: "Collections", description: "Track collection activity and daily performance.", icon: "✓", href: "/collections", tone: "green" },
+  { title: "Daily Repayments", description: "See installments due today and paid/unpaid status.", icon: "📅", href: "/repayments/daily", tone: "green" },
+  { title: "Cashbook", description: "Record and review authorized branch field cashbook work.", icon: "₦", href: "/cashbook", tone: "orange" },
   { title: "Reports", description: "Operational reports and performance information.", icon: "▥", href: "/reports", tone: "orange" },
 ];
 

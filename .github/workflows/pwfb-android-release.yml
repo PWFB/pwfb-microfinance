@@ -1,11 +1,9 @@
 name: LAB MICROFINANCE Android Release
 
 on:
+  # Android signing/release builds are manual only. An ordinary feature-branch
+  # push must never restore release signing secrets or publish an APK/AAB.
   workflow_dispatch:
-  push:
-    paths:
-      - 'android-twa/**'
-      - '.github/workflows/pwfb-android-release.yml'
 
 permissions:
   contents: write
@@ -16,6 +14,7 @@ env:
 
 jobs:
   build-and-sign-android:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -68,6 +67,7 @@ jobs:
           path: android-twa/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
       - name: Publish APK and AAB release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.53

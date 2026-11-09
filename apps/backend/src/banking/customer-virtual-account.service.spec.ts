@@ -10,6 +10,7 @@ describe('CustomerVirtualAccountService', () => {
     firstName: 'Test',
     middleName: null,
     lastName: 'Customer',
+    dateOfBirth: new Date('1990-01-01T00:00:00.000Z'),
     email: 'test.customer@example.invalid',
     phone: '08000000000',
     user: { email: 'test.customer@example.invalid' },
@@ -101,7 +102,7 @@ describe('CustomerVirtualAccountService', () => {
         expect.stringContaining('INSERT INTO customer_identity_verifications'),
         expect.any(String),
         customer.id,
-        testBvn,
+        '•••••••1111',
       );
       expect(prisma.customerVirtualAccount.updateMany).toHaveBeenCalledWith(expect.objectContaining({
         where: expect.objectContaining({ id: local.id, status: 'PENDING' }),
@@ -268,6 +269,140 @@ describe('CustomerVirtualAccountService', () => {
 
     await expect(service.ensure('missing-customer', undefined, true)).rejects.toThrow('Customer not found');
     expect(prisma.customerVirtualAccount.create).not.toHaveBeenCalled();
+  });
+
+  it('verifies BVN through Dojah using consent and persists only a masked identifier', async () => {
+    const originals = {
+      appId: process.env.DOJAH_APP_ID,
+      secret: process.env.DOJAH_SECRET_KEY,
+      environment: process.env.DOJAH_ENVIRONMENT,
+      baseUrl: process.env.DOJAH_API_BASE_URL,
+    };
+    process.env.DOJAH_APP_ID = 'dojah-app-test';
+    process.env.DOJAH_SECRET_KEY = 'dojah-secret-test';
+    process.env.DOJAH_ENVIRONMENT = 'sandbox';
+    delete process.env.DOJAH_API_BASE_URL;
+    const identifier = '22222222222';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        entity: {
+          first_name: 'Test',
+          middle_name: '',
+          last_name: 'Customer',
+          date_of_birth: '1990-01-01',
+          image: 'BASE64_PRIVATE_PHOTO',
+        },
+      }),
+    } as Response);
+
+    try {
+      const result = await service.verifyCustomerIdentity(
+        customer.id, 'BVN', identifier, true,
+        { id: 'staff-user-1', email: 'staff@example.test' },
+      );
+
+      expect(result).toMatchObject({
+        customerId: customer.id,
+        type: 'BVN',
+        status: 'VERIFIED',
+        maskedValue: '•••••••2222',
+        provider: 'DOJAH',
+        nameMatch: true,
+      });
+      expect(String(fetchSpy.mock.calls[0][0])).toContain('https://sandbox.dojah.io/api/v1/kyc/bvn/full?bvn=');
+      expect(fetchSpy.mock.calls[0][1]).toMatchObject({
+        headers: { AppId: 'dojah-app-test', Authorization: 'dojah-secret-test' },
+      });
+      const persistedArguments = prisma.$executeRawUnsafe.mock.calls.flat();
+      expect(persistedArguments).not.toContain(identifier);
+      expect(persistedArguments).toContain('•••••••2222');
+      expect(persistedArguments).not.toContain('BASE64_PRIVATE_PHOTO');
+    } finally {
+      fetchSpy.mockRestore();
+      if (originals.appId === undefined) delete process.env.DOJAH_APP_ID; else process.env.DOJAH_APP_ID = originals.appId;
+      if (originals.secret === undefined) delete process.env.DOJAH_SECRET_KEY; else process.env.DOJAH_SECRET_KEY = originals.secret;
+      if (originals.environment === undefined) delete process.env.DOJAH_ENVIRONMENT; else process.env.DOJAH_ENVIRONMENT = originals.environment;
+      if (originals.baseUrl === undefined) delete process.env.DOJAH_API_BASE_URL; else process.env.DOJAH_API_BASE_URL = originals.baseUrl;
+    }
+  });
+
+  it('verifies NIN separately and records a name/DOB mismatch without marking it verified', async () => {
+    const originals = {
+      appId: process.env.DOJAH_APP_ID,
+      secret: process.env.DOJAH_SECRET_KEY,
+      environment: process.env.DOJAH_ENVIRONMENT,
+    };
+    process.env.DOJAH_APP_ID = 'dojah-app-test';
+    process.env.DOJAH_SECRET_KEY = 'dojah-secret-test';
+    process.env.DOJAH_ENVIRONMENT = 'sandbox';
+    const identifier = '12345678901';
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        entity: {
+          first_name: 'Different',
+          middle_name: 'Person',
+          last_name: 'Name',
+          date_of_birth: '1980-01-01',
+          photo: 'BASE64_PRIVATE_PHOTO',
+        },
+      }),
+    } as Response);
+
+    try {
+      const result = await service.verifyCustomerIdentity(
+        customer.id, 'NIN', identifier, true,
+        { id: 'staff-user-2', email: 'officer@example.test' },
+      );
+
+      expect(String(fetchSpy.mock.calls[0][0])).toContain('https://sandbox.dojah.io/api/v1/kyc/nin?nin=');
+      expect(result).toMatchObject({
+        type: 'NIN',
+        status: 'MISMATCH',
+        maskedValue: '•••••••8901',
+        provider: 'DOJAH',
+        nameMatch: false,
+        message: expect.stringContaining('not verified'),
+      });
+      expect(prisma.$executeRawUnsafe.mock.calls.flat()).not.toContain(identifier);
+      expect(prisma.$executeRawUnsafe.mock.calls.flat()).not.toContain('BASE64_PRIVATE_PHOTO');
+    } finally {
+      fetchSpy.mockRestore();
+      if (originals.appId === undefined) delete process.env.DOJAH_APP_ID; else process.env.DOJAH_APP_ID = originals.appId;
+      if (originals.secret === undefined) delete process.env.DOJAH_SECRET_KEY; else process.env.DOJAH_SECRET_KEY = originals.secret;
+      if (originals.environment === undefined) delete process.env.DOJAH_ENVIRONMENT; else process.env.DOJAH_ENVIRONMENT = originals.environment;
+    }
+  });
+
+  it('does not call an identity provider when customer consent is absent', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch');
+    try {
+      await expect(service.verifyCustomerIdentity(
+        customer.id, 'NIN', '12345678901', false, { id: 'staff-user-3' },
+      )).rejects.toThrow('explicitly consented');
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('does not return provider data or mark an identity verified when Dojah is not configured', async () => {
+    const originals = { appId: process.env.DOJAH_APP_ID, secret: process.env.DOJAH_SECRET_KEY };
+    delete process.env.DOJAH_APP_ID;
+    delete process.env.DOJAH_SECRET_KEY;
+    try {
+      await expect(service.verifyCustomerIdentity(
+        customer.id, 'BVN', '22222222222', true, { id: 'staff-user-4' },
+      )).rejects.toThrow('DOJAH_APP_ID and DOJAH_SECRET_KEY');
+      expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    } finally {
+      if (originals.appId === undefined) delete process.env.DOJAH_APP_ID; else process.env.DOJAH_APP_ID = originals.appId;
+      if (originals.secret === undefined) delete process.env.DOJAH_SECRET_KEY; else process.env.DOJAH_SECRET_KEY = originals.secret;
+    }
   });
 });
 
@@ -437,5 +572,108 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
       data: { ...payment.data, authorization: { channel: 'card' } },
     })).resolves.toMatchObject({ matchedCustomerAccount: false, processed: false });
     expect(prismaForDeposit.customerVirtualAccount.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('BVN and NIN provider verification safeguards', () => {
+  let service: CustomerVirtualAccountService;
+  let prisma: any;
+  const customer = {
+    id: 'BVN-NIN-TEST-CUSTOMER',
+    email: 'identity-test@example.invalid',
+    firstName: 'Test',
+    middleName: null,
+    lastName: 'Customer',
+    dateOfBirth: new Date('1990-05-12T00:00:00.000Z'),
+  };
+  const originalAppId = process.env.DOJAH_APP_ID;
+  const originalSecret = process.env.DOJAH_SECRET_KEY;
+  const originalEnvironment = process.env.DOJAH_ENVIRONMENT;
+
+  beforeEach(() => {
+    prisma = {
+      customer: { findUnique: jest.fn().mockResolvedValue(customer) },
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+    };
+    service = new CustomerVirtualAccountService(prisma);
+    process.env.DOJAH_APP_ID = 'dojah-test-app';
+    process.env.DOJAH_SECRET_KEY = 'dojah-test-secret';
+    process.env.DOJAH_ENVIRONMENT = 'sandbox';
+  });
+
+  afterEach(() => {
+    if (originalAppId === undefined) delete process.env.DOJAH_APP_ID;
+    else process.env.DOJAH_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.DOJAH_SECRET_KEY;
+    else process.env.DOJAH_SECRET_KEY = originalSecret;
+    if (originalEnvironment === undefined) delete process.env.DOJAH_ENVIRONMENT;
+    else process.env.DOJAH_ENVIRONMENT = originalEnvironment;
+    jest.restoreAllMocks();
+  });
+
+  it.each(['BVN', 'NIN'])('verifies %s only when legal name and DOB both match', async (type) => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        entity: {
+          first_name: 'Test',
+          last_name: 'Customer',
+          date_of_birth: '1990-05-12',
+        },
+      }),
+    } as Response);
+
+    const result = await service.verifyCustomerIdentity(
+      customer.id, type, '12345678901', true, { id: 'customer-user', email: customer.email },
+    );
+
+    expect(result.status).toBe('VERIFIED');
+    expect(result.maskedValue).toBe('•••••••8901');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining(type === 'BVN' ? '/api/v1/kyc/bvn/full?bvn=' : '/api/v1/kyc/nin?nin='),
+      expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ AppId: 'dojah-test-app' }) }),
+    );
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO customer_identity_verifications'),
+      expect.any(String), customer.id, '•••••••8901',
+      'VERIFIED', expect.any(Date), expect.any(String),
+      true, true, expect.any(String),
+    );
+  });
+
+  it('does not verify when the provider omits date of birth even if names match', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ entity: { first_name: 'Test', last_name: 'Customer' } }),
+    } as Response);
+
+    const result = await service.verifyCustomerIdentity(
+      customer.id, 'BVN', '12345678901', true, { id: 'customer-user' },
+    );
+
+    expect(result.status).toBe('MISMATCH');
+    expect(result.dateOfBirthMatch).toBeNull();
+  });
+
+  it('requires explicit consent and an 11-digit identifier before provider calls', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as Response);
+    await expect(service.verifyCustomerIdentity(customer.id, 'NIN', '12345678901', false, { id: 'customer-user' })).rejects.toThrow('consent');
+    await expect(service.verifyCustomerIdentity(customer.id, 'NIN', '1234', true, { id: 'customer-user' })).rejects.toThrow('11 digits');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('never marks a provider timeout as verified', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('timeout'));
+    await expect(service.verifyCustomerIdentity(
+      customer.id, 'NIN', '12345678901', true, { id: 'customer-user' },
+    )).rejects.toThrow('provider request failed');
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO customer_identity_verifications'),
+      expect.any(String), customer.id, '•••••••8901',
+      'UNAVAILABLE', null, expect.any(String),
+      null, null, expect.any(String),
+    );
   });
 });

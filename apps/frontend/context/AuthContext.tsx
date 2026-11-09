@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { apiRequest } from "../lib/api";
 import { getDashboardPath } from "../lib/role-routing";
 
-export type AuthUser = { id: string; email: string; role: string; firstName?: string; lastName?: string };
+export type AuthUser = { id: string; email: string; role: string; firstName?: string; lastName?: string; phone?: string; twoFactorRequired?: boolean; twoFactorEnrollmentRequired?: boolean };
 
 type AuthContextValue = { user: AuthUser | null; loading: boolean; logout: () => void; refreshProfile: () => Promise<AuthUser | null> };
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -26,6 +26,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!token) { setUser(null); setLoading(false); return null; }
     try {
       let profile = await apiRequest("/auth/profile");
+      if (profile?.twoFactorEnrollmentRequired) {
+        const currentUser = profile as AuthUser;
+        setUser(currentUser);
+        if (pathname !== "/passkey/register") router.replace("/passkey/register");
+        return currentUser;
+      }
       if (profile?.twoFactorRequired) {
         const code = window.prompt("Google Authenticator is enabled. Enter your 6-digit code to continue.");
         if (!code?.trim()) throw new Error("Two-factor authentication is required to continue.");
@@ -36,8 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
       if (currentUser?.role) {
         const dashboardPath = getDashboardPath(currentUser.role);
+        const authEntryPaths = ["/", "/login"];
         const protectedDashboards = ["/dashboard", "/staff-dashboard", "/customer-dashboard"];
-        if (protectedDashboards.includes(pathname || "") && pathname !== dashboardPath) {
+        // Route within the current deployment, preserving Vercel or Render origin.
+        if (authEntryPaths.includes(pathname || "") ||
+            (protectedDashboards.includes(pathname || "") && pathname !== dashboardPath)) {
           router.replace(dashboardPath);
         }
       }

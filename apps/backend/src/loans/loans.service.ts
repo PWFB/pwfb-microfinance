@@ -57,22 +57,27 @@ export class LoansService {
   const intervalDays=frequency.includes('daily')?1:frequency.includes('weekly')?7:30;
   const baseInstallment=Math.round((total/duration)*100)/100;
   const repayments=Array.isArray(loan.repayments)?loan.repayments:[];
-  let cumulativePaid=0;
+  // Apply every confirmed repayment to the oldest outstanding installment.
+  // A receipt posted after the due date must still clear that overdue installment.
+  let unappliedPaidCents=repayments.reduce(
+    (sum:number,repayment:any)=>sum+Math.max(0,Math.round(Number(repayment.amount||0)*100)),0,
+  );
   const schedule=Array.from({length:duration},(_,index)=>{
     const installment=index===duration-1?Math.round((total-baseInstallment*(duration-1))*100)/100:baseInstallment;
     const dueDate=new Date(start);
     dueDate.setDate(dueDate.getDate()+intervalDays*(index+1));
-    cumulativePaid+=Number(repayments.filter((r:any)=>new Date(r.paymentDate||r.createdAt)<=dueDate).reduce((s:number,r:any)=>s+Number(r.amount||0),0));
-    const expectedBefore=Math.round((baseInstallment*index)*100)/100;
-    const paidForPeriod=Math.min(installment,Math.max(0,cumulativePaid-expectedBefore));
+    const installmentCents=Math.max(0,Math.round(installment*100));
+    const paidForPeriodCents=Math.min(installmentCents,unappliedPaidCents);
+    unappliedPaidCents=Math.max(0,unappliedPaidCents-paidForPeriodCents);
+    const paidForPeriod=paidForPeriodCents/100;
     const remaining=Math.max(0,installment-paidForPeriod);
     const status=remaining<=0.005?'PAID':new Date()>=dueDate?'OVERDUE':'DUE';
     return {installmentNumber:index+1,dueDate:dueDate.toISOString(),amount:installment,principalAmount:Math.round((principal/duration)*100)/100,interestAmount:Math.round((interest/duration)*100)/100,paidAmount:Math.round(paidForPeriod*100)/100,remainingAmount:Math.round(remaining*100)/100,status};
   });
   return {loanId:loan.id,loanType:loan.loanType||'Loan',frequency:loan.repaymentFrequency||'Monthly',duration,totalRepayment:total,principal,interestAmount:interest,installmentAmount:baseInstallment,startDate:start.toISOString(),schedule};
  }
- async findAll(){const loans=await this.prisma.loan.findMany({orderBy:{createdAt:'desc'},include:{customer:{include:{bankAccounts:{where:{status:'ACTIVE'},include:{institution:true},orderBy:{isPrimary:'desc'}}}},repayments:true,guarantors:true}});return Promise.all(loans.map(l=>this.withMeta(l)));}
- async findOne(id:string){const loan=await this.prisma.loan.findUnique({where:{id},include:{customer:{include:{bankAccounts:{where:{status:'ACTIVE'},include:{institution:true},orderBy:{isPrimary:'desc'}}}},repayments:true,guarantors:true}});if(!loan)throw new NotFoundException('Loan not found');return this.withMeta(loan);}
+ async findAll(){const loans=await this.prisma.loan.findMany({orderBy:{createdAt:'desc'},include:{customer:{include:{branch:{select:{id:true,name:true}},assignedStaff:{select:{id:true,staffId:true,firstName:true,lastName:true}},clientGroup:{select:{id:true,name:true}},bankAccounts:{where:{status:'ACTIVE'},include:{institution:true},orderBy:{isPrimary:'desc'}}}},repayments:true,guarantors:true}});return Promise.all(loans.map(l=>this.withMeta(l)));}
+ async findOne(id:string){const loan=await this.prisma.loan.findUnique({where:{id},include:{customer:{include:{branch:{select:{id:true,name:true}},assignedStaff:{select:{id:true,staffId:true,firstName:true,lastName:true}},clientGroup:{select:{id:true,name:true}},bankAccounts:{where:{status:'ACTIVE'},include:{institution:true},orderBy:{isPrimary:'desc'}}}},repayments:true,guarantors:true}});if(!loan)throw new NotFoundException('Loan not found');return this.withMeta(loan);}
  async update(id:string,dto:UpdateLoanDto){const existing=await this.findOne(id);if(dto.customerId){const customer=await this.prisma.customer.findUnique({where:{id:dto.customerId}});if(!customer)throw new NotFoundException('Customer not found');}const updated=await this.prisma.loan.update({where:{id},data:{customerId:dto.customerId,amount:dto.amount,interestRate:dto.interestRate,status:dto.status,disbursementAmount:dto.disbursementAmount,disbursementAccountNumber:dto.disbursementAccountNumber,disbursementAccountName:dto.disbursementAccountName,disbursementBankCode:dto.disbursementBankCode,disbursementBankName:dto.disbursementBankName,disbursementUsesAlternativeAccount:dto.disbursementUsesAlternativeAccount},include:{customer:true,repayments:true,guarantors:true}});await this.ensureLoanTables();const oldMeta=await this.meta(id);const amount=Number(updated.amount||0);const rate=Number(updated.interestRate??oldMeta?.interestRate??0);const interestAmount=amount*rate/100;const totalRepayment=amount+interestAmount;const duration=Math.max(1,Number(dto.duration??oldMeta?.duration??1));await this.prisma.$executeRawUnsafe(`INSERT INTO "PWFBLoanMeta" ("loanId","loanType","duration","repaymentFrequency","purpose","interestAmount","totalRepayment","installmentAmount","passportPhoto","disbursementDestination","verifiedNameMatchCount","disbursementAccountVerified") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT ("loanId") DO UPDATE SET "loanType"=COALESCE($2,"PWFBLoanMeta"."loanType"),"duration"=$3,"repaymentFrequency"=COALESCE($4,"PWFBLoanMeta"."repaymentFrequency"),"purpose"=COALESCE($5,"PWFBLoanMeta"."purpose"),"interestAmount"=$6,"totalRepayment"=$7,"installmentAmount"=$8,"passportPhoto"=COALESCE($9,"PWFBLoanMeta"."passportPhoto"),"disbursementDestination"=COALESCE($10,"PWFBLoanMeta"."disbursementDestination"),"verifiedNameMatchCount"=COALESCE($11,"PWFBLoanMeta"."verifiedNameMatchCount"),"disbursementAccountVerified"=COALESCE($12,"PWFBLoanMeta"."disbursementAccountVerified"),"updatedAt"=CURRENT_TIMESTAMP`,id,dto.loanType??oldMeta?.loanType??'Loan',duration,dto.repaymentFrequency??null,dto.purpose??null,interestAmount,totalRepayment,totalRepayment/duration,dto.passportPhoto??null,oldMeta?.disbursementDestination??'WALLET',oldMeta?.verifiedNameMatchCount??0,oldMeta?.disbursementAccountVerified??false);return this.withMeta(updated);}
  async remove(id:string){await this.findOne(id);await this.ensureLoanTables();await this.prisma.$executeRawUnsafe(`DELETE FROM "PWFBLoanMeta" WHERE "loanId"=$1`,id);return this.prisma.loan.delete({where:{id}});}
  async findGuarantors(loanId:string){await this.findOne(loanId);return this.prisma.guarantor.findMany({where:{loanId},orderBy:{createdAt:'desc'}});}

@@ -100,7 +100,7 @@ describe('Paystack wallet deposit currency validation', () => {
         amount: 10000,
         reference: 'foreign-currency-ref',
         id: 12345,
-        metadata: { customerId: 'customer-1' },
+        metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
       },
     })).rejects.toThrow('Only NGN Paystack wallet payments can be credited');
   });
@@ -114,7 +114,7 @@ describe('Paystack wallet deposit currency validation', () => {
         amount: 10000,
         reference: 'missing-currency-ref',
         id: 12346,
-        metadata: { customerId: 'customer-1' },
+        metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
       },
     })).rejects.toThrow('Only NGN Paystack wallet payments can be credited');
   });
@@ -250,11 +250,12 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
       status: 'success',
       currency: 'NGN',
       amount: 10000,
-      metadata: { customerId: 'customer-1' },
+      metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
     };
     const tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       walletTransaction: {
+        findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'wallet-transaction-1', ...data })),
       },
@@ -292,7 +293,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
     expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
       1,
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      '98765',
+      'PAYSTACK-CHARGE:paystack-checkout-100',
     );
     expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
       2,
@@ -321,7 +322,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
   it('rejects a wallet that is inactive after its row is locked', async () => {
     const tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
-      walletTransaction: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      walletTransaction: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       customerWallet: {
         upsert: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 10, status: 'ACTIVE' }),
         findUnique: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 10, status: 'SUSPENDED' }),
@@ -343,7 +344,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
         status: 'success',
         currency: 'NGN',
         amount: 5000,
-        metadata: { customerId: 'customer-1' },
+        metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
       },
     })).rejects.toThrow('Customer wallet is not active');
 

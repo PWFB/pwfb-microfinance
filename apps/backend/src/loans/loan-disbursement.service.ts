@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException, ServiceUnavailableException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExternalBankTransferService } from '../banking/external-bank-transfer.service';
 
@@ -68,6 +69,27 @@ export class LoanDisbursementService {
     return this.prisma.loan.update({ where: { id: loanId }, data: { status: SUBMITTED, disbursementAmount, disbursementUsesAlternativeAccount: false }, include: { customer: true, repayments: true, guarantors: true } });
   }
 
+  private async ensureDisbursementAttemptTable() {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "PWFBLoanDisbursementAttempt" (
+        "id" TEXT PRIMARY KEY,
+        "loanId" TEXT NOT NULL UNIQUE REFERENCES "Loan"("id") ON DELETE RESTRICT,
+        "reference" TEXT NOT NULL UNIQUE,
+        "amount" DOUBLE PRECISION NOT NULL,
+        "accountNumber" TEXT NOT NULL,
+        "bankCode" TEXT NOT NULL,
+        "bankName" TEXT NOT NULL,
+        "status" TEXT NOT NULL DEFAULT 'PROCESSING',
+        "providerStatus" TEXT,
+        "providerReference" TEXT,
+        "createdBy" TEXT,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS "PWFBLoanDisbursementAttempt_status_idx" ON "PWFBLoanDisbursementAttempt" ("status");
+    `);
+  }
+
   async approveAndDisburse(loanId: string, user: any) {
     const actor = await this.actor(user);
     const isAdmin = actor.role === 'ADMIN' || actor.role === 'SUPER_ADMIN';
@@ -94,36 +116,71 @@ export class LoanDisbursementService {
     if (!accountName) throw new BadRequestException('Bank provider did not return a verified beneficiary name');
 
     const amount = loan.disbursementAmount ?? loan.amount;
+    if (!Number.isFinite(Number(amount)) || Number(amount) <= 0) throw new BadRequestException('Disbursement amount must be greater than zero');
     const reference = `LOAN-${loan.id}-${Date.now()}`;
-    const narration = `PWFB loan disbursement ${loan.id}`;
-    const providerResult = await this.externalBankTransferService.transferToVerifiedAccount({ bankCode, accountNumber, accountName, amount, narration, reference });
+
+    // Claim the loan before making the external provider call. This compare-and-set
+    // prevents two concurrent approvals from paying the same loan twice.
+    const claimed = await this.prisma.loan.updateMany({
+      where: { id: loanId, status: SUBMITTED },
+      data: { status: PROCESSING },
+    });
+    if (claimed.count !== 1) throw new BadRequestException('This loan is already being processed or has changed status');
+
+    await this.ensureDisbursementAttemptTable();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "PWFBLoanDisbursementAttempt" ("id","loanId","reference","amount","accountNumber","bankCode","bankName","createdBy")
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      randomUUID(), loan.id, reference, Number(amount), accountNumber, bankCode, bankName, actor.id,
+    );
+
+    let providerResult: any;
+    try {
+      providerResult = await this.externalBankTransferService.transferToVerifiedAccount({
+        bankCode, accountNumber, accountName, amount: Number(amount),
+        narration: `PWFB loan disbursement ${loan.id}`, reference,
+      });
+    } catch {
+      // A timeout may mean the provider accepted the payout. Keep the loan in
+      // PROCESSING and preserve the stable attempt/reference for reconciliation.
+      throw new ServiceUnavailableException(`Disbursement status is uncertain. The loan is locked against duplicate payment. Reference: ${reference}`);
+    }
 
     const providerStatus = String(providerResult?.status ?? '').toUpperCase();
     const finalStatus = ['SUCCESS', 'SUCCESSFUL', 'COMPLETED'].includes(providerStatus) ? DISBURSED : PROCESSING;
     const providerReference = this.providerReference(providerResult, reference);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE "PWFBLoanDisbursementAttempt" SET "status"=$2,"providerStatus"=$3,"providerReference"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "loanId"=$1`,
+      loanId, finalStatus, providerStatus || 'UNKNOWN', providerReference,
+    );
 
-    // The provider call is external, but all PWFB-side financial state is committed
-    // together so a successful provider response cannot leave a loan without its ledger entry.
+    // Only a provider-confirmed success creates a completed disbursement ledger
+    // entry. Pending/uncertain transfers remain visible for reconciliation.
     const result = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.loan.update({
-        where: { id: loanId, status: SUBMITTED },
+      const updatedCount = await tx.loan.updateMany({
+        where: { id: loanId, status: PROCESSING },
         data: { status: finalStatus },
+      });
+      if (updatedCount.count !== 1) throw new BadRequestException('Loan processing state changed before the provider result could be recorded');
+      const updated = await tx.loan.findUnique({
+        where: { id: loanId },
         include: { customer: true, repayments: true, guarantors: true },
       });
-
-      await tx.transaction.create({
-        data: {
-          customerId: loan.customerId,
-          type: 'LOAN_DISBURSEMENT',
-          amount,
-          description: `${finalStatus}: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}`,
-        },
-      });
-
+      if (!updated) throw new NotFoundException('Loan not found after disbursement');
+      if (finalStatus === DISBURSED) {
+        await tx.transaction.create({
+          data: {
+            customerId: loan.customerId,
+            type: 'LOAN_DISBURSEMENT',
+            amount: Number(amount),
+            description: `DISBURSED: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}`,
+          },
+        });
+      }
       return updated;
     });
 
-    return { loan: result, status: finalStatus, provider: this.externalBankTransferService.currentProvider(), providerReference, beneficiary: { accountNumber, accountName, bank: bankName, bankCode, amount, alternative: useAlternative, verified: true, nameMatch: true } };
+    return { loan: result, status: finalStatus, provider: this.externalBankTransferService.currentProvider(), providerReference, beneficiary: { accountNumber, accountName, bank: bankName, bankCode, amount: Number(amount), alternative: useAlternative, verified: true, nameMatch: true } };
   }
 
   async reject(loanId: string, user: any, reason?: string) {

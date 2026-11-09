@@ -45,10 +45,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) return null;
 
     let twoFactorRequired = false;
+    let twoFactorEnrollmentRequired = false;
     try {
       await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserTwoFactorSession" ("tokenHash" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE, "verifiedUntil" TIMESTAMP(3) NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
       await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserAuthenticator" ("userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE, "secretEnc" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT FALSE, "recoveryCodes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
       const authenticator = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(`SELECT "enabled" FROM "UserAuthenticator" WHERE "userId" = $1 LIMIT 1`, user.id);
+      if (user.role !== 'CUSTOMER' && !authenticator[0]?.enabled) twoFactorEnrollmentRequired = true;
       if (authenticator[0]?.enabled) {
         const authHeader = String(request?.headers?.authorization || '');
         const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
@@ -65,6 +67,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       id: user.id,
+      sub: user.id,
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
@@ -73,7 +76,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       customerId: user.customerId,
       staffId: user.staffId,
       twoFactorRequired,
-      twoFactorPending: twoFactorRequired,
+      twoFactorEnrollmentRequired,
+      twoFactorPending: twoFactorRequired || twoFactorEnrollmentRequired,
     };
   }
 }

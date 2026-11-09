@@ -160,4 +160,102 @@ describe('BankingService wallet flows', () => {
     expect(tx.customerWallet.update).not.toHaveBeenCalled();
     expect(tx.walletTransaction.create).not.toHaveBeenCalled();
   });
+  it('requires a reference and an open period before recording a branch virtual-account deposit', async () => {
+    await expect(service.recordBranchDeposit({
+      accountNumber: '1234567890',
+      amount: 50,
+    })).rejects.toThrow('verified bank/provider reference');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+
+    tx.branchVirtualAccount = {
+      findUnique: jest.fn().mockResolvedValue({
+        branchId: 'branch-1',
+        status: 'ACTIVE',
+        accountNumber: '1234567890',
+        branch: { id: 'branch-1' },
+        institution: { id: 'bank-1' },
+      }),
+    };
+    tx.cashbookEntry = {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+    };
+    tx.financialPeriod = { findFirst: jest.fn().mockResolvedValue(null) };
+
+    await expect(service.recordBranchDeposit({
+      accountNumber: '1234567890',
+      amount: 50,
+      reference: 'BANK-REF-001',
+    })).rejects.toThrow('No open financial period');
+    expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects duplicate branch virtual-account deposit references under a transaction lock', async () => {
+    tx.branchVirtualAccount = {
+      findUnique: jest.fn().mockResolvedValue({
+        branchId: 'branch-1',
+        status: 'ACTIVE',
+        accountNumber: '1234567890',
+        branch: { id: 'branch-1' },
+        institution: { id: 'bank-1' },
+      }),
+    };
+    tx.cashbookEntry = {
+      findFirst: jest.fn().mockResolvedValue({ id: 'existing-entry' }),
+      create: jest.fn(),
+    };
+    tx.financialPeriod = { findFirst: jest.fn() };
+
+    await expect(service.recordBranchDeposit({
+      accountNumber: '1234567890',
+      amount: 50,
+      reference: 'BANK-REF-001',
+    })).rejects.toThrow('already been recorded');
+
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      'BRANCH-DVA-DEPOSIT:1234567890:BANK-REF-001',
+    );
+    expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
+    expect(tx.financialPeriod.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('rechecks the financial period after locking it for a branch virtual-account deposit', async () => {
+    tx.branchVirtualAccount = {
+      findUnique: jest.fn().mockResolvedValue({
+        branchId: 'branch-1',
+        status: 'ACTIVE',
+        accountNumber: '1234567890',
+        branch: { id: 'branch-1' },
+        institution: { id: 'bank-1' },
+      }),
+    };
+    tx.cashbookEntry = {
+      findFirst: jest.fn().mockResolvedValue(null),
+      create: jest.fn(),
+    };
+    tx.financialPeriod = {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'period-1',
+        status: 'OPEN',
+      }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'period-1',
+        status: 'CLOSED',
+      }),
+    };
+
+    await expect(service.recordBranchDeposit({
+      accountNumber: '1234567890',
+      amount: 50,
+      reference: 'BANK-REF-CLOSED',
+    })).rejects.toThrow('financial period closed before this branch deposit');
+
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT id FROM "FinancialPeriod" WHERE id = $1 FOR UPDATE',
+      'period-1',
+    );
+    expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
+  });
+
 });

@@ -253,14 +253,111 @@ export class PaystackService {
   async initializeCustomerPayment(customerId: string, amount: number) {
     const customer = await this.getCustomer(customerId);
     if (!customer.email) throw new BadRequestException('Customer email is required for Paystack payment');
-    const numericAmount = Number(amount);
+    const numericAmount = Math.round(Number(amount) * 100) / 100;
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) throw new BadRequestException('Amount must be greater than zero');
     const reference = `PWFB-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
-    const data = await this.request('/transaction/initialize', {
-      method: 'POST',
-      body: JSON.stringify({ email: customer.email, amount: Math.round(numericAmount * 100), currency: 'NGN', reference, metadata: { customerId: customer.id, provider: 'PAYSTACK', purpose: 'PWFB_WALLET_DEPOSIT' } }),
+
+    // Persist the pending ledger item before redirecting to Paystack. No wallet
+    // credit is applied until the provider confirms a successful charge.
+    await this.prisma.$transaction(async (tx) => {
+      const wallet = await tx.customerWallet.upsert({
+        where: { customerId: customer.id },
+        create: { customerId: customer.id, balance: 0 },
+        update: {},
+      });
+      await tx.$queryRawUnsafe('SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE', wallet.id);
+      const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      if (!lockedWallet || lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
+      await tx.walletTransaction.create({
+        data: {
+          customerId: customer.id,
+          type: 'DEPOSIT',
+          amount: numericAmount,
+          previousBalance: Number(lockedWallet.balance),
+          newBalance: Number(lockedWallet.balance),
+          reference: `PAY-${reference}`,
+          description: 'Paystack wallet deposit awaiting provider confirmation',
+          status: 'PENDING',
+          provider: 'PAYSTACK',
+          providerReference: reference,
+        },
+      });
     });
+
+    // If this request times out after Paystack accepted it, the PENDING row is
+    // retained for verification. A definitive provider/configuration rejection
+    // is closed without crediting the wallet.
+    let data: any;
+    try {
+      data = await this.request('/transaction/initialize', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: customer.email,
+          amount: Math.round(numericAmount * 100),
+          currency: 'NGN',
+          reference,
+          metadata: { customerId: customer.id, provider: 'PAYSTACK', purpose: 'PWFB_WALLET_DEPOSIT' },
+        }),
+      });
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        await this.prisma.walletTransaction.updateMany({
+          where: { reference: `PAY-${reference}`, status: 'PENDING' },
+          data: {
+            status: 'FAILED',
+            failureReason: error.message || 'Paystack rejected deposit initialization',
+            processedAt: new Date(),
+          },
+        });
+      }
+      throw error;
+    }
     return { ok: true, reference, authorizationUrl: data.data.authorization_url, accessCode: data.data.access_code };
+  }
+
+  async getTransactionVerification(reference: string) {
+    const value = String(reference || '').trim();
+    if (!value) throw new BadRequestException('Paystack transaction reference is required');
+    const response = await this.request(`/transaction/verify/${encodeURIComponent(value)}`);
+    return response?.data ?? null;
+  }
+
+  async getTransferVerification(reference: string) {
+    const value = String(reference || '').trim();
+    if (!value) throw new BadRequestException('Paystack transfer reference is required');
+    const response = await this.request(`/transfer/verify/${encodeURIComponent(value)}`);
+    return response?.data ?? null;
+  }
+
+  async reconcilePendingDeposit(reference: string, status: 'FAILED' | 'REVERSED', reason?: string) {
+    const value = String(reference || '').trim();
+    if (!value) throw new BadRequestException('Paystack transaction reference is required');
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        `PAYSTACK-CHARGE:${value}`,
+      );
+      const transaction = await tx.walletTransaction.findUnique({ where: { reference: `PAY-${value}` } });
+      if (!transaction || transaction.type !== 'DEPOSIT' || transaction.provider !== 'PAYSTACK') {
+        return { ok: true, processed: false, reason: 'pending-deposit-not-found' };
+      }
+      if (transaction.status === 'COMPLETED') {
+        return { ok: true, processed: false, conflict: true, reason: 'deposit-already-credited', transactionId: transaction.id };
+      }
+      if (transaction.status === 'FAILED' || transaction.status === 'REVERSED') {
+        return { ok: true, processed: false, duplicate: true, transactionId: transaction.id };
+      }
+      const updated = await tx.walletTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          status,
+          failureReason: reason || `Paystack verified transaction status: ${status}`,
+          processedAt: new Date(),
+          ...(status === 'REVERSED' ? { reversedAt: new Date() } : {}),
+        },
+      });
+      return { ok: true, processed: true, status, transaction: updated };
+    });
   }
 
   verifyWebhookSignature(rawBody: Buffer, signature?: string) {
@@ -396,40 +493,86 @@ export class PaystackService {
     }
     if (eventName !== 'charge.success') return { ok: true, processed: false, message: 'Event ignored' };
     const payment = event?.data;
-    const reference = payment?.reference;
+    const reference = String(payment?.reference || '').trim();
     const metadata = payment?.metadata;
-    const customerId = metadata?.customerId;
+    const customerId = String(metadata?.customerId || '');
     if (!reference || !customerId) throw new BadRequestException('Paystack payment is missing reference or customer ID');
-    if (payment?.status !== 'success') return { ok: true, processed: false, message: 'Payment is not successful' };
+    if (metadata?.purpose !== 'PWFB_WALLET_DEPOSIT') {
+      return { ok: true, processed: false, ignored: true, message: 'Paystack charge is not a PWFB wallet deposit' };
+    }
+    if (String(payment?.status || '').toLowerCase() !== 'success') return { ok: true, processed: false, message: 'Payment is not successful' };
     const currency = String(payment?.currency || '').trim().toUpperCase();
     if (currency !== 'NGN') throw new BadRequestException('Only NGN Paystack wallet payments can be credited');
-    const amount = Number(payment.amount) / 100;
-    if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Invalid Paystack payment amount');
+    const amountKobo = Number(payment.amount);
+    if (!Number.isFinite(amountKobo) || amountKobo <= 0 || !Number.isInteger(amountKobo)) throw new BadRequestException('Invalid Paystack payment amount');
+    const amount = amountKobo / 100;
     const providerReference = String(payment.id ?? reference);
-    const existing = await this.prisma.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
-    if (existing) return { ok: true, processed: false, duplicate: true, transactionId: existing.id, reference: existing.reference };
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
     if (!customer) throw new NotFoundException('Customer not found');
+
     return this.prisma.$transaction(async (tx) => {
-      // Serialize concurrent webhook/verify requests for the same provider payment before checking idempotency.
-      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', String(providerReference));
-      const duplicate = await tx.walletTransaction.findFirst({ where: { OR: [{ reference: `PAY-${reference}` }, { providerReference }] }, select: { id: true, reference: true } });
-      if (duplicate) return { ok: true, processed: false, duplicate: true, transactionId: duplicate.id, reference: duplicate.reference };
-      const wallet = await tx.customerWallet.upsert({ where: { customerId }, create: { customerId, balance: 0 }, update: {} });
-      // Different successful payments use different provider-reference locks.
-      // Lock the shared wallet row and re-read the balance to prevent a
-      // concurrent deposit from overwriting another payment's balance update.
+      // Webhook and poller use this same lock so only one can credit a payment.
       await tx.$queryRawUnsafe(
-        'SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE',
-        wallet.id,
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        `PAYSTACK-CHARGE:${reference}`,
       );
+      const existing = await tx.walletTransaction.findUnique({ where: { reference: `PAY-${reference}` } });
+      const providerDuplicate = await tx.walletTransaction.findFirst({
+        where: { providerReference },
+        select: { id: true, reference: true },
+      });
+      if (providerDuplicate && (!existing || providerDuplicate.id !== existing.id)) {
+        throw new BadRequestException('Paystack payment ID is already linked to another wallet transaction');
+      }
+      if (existing) {
+        if (existing.customerId !== customerId || existing.type !== 'DEPOSIT' || Math.round(Number(existing.amount) * 100) !== amountKobo) {
+          throw new BadRequestException('Paystack payment does not match the pending wallet deposit details');
+        }
+        if (existing.status === 'COMPLETED') {
+          return { ok: true, processed: false, duplicate: true, transactionId: existing.id, reference: existing.reference };
+        }
+        if (existing.status === 'FAILED' || existing.status === 'REVERSED') {
+          return {
+            ok: true, processed: false, conflict: true,
+            message: 'Paystack reported success after the pending deposit was closed; manual reconciliation is required',
+            transactionId: existing.id,
+          };
+        }
+      }
+
+      const wallet = await tx.customerWallet.upsert({
+        where: { customerId },
+        create: { customerId, balance: 0 },
+        update: {},
+      });
+      await tx.$queryRawUnsafe('SELECT id FROM "CustomerWallet" WHERE id = $1 FOR UPDATE', wallet.id);
       const lockedWallet = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       if (!lockedWallet) throw new BadRequestException('Customer wallet disappeared while crediting Paystack payment');
       if (lockedWallet.status !== 'ACTIVE') throw new BadRequestException('Customer wallet is not active');
       const previousBalance = Math.round(Number(lockedWallet.balance) * 100) / 100;
       const newBalance = Math.round((previousBalance + amount) * 100) / 100;
       const updatedWallet = await tx.customerWallet.update({ where: { id: lockedWallet.id }, data: { balance: newBalance } });
-      const transaction = await tx.walletTransaction.create({ data: { customerId, type: 'DEPOSIT', amount, previousBalance, newBalance, reference: `PAY-${reference}`, description: 'Paystack wallet deposit', status: 'COMPLETED', provider: 'PAYSTACK', providerReference, processedAt: new Date() } });
+      const transaction = existing
+        ? await tx.walletTransaction.update({
+            where: { id: existing.id },
+            data: {
+              previousBalance,
+              newBalance,
+              status: 'COMPLETED',
+              description: 'Paystack wallet deposit',
+              provider: 'PAYSTACK',
+              providerReference,
+              processedAt: new Date(),
+              failureReason: null,
+            },
+          })
+        : await tx.walletTransaction.create({
+            data: {
+              customerId, type: 'DEPOSIT', amount, previousBalance, newBalance,
+              reference: `PAY-${reference}`, description: 'Paystack wallet deposit',
+              status: 'COMPLETED', provider: 'PAYSTACK', providerReference, processedAt: new Date(),
+            },
+          });
       return { ok: true, processed: true, transaction, wallet: updatedWallet };
     });
   }

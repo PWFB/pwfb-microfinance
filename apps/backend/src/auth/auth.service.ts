@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, HttpException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'crypto';
@@ -13,6 +13,35 @@ export class AuthService {
   private googleIdentityTableReady = false;
   private authenticatorTableReady = false;
   constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
+  private async ensureLoginAttemptTable() {
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AuthLoginAttempt" ("id" TEXT PRIMARY KEY, "keyHash" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AuthLoginAttempt_key_created_idx" ON "AuthLoginAttempt" ("keyHash", "createdAt")`);
+  }
+  private loginKey(value: string) { return createHash('sha256').update(String(value || '').trim().toLowerCase()).digest('hex'); }
+  private async assertLoginRateLimit(identifier: string, ip: string) {
+    await this.ensureLoginAttemptTable();
+    await this.prisma.$executeRawUnsafe(`DELETE FROM "AuthLoginAttempt" WHERE "createdAt" < CURRENT_TIMESTAMP - INTERVAL '1 day'`);
+    const emailKey = this.loginKey(`email:${identifier}`);
+    const ipKey = this.loginKey(`ip:${ip || 'unknown'}`);
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ keyHash: string; attempts: number }>>(
+      `SELECT "keyHash", COUNT(*)::int AS attempts FROM "AuthLoginAttempt" WHERE "keyHash" IN ($1,$2) AND "createdAt" > CURRENT_TIMESTAMP - INTERVAL '15 minutes' GROUP BY "keyHash"`,
+      emailKey, ipKey,
+    );
+    const counts = new Map(rows.map((row) => [row.keyHash, Number(row.attempts)]));
+    if ((counts.get(emailKey) || 0) >= 5 || (counts.get(ipKey) || 0) >= 30) {
+      throw new HttpException('Too many failed login attempts. Please wait 15 minutes and try again.', 429);
+    }
+    return { emailKey, ipKey };
+  }
+  private async recordFailedLogin(keys: { emailKey: string; ipKey: string }) {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "AuthLoginAttempt" ("id","keyHash","createdAt") VALUES ($1,$2,CURRENT_TIMESTAMP),($3,$4,CURRENT_TIMESTAMP)`,
+      randomBytes(16).toString('hex'), keys.emailKey, randomBytes(16).toString('hex'), keys.ipKey,
+    );
+  }
+  private async clearFailedLogin(keyHash: string) {
+    await this.prisma.$executeRawUnsafe(`DELETE FROM "AuthLoginAttempt" WHERE "keyHash" = $1`, keyHash);
+  }
   private issueToken(user: any) { return this.jwtService.signAsync({ sub: user.id, email: user.email, role: user.role }); }
   private async enforceConfiguredSuperAdmin(user: any) {
     const configured = String(process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
@@ -92,11 +121,12 @@ export class AuthService {
       },
     };
   }
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, clientIp = 'unknown') {
     const identifier = String(dto.identifier || dto.email || '').trim();
     const password = String(dto.password || '');
     const mode = String(dto.loginMode || '').trim().toUpperCase();
     if (!identifier || !password) throw new UnauthorizedException('Login ID and password are required');
+    const loginKeys = await this.assertLoginRateLimit(identifier, clientIp);
 
     let user: any = null;
     const email = identifier.toLowerCase();
@@ -114,8 +144,10 @@ export class AuthService {
     }
 
     if (!user || !user.password || !await bcrypt.compare(password, user.password)) {
+      await this.recordFailedLogin(loginKeys);
       throw new UnauthorizedException('Invalid login ID or password');
     }
+    await this.clearFailedLogin(loginKeys.emailKey);
 
     user = await this.enforceConfiguredSuperAdmin(user);
     if (!user) throw new UnauthorizedException('User not found');
@@ -139,7 +171,22 @@ export class AuthService {
   }
   googleConfig() { const clientId = process.env.GOOGLE_CLIENT_ID?.trim(); if (!clientId) throw new BadRequestException('Google login is not configured on the server'); const androidClientId = process.env.GOOGLE_ANDROID_CLIENT_ID?.trim() || ''; return { client_id: clientId, server_client_id: clientId, android_client_id: androidClientId, android_configured: Boolean(androidClientId) }; }
   private async ensureGoogleIdentityTable() { if (this.googleIdentityTableReady) return; await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS \"GoogleIdentity\" (\"userId\" TEXT PRIMARY KEY REFERENCES \"User\"(\"id\") ON DELETE CASCADE, \"googleSub\" TEXT NOT NULL UNIQUE, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`); this.googleIdentityTableReady = true; }
-  async googleLogin(idToken?: string, requestOrigin?: string, requestClientId?: string, expectedNonce?: string, loginMode?: string) { const isAndroid = requestOrigin === 'android-app'; const clientId = process.env.GOOGLE_CLIENT_ID?.trim(); if (!clientId) throw new BadRequestException('Google login is not configured on the server. Set GOOGLE_CLIENT_ID in Render.'); if (!idToken) throw new BadRequestException('Google credential is required'); const googleOrigin = requestOrigin?.trim().replace(/\/$/, ''); const configuredOrigins = [process.env.GOOGLE_ALLOWED_ORIGINS, process.env.WEBAUTHN_ORIGIN].filter(Boolean).flatMap((value) => String(value).split(',')); const googleAllowed = [...configuredOrigins, 'https://pwfb-microfinance-965u.onrender.com', 'https://pwfb-microfinance-1.onrender.com', 'https://pwfb-frontend.onrender.com', 'android-app'].map((value) => value.trim().replace(/\/$/, '')).filter(Boolean); if (!googleOrigin || !googleAllowed.includes(googleOrigin)) throw new UnauthorizedException('Google login origin is not allowed'); if (requestClientId && requestClientId !== clientId) throw new UnauthorizedException('Google client ID mismatch'); try { const ticket = await this.googleClient.verifyIdToken({ idToken, audience: clientId }); const payload = ticket.getPayload(); if (payload?.iss !== 'accounts.google.com' && payload?.iss !== 'https://accounts.google.com') throw new UnauthorizedException('Invalid Google token issuer'); if (!payload?.sub) throw new UnauthorizedException('Google account identifier is missing'); if (!payload.email || payload.email_verified !== true) throw new UnauthorizedException('Google account email is not verified'); if (!isAndroid && (!expectedNonce || payload.nonce !== expectedNonce)) throw new UnauthorizedException('Google authentication nonce mismatch'); const email = payload.email.toLowerCase().trim(); const googleAuthoritative = email.endsWith('@gmail.com') || Boolean(payload.hd); await this.ensureGoogleIdentityTable(); const googleSub = payload.sub; const linkedRows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT \"userId\" FROM \"GoogleIdentity\" WHERE \"googleSub\" = $1 LIMIT 1`, googleSub); let user = linkedRows[0] ? await this.prisma.user.findUnique({ where: { id: linkedRows[0].userId } }) : null; if (!user && !googleAuthoritative) throw new UnauthorizedException('Google does not control this email domain. Sign in with your PWFB password first to link this Google account.'); if (!user) user = await this.prisma.user.findUnique({ where: { email } }); const mode = String(loginMode || '').trim().toUpperCase(); if (!user && mode && mode !== 'CUSTOMER') throw new UnauthorizedException(mode === 'SUPER_ADMIN' ? 'Super Admin Google account was not found. Use the configured Super Admin account.' : mode === 'ADMIN' ? 'Admin Google account was not found. Sign in with your PWFB admin account.' : 'Staff Google account was not found. Sign in with your PWFB staff account.'); const configuredAdminEmail = String(process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase(); if (!user && configuredAdminEmail && email === configuredAdminEmail) throw new UnauthorizedException('Configured Super Admin account was not found. Complete server-side Super Admin setup before signing in.'); if (!user) { const randomPassword = await bcrypt.hash(randomBytes(32).toString('hex'), 12); const firstName = payload.given_name || payload.name?.split(' ')[0] || 'Google'; const lastName = payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User'; user = await this.prisma.$transaction(async (tx) => { const customer = await tx.customer.create({ data: { firstName, lastName, email, phone: undefined, wallet: { create: {} } } }); return tx.user.create({ data: { email, password: randomPassword, firstName, lastName, passportPhoto: payload.picture || null, role: 'CUSTOMER', customer: { connect: { id: customer.id } } } }); }); } if (!user) throw new UnauthorizedException('User could not be resolved'); user = await this.enforceConfiguredSuperAdmin(user); if (!user) throw new UnauthorizedException('User could not be resolved'); if (mode === 'SUPER_ADMIN' && user.role !== 'SUPER_ADMIN') throw new UnauthorizedException('This account is not a Super Admin account. Use another login.'); if (mode === 'ADMIN' && user.role !== 'ADMIN') throw new UnauthorizedException('This account is not an Admin account. Use another login.'); if (mode === 'STAFF' && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) throw new UnauthorizedException('Admin accounts must use Admin or Super Admin Login.'); if (mode === 'CUSTOMER' && user.role !== 'CUSTOMER') throw new UnauthorizedException('This account is not a Customer account. Use another login.'); const existingLink = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT \"userId\" FROM \"GoogleIdentity\" WHERE \"userId\" = $1 OR \"googleSub\" = $2 LIMIT 1`, user.id, googleSub); if (!existingLink.length) await this.prisma.$executeRawUnsafe(`INSERT INTO \"GoogleIdentity\" (\"userId\", \"googleSub\") VALUES ($1, $2)`, user.id, googleSub); else if (existingLink[0].userId !== user.id) throw new UnauthorizedException('Google account is already linked to another PWFB account'); const accessToken = await this.issueToken(user); const { password, ...safeUser } = user; return { message: 'Google login successful', access_token: accessToken, user: safeUser }; } catch (error) { if (error instanceof UnauthorizedException || error instanceof BadRequestException) throw error; throw new UnauthorizedException('Google authentication failed'); } }
+  async googleLogin(idToken?: string, requestOrigin?: string, requestClientId?: string, expectedNonce?: string, loginMode?: string) { const isAndroid = requestOrigin === 'android-app'; const clientId = process.env.GOOGLE_CLIENT_ID?.trim(); if (!clientId) throw new BadRequestException('Google login is not configured on the server. Set GOOGLE_CLIENT_ID in Render.'); if (!idToken) throw new BadRequestException('Google credential is required'); const googleOrigin = requestOrigin?.trim().replace(/\/$/, ''); const configuredOrigins = [
+      process.env.GOOGLE_ALLOWED_ORIGINS,
+      process.env.WEBAUTHN_ALLOWED_ORIGINS,
+      process.env.WEBAUTHN_ORIGIN,
+      process.env.VERCEL_FRONTEND_URL,
+      process.env.FRONTEND_URL,
+      process.env.CORS_ORIGINS,
+    ].filter(Boolean).flatMap((value) => String(value).split(','));
+    const googleAllowed = [
+      ...configuredOrigins,
+      'https://pwfb-microfinance-965u.onrender.com',
+      'https://pwfb-microfinance-1.onrender.com',
+      'https://pwfb-frontend.onrender.com',
+      'https://pwfb-microfinance-33ne.vercel.app',
+      'android-app',
+    ].map((value) => value.trim().replace(/\/$/, '')).filter(Boolean); if (!googleOrigin || !googleAllowed.includes(googleOrigin)) throw new UnauthorizedException('Google login origin is not allowed'); if (requestClientId && requestClientId !== clientId) throw new UnauthorizedException('Google client ID mismatch'); try { const ticket = await this.googleClient.verifyIdToken({ idToken, audience: clientId }); const payload = ticket.getPayload(); if (payload?.iss !== 'accounts.google.com' && payload?.iss !== 'https://accounts.google.com') throw new UnauthorizedException('Invalid Google token issuer'); if (!payload?.sub) throw new UnauthorizedException('Google account identifier is missing'); if (!payload.email || payload.email_verified !== true) throw new UnauthorizedException('Google account email is not verified'); if (!isAndroid && (!expectedNonce || payload.nonce !== expectedNonce)) throw new UnauthorizedException('Google authentication nonce mismatch'); const email = payload.email.toLowerCase().trim(); const googleAuthoritative = email.endsWith('@gmail.com') || Boolean(payload.hd); await this.ensureGoogleIdentityTable(); const googleSub = payload.sub; const linkedRows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT \"userId\" FROM \"GoogleIdentity\" WHERE \"googleSub\" = $1 LIMIT 1`, googleSub); let user = linkedRows[0] ? await this.prisma.user.findUnique({ where: { id: linkedRows[0].userId } }) : null; if (!user && !googleAuthoritative) throw new UnauthorizedException('Google does not control this email domain. Sign in with your PWFB password first to link this Google account.'); if (!user) user = await this.prisma.user.findUnique({ where: { email } }); const mode = String(loginMode || '').trim().toUpperCase(); if (!user && mode && mode !== 'CUSTOMER') throw new UnauthorizedException(mode === 'SUPER_ADMIN' ? 'Super Admin Google account was not found. Use the configured Super Admin account.' : mode === 'ADMIN' ? 'Admin Google account was not found. Sign in with your PWFB admin account.' : 'Staff Google account was not found. Sign in with your PWFB staff account.'); const configuredAdminEmail = String(process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase(); if (!user && configuredAdminEmail && email === configuredAdminEmail) throw new UnauthorizedException('Configured Super Admin account was not found. Complete server-side Super Admin setup before signing in.'); if (!user) { const randomPassword = await bcrypt.hash(randomBytes(32).toString('hex'), 12); const firstName = payload.given_name || payload.name?.split(' ')[0] || 'Google'; const lastName = payload.family_name || payload.name?.split(' ').slice(1).join(' ') || 'User'; user = await this.prisma.$transaction(async (tx) => { const customer = await tx.customer.create({ data: { firstName, lastName, email, phone: undefined, wallet: { create: {} } } }); return tx.user.create({ data: { email, password: randomPassword, firstName, lastName, passportPhoto: payload.picture || null, role: 'CUSTOMER', customer: { connect: { id: customer.id } } } }); }); } if (!user) throw new UnauthorizedException('User could not be resolved'); user = await this.enforceConfiguredSuperAdmin(user); if (!user) throw new UnauthorizedException('User could not be resolved'); if (mode === 'SUPER_ADMIN' && user.role !== 'SUPER_ADMIN') throw new UnauthorizedException('This account is not a Super Admin account. Use another login.'); if (mode === 'ADMIN' && user.role !== 'ADMIN') throw new UnauthorizedException('This account is not an Admin account. Use another login.'); if (mode === 'STAFF' && (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN')) throw new UnauthorizedException('Admin accounts must use Admin or Super Admin Login.'); if (mode === 'CUSTOMER' && user.role !== 'CUSTOMER') throw new UnauthorizedException('This account is not a Customer account. Use another login.'); const existingLink = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(`SELECT \"userId\" FROM \"GoogleIdentity\" WHERE \"userId\" = $1 OR \"googleSub\" = $2 LIMIT 1`, user.id, googleSub); if (!existingLink.length) await this.prisma.$executeRawUnsafe(`INSERT INTO \"GoogleIdentity\" (\"userId\", \"googleSub\") VALUES ($1, $2)`, user.id, googleSub); else if (existingLink[0].userId !== user.id) throw new UnauthorizedException('Google account is already linked to another PWFB account'); const accessToken = await this.issueToken(user); const { password, ...safeUser } = user; return { message: 'Google login successful', access_token: accessToken, user: safeUser }; } catch (error) { if (error instanceof UnauthorizedException || error instanceof BadRequestException) throw error; throw new UnauthorizedException('Google authentication failed'); } }
   private async ensureAuthenticatorTable() { if (this.authenticatorTableReady) return; await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS \"UserAuthenticator\" (\"userId\" TEXT PRIMARY KEY REFERENCES \"User\"(\"id\") ON DELETE CASCADE, \"secretEnc\" TEXT NOT NULL, \"enabled\" BOOLEAN NOT NULL DEFAULT FALSE, \"recoveryCodes\" TEXT, \"createdAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, \"updatedAt\" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`); this.authenticatorTableReady = true; }
   private authenticatorKey() { const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET; if (!seed || seed === 'pwfb-secret-key') throw new BadRequestException('Authenticator encryption key is not configured on the server'); return createHash('sha256').update(seed).digest(); }
   private encryptAuthenticatorSecret(secret: string) { const iv = randomBytes(12); const cipher = createCipheriv('aes-256-gcm', this.authenticatorKey(), iv); const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]); return `${iv.toString('base64url')}.${cipher.getAuthTag().toString('base64url')}.${encrypted.toString('base64url')}`; }

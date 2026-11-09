@@ -88,6 +88,16 @@ export class WalletWithdrawalWebhookService {
     return { ok: true, ignored: true, status };
   }
 
+  async applyVerifiedReconciliation(payload: {
+    transactionReference: string;
+    status: 'COMPLETED' | 'FAILED';
+    provider?: string;
+    providerReference?: string;
+    failureReason?: string;
+  }) {
+    return this.applyReconciliation(payload);
+  }
+
   private async applyReconciliation(payload: {
     transactionReference: string;
     status: 'COMPLETED' | 'FAILED';

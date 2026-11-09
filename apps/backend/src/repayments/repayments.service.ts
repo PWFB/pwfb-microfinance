@@ -25,9 +25,102 @@ export class RepaymentsService {
     await tx.$executeRawUnsafe(`INSERT INTO "PWFBRepaymentAllocation" ("repaymentId","principalPaid","interestPaid","updatedAt") VALUES ($1,$2,$3,CURRENT_TIMESTAMP) ON CONFLICT ("repaymentId") DO UPDATE SET "principalPaid"=$2,"interestPaid"=$3,"updatedAt"=CURRENT_TIMESTAMP`,repaymentId,principalPaid,interestPaid);
     return {principalPaid,interestPaid,principalOutstanding:Math.max(0,principalRemaining-principalPaid),interestOutstanding:Math.max(0,interestRemaining-interestPaid)};
   }
-  async create(dto:CreateRepaymentDto) { const amount=this.amount(dto.amount); const loan=await this.prisma.loan.findUnique({where:{id:dto.loanId}}); if(!loan) throw new NotFoundException('Loan not found'); await this.ensureAllocationTable(); return this.prisma.$transaction(async tx=>{const repayment=await tx.repayment.create({data:{loanId:dto.loanId,amount,paymentDate:dto.paymentDate?new Date(dto.paymentDate):undefined,method:dto.method,notes:dto.notes},include:{loan:{include:{customer:true}}}}); const allocation=await this.allocate(tx,loan.id,repayment.id,amount); await tx.transaction.create({data:{customerId:loan.customerId,type:'LOAN_REPAYMENT',amount,description:`Loan repayment — ${loan.id}${dto.method?` — ${dto.method}`:''} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`}}); return {...repayment,...allocation}; }); }
+  async create(dto: CreateRepaymentDto) {
+    const amount = this.amount(dto.amount);
+    await this.ensureAllocationTable();
+
+    return this.prisma.$transaction(async (tx: any) => {
+      // Serialize all receipt posts for one loan. A second concurrent
+      // payment must re-read allocations after the first payment commits.
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "Loan" WHERE id = $1 FOR UPDATE',
+        dto.loanId,
+      );
+      const loan = await tx.loan.findUnique({ where: { id: dto.loanId } });
+      if (!loan) throw new NotFoundException('Loan not found');
+
+      const repayment = await tx.repayment.create({
+        data: {
+          loanId: dto.loanId,
+          amount,
+          paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
+          method: dto.method,
+          notes: dto.notes,
+        },
+        include: { loan: { include: { customer: true } } },
+      });
+      const allocation = await this.allocate(tx, loan.id, repayment.id, amount);
+      await tx.transaction.create({
+        data: {
+          customerId: loan.customerId,
+          type: 'LOAN_REPAYMENT',
+          amount,
+          description: `Loan repayment — ${loan.id}${dto.method ? ` — ${dto.method}` : ''} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`,
+        },
+      });
+      return { ...repayment, ...allocation };
+    });
+  }
   async findAll(){await this.ensureAllocationTable(); const rows=await this.prisma.repayment.findMany({orderBy:{createdAt:'desc'},include:{loan:{include:{customer:true}}}}); return Promise.all(rows.map(async repayment=>{const allocation=await this.prisma.$queryRawUnsafe(`SELECT "principalPaid","interestPaid" FROM "PWFBRepaymentAllocation" WHERE "repaymentId"=$1`,repayment.id) as Array<{principalPaid:number|string;interestPaid:number|string}>; return {...repayment,principalPaid:Number(allocation[0]?.principalPaid||0),interestPaid:Number(allocation[0]?.interestPaid||0)};}));}
   async findOne(id:string){await this.ensureAllocationTable(); const repayment=await this.prisma.repayment.findUnique({where:{id},include:{loan:{include:{customer:true}}}}); if(!repayment)throw new NotFoundException('Repayment not found'); const allocation=await this.prisma.$queryRawUnsafe(`SELECT "principalPaid","interestPaid" FROM "PWFBRepaymentAllocation" WHERE "repaymentId"=$1`,id) as Array<{principalPaid:number|string;interestPaid:number|string}>; return {...repayment,principalPaid:Number(allocation[0]?.principalPaid||0),interestPaid:Number(allocation[0]?.interestPaid||0)};}
-  async update(id:string,dto:UpdateRepaymentDto){const existing=await this.findOne(id); if(dto.loanId&&dto.loanId!==existing.loanId) throw new BadRequestException('A repayment cannot be moved to another loan. Create a reversal and a new repayment instead.'); const newAmount=dto.amount===undefined?Number(existing.amount):this.amount(dto.amount),oldAmount=Number(existing.amount),delta=Math.round((newAmount-oldAmount)*100)/100; return this.prisma.$transaction(async tx=>{const repayment=await tx.repayment.update({where:{id},data:{amount:newAmount,paymentDate:dto.paymentDate?new Date(dto.paymentDate):undefined,method:dto.method,notes:dto.notes},include:{loan:{include:{customer:true}}}}); const allocation=await this.allocate(tx,existing.loanId,id,newAmount); if(delta!==0) await tx.transaction.create({data:{customerId:existing.loan.customerId,type:delta>0?'LOAN_REPAYMENT_ADJUSTMENT':'LOAN_REPAYMENT_REVERSAL',amount:Math.abs(delta),description:`Repayment ${id} amount correction from ${oldAmount} to ${newAmount} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`}}); return {...repayment,...allocation};});}
-  async remove(id:string){const existing=await this.findOne(id); return this.prisma.$transaction(async tx=>{const deleted=await tx.repayment.delete({where:{id}}); await tx.$executeRawUnsafe(`DELETE FROM "PWFBRepaymentAllocation" WHERE "repaymentId"=$1`,id); await tx.transaction.create({data:{customerId:existing.loan.customerId,type:'LOAN_REPAYMENT_REVERSAL',amount:Number(existing.amount),description:`Reversal of deleted loan repayment ${id} — Interest ₦${Number(existing.interestPaid||0).toFixed(2)} / Principal ₦${Number(existing.principalPaid||0).toFixed(2)}`}}); return deleted;});}
+  async update(id: string, dto: UpdateRepaymentDto) {
+    const existing = await this.findOne(id);
+    if (dto.loanId && dto.loanId !== existing.loanId) {
+      throw new BadRequestException('A repayment cannot be moved to another loan. Create a reversal and a new repayment instead.');
+    }
+    const requestedAmount = dto.amount === undefined ? undefined : this.amount(dto.amount);
+
+    return this.prisma.$transaction(async (tx: any) => {
+      await tx.$queryRawUnsafe('SELECT id FROM "Loan" WHERE id = $1 FOR UPDATE', existing.loanId);
+      const current = await tx.repayment.findUnique({ where: { id } });
+      if (!current) throw new NotFoundException('Repayment not found');
+      const newAmount = requestedAmount ?? Number(current.amount);
+      const oldAmount = Number(current.amount);
+      const delta = Math.round((newAmount - oldAmount) * 100) / 100;
+      const repayment = await tx.repayment.update({
+        where: { id },
+        data: {
+          amount: newAmount,
+          paymentDate: dto.paymentDate ? new Date(dto.paymentDate) : undefined,
+          method: dto.method,
+          notes: dto.notes,
+        },
+        include: { loan: { include: { customer: true } } },
+      });
+      const allocation = await this.allocate(tx, existing.loanId, id, newAmount);
+      if (delta !== 0) {
+        await tx.transaction.create({
+          data: {
+            customerId: existing.loan.customerId,
+            type: delta > 0 ? 'LOAN_REPAYMENT_ADJUSTMENT' : 'LOAN_REPAYMENT_REVERSAL',
+            amount: Math.abs(delta),
+            description: `Repayment ${id} amount correction from ${oldAmount} to ${newAmount} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`,
+          },
+        });
+      }
+      return { ...repayment, ...allocation };
+    });
+  }
+  async remove(id: string) {
+    const existing = await this.findOne(id);
+    return this.prisma.$transaction(async (tx: any) => {
+      await tx.$queryRawUnsafe('SELECT id FROM "Loan" WHERE id = $1 FOR UPDATE', existing.loanId);
+      const current = await tx.repayment.findUnique({ where: { id } });
+      if (!current) throw new NotFoundException('Repayment not found');
+      const deleted = await tx.repayment.delete({ where: { id } });
+      await tx.$executeRawUnsafe(
+        `DELETE FROM "PWFBRepaymentAllocation" WHERE "repaymentId"=$1`,
+        id,
+      );
+      await tx.transaction.create({
+        data: {
+          customerId: existing.loan.customerId,
+          type: 'LOAN_REPAYMENT_REVERSAL',
+          amount: Number(current.amount),
+          description: `Reversal of deleted loan repayment ${id} — Interest ₦${Number(existing.interestPaid || 0).toFixed(2)} / Principal ₦${Number(existing.principalPaid || 0).toFixed(2)}`,
+        },
+      });
+      return deleted;
+    });
+  }
 }

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 describe('ReportsService', () => {
   let service: ReportsService;
   let prisma: any;
+  let accessScope: any;
 
   beforeEach(() => {
     prisma = {
@@ -16,9 +17,8 @@ describe('ReportsService', () => {
       cashbookEntry: { aggregate: jest.fn() },
     };
 
-    service = new ReportsService(
-      prisma as PrismaService,
-    );
+    accessScope = { getScope: jest.fn().mockResolvedValue({ role: 'SUPER_ADMIN', global: true }) };
+    service = new ReportsService(prisma as PrismaService, accessScope as any);
   });
 
   it('should be defined', () => {
@@ -53,7 +53,7 @@ describe('ReportsService', () => {
       .mockResolvedValueOnce({ _sum: { amount: 20000 } })
       .mockResolvedValueOnce({ _sum: { amount: 5000 } });
 
-    await expect(service.getSummary()).resolves.toEqual({
+    await expect(service.getSummary({ id: 'root-user', role: 'SUPER_ADMIN' })).resolves.toEqual({
       customers: { count: 10 },
       savings: { count: 5, amount: 50000 },
       loans: { count: 4, amount: 100000 },

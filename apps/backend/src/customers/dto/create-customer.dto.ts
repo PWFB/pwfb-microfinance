@@ -39,4 +39,7 @@ export class CreateCustomerDto {
 
   @IsBoolean()
   virtualAccountConsent: boolean;
+
+  @IsString()
+  registrationFeeReceiptId: string;
 }

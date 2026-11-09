@@ -16,7 +16,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
     const isCustomerBankingRoute = String(user.role || '').toUpperCase() === 'CUSTOMER' && requestPath.includes('/banking/customers/');
     if (isCustomerBankingRoute) return next.handle();
 
-    const path = String(request.route?.path || request.path || '').toLowerCase();
+    const path = String(request.originalUrl || request.path || request.route?.path || '').split('?')[0].toLowerCase();
     const id = request.params?.id;
     const branchId = request.params?.branchId || request.body?.branchId || request.query?.branchId;
     const staffId = request.params?.staffId || request.body?.staffId || request.query?.staffId;
@@ -30,15 +30,17 @@ export class AccessScopeInterceptor implements NestInterceptor {
       if (path.includes('/staff')) await this.scope.assertStaff(user, String(id));
       else if (path.includes('/customers')) await this.scope.assertCustomer(user, String(id));
       else if (path.includes('/loans')) await this.scope.assertLoan(user, String(id));
+      else if (path.includes('/transactions')) await this.scope.assertTransaction(user, String(id));
       else if (path.includes('/savings')) await this.scope.assertSavings(user, String(id));
       else if (path.includes('/collections')) await this.scope.assertCollection(user, String(id));
       else if (path.includes('/branches')) await this.scope.assertBranch(user, String(id));
     }
 
-    const { map } = require('rxjs');
+    const { mergeMap } = require('rxjs/operators');
     const resource = path.includes('/staff') ? 'staff'
       : path.includes('/customers') ? 'customers'
       : path.includes('/loans') ? 'loans'
+      : path.includes('/transactions') ? 'transactions'
       : path.includes('/savings') ? 'savings'
       : path.includes('/collections') ? 'collections'
       : path.includes('/branches') ? 'branches'
@@ -46,8 +48,8 @@ export class AccessScopeInterceptor implements NestInterceptor {
 
     if (!resource || id) return next.handle();
 
-    return next.handle().pipe(map(async (data: any) => {
-      if (Array.isArray(data)) return this.scope.filterList(user, resource, data);
+    return next.handle().pipe(mergeMap(async (data: any) => {
+      if (Array.isArray(data)) return await this.scope.filterList(user, resource, data);
       if (Array.isArray(data?.data)) return { ...data, data: await this.scope.filterList(user, resource, data.data) };
       if (Array.isArray(data?.items)) return { ...data, items: await this.scope.filterList(user, resource, data.items) };
       return data;

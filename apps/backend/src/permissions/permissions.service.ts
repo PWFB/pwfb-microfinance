@@ -18,12 +18,13 @@ const ALL = {
   COLLECTION_CREATE: true, COLLECTION_SETTLE: true,
 };
 const NONE = Object.fromEntries(Object.keys(ALL).map(k => [k, false])) as Record<PermissionKey, boolean>;
+const TELLER_RESTRICTED_PERMISSIONS = new Set<PermissionKey>(['WALLET_WITHDRAWAL', 'BANK_TRANSFER', 'SAVINGS_WITHDRAW', 'LOAN_DISBURSE', 'LOAN_CREATE']);
 
 const DEFAULTS: Record<string, Record<PermissionKey, boolean>> = {
   SUPER_ADMIN: { ...ALL },
   ADMIN: { ...ALL },
   BRANCH_MANAGER: { ...ALL },
-  TELLER: { ...ALL, LOAN_CREATE: false, LOAN_DISBURSE: false, COLLECTION_CREATE: true },
+  TELLER: { ...NONE, WALLET_DEPOSIT: true, CUSTOMER_CREATE: true, SAVINGS_CREATE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
   STAFF: { ...NONE, BANK_TRANSFER: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true, SAVINGS_CREATE: true },
   CUSTOMER_SERVICE: { ...NONE, CUSTOMER_CREATE: true, CUSTOMER_EDIT: true, SAVINGS_CREATE: true },
   LOAN_OFFICER: { ...NONE, LOAN_CREATE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
@@ -69,10 +70,13 @@ export class PermissionsService {
       if (!out[row.role]) out[row.role] = {};
       out[row.role][row.permission] = row.enabled;
     }
+    for (const permission of TELLER_RESTRICTED_PERMISSIONS) out.TELLER[permission] = false;
     return Object.entries(out).map(([role, permissions]) => ({ role, permissions }));
   }
 
   async get(role: string, permission: PermissionKey) {
+    const normalizedRole = String(role || '').toUpperCase();
+    if (normalizedRole === 'TELLER' && TELLER_RESTRICTED_PERMISSIONS.has(permission)) return false;
     await this.ensureTable();
     const rows = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(
       'SELECT "enabled" FROM "RolePermission" WHERE "role" = $1 AND "permission" = $2 LIMIT 1',
@@ -83,11 +87,31 @@ export class PermissionsService {
   }
 
   async assert(role: string, permission: PermissionKey) {
-    if (!(await this.get(role, permission))) throw new ForbiddenException(`Permission denied: ${permission}`);
+    const normalizedRole = String(role || '').toUpperCase();
+    // These are separation-of-duties restrictions, not editable permission
+    // defaults. A stale or manually enabled RolePermission row must not let
+    // a Teller withdraw funds, transfer funds or approve a payout.
+    const tellerRestricted = new Set<PermissionKey>([
+      'WALLET_WITHDRAWAL',
+      'BANK_TRANSFER',
+      'SAVINGS_WITHDRAW',
+      'LOAN_DISBURSE',
+      'LOAN_CREATE',
+    ]);
+    if (normalizedRole === 'TELLER' && tellerRestricted.has(permission)) {
+      throw new ForbiddenException(`Permission denied: ${permission} is not available to Tellers`);
+    }
+    if (!(await this.get(normalizedRole, permission))) {
+      throw new ForbiddenException(`Permission denied: ${permission}`);
+    }
     return true;
   }
 
   async set(role: string, permission: PermissionKey, enabled: boolean) {
+    const normalizedRole = String(role || '').toUpperCase();
+    if (normalizedRole === 'TELLER' && TELLER_RESTRICTED_PERMISSIONS.has(permission) && enabled) {
+      throw new ForbiddenException(`Permission denied: ${permission} is not available to Tellers`);
+    }
     await this.ensureTable();
     await this.prisma.$executeRawUnsafe(
       'INSERT INTO "RolePermission" ("id","role","permission","enabled","updatedAt") VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP) ON CONFLICT ("role","permission") DO UPDATE SET "enabled"=$4,"updatedAt"=CURRENT_TIMESTAMP',

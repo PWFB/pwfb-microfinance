@@ -56,6 +56,7 @@ describe('RepaymentsService', () => {
       .mockResolvedValueOnce(loan);
     prisma.repayment.create.mockResolvedValue(repayment);
     prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([]) // loan row lock
       .mockResolvedValueOnce([{ interestAmount: 1000 }])
       .mockResolvedValueOnce([{ interestPaid: 0, principalPaid: 0 }]);
 
@@ -94,6 +95,7 @@ describe('RepaymentsService', () => {
       amount: 2000,
     });
     prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([]) // loan row lock
       .mockResolvedValueOnce([{ interestAmount: 100 }])
       .mockResolvedValueOnce([{ interestPaid: 0, principalPaid: 0 }]);
 
@@ -114,6 +116,7 @@ describe('RepaymentsService', () => {
     };
 
     jest.spyOn(service, 'findOne').mockResolvedValue(existing as any);
+    prisma.repayment.findUnique.mockResolvedValue({ id: 'repayment-1', loanId: 'loan-1', amount: 1000 });
     prisma.repayment.update.mockResolvedValue({ ...existing, amount: 1500 });
     prisma.loan.findUnique.mockResolvedValue({
       id: 'loan-1',
@@ -122,6 +125,7 @@ describe('RepaymentsService', () => {
       customerId: 'customer-1',
     });
     prisma.$queryRawUnsafe
+      .mockResolvedValueOnce([]) // loan row lock
       .mockResolvedValueOnce([{ interestAmount: 1000 }])
       .mockResolvedValueOnce([{ interestPaid: 0, principalPaid: 0 }]);
 
@@ -146,6 +150,7 @@ describe('RepaymentsService', () => {
     };
 
     jest.spyOn(service, 'findOne').mockResolvedValue(existing as any);
+    prisma.repayment.findUnique.mockResolvedValue({ id: 'repayment-1', loanId: 'loan-1', amount: 1000 });
     prisma.repayment.delete.mockResolvedValue(existing);
 
     await service.remove('repayment-1');

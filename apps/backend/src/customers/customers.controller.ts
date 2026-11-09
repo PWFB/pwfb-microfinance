@@ -14,6 +14,7 @@ import {
 import { CustomersService } from './customers.service';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { AccessScopeService } from '../access/access-scope.service';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -22,10 +23,10 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @Controller('customers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(private readonly customersService: CustomersService, private readonly accessScope: AccessScopeService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'LOAN_OFFICER', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'STAFF')
   create(@Body() createCustomerDto: CreateCustomerDto, @Req() req: any) {
     return this.customersService.create(createCustomerDto, req.user);
   }
@@ -34,21 +35,36 @@ export class CustomersController {
   @Roles('CUSTOMER')
   me(@Req() req: any) { return this.customersService.findMe(req.user); }
 
+  @Post('me/identity/verify/:type')
+  @Roles('CUSTOMER')
+  verifyMyIdentity(
+    @Param('type') type: string,
+    @Body() body: { value: string; consentConfirmed?: boolean },
+    @Req() req: any,
+  ) {
+    return this.customersService.verifyMyIdentifier(
+      type,
+      body?.value,
+      body?.consentConfirmed === true,
+      req.user,
+    );
+  }
+
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
   @Get(':id/history')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   history(@Param('id') id: string, @Req() req: any) { return this.customersService.history(id, req.user); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findOne(@Param('id') id: string, @Req() req: any) { return this.customersService.findOne(id, req.user); }
 
   @Patch(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto) { return this.customersService.update(id, updateCustomerDto); }
+  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto, @Req() req: any) { await this.accessScope.assertCustomer(req.user, id); return this.customersService.update(id, updateCustomerDto, req.user); }
 
   @Post(':id/reset-password')
   @Roles('SUPER_ADMIN')
@@ -66,7 +82,24 @@ export class CustomersController {
     return this.customersService.verifyIdentity(id, body, req.user);
   }
 
+  @Post(':id/identity/verify/:type')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'CUSTOMER_SERVICE', 'STAFF')
+  verifyCustomerIdentifier(
+    @Param('id') id: string,
+    @Param('type') type: string,
+    @Body() body: { value: string; consentConfirmed?: boolean },
+    @Req() req: any,
+  ) {
+    return this.customersService.verifyCustomerIdentifier(
+      id,
+      type,
+      body?.value,
+      body?.consentConfirmed === true,
+      req.user,
+    );
+  }
+
   @Delete(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  remove(@Param('id') id: string) { return this.customersService.remove(id); }
+  async remove(@Param('id') id: string, @Req() req: any) { await this.accessScope.assertCustomer(req.user, id); return this.customersService.remove(id); }
 }

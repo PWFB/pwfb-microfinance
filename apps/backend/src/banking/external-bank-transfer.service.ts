@@ -189,15 +189,47 @@ export class ExternalBankTransferService {
   async verifyCustomerBankAccount(customerId: string, bankCode: string, accountNumber: string, providerHint?: string) {
     const id = String(customerId || '').trim();
     if (!id) throw new BadRequestException('PWFB customer is required for name verification');
-    const customer = await this.prisma.customer.findUnique({ where: { id }, select: { firstName: true, lastName: true } });
+    const customer = await this.prisma.customer.findUnique({ where: { id }, select: { firstName: true, middleName: true, lastName: true } });
     if (!customer) throw new NotFoundException('PWFB customer not found');
-    const customerName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    const customerName = [customer.firstName, customer.middleName, customer.lastName].filter(Boolean).join(' ').trim();
     if (!customerName) throw new BadRequestException('PWFB customer name is not available for bank verification');
     const result = await this.nameEnquiry(bankCode, accountNumber, providerHint);
     const accountParts = new Set(this.normalizeName(result.accountName).split(' ').filter(Boolean));
     const matchCount = [...new Set(this.normalizeName(customerName).split(' ').filter(Boolean))].filter((part) => accountParts.has(part)).length;
     if (matchCount < 2) throw new BadRequestException(`Bank account verification failed: the verified account name (${result.accountName}) does not match at least two names on the PWFB customer profile (${customerName}).`);
     return { ...result, registeredCustomerName: customerName, nameMatchCount: matchCount, nameMatch: true, customerNameVerified: true, customerNameStatus: 'cust name verified', eligibleForTransactions: true, verification: 'VERIFIED', beneficiaryType: 'PWFB_CUSTOMER' };
+  }
+
+  async verifyStaffBankAccount(staffId: string, bankCode: string, accountNumber: string, providerHint?: string) {
+    const id = String(staffId || '').trim();
+    if (!id) throw new BadRequestException('PWFB staff member is required for bank-account verification');
+    const staff = await this.prisma.staff.findUnique({
+      where: { id },
+      select: { firstName: true, middleName: true, lastName: true, employmentStatus: true },
+    });
+    if (!staff) throw new NotFoundException('PWFB staff member not found');
+    if (staff.employmentStatus !== 'ACTIVE') throw new BadRequestException('Only active staff may register a payout bank account');
+    const staffName = [staff.firstName, staff.middleName, staff.lastName].filter(Boolean).join(' ').trim();
+    if (!staffName) throw new BadRequestException('PWFB staff legal name is not available for bank verification');
+    const result = await this.nameEnquiry(bankCode, accountNumber, providerHint);
+    const staffParts = new Set(this.normalizeName(staffName).split(' ').filter(Boolean));
+    const accountParts = new Set(this.normalizeName(result.accountName).split(' ').filter(Boolean));
+    const matchCount = [...staffParts].filter((part) => accountParts.has(part)).length;
+    if (matchCount < 2) {
+      throw new BadRequestException(
+        `Bank account verification failed: the verified account name (${result.accountName}) does not match at least two names on the PWFB staff profile (${staffName}).`,
+      );
+    }
+    return {
+      ...result,
+      registeredStaffName: staffName,
+      nameMatchCount: matchCount,
+      nameMatch: true,
+      staffNameVerified: true,
+      eligibleForTransactions: true,
+      verification: 'VERIFIED',
+      beneficiaryType: 'PWFB_STAFF',
+    };
   }
 
   async transferToVerifiedAccount(input: { bankCode: string; accountNumber: string; accountName: string; amount: number; narration: string; reference: string; provider?: string }) {
@@ -208,7 +240,7 @@ export class ExternalBankTransferService {
     return this.nibssService.transfer({ bankCode: input.bankCode, accountNumber: input.accountNumber, amount: input.amount, narration: input.narration, xref: input.reference });
   }
 
-  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string }) {
+  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string; staffId?: string; branchId?: string }) {
     const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
@@ -253,7 +285,7 @@ export class ExternalBankTransferService {
           customerId: input.customerId, type: 'WITHDRAWAL', amount,
           previousBalance: currentWallet.balance, newBalance, reference: xref,
           description: input.description || `Bank withdrawal to ${verifiedAccountName}`,
-          provider, providerReference: xref, status: 'PROCESSING',
+          provider, providerReference: xref, status: 'PROCESSING', staffId: input.staffId, branchId: input.branchId,
         },
       });
       return { wallet: { ...currentWallet, balance: newBalance }, transaction };

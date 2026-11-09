@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessScopeService } from '../access/access-scope.service';
+import { createFinancialReference } from '../common/financial-reference';
 
 @Injectable()
 export class StaffWalletService {
@@ -95,13 +96,14 @@ export class StaffWalletService {
     }
     await this.ensureTables(db);
     const amount = this.amount(amountValue);
-    await this.ensureUniqueReference(db, reference);
+    const finalReference = String(reference ?? '').trim() || createFinancialReference('PWFB-STF');
+    await this.ensureUniqueReference(db, finalReference);
     const wallet = await this.staff(staffId, db);
     const locked: any[] = await db.$queryRawUnsafe(`SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE`, wallet.id);
     const previous = Number(locked[0]?.balance ?? wallet.balance ?? 0), next = previous + amount;
     await db.$executeRawUnsafe(`UPDATE staff_wallets SET balance=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, wallet.id, next);
-    await db.$executeRawUnsafe(`INSERT INTO staff_wallet_transactions (id,wallet_id,type,amount,previous_balance,new_balance,reference,description) VALUES ($1,$2,'ISSUE',$3,$4,$5,$6,$7)`, randomUUID(), wallet.id, amount, previous, next, reference ?? null, description);
-    return { staffId, previousBalance: previous, amount, newBalance: next };
+    await db.$executeRawUnsafe(`INSERT INTO staff_wallet_transactions (id,wallet_id,type,amount,previous_balance,new_balance,reference,description) VALUES ($1,$2,'ISSUE',$3,$4,$5,$6,$7)`, randomUUID(), wallet.id, amount, previous, next, finalReference, description);
+    return { staffId, previousBalance: previous, amount, newBalance: next, reference: finalReference };
   }
 
   async debit(staffId: string, amountValue: number, reference?: string, description = 'Field cash received/paid by staff', db: any = this.prisma) {
@@ -111,15 +113,16 @@ export class StaffWalletService {
     }
     await this.ensureTables(db);
     const amount = this.amount(amountValue);
-    await this.ensureUniqueReference(db, reference);
+    const finalReference = String(reference ?? '').trim() || createFinancialReference('PWFB-STF');
+    await this.ensureUniqueReference(db, finalReference);
     const wallet = await this.staff(staffId, db);
     const locked: any[] = await db.$queryRawUnsafe(`SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE`, wallet.id);
     const previous = Number(locked[0]?.balance ?? wallet.balance ?? 0);
     if (previous < amount) throw new BadRequestException(`Insufficient staff wallet balance. Available: ₦${previous.toFixed(2)}`);
     const next = previous - amount;
     await db.$executeRawUnsafe(`UPDATE staff_wallets SET balance=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$1`, wallet.id, next);
-    await db.$executeRawUnsafe(`INSERT INTO staff_wallet_transactions (id,wallet_id,type,amount,previous_balance,new_balance,reference,description) VALUES ($1,$2,'SETTLEMENT',$3,$4,$5,$6,$7)`, randomUUID(), wallet.id, amount, previous, next, reference ?? null, description);
-    return { staffId, previousBalance: previous, amount, newBalance: next };
+    await db.$executeRawUnsafe(`INSERT INTO staff_wallet_transactions (id,wallet_id,type,amount,previous_balance,new_balance,reference,description) VALUES ($1,$2,'SETTLEMENT',$3,$4,$5,$6,$7)`, randomUUID(), wallet.id, amount, previous, next, finalReference, description);
+    return { staffId, previousBalance: previous, amount, newBalance: next, reference: finalReference };
   }
 
   async history(staffId: string, user: any) {

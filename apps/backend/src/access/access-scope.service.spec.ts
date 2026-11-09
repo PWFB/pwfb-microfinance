@@ -164,5 +164,29 @@ describe('AccessScopeInterceptor async response filtering', () => {
     expect(response).toEqual([{ id: 'customer-own' }]);
     expect(response).not.toBeInstanceOf(Promise);
   });
+
+  it('applies repayment list filtering and checks the loan linked to repayment creation', async () => {
+    const filterList = jest.fn().mockResolvedValue([{ id: 'repayment-own' }]);
+    const assertLoan = jest.fn().mockResolvedValue(true);
+    const interceptor = new AccessScopeInterceptor({ filterList, assertLoan } as any);
+    const user = { id: 'officer-user', role: 'CREDIT_OFFICER' };
+    const request = {
+      user, originalUrl: '/repayments', path: '/repayments',
+      route: { path: '/repayments' }, params: {}, query: {},
+      body: { loanId: 'loan-own' },
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+    const handler = { handle: () => of([{ id: 'repayment-own' }, { id: 'repayment-other' }]) } as any;
+
+    const response$ = await interceptor.intercept(context, handler);
+    const response = await lastValueFrom(response$ as any);
+
+    expect(assertLoan).toHaveBeenCalledWith(user, 'loan-own');
+    expect(filterList).toHaveBeenCalledWith(user, 'repayments', [
+      { id: 'repayment-own' },
+      { id: 'repayment-other' },
+    ]);
+    expect(response).toEqual([{ id: 'repayment-own' }]);
+  });
 });
 

@@ -575,21 +575,29 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
 });
 
 describe('BVN and NIN provider verification safeguards', () => {
+  let service: CustomerVirtualAccountService;
+  let prisma: any;
+  const customer = {
+    id: 'BVN-NIN-TEST-CUSTOMER',
+    email: 'identity-test@example.invalid',
+    firstName: 'Test',
+    middleName: null,
+    lastName: 'Customer',
+    dateOfBirth: new Date('1990-05-12T00:00:00.000Z'),
+  };
   const originalAppId = process.env.DOJAH_APP_ID;
   const originalSecret = process.env.DOJAH_SECRET_KEY;
   const originalEnvironment = process.env.DOJAH_ENVIRONMENT;
 
   beforeEach(() => {
+    prisma = {
+      customer: { findUnique: jest.fn().mockResolvedValue(customer) },
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+    };
+    service = new CustomerVirtualAccountService(prisma);
     process.env.DOJAH_APP_ID = 'dojah-test-app';
     process.env.DOJAH_SECRET_KEY = 'dojah-test-secret';
     process.env.DOJAH_ENVIRONMENT = 'sandbox';
-    prisma.customer.findUnique.mockResolvedValue({
-      id: customer.id,
-      firstName: 'Test',
-      middleName: null,
-      lastName: 'Customer',
-      dateOfBirth: new Date('1990-05-12T00:00:00.000Z'),
-    });
   });
 
   afterEach(() => {

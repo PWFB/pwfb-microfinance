@@ -100,7 +100,7 @@ describe('Paystack wallet deposit currency validation', () => {
         amount: 10000,
         reference: 'foreign-currency-ref',
         id: 12345,
-        metadata: { customerId: 'customer-1' },
+        metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
       },
     })).rejects.toThrow('Only NGN Paystack wallet payments can be credited');
   });
@@ -114,7 +114,7 @@ describe('Paystack wallet deposit currency validation', () => {
         amount: 10000,
         reference: 'missing-currency-ref',
         id: 12346,
-        metadata: { customerId: 'customer-1' },
+        metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
       },
     })).rejects.toThrow('Only NGN Paystack wallet payments can be credited');
   });
@@ -250,7 +250,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
       status: 'success',
       currency: 'NGN',
       amount: 10000,
-      metadata: { customerId: 'customer-1' },
+      metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
     };
     const tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
@@ -343,7 +343,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
         status: 'success',
         currency: 'NGN',
         amount: 5000,
-        metadata: { customerId: 'customer-1' },
+        metadata: { customerId: 'customer-1', purpose: 'PWFB_WALLET_DEPOSIT' },
       },
     })).rejects.toThrow('Customer wallet is not active');
 

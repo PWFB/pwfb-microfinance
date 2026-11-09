@@ -248,7 +248,7 @@ export default function MessagesPage() {
                     <span className={styles.preview}>{item.lastMessage || "No messages yet"}</span>
                   </span>
                   <span className={styles.conversationAside}>
-                    <small>{dateLabel(item.lastMessageCreatedAt || item.lastMessageAt)}</small>
+                    <small>{dateLabel(item.lastMessageCreatedAt)}</small>
                     {Number(item.unreadCount) > 0 && <b>{item.unreadCount > 99 ? "99+" : item.unreadCount}</b>}
                   </span>
                 </button>

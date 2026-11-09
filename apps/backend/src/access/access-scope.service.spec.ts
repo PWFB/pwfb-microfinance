@@ -53,4 +53,20 @@ describe('AccessScopeService', () => {
       .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
     await expect(service.assertBranch({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'branch-a')).resolves.toBe(true);
   });
+  it('fails closed when the authenticated user and Staff record point to different staff identities', async () => {
+    query.mockResolvedValueOnce([{
+      id: 'staff-actual',
+      branchId: 'branch-a',
+      areaId: null,
+      divisionId: null,
+      regionId: null,
+    }]);
+
+    await expect(service.getScope({
+      id: 'user-a',
+      staffId: 'staff-claimed',
+      role: 'TELLER',
+    })).rejects.toThrow('Staff identity links do not match');
+  });
+
 });

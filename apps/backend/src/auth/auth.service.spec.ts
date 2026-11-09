@@ -119,7 +119,7 @@ describe('AuthService', () => {
     });
     expect((result as any).user.password).toBeUndefined();
     expect((result as any).user.userId).toBe('10000000000');
-    expect((result as any).user.userId).toMatch(/^\\d{11}$/);
+    expect((result as any).user.userId).toMatch(/^\d{11}$/);
     expect(jwtService.signAsync).toHaveBeenCalledWith({
       sub: 'user-1',
       email: 'ada@example.com',
@@ -150,7 +150,7 @@ describe('AuthService', () => {
       where: { publicUserId: '10000000001' },
     });
     expect(result.user.userId).toBe('10000000001');
-    expect(result.user.userId).toMatch(/^\\d{11}$/);
+    expect(result.user.userId).toMatch(/^\d{11}$/);
     expect(result.user.password).toBeUndefined();
   });
 

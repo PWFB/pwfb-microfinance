@@ -23,15 +23,15 @@ export class CollectionsService {
     return { principalPaid, interestPaid, principalOutstanding: Math.max(0, principalRemaining - principalPaid), interestOutstanding: Math.max(0, interestRemaining - interestPaid) };
   }
 
-  private async resolveSettlementTarget(customerId: string, type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER') {
+  private async resolveSettlementTarget(customerId: string, type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER', db: any = this.prisma) {
     if (type === 'OTHER') return undefined;
     if (type === 'SAVINGS') {
-      const accounts = await this.prisma.savings.findMany({ where: { customerId }, orderBy: { createdAt: 'asc' } });
+      const accounts = await db.savings.findMany({ where: { customerId }, orderBy: { createdAt: 'asc' } });
       if (!accounts.length) throw new BadRequestException('This customer has no savings account. Create the savings account before settling the collection.');
       if (accounts.length > 1) throw new BadRequestException('This customer has multiple savings accounts. Open Collections and select the exact account before settling.');
       return accounts[0].id;
     }
-    const loans = await this.prisma.loan.findMany({ where: { customerId }, orderBy: { createdAt: 'desc' } });
+    const loans = await db.loan.findMany({ where: { customerId }, orderBy: { createdAt: 'desc' } });
     const active = loans.filter((loan: any) => !loan.status || !['CLOSED', 'PAID', 'COMPLETED', 'REJECTED'].includes(String(loan.status).toUpperCase()));
     if (!active.length) throw new BadRequestException('This customer has no active loan. Create or approve a loan before recording a loan repayment.');
     if (active.length > 1) throw new BadRequestException('This customer has multiple active loans. Open Collections and select the exact loan before settling.');
@@ -121,45 +121,128 @@ export class CollectionsService {
   }
 
   async settle(id: string, targetId?: string) {
-    const collection = await this.findOne(id);
-    if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period');
-    if (collection.settled) throw new BadRequestException('Collection has already been settled');
-    const amount = Number(collection.amount), reference = collection.reference || `COL-${collection.id}`, description = `Field collection ${reference} — ${collection.type}`;
-    if (!targetId) targetId = await this.resolveSettlementTarget(collection.customerId, collection.type);
+    const initial = await this.findOne(id);
     await this.staffWallet.ensureTables();
-    return this.prisma.$transaction(async tx => {
-      await this.ensureAllocationTable(tx);
+
+    return this.prisma.$transaction(async (tx: any) => {
+      // Period lock prevents close-vs-settlement races; collection row lock makes
+      // repeated Teller clicks/provider retries settle only once.
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "FinancialPeriod" WHERE id = $1 FOR UPDATE',
+        initial.periodId,
+      );
+      await tx.$queryRawUnsafe(
+        'SELECT id FROM "DailyCollection" WHERE id = $1 FOR UPDATE',
+        id,
+      );
+      const collection = await tx.dailyCollection.findUnique({
+        where: { id },
+        include: { period: true, branch: true, staff: true, customer: true },
+      });
+      if (!collection) throw new NotFoundException('Daily collection not found');
+      if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period');
+      if (collection.settled) throw new BadRequestException('Collection has already been settled');
+
+      const amount = Number(collection.amount);
+      const reference = String(collection.reference || `COL-${collection.id}`);
+      const description = `Field collection ${reference} — ${collection.type}`;
+      const resolvedTargetId = targetId || await this.resolveSettlementTarget(
+        collection.customerId,
+        collection.type,
+        tx,
+      );
+
       let transactionId: string;
       let recordId: string | undefined;
       let allocation: any = null;
+
       if (collection.type === 'SAVINGS') {
-        if (!targetId) throw new BadRequestException('A savings account is required to settle a savings collection');
-        const savings = await tx.savings.findUnique({ where: { id: targetId } });
+        if (!resolvedTargetId) throw new BadRequestException('A savings account is required to settle a savings collection');
+        await tx.$queryRawUnsafe('SELECT id FROM "Savings" WHERE id = $1 FOR UPDATE', resolvedTargetId);
+        const savings = await tx.savings.findUnique({ where: { id: resolvedTargetId } });
         if (!savings) throw new NotFoundException('Savings account not found');
         if (savings.customerId !== collection.customerId) throw new BadRequestException('Savings account does not belong to the collection customer');
-        await tx.savings.update({ where: { id: savings.id }, data: { amount: { increment: amount } } });
-        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'DEPOSIT', amount, description, periodId: collection.periodId } });
+        await tx.savings.update({
+          where: { id: savings.id },
+          data: { amount: { increment: amount } },
+        });
+        const transaction = await tx.transaction.create({
+          data: { customerId: collection.customerId, type: 'DEPOSIT', amount, description, periodId: collection.periodId },
+        });
         transactionId = transaction.id;
       } else if (collection.type === 'LOAN_REPAYMENT') {
-        if (!targetId) throw new BadRequestException('A loan is required to settle a loan repayment collection');
-        const loan = await tx.loan.findUnique({ where: { id: targetId } });
+        if (!resolvedTargetId) throw new BadRequestException('A loan is required to settle a loan repayment collection');
+        await tx.$queryRawUnsafe('SELECT id FROM "Loan" WHERE id = $1 FOR UPDATE', resolvedTargetId);
+        const loan = await tx.loan.findUnique({ where: { id: resolvedTargetId } });
         if (!loan) throw new NotFoundException('Loan not found');
         if (loan.customerId !== collection.customerId) throw new BadRequestException('Loan does not belong to the collection customer');
-        const repayment = await tx.repayment.create({ data: { loanId: loan.id, amount, paymentDate: collection.collectionDate, method: 'FIELD_COLLECTION', notes: collection.notes || description, periodId: collection.periodId } });
+        const repayment = await tx.repayment.create({
+          data: {
+            loanId: loan.id,
+            amount,
+            paymentDate: collection.collectionDate,
+            method: 'FIELD_COLLECTION',
+            notes: collection.notes || description,
+            periodId: collection.periodId,
+          },
+        });
         recordId = repayment.id;
         allocation = await this.allocateLoanRepayment(tx, loan.id, repayment.id, amount);
-        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'LOAN_REPAYMENT', amount, description: `${description} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`, periodId: collection.periodId } });
+        const transaction = await tx.transaction.create({
+          data: {
+            customerId: collection.customerId,
+            type: 'LOAN_REPAYMENT',
+            amount,
+            description: `${description} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`,
+            periodId: collection.periodId,
+          },
+        });
         transactionId = transaction.id;
       } else {
-        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'COLLECTION_OTHER', amount, description, periodId: collection.periodId } });
+        const transaction = await tx.transaction.create({
+          data: { customerId: collection.customerId, type: 'COLLECTION_OTHER', amount, description, periodId: collection.periodId },
+        });
         transactionId = transaction.id;
       }
-      await this.staffWallet.debit(collection.staffId, amount, reference, `Field collection settled — ${collection.type}`, tx);
-      await tx.cashbookEntry.create({ data: { periodId: collection.periodId, branchId: collection.branchId, type: 'CASH_IN', amount, reference, description, entryDate: collection.collectionDate } });
-      return tx.dailyCollection.update({ where: { id }, data: { settled: true, settledAt: new Date(), settlementTransactionId: transactionId, settlementRecordId: recordId, reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } });
+
+      await this.staffWallet.debit(
+        collection.staffId,
+        amount,
+        reference,
+        `Field collection settled — ${collection.type}`,
+        tx,
+      );
+      const duplicateCashbookReference = await tx.cashbookEntry.findFirst({
+        where: { branchId: collection.branchId, reference },
+        select: { id: true },
+      });
+      if (duplicateCashbookReference) {
+        throw new BadRequestException('The collection reference already exists in the branch cashbook');
+      }
+      await tx.cashbookEntry.create({
+        data: {
+          periodId: collection.periodId,
+          branchId: collection.branchId,
+          type: 'CASH_IN',
+          amount,
+          reference,
+          description,
+          entryDate: collection.collectionDate,
+        },
+      });
+      return tx.dailyCollection.update({
+        where: { id },
+        data: {
+          settled: true,
+          settledAt: new Date(),
+          settlementTransactionId: transactionId,
+          settlementRecordId: recordId,
+          reconciled: true,
+        },
+        include: { period: true, branch: true, staff: true, customer: true },
+      });
     });
   }
-
   async summary(periodId?: string, branchId?: string, staffId?: string, branchIds?: string[]) {
     const branchFilter = branchId
       ? { branchId }

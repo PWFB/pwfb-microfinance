@@ -59,7 +59,7 @@ describe('RepaymentsController', () => {
 
     await expect(
       controller.findAll(req),
-    ).resolves.toBe(result);
+    ).resolves.toEqual(result);
 
     expect(service.findAll).toHaveBeenCalled();
   });

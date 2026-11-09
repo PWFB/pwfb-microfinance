@@ -399,6 +399,48 @@ export class StaffWalletService {
     return String(value || '').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean).join(' ');
   }
 
+  async listPendingWithdrawalRequests(actor: any) {
+    const role = String(actor?.role || '').toUpperCase();
+    if (!['SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER'].includes(role)) {
+      throw new ForbiddenException('Only LAB Microfinance approvers may view pending staff withdrawals');
+    }
+    await this.ensureTables();
+    const scope = await this.accessScope.getScope(actor);
+    let rows: any[] = [];
+    if (scope.global) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT r.id,r.staff_id AS "staffId",r.branch_id AS "branchId",
+         r.amount,r.currency,r.bank_code AS "bankCode",
+         RIGHT(r.account_number,4) AS "accountLastFour",r.account_name AS "accountName",
+         r.name_match_count AS "nameMatchCount",r.reference,r.description,r.status,
+         r.requested_by_email AS "requestedBy",r.created_at AS "createdAt",
+         s."firstName",s."middleName",s."lastName",b.name AS "branchName"
+         FROM staff_wallet_withdrawal_requests r
+         JOIN "Staff" s ON s.id=r.staff_id
+         JOIN "Branch" b ON b.id=r.branch_id
+         WHERE r.status='PENDING_APPROVAL' ORDER BY r.created_at ASC LIMIT 300`,
+      );
+    } else {
+      const branchIds = await this.accessScope.getScopedBranchIds(actor);
+      if (!branchIds?.length) return [];
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT r.id,r.staff_id AS "staffId",r.branch_id AS "branchId",
+         r.amount,r.currency,r.bank_code AS "bankCode",
+         RIGHT(r.account_number,4) AS "accountLastFour",r.account_name AS "accountName",
+         r.name_match_count AS "nameMatchCount",r.reference,r.description,r.status,
+         r.requested_by_email AS "requestedBy",r.created_at AS "createdAt",
+         s."firstName",s."middleName",s."lastName",b.name AS "branchName"
+         FROM staff_wallet_withdrawal_requests r
+         JOIN "Staff" s ON s.id=r.staff_id
+         JOIN "Branch" b ON b.id=r.branch_id
+         WHERE r.status='PENDING_APPROVAL' AND r.branch_id=ANY($1::text[])
+         ORDER BY r.created_at ASC LIMIT 300`,
+        branchIds,
+      );
+    }
+    return rows;
+  }
+
   async approveWithdrawal(requestId: string, actor: any) {
     const actorUserId = String(actor?.id || actor?.sub || '').trim();
     if (!actorUserId) throw new UnauthorizedException('Authenticated LAB approver is required');

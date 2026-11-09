@@ -6,7 +6,7 @@ import { AccessScopeService } from '../access/access-scope.service';
 type MessageActor = { id: string; role: string; staffId?: string };
 const ROLE_CHANNEL_TARGETS = new Set([
   'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER',
-  'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'AUDITOR', 'MONITORING_TEAM',
+  'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'AUDITOR', 'MONITORING_TEAM', 'COLLECTOR',
   'STAFF',
 ]);
 const ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);

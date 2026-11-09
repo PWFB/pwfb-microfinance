@@ -16,14 +16,16 @@ export class CashbookController {
   private async scopedBranch(user: any, requestedBranchId?: string) {
     const scope = await this.accessScope.getScope(user);
     if (scope.global) return requestedBranchId;
+    const hierarchical = ['AREA_MANAGER', 'DIVISIONAL_MANAGER', 'REGIONAL_MANAGER'].includes(scope.role);
+    if (hierarchical) {
+      if (requestedBranchId) await this.accessScope.assertBranch(user, requestedBranchId);
+      return requestedBranchId;
+    }
     if (!scope.branchId) throw new ForbiddenException('Your staff account has no assigned branch');
     if (requestedBranchId && requestedBranchId !== scope.branchId) {
       await this.accessScope.assertBranch(user, requestedBranchId);
     }
-    if (scope.role !== 'AREA_MANAGER' && scope.role !== 'DIVISIONAL_MANAGER' && scope.role !== 'REGIONAL_MANAGER') {
-      return scope.branchId;
-    }
-    return requestedBranchId;
+    return scope.branchId;
   }
 
   private async visibleDaily(user: any, filters: { periodId?: string; branchId?: string; from?: string; to?: string }) {

@@ -17,8 +17,8 @@ export class LoansController {
   constructor(private readonly loansService: LoansService, private readonly loanDisbursementService: LoanDisbursementService, private readonly externalBankTransferService: ExternalBankTransferService, private readonly permissions: PermissionsService, private readonly accessScope: AccessScopeService) {}
   @Get('rates') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') getRates(){return this.loansService.getLoanRates();}
   @Patch('rates/:loanType') @Roles('SUPER_ADMIN','ADMIN') setRate(@Param('loanType') loanType:string,@Body() body:{interestRate:number}){return this.loansService.setLoanRate(decodeURIComponent(loanType),Number(body.interestRate));}
-  @Get('verify-bank-account') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') async verifyBankAccount(@Query('customerId') customerId:string,@Query('bankCode') bankCode:string,@Query('accountNumber') accountNumber:string){
-    if(customerId?.trim()) return this.externalBankTransferService.verifyCustomerBankAccount(customerId,bankCode,accountNumber);
+  @Get('verify-bank-account') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') async verifyBankAccount(@Query('customerId') customerId:string,@Query('bankCode') bankCode:string,@Query('accountNumber') accountNumber:string,@Req() req:any){
+    if(customerId?.trim()){await this.accessScope.assertCustomer(req.user,customerId);return this.externalBankTransferService.verifyCustomerBankAccount(customerId,bankCode,accountNumber);}
     const result=await this.externalBankTransferService.nameEnquiry(bankCode,accountNumber);
     return {...result,customerKnown:false,eligible:true,verification:'VERIFIED',beneficiaryType:'EXTERNAL_BANK_ACCOUNT'};
   }

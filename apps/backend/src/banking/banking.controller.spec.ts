@@ -154,3 +154,62 @@ describe('Teller separation of duties', () => {
     );
   });
 });
+
+describe('BankingController branch virtual-account scope', () => {
+  it('checks the target account branch before manually recording a deposit', async () => {
+    const bankingService = { recordBranchDeposit: jest.fn().mockResolvedValue({ ok: true }) };
+    const prisma = {
+      branchVirtualAccount: {
+        findUnique: jest.fn().mockResolvedValue({ branchId: 'branch-1' }),
+      },
+    };
+    const accessScope = { assertBranch: jest.fn().mockResolvedValue(true) };
+    const controller = new BankingController(
+      bankingService as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      prisma as any,
+      accessScope as any,
+    );
+
+    await expect(controller.recordBranchDeposit(
+      { accountNumber: '1234567890', amount: 50, reference: 'BANK-REF-001' },
+      { user: { id: 'manager-1', role: 'BRANCH_MANAGER' } },
+    )).resolves.toEqual({ ok: true });
+
+    expect(accessScope.assertBranch).toHaveBeenCalledWith(
+      { id: 'manager-1', role: 'BRANCH_MANAGER' },
+      'branch-1',
+    );
+    expect(bankingService.recordBranchDeposit).toHaveBeenCalledWith({
+      accountNumber: '1234567890',
+      amount: 50,
+      reference: 'BANK-REF-001',
+    });
+  });
+
+  it('does not post a branch deposit outside the caller scope', async () => {
+    const bankingService = { recordBranchDeposit: jest.fn() };
+    const prisma = {
+      branchVirtualAccount: {
+        findUnique: jest.fn().mockResolvedValue({ branchId: 'other-branch' }),
+      },
+    };
+    const accessScope = { assertBranch: jest.fn().mockRejectedValue(new Error('outside your organizational scope')) };
+    const controller = new BankingController(
+      bankingService as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      prisma as any,
+      accessScope as any,
+    );
+
+    await expect(controller.recordBranchDeposit(
+      { accountNumber: '1234567890', amount: 50, reference: 'BANK-REF-002' },
+      { user: { id: 'manager-1', role: 'BRANCH_MANAGER' } },
+    )).rejects.toThrow('outside your organizational scope');
+    expect(bankingService.recordBranchDeposit).not.toHaveBeenCalled();
+  });
+});

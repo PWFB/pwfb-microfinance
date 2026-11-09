@@ -40,3 +40,73 @@ describe('BankingController customer virtual-account consent forwarding', () => 
     expect(customerVirtualAccountService.ensure).toHaveBeenCalledWith('customer-1', undefined, false);
   });
 });
+
+describe('BankingController staff attribution', () => {
+  it('resolves an active staff record through userId when User.staffId is absent', async () => {
+    const prisma = {
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'customer-1',
+          branchId: 'branch-1',
+          assignedStaffId: 'staff-1',
+        }),
+      },
+      staff: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'staff-1',
+          branchId: 'branch-1',
+          employmentStatus: 'ACTIVE',
+        }),
+      },
+    };
+    const controller = new BankingController(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      prisma as any,
+    );
+
+    const result = await (controller as any).operatorAttribution(
+      { id: 'user-1', role: 'CREDIT_OFFICER' },
+      'customer-1',
+    );
+
+    expect(prisma.staff.findFirst).toHaveBeenCalledWith({
+      where: { OR: [{ userId: 'user-1' }] },
+      select: { id: true, branchId: true, employmentStatus: true },
+    });
+    expect(result).toEqual({ staffId: 'staff-1', branchId: 'branch-1' });
+  });
+
+  it('rejects inactive linked staff before attributing a cash operation', async () => {
+    const prisma = {
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'customer-1',
+          branchId: 'branch-1',
+          assignedStaffId: 'staff-1',
+        }),
+      },
+      staff: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'staff-1',
+          branchId: 'branch-1',
+          employmentStatus: 'INACTIVE',
+        }),
+      },
+    };
+    const controller = new BankingController(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      prisma as any,
+    );
+
+    await expect((controller as any).operatorAttribution(
+      { id: 'user-1', role: 'TELLER' },
+      'customer-1',
+    )).rejects.toThrow('active staff member');
+  });
+});

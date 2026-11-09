@@ -293,7 +293,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
     expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
       1,
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-      '98765',
+      'PAYSTACK-CHARGE:paystack-checkout-100',
     );
     expect(tx.$queryRawUnsafe).toHaveBeenNthCalledWith(
       2,

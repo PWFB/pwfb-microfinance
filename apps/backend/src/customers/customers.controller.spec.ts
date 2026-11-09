@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CustomersController } from './customers.controller';
 import { CustomersService } from './customers.service';
+import { AccessScopeService } from '../access/access-scope.service';
 
 describe('CustomersController', () => {
   let controller: CustomersController;
@@ -12,6 +13,8 @@ describe('CustomersController', () => {
         {
           provide: CustomersService,
           useValue: {},
+        },
+        { provide: AccessScopeService, useValue: { assertCustomer: jest.fn().mockResolvedValue(undefined) }
         },
       ],
     }).compile();

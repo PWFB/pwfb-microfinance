@@ -35,15 +35,15 @@ export class CustomersController {
   me(@Req() req: any) { return this.customersService.findMe(req.user); }
 
   @Get()
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
 
   @Get(':id/history')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   history(@Param('id') id: string, @Req() req: any) { return this.customersService.history(id, req.user); }
 
   @Get(':id')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findOne(@Param('id') id: string, @Req() req: any) { return this.customersService.findOne(id, req.user); }
 
   @Patch(':id')
@@ -61,7 +61,7 @@ export class CustomersController {
   }
 
   @Post(':id/identity/verify')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'STAFF')
   verifyIdentity(@Param('id') id: string, @Body() body: { bvn: string; bankCode: string; accountNumber: string; consentConfirmed?: boolean }, @Req() req: any) {
     return this.customersService.verifyIdentity(id, body, req.user);
   }

@@ -13,7 +13,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('administration')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN', 'ADMIN')
+@Roles('SUPER_ADMIN')
 export class AdministrationController {
   constructor(
     private readonly administrationService: AdministrationService,

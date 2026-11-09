@@ -520,3 +520,12 @@
     width: min(440px, 90vw) !important;
   }
 }
+
+/* Public landing page follows the saved Light/Dark/System appearance. */
+:global(html[data-theme="dark"]) .home{background:#0b1410;color:#e8f1eb}
+:global(html[data-theme="dark"]) .section{color:#e8f1eb}
+:global(html[data-theme="dark"]) .sectionHeading h2,:global(html[data-theme="dark"]) .section h2,:global(html[data-theme="dark"]) .section h3{color:#b8ebc5}
+:global(html[data-theme="dark"]) .section p,:global(html[data-theme="dark"]) .section li{color:#a6b8ac}
+:global(html[data-theme="dark"]) .section :is(article,.card,.feature,.featureCard){background:#122019;border-color:#2b4034;color:#e8f1eb}
+:global(html[data-theme="dark"]) .section :is(article,.card,.feature,.featureCard) :is(h3,strong){color:#e8f1eb}
+:global(html[data-theme="dark"]) .section :is(article,.card,.feature,.featureCard) p{color:#a6b8ac}

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -7,11 +7,12 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Controller('staff')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class StaffController {
-  constructor(private readonly staffService: StaffService) {}
+  constructor(private readonly staffService: StaffService, private readonly accessScope: AccessScopeService) {}
 
   @Get('bvn/banks')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR', 'MONITORING_TEAM', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF')
@@ -49,7 +50,17 @@ export class StaffController {
 
   @Post(':id/assignments')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  assign(@Param('id') id: string, @Body() body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) { return this.staffService.assign(id, body); }
+  async assign(@Param('id') id: string, @Body() body: { role: Role; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }, @Req() req: any) {
+    await this.accessScope.assertStaff(req.user, id);
+    if (body.branchId) await this.accessScope.assertBranch(req.user, body.branchId);
+    else if (body.areaId) await this.accessScope.assertArea(req.user, body.areaId);
+    else if (body.divisionId) await this.accessScope.assertDivision(req.user, body.divisionId);
+    else if (body.regionId) await this.accessScope.assertRegion(req.user, body.regionId);
+    else if (['AUDITOR', 'MONITORING_TEAM'].includes(String(body.role)) && req.user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('Only Super Admin can create an organization-wide oversight assignment');
+    }
+    return this.staffService.assign(id, body);
+  }
 
   @Get(':id')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR', 'MONITORING_TEAM', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF')

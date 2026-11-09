@@ -12,7 +12,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN', 'ADMIN')
+@Roles('SUPER_ADMIN')
 export class FinanceController {
   constructor(
     private readonly financeService: FinanceService,

@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { StaffController } from './staff.controller';
 import { StaffService } from './staff.service';
 
@@ -12,9 +13,39 @@ describe('StaffController', () => {
       findOne: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
+      assign: jest.fn(),
     } as unknown as jest.Mocked<StaffService>;
 
-    controller = new StaffController(service);
+    const accessScope = {
+      assertStaff: jest.fn().mockResolvedValue(true),
+      assertBranch: jest.fn().mockResolvedValue(true),
+      assertArea: jest.fn().mockResolvedValue(true),
+      assertDivision: jest.fn().mockResolvedValue(true),
+      assertRegion: jest.fn().mockResolvedValue(true),
+    } as any;
+    (controller as any).accessScope = accessScope;
+    controller = new StaffController(service, accessScope);
+  });
+
+  it('checks the staff identity and assigned branch before creating a branch role assignment', async () => {
+    const accessScope = (controller as any).accessScope;
+    const result = { id: 'assignment-1' };
+    service.assign.mockResolvedValue(result as any);
+
+    await expect(controller.assign('staff-1', { role: Role.BRANCH_MANAGER, branchId: 'branch-1' }, {
+      user: { id: 'admin-user', role: 'ADMIN' },
+    } as any)).resolves.toBe(result);
+
+    expect(accessScope.assertStaff).toHaveBeenCalledWith({ id: 'admin-user', role: 'ADMIN' }, 'staff-1');
+    expect(accessScope.assertBranch).toHaveBeenCalledWith({ id: 'admin-user', role: 'ADMIN' }, 'branch-1');
+    expect(service.assign).toHaveBeenCalledWith('staff-1', { role: Role.BRANCH_MANAGER, branchId: 'branch-1' });
+  });
+
+  it('prevents a branch Admin from creating an organization-wide Auditor assignment', async () => {
+    await expect(controller.assign('staff-1', { role: Role.AUDITOR }, {
+      user: { id: 'admin-user', role: 'ADMIN' },
+    } as any)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.assign).not.toHaveBeenCalled();
   });
 
   it('should be defined', () => {

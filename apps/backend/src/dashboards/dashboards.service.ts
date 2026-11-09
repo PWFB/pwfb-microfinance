@@ -48,11 +48,7 @@ export class DashboardsService {
         this.prisma.savings.aggregate({
           where: {
             periodId: period?.id,
-            customer: {
-              transactions: {
-                some: {},
-              },
-            },
+            customer: { branchId },
           },
           _sum: { amount: true },
         }),
@@ -60,6 +56,7 @@ export class DashboardsService {
         this.prisma.loan.aggregate({
           where: {
             periodId: period?.id,
+            customer: { branchId },
           },
           _sum: { amount: true },
           _count: { id: true },
@@ -68,6 +65,7 @@ export class DashboardsService {
         this.prisma.repayment.aggregate({
           where: {
             periodId: period?.id,
+            loan: { customer: { branchId } },
           },
           _sum: { amount: true },
           _count: { id: true },

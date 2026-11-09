@@ -54,11 +54,39 @@ export class CashbookController {
   async dailySummary(@Req() req: any, @Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('from') from?: string, @Query('to') to?: string) {
     const scopedBranch = await this.scopedBranch(req.user, branchId);
     const rows = await this.visibleDaily(req.user, { periodId, branchId: scopedBranch, from, to });
-    const money = ['previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','withdrawalFromBank','fundReceivedHeadOffice','fundReceivedBranchOther','receiptOthers','fixedOther','otherIncome','dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedDW','savingsReturnedD','savingsReturnedW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others','otherAfterTotal'];
+    const flowMoney = ['savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','withdrawalFromBank','fundReceivedHeadOffice','fundReceivedBranchOther','receiptOthers','fixedOther','otherIncome','dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedDW','savingsReturnedD','savingsReturnedW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others'];
     const counts = ['dailyDisbursementCount','weeklyDisbursementCount','monthlyDisbursementCount','savingsWithdrawalCount'];
     const totals: Record<string, number> = { records: rows.length };
-    for (const field of [...money, ...counts]) totals[field] = rows.reduce((sum: number, row: any) => sum + Number(row[field] || 0), 0);
-    totals.totalReceipts = rows.reduce((sum: number, row: any) => sum + Number(row.totalReceipts || 0), 0);
+    for (const field of [...flowMoney, ...counts]) {
+      totals[field] = rows.reduce((sum: number, row: any) => sum + Number(row[field] || 0), 0);
+    }
+
+    // Opening cash is a balance, not a new receipt on every day. Aggregate the
+    // first opening and last closing per collector so multi-day branch totals
+    // do not repeatedly count carried-forward money.
+    const orderedRows = [...rows].sort((a: any, b: any) => {
+      const dateDelta = new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime();
+      if (dateDelta !== 0) return dateDelta;
+      return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+    });
+    const collectorBalances = new Map<string, { opening: any; closing: any }>();
+    for (const row of orderedRows) {
+      const collectorKey = `${row.branchId || ''}:${row.staffId || 'UNASSIGNED'}`;
+      const current = collectorBalances.get(collectorKey);
+      if (!current) collectorBalances.set(collectorKey, { opening: row, closing: row });
+      else current.closing = row;
+    }
+
+    totals.previousCashAtHand = [...collectorBalances.values()].reduce(
+      (sum, group) => sum + Number(group.opening.previousCashAtHand || 0), 0,
+    );
+    totals.otherAfterTotal = [...collectorBalances.values()].reduce(
+      (sum, group) => sum + Number(group.closing.otherAfterTotal || 0), 0,
+    );
+    const cashReceivedDuringPeriod = rows.reduce(
+      (sum: number, row: any) => sum + Number(row.totalReceipts || 0) - Number(row.previousCashAtHand || 0), 0,
+    );
+    totals.totalReceipts = totals.previousCashAtHand + cashReceivedDuringPeriod;
     totals.totalPayments = rows.reduce((sum: number, row: any) => sum + Number(row.totalPayments || 0), 0);
     totals.netAmount = totals.totalReceipts - totals.totalPayments;
     return totals;

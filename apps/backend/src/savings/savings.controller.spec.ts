@@ -71,6 +71,7 @@ describe('SavingsController', () => {
   it('should update savings', async () => {
     const dto = {
       amount: 7500,
+      customerId: 'customer-2',
     };
 
     const result = {
@@ -89,6 +90,7 @@ describe('SavingsController', () => {
       'saving-1',
       dto,
     );
+    expect(accessScope.assertCustomer).toHaveBeenCalledWith({ role: 'ADMIN' }, 'customer-2');
   });
 
   it('should delete savings', async () => {

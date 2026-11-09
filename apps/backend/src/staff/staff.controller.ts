@@ -35,6 +35,10 @@ export class StaffController {
   @Roles('SUPER_ADMIN', 'ADMIN')
   create(@Body() createStaffDto: CreateStaffDto) { return this.staffService.create(createStaffDto); }
 
+  @Get('me')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF')
+  findMe(@Req() req: any) { return this.staffService.findMe(req.user); }
+
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN')
   findAll(@Query() filter: StaffFilterDto) { return this.staffService.findAll(filter); }

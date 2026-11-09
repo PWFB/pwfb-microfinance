@@ -65,7 +65,7 @@ export class ChargesService {
     const rows = await this.prisma.$queryRawUnsafe(
       `SELECT "key","amount","currency","updatedBy","updatedAt"
        FROM "PWFBChargeConfiguration" WHERE "key"='CUSTOMER_REGISTRATION' LIMIT 1`,
-    );
+    ) as any[];
     const row = rows[0];
     if (!row) throw new NotFoundException('Customer registration charge configuration is missing');
     return {
@@ -98,7 +98,7 @@ export class ChargesService {
       const rows = await tx.$queryRawUnsafe(
         `SELECT "amount","currency" FROM "PWFBChargeConfiguration" WHERE "key"=$1 LIMIT 1`,
         'CUSTOMER_REGISTRATION',
-      );
+      ) as any[];
       const previous = Number(rows[0]?.amount ?? 1500);
       const currency = String(rows[0]?.currency || 'NGN');
       await tx.$executeRawUnsafe(
@@ -186,7 +186,7 @@ export class ChargesService {
       const configRows = await tx.$queryRawUnsafe(
         `SELECT "amount","currency" FROM "PWFBChargeConfiguration" WHERE "key"=$1 LIMIT 1`,
         'CUSTOMER_REGISTRATION',
-      );
+      ) as any[];
       if (!configRows[0]) throw new NotFoundException('Customer registration charge configuration is missing');
       const amount = Number(configRows[0].amount);
       const currency = String(configRows[0].currency || 'NGN');
@@ -200,7 +200,7 @@ export class ChargesService {
         `SELECT "id","amount","currency","paymentMethod","branchId","staffId","status","customerId","cashbookEntryId"
          FROM "PWFBRegistrationChargeReceipt" WHERE "reference"=$1 LIMIT 1`,
         reference,
-      );
+      ) as any[];
       if (existing[0]) {
         const receipt = existing[0];
         if (receipt.status === 'COLLECTED' && !receipt.customerId
@@ -278,7 +278,7 @@ export class ChargesService {
       `SELECT "amount","branchId","staffId","status","customerId","reference"
        FROM "PWFBRegistrationChargeReceipt" WHERE "id"=$1 LIMIT 1`,
       id,
-    );
+    ) as any[];
     const receipt = rows[0];
     if (!receipt) throw new NotFoundException('Registration fee receipt not found');
     if (receipt.status !== 'COLLECTED' || receipt.customerId) {

@@ -10,7 +10,7 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { createFinancialReference } from '../common/financial-reference';
 
-type TransactionUser = { id: string; role: string; staffId?: string | null };
+type TransactionUser = { id: string; role: string; staffId?: string };
 
 @Injectable()
 export class TransactionsService {

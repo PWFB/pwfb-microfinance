@@ -1,25 +1,91 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { CashbookService } from './cashbook.service';
-import { PrismaService } from '../prisma/prisma.service';
 
 describe('CashbookService', () => {
-  let service: CashbookService;
+  it('should be defined', () => {
+    const service = new CashbookService({} as any);
+    expect(service).toBeDefined();
+  });
+});
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        CashbookService,
-        {
-          provide: PrismaService,
-          useValue: {},
-        },
-      ],
-    }).compile();
+describe('CashbookService daily posting safeguards', () => {
+  const period = {
+    id: 'period-1',
+    status: 'OPEN',
+    startDate: new Date('2026-11-01T00:00:00.000Z'),
+    endDate: new Date('2026-11-30T23:59:59.999Z'),
+  };
 
-    service = module.get<CashbookService>(CashbookService);
+  function setup(queryResults: any[]) {
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockImplementation(async () => queryResults.shift() ?? []),
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+    };
+    const prisma: any = {
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $transaction: jest.fn(async (callback: (client: any) => Promise<any>) => callback(tx)),
+      financialPeriod: { findUnique: jest.fn().mockResolvedValue(period) },
+      branch: { findUnique: jest.fn().mockResolvedValue({ id: 'branch-1' }) },
+      staff: { findUnique: jest.fn().mockResolvedValue({ id: 'staff-1', branchId: 'branch-1', employmentStatus: 'ACTIVE' }) },
+    };
+    const service = new CashbookService(prisma);
+    service.dailyOne = jest.fn().mockResolvedValue({ id: 'daily-1' }) as any;
+    return { service, prisma, tx };
+  }
+
+  const input = {
+    periodId: 'period-1',
+    branchId: 'branch-1',
+    staffId: 'staff-1',
+    entryDate: '2026-11-09T12:00:00.000Z',
+    savingsDeposits: 50,
+    dailyDisbursementAmount: 25,
+    // A browser-supplied opening amount must never override the prior close.
+    previousCashAtHand: 999999,
+  };
+
+  it('serializes postings and carries forward the preceding closing cash', async () => {
+    const { service, tx } = setup([
+      [], // advisory lock
+      [{ latestDay: '2026-11-08' }],
+      [], // no existing record for this staff/date
+      [{ other_after_total: '100.00' }],
+    ]);
+
+    await expect(service.createDaily(input)).resolves.toEqual({ id: 'daily-1' });
+
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+      'DAILY-CASHBOOK:branch-1:staff-1',
+    );
+    expect(tx.$executeRawUnsafe).toHaveBeenCalledTimes(1);
+    const insertParameters = tx.$executeRawUnsafe.mock.calls[0];
+    expect(insertParameters).toContain(100);
+    expect(insertParameters).toContain(125);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
+  it('rejects a second daily register for the same branch, staff member and day', async () => {
+    const { service, tx } = setup([
+      [], // advisory lock
+      [{ latestDay: '2026-11-08' }],
+      [{ id: 'already-posted' }],
+    ]);
+
+    await expect(service.createDaily(input)).rejects.toThrow(
+      'A daily cashbook record already exists',
+    );
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
+    expect(service.dailyOne).not.toHaveBeenCalled();
+  });
+
+  it('rejects backdated postings that would invalidate a later carry-forward', async () => {
+    const { service, tx } = setup([
+      [], // advisory lock
+      [{ latestDay: '2026-11-10' }],
+    ]);
+
+    await expect(service.createDaily(input)).rejects.toThrow(
+      'Daily cashbook work must be posted in date order',
+    );
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
   });
 });

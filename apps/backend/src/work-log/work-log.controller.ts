@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { WorkLogService, WorkItemInput } from './work-log.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -12,7 +12,7 @@ export class WorkLogController {
 
   private actor(req: any) {
     const id = String(req?.user?.id || '').trim();
-    if (!id) throw new Error('Authenticated user identity is missing.');
+    if (!id) throw new UnauthorizedException('Authenticated user identity is missing.');
     return { id };
   }
 

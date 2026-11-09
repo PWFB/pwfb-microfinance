@@ -219,11 +219,7 @@ BEGIN
       FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE NOT VALID;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PaystackCardAttemptGuard_cardId_fkey' AND conrelid = '"PaystackCardAttemptGuard"'::regclass) THEN
-    ALTER TABLE "PaystackCardAttemptGuard"
-      ADD CONSTRAINT "PaystackCardAttemptGuard_cardId_fkey"
-      FOREIGN KEY ("cardId") REFERENCES "CustomerAtmCard"("id") ON DELETE CASCADE NOT VALID;
-  END IF;
+  -- cardId is a provider-side Paystack identifier, not CustomerAtmCard.id.
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PaystackCardAttemptGuard_customerId_fkey' AND conrelid = '"PaystackCardAttemptGuard"'::regclass) THEN
     ALTER TABLE "PaystackCardAttemptGuard"
       ADD CONSTRAINT "PaystackCardAttemptGuard_customerId_fkey"

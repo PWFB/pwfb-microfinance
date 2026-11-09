@@ -363,7 +363,7 @@ export class StaffWalletService {
     if (reference.length < 5 || reference.length > 120) {
       throw new BadRequestException('Enter a valid unique withdrawal reference');
     }
-    const existing = await this.prisma.$queryRawUnsafe<any[]>(
+    const existing = await this.prisma.$queryRawUnsafe(
       'SELECT id FROM staff_wallet_withdrawal_requests WHERE reference=$1 LIMIT 1',
       reference,
     );
@@ -408,7 +408,7 @@ export class StaffWalletService {
     const scope = await this.accessScope.getScope(actor);
     let rows: any[] = [];
     if (scope.global) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
+      rows = await this.prisma.$queryRawUnsafe(
         `SELECT r.id,r.staff_id AS "staffId",r.branch_id AS "branchId",
          r.amount,r.currency,r.bank_code AS "bankCode",
          RIGHT(r.account_number,4) AS "accountLastFour",r.account_name AS "accountName",
@@ -423,7 +423,7 @@ export class StaffWalletService {
     } else {
       const branchIds = await this.accessScope.getScopedBranchIds(actor);
       if (!branchIds?.length) return [];
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
+      rows = await this.prisma.$queryRawUnsafe(
         `SELECT r.id,r.staff_id AS "staffId",r.branch_id AS "branchId",
          r.amount,r.currency,r.bank_code AS "bankCode",
          RIGHT(r.account_number,4) AS "accountLastFour",r.account_name AS "accountName",
@@ -449,7 +449,7 @@ export class StaffWalletService {
       throw new ForbiddenException('Only LAB Microfinance Super Admin, Admin or Branch Manager may approve staff wallet withdrawals');
     }
     await this.ensureTables();
-    const requestRows = await this.prisma.$queryRawUnsafe<any[]>(
+    const requestRows = await this.prisma.$queryRawUnsafe(
       'SELECT * FROM staff_wallet_withdrawal_requests WHERE id=$1 LIMIT 1',
       requestId,
     );
@@ -481,7 +481,7 @@ export class StaffWalletService {
         'SELECT id FROM staff_wallet_withdrawal_requests WHERE id=$1 FOR UPDATE',
         requestId,
       );
-      const lockedRows = await tx.$queryRawUnsafe<any[]>(
+      const lockedRows = await tx.$queryRawUnsafe(
         'SELECT * FROM staff_wallet_withdrawal_requests WHERE id=$1 LIMIT 1',
         requestId,
       );
@@ -494,7 +494,7 @@ export class StaffWalletService {
         throw new ForbiddenException('The requester cannot approve their own staff wallet withdrawal');
       }
       const wallet = await this.staff(String(request.staff_id), tx);
-      const lockedWalletRows = await tx.$queryRawUnsafe<any[]>(
+      const lockedWalletRows = await tx.$queryRawUnsafe(
         'SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE',
         wallet.id,
       );
@@ -594,7 +594,7 @@ export class StaffWalletService {
       throw new ForbiddenException('Only LAB Microfinance Super Admin, Admin or Branch Manager may reject staff wallet withdrawals');
     }
     await this.ensureTables();
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+    const rows = await this.prisma.$queryRawUnsafe(
       'SELECT * FROM staff_wallet_withdrawal_requests WHERE id=$1 LIMIT 1',
       requestId,
     );
@@ -618,13 +618,13 @@ export class StaffWalletService {
 
   private async refundFailedWithdrawal(requestId: string, reference: string, reason: string) {
     await this.prisma.$transaction(async (tx: any) => {
-      const rows = await tx.$queryRawUnsafe<any[]>(
+      const rows = await tx.$queryRawUnsafe(
         'SELECT wallet_id,amount,status FROM staff_wallet_transactions WHERE reference=$1 FOR UPDATE',
         reference,
       );
       const transaction = rows[0];
       if (!transaction || transaction.status !== 'PROCESSING') return;
-      const walletRows = await tx.$queryRawUnsafe<any[]>(
+      const walletRows = await tx.$queryRawUnsafe(
         'SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE',
         transaction.wallet_id,
       );
@@ -660,7 +660,7 @@ export class StaffWalletService {
     if (!reference) throw new BadRequestException('Staff wallet withdrawal reference is required');
     if (input.status === 'FAILED') {
       await this.refundFailedWithdrawal(
-        String((await this.prisma.$queryRawUnsafe<any[]>(
+        String((await this.prisma.$queryRawUnsafe(
           'SELECT id FROM staff_wallet_withdrawal_requests WHERE provider_reference=$1 OR reference=$1 LIMIT 1',
           reference,
         ))[0]?.id || ''),

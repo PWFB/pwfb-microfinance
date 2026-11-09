@@ -73,8 +73,8 @@ describe('BankingController staff attribution', () => {
       'customer-1',
     );
 
-    expect(prisma.staff.findFirst).toHaveBeenCalledWith({
-      where: { OR: [{ userId: 'user-1' }] },
+    expect(prisma.staff.findUnique).toHaveBeenCalledWith({
+      where: { userId: 'user-1' },
       select: { id: true, branchId: true, employmentStatus: true },
     });
     expect(result).toEqual({ staffId: 'staff-1', branchId: 'branch-1' });
@@ -212,4 +212,35 @@ describe('BankingController branch virtual-account scope', () => {
     )).rejects.toThrow('outside your organizational scope');
     expect(bankingService.recordBranchDeposit).not.toHaveBeenCalled();
   });
+  it('rejects conflicting User.staffId and Staff.userId links', async () => {
+    const prisma = {
+      customer: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'customer-1',
+          branchId: 'branch-1',
+          assignedStaffId: 'staff-1',
+        }),
+      },
+      staff: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'staff-1',
+          branchId: 'branch-1',
+          employmentStatus: 'ACTIVE',
+        }),
+      },
+    };
+    const controller = new BankingController(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      prisma as any,
+    );
+
+    await expect((controller as any).operatorAttribution(
+      { id: 'user-1', staffId: 'staff-2', role: 'TELLER' },
+      'customer-1',
+    )).rejects.toThrow('Staff identity links do not match');
+  });
+
 });

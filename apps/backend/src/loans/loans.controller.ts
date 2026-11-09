@@ -34,7 +34,7 @@ export class LoansController {
       .filter((row:any)=>String(row.dueDate).slice(0,10)===selectedDate)
       .map((row:any)=>({
         loanId:loan.id,clientId:loan.customerId,customerName:[loan.customer?.firstName,loan.customer?.middleName,loan.customer?.lastName].filter(Boolean).join(' '),
-        assignedStaffId:loan.customer?.assignedStaffId||null,branchId:loan.customer?.branchId||null,
+        assignedStaffId:loan.customer?.assignedStaffId||null,assignedStaffName:loan.customer?.assignedStaff?[loan.customer.assignedStaff.firstName,loan.customer.assignedStaff.lastName].filter(Boolean).join(' '):null,branchId:loan.customer?.branchId||null,branchName:loan.customer?.branch?.name||null,
         installmentNumber:row.installmentNumber,dueDate:row.dueDate,amountDue:Number(row.amount||0),
         paidAmount:Number(row.paidAmount||0),outstandingAmount:Number(row.remainingAmount||0),
         status:row.status==='PAID'?'PAID':'NOT_PAID',overdue:row.status==='OVERDUE',

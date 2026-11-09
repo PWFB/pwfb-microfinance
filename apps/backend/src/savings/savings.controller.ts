@@ -50,6 +50,7 @@ export class SavingsController {
   @Roles('SUPER_ADMIN','ADMIN')
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateSavingsDto) {
     await this.permissions.assert(req.user.role, 'SAVINGS_CREATE');
+    if (dto.customerId) await this.accessScope.assertCustomer(req.user, dto.customerId);
     return this.savingsService.update(id, dto);
   }
 

@@ -12,7 +12,7 @@ import { DashboardsService } from './dashboards.service';
 
 @Controller('dashboards')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER','AUDITOR','MONITORING_TEAM','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF')
+@Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER','AUDITOR','MONITORING_TEAM')
 export class DashboardsController {
   constructor(
     private readonly dashboardsService: DashboardsService,

@@ -156,7 +156,7 @@ export class StaffRepository {
       where: { id },
       include: {
         department: true, branch: true, region: true, division: true, area: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, staffId: true, createdAt: true, updatedAt: true } }, customers: true,
+        user: { select: { id: true, publicUserId: true, email: true, firstName: true, lastName: true, phone: true, role: true, staffId: true, createdAt: true, updatedAt: true } }, customers: true,
         assignments: { orderBy: { startsAt: 'desc' }, include: { region: true, division: true, area: true, branch: true } },
       },
     });
@@ -167,7 +167,7 @@ export class StaffRepository {
     delete updateData.department; delete updateData.branch; delete updateData.regionId; delete updateData.divisionId; delete updateData.areaId;
     return this.prisma.staff.update({
       where: { id }, data: updateData,
-      include: { department: true, branch: true, region: true, division: true, area: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, staffId: true, createdAt: true, updatedAt: true } }, customers: true, assignments: { orderBy: { startsAt: 'desc' } } },
+      include: { department: true, branch: true, region: true, division: true, area: true, user: { select: { id: true, publicUserId: true, email: true, firstName: true, lastName: true, phone: true, role: true, staffId: true, createdAt: true, updatedAt: true } }, customers: true, assignments: { orderBy: { startsAt: 'desc' } } },
     });
   }
 

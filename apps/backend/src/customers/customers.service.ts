@@ -121,10 +121,12 @@ export class CustomersService {
       if (!(await this.prisma.branch.findUnique({ where: { id: dto.branchId } }))) throw new BadRequestException('Branch not found');
     }
 
-    const assignedStaff = dto.assignedStaffId
-      ? await this.prisma.staff.findUnique({ where: { id: dto.assignedStaffId } })
+    const shouldCheckStaff = dto.branchId !== undefined || dto.assignedStaffId !== undefined;
+    const effectiveStaffId = dto.assignedStaffId ?? customer.assignedStaffId;
+    const assignedStaff = shouldCheckStaff && effectiveStaffId
+      ? await this.prisma.staff.findUnique({ where: { id: effectiveStaffId } })
       : null;
-    if (dto.assignedStaffId && !assignedStaff) throw new BadRequestException('Assigned staff not found');
+    if (shouldCheckStaff && effectiveStaffId && !assignedStaff) throw new BadRequestException('Assigned staff not found');
     if (dto.assignedStaffId) await this.accessScope.assertStaff(authUser, dto.assignedStaffId);
 
     const effectiveBranchId = dto.branchId ?? customer.branchId ?? assignedStaff?.branchId;

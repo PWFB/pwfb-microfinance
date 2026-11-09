@@ -106,6 +106,9 @@ export class CustomersService {
     ] as const;
     for (const [field, currentValue] of assignmentChanges) {
       const nextValue = dto[field];
+      if (nextValue !== undefined && !String(nextValue || '').trim()) {
+        throw new BadRequestException(`Customer ${field} must be a valid non-empty identifier`);
+      }
       if (nextValue !== undefined && String(nextValue || '') !== String(currentValue || '')) {
         if (currentValue) {
           throw new BadRequestException(`Customer ${field} is an immutable registration assignment and cannot be changed`);

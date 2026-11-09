@@ -7,10 +7,11 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { PermissionsService } from '../permissions/permissions.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessScopeService } from '../access/access-scope.service';
 const BANKING_ROLES = ['SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CUSTOMER_SERVICE','LOAN_OFFICER','CREDIT_OFFICER','TELLER','AUDITOR','STAFF','CUSTOMER'] as const;
 @Controller('banking') @UseGuards(JwtAuthGuard, RolesGuard)
 export class BankingController {
-  constructor(private readonly bankingService: BankingService, private readonly customerVirtualAccountService: CustomerVirtualAccountService, private readonly externalBankTransferService: ExternalBankTransferService, private readonly permissionsService: PermissionsService, private readonly prisma: PrismaService) {}
+  constructor(private readonly bankingService: BankingService, private readonly customerVirtualAccountService: CustomerVirtualAccountService, private readonly externalBankTransferService: ExternalBankTransferService, private readonly permissionsService: PermissionsService, private readonly prisma: PrismaService, private readonly accessScope: AccessScopeService) {}
   @Get('institutions') @Roles(...BANKING_ROLES) listInstitutions(){return this.externalBankTransferService.listInstitutions()}
   @Get('institutions/search') @Roles(...BANKING_ROLES) searchInstitutions(@Query('q') q?:string){return this.externalBankTransferService.searchInstitutions(q)}
   @Get('account-name') @Roles(...BANKING_ROLES) async nameEnquiry(@Query('bankCode') bankCode:string,@Query('accountNumber') accountNumber:string,@Query('provider') provider:string|undefined,@Req() req:any){const role=String(req.user?.role||'').toUpperCase();if(role==='CUSTOMER'){const customerId=await this.resolveCustomerId('',req.user);return this.externalBankTransferService.checkCustomerBankAccount(customerId,bankCode,accountNumber,provider)}return this.externalBankTransferService.nameEnquiry(bankCode,accountNumber,provider)}
@@ -64,6 +65,21 @@ export class BankingController {
   @Post('customers/:customerId/transfer') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','STAFF','TELLER','CREDIT_OFFICER','CUSTOMER') async transfer(@Param('customerId') customerId:string,@Body() body:any,@Req() req:any){const id=await this.resolveCustomerId(customerId,req.user);await this.assertPermission(req.user,'BANK_TRANSFER');const attribution=await this.operatorAttribution(req.user,id);return this.bankingService.transfer(id,{...body,staffId:attribution.staffId,branchId:attribution.branchId})}
   @Get('branches/:branchId/virtual-accounts') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AUDITOR','TELLER','STAFF') getBranchVirtualAccounts(@Param('branchId') branchId:string){return this.bankingService.getBranchVirtualAccounts(branchId)}
   @Post('branches/:branchId/virtual-accounts') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF') generateBranchVirtualAccount(@Param('branchId') branchId:string,@Body() body:{institutionId:string}){return this.bankingService.generateBranchVirtualAccount(branchId,body.institutionId)}
-  @Post('branch-virtual-account/deposit') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','TELLER','STAFF') recordBranchDeposit(@Body() body:{accountNumber:string;amount:number;reference?:string;narration?:string}){return this.bankingService.recordBranchDeposit(body)}
+  @Post('branch-virtual-account/deposit')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER')
+  async recordBranchDeposit(
+    @Body() body: { accountNumber: string; amount: number; reference?: string; narration?: string },
+    @Req() req: any,
+  ) {
+    const accountNumber = String(body?.accountNumber || '').replace(/\D/g, '');
+    if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Enter a valid 10-digit branch virtual account number');
+    const account = await this.prisma.branchVirtualAccount.findUnique({
+      where: { accountNumber },
+      select: { branchId: true },
+    });
+    if (!account) throw new BadRequestException('Branch virtual account was not found');
+    await this.accessScope.assertBranch(req.user, account.branchId);
+    return this.bankingService.recordBranchDeposit({ ...body, accountNumber });
+  }
   @Get('branches/:branchId/ledger') @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AUDITOR','TELLER','STAFF') getBranchLedger(@Param('branchId') branchId:string){return this.bankingService.getBranchLedger(branchId)}
 }

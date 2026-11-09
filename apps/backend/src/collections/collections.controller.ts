@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { CollectionsService } from './collections.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -37,7 +37,7 @@ export class CollectionsController {
 
     if (scope.role === 'CREDIT_OFFICER') {
       staffId = scope.staffId || undefined;
-      if (!staffId) throw new Error('Credit Officer login is not linked to an active Staff record');
+      if (!staffId) throw new ForbiddenException('Credit Officer login is not linked to an active Staff record');
       if (requestedStaffId && requestedStaffId !== staffId) {
         await this.accessScope.assertStaff(user, requestedStaffId);
       }
@@ -57,14 +57,14 @@ export class CollectionsController {
     const scope = await this.accessScope.getScope(req.user);
     const branchId = scope.global ? body.branchId : scope.branchId;
     const staffId = scope.global ? body.staffId : scope.staffId;
-    if (!branchId || !staffId) throw new Error('Collection posting requires an assigned branch and Staff ID');
+    if (!branchId || !staffId) throw new ForbiddenException('Collection posting requires an assigned branch and Staff ID');
     if (scope.global) {
       await this.accessScope.assertBranch(req.user, branchId);
       await this.accessScope.assertStaff(req.user, staffId);
     } else {
       if (body.branchId && body.branchId !== branchId) await this.accessScope.assertBranch(req.user, body.branchId);
       if (body.staffId && body.staffId !== staffId) {
-        throw new Error('Collection Staff ID must match the authenticated staff account');
+        throw new ForbiddenException('Collection Staff ID must match the authenticated staff account');
       }
     }
     return this.collectionsService.create({ ...body, branchId, staffId });

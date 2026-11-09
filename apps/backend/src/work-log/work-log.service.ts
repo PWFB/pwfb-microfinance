@@ -24,7 +24,7 @@ export class WorkLogService {
 
   private reference() {
     const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    return 'PWFB-WORK-' + day + '-' + randomBytes(4).toString('hex').toUpperCase();
+    return 'PWFB-WORK-' + day + '-' + randomBytes(8).toString('hex').toUpperCase();
   }
 
   private sessionKey() {

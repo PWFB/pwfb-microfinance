@@ -47,7 +47,7 @@ export class CashbookService {
     const role = String(actor.role).toUpperCase();
     if (role === 'SUPER_ADMIN') return { kind: 'all', role, branchIds: [], canWrite: true };
 
-    const writeRoles = ['ADMIN', 'BRANCH_MANAGER', 'AREA_MANAGER', 'DIVISIONAL_MANAGER', 'REGIONAL_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
+    const writeRoles = ['ADMIN', 'BRANCH_MANAGER', 'AREA_MANAGER', 'DIVISIONAL_MANAGER', 'REGIONAL_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'COLLECTOR', 'STAFF'];
     const readRoles = [...writeRoles, 'AUDITOR', 'MONITORING_TEAM'];
     if (!readRoles.includes(role)) throw new ForbiddenException('Your role is not permitted to access the cashbook.');
     const canWrite = writeRoles.includes(role);
@@ -61,9 +61,12 @@ export class CashbookService {
       select: { id: true, staffId: true, firstName: true, lastName: true, position: true, branchId: true, regionId: true, divisionId: true, areaId: true, employmentStatus: true },
     });
     if (!staff) throw new ForbiddenException('Your account is not linked to a staff profile. Ask an administrator to attach your Staff ID.');
+    if (actor.staffId && String(actor.staffId) !== String(staff.id)) {
+      throw new ForbiddenException('Your login Staff ID does not match the assigned staff profile. Contact Super Admin before using the cashbook.');
+    }
     if (staff.employmentStatus !== 'ACTIVE') throw new ForbiddenException('Inactive staff accounts cannot access the cashbook.');
 
-    const individualRoles = ['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
+    const individualRoles = ['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'COLLECTOR', 'STAFF'];
     if (individualRoles.includes(role)) {
       return { kind: 'staff', role, staff, branchIds: [staff.branchId], canWrite };
     }

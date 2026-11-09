@@ -6,7 +6,7 @@ import { StaffWalletService } from './staff-wallet.service';
 
 @Controller('staff-wallet')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN', 'ADMIN')
+@Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'AUDITOR', 'MONITORING_TEAM', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF')
 export class StaffWalletController {
   constructor(private readonly service: StaffWalletService) {}
 
@@ -17,7 +17,9 @@ export class StaffWalletController {
   @Get(':staffId/history')
   history(@Req() req: any, @Param('staffId') staffId: string) { return this.service.history(staffId, req.user); }
   @Post('issue')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER')
   issue(@Req() req: any, @Body() body: { staffId: string; amount: number; reference?: string; description?: string }) { return this.service.creditForUser(req.user, body.staffId, body.amount, body.reference, body.description); }
   @Post('settle')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER')
   settle(@Req() req: any, @Body() body: { staffId: string; amount: number; reference?: string; description?: string }) { return this.service.debitForUser(req.user, body.staffId, body.amount, body.reference, body.description); }
 }

@@ -167,3 +167,42 @@ ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_transfer_head_o
 ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_transfer_branch DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS others DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS other_after_total DOUBLE PRECISION NOT NULL DEFAULT 0;
+
+
+-- Loan configuration and metadata are managed by migrations, not lazy requests.
+CREATE TABLE IF NOT EXISTS "PWFBLoanRate" (
+  "id" TEXT PRIMARY KEY,
+  "loanType" TEXT NOT NULL UNIQUE,
+  "interestRate" DOUBLE PRECISION NOT NULL DEFAULT 0,
+  "active" BOOLEAN NOT NULL DEFAULT TRUE,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS "PWFBLoanMeta" (
+  "loanId" TEXT PRIMARY KEY,
+  "loanType" TEXT,
+  "duration" DOUBLE PRECISION,
+  "repaymentFrequency" TEXT,
+  "purpose" TEXT,
+  "interestAmount" DOUBLE PRECISION,
+  "totalRepayment" DOUBLE PRECISION,
+  "installmentAmount" DOUBLE PRECISION,
+  "passportPhoto" TEXT,
+  "disbursementDestination" TEXT,
+  "verifiedNameMatchCount" DOUBLE PRECISION,
+  "disbursementAccountVerified" BOOLEAN NOT NULL DEFAULT FALSE,
+  "createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "disbursementDestination" TEXT;
+ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "verifiedNameMatchCount" DOUBLE PRECISION;
+ALTER TABLE "PWFBLoanMeta" ADD COLUMN IF NOT EXISTS "disbursementAccountVerified" BOOLEAN NOT NULL DEFAULT FALSE;
+
+INSERT INTO "PWFBLoanRate" ("id","loanType","interestRate") VALUES
+  ('rate_loan','Loan',0),
+  ('rate_daily_loan','Daily Loan',0),
+  ('rate_weekly_loan','Weekly Loan',0),
+  ('rate_individual_loan','Individual Loan',0),
+  ('rate_monthly_loan','Monthly Loan',0)
+ON CONFLICT ("loanType") DO NOTHING;

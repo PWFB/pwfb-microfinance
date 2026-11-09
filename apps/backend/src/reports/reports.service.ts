@@ -84,14 +84,15 @@ export class ReportsService {
       ? { createdAt: { ...(from && !Number.isNaN(from.getTime()) ? { gte: from } : {}), ...(to && !Number.isNaN(to.getTime()) ? { lte: to } : {}) } }
       : {};
     const customerFilter = customerId ? { customerId } : {};
-    const staffFilter = staffId ? { staffId } : {};
+    const role = String(user?.role || '').toUpperCase();
+    const staffFilter = role === 'CREDIT_OFFICER' ? { staffId: (scope.collections as any).staffId } : (staffId ? { staffId } : {});
 
     const [customers, staff, loans, savings, walletTransactions, collections, cashbook] = await Promise.all([
       this.prisma.customer.findMany({ where: { ...scope.customers, ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { middleName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : {}) }, orderBy: { createdAt: 'desc' } }),
       this.prisma.staff.findMany({ where: { ...scope.staff, ...(search ? { OR: [{ firstName: { contains: search, mode: 'insensitive' } }, { lastName: { contains: search, mode: 'insensitive' } }, { email: { contains: search, mode: 'insensitive' } }, { phone: { contains: search } }] } : {}) }, orderBy: { createdAt: 'desc' } }),
       this.prisma.loan.findMany({ where: { ...scope.loans, ...dateFilter, ...(customerId ? { customer: { ...scope.customers, id: customerId } } : {}) }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.savings.findMany({ where: { ...scope.savings, ...dateFilter, ...(customerId ? { customer: { ...scope.customers, id: customerId } } : {}) }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
-      this.prisma.walletTransaction.findMany({ where: { ...scope.walletTransactions, ...customerFilter, ...staffFilter, ...dateFilter, ...(type ? { type: type as any } : {}) }, include: { customer: true }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.walletTransaction.findMany({ where: { ...scope.walletTransactions, ...customerFilter, ...staffFilter, ...dateFilter, ...(type ? { type: type as any } : {}) }, include: { customer: true, staff: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.dailyCollection.findMany({ where: { ...scope.collections, ...customerFilter, ...staffFilter, ...dateFilter }, include: { customer: true, staff: true, branch: true }, orderBy: { createdAt: 'desc' } }),
       this.prisma.cashbookEntry.findMany({ where: { ...scope.cashbook, ...dateFilter }, include: { branch: true }, orderBy: { createdAt: 'desc' } }),
     ]);

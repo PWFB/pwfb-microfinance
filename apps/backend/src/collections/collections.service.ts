@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { StaffWalletService } from '../staff-wallet/staff-wallet.service';
 import { AccessScopeService } from '../access/access-scope.service';
+import { createFinancialReference } from '../common/financial-reference';
 
 @Injectable()
 export class CollectionsService {
@@ -85,7 +86,7 @@ export class CollectionsService {
     if (customer.branchId !== data.branchId) throw new BadRequestException('Customer does not belong to the selected collection branch');
     const amount = Number(data.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Collection amount must be greater than zero');
-    const created = await this.prisma.dailyCollection.create({ data: { periodId: data.periodId, branchId: data.branchId, staffId: data.staffId, customerId: data.customerId, type: data.type, amount, reference: data.reference, notes: data.notes, collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date() }, include: { period: true, branch: true, staff: true, customer: true } });
+    const created = await this.prisma.dailyCollection.create({ data: { periodId: data.periodId, branchId: data.branchId, staffId: data.staffId, customerId: data.customerId, type: data.type, amount, reference: data.reference?.trim() || createFinancialReference('PWFB-COL'), notes: data.notes, collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date() }, include: { period: true, branch: true, staff: true, customer: true } });
     if (!data.settleNow) return created;
     const targetId = await this.resolveSettlementTarget(data.customerId, data.type);
     return this.settle(created.id, targetId, user);

@@ -51,6 +51,7 @@ describe('RepaymentsController', () => {
         id: 'repayment-1',
         loanId: 'loan-1',
         amount: 2500,
+        loan: { id: 'loan-1' },
       },
     ];
 

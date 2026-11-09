@@ -42,6 +42,13 @@ describe('AccessScopeService', () => {
     await expect(service.assertCollection({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'collection-b')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('denies access to ledger transactions belonging to another officer customer', async () => {
+    query
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
+      .mockResolvedValueOnce([{ id: 'transaction-b', branchId: 'branch-a', assignedStaffId: 'staff-b', areaId: null, divisionId: null, regionId: null }]);
+    await expect(service.assertTransaction({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'transaction-b')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('still allows a Credit Officer to access branch metadata for assigned-branch operations', async () => {
     query
       .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])

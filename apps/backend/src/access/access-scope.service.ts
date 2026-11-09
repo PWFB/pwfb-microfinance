@@ -83,10 +83,18 @@ export class AccessScopeService {
     const scope = await this.getScope(user);
     if (scope.global) return null;
     const clauses: any[] = [];
+    if (scope.role === 'REGIONAL_MANAGER') {
+      if (scope.regionIds?.length) clauses.push({ regionId: { in: scope.regionIds } });
+    } else if (scope.role === 'DIVISIONAL_MANAGER') {
+      if (scope.divisionIds?.length) clauses.push({ divisionId: { in: scope.divisionIds } });
+    } else if (scope.role === 'AREA_MANAGER') {
+      if (scope.areaIds?.length) clauses.push({ areaId: { in: scope.areaIds } });
+    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
+      if (scope.regionIds?.length) clauses.push({ regionId: { in: scope.regionIds } });
+      else if (scope.divisionIds?.length) clauses.push({ divisionId: { in: scope.divisionIds } });
+      else if (scope.areaIds?.length) clauses.push({ areaId: { in: scope.areaIds } });
+    }
     if (scope.branchIds?.length) clauses.push({ id: { in: scope.branchIds } });
-    if (scope.areaIds?.length) clauses.push({ areaId: { in: scope.areaIds } });
-    if (scope.divisionIds?.length) clauses.push({ divisionId: { in: scope.divisionIds } });
-    if (scope.regionIds?.length) clauses.push({ regionId: { in: scope.regionIds } });
     if (!clauses.length) return [];
     const rows = await this.prisma.branch.findMany({
       where: { OR: clauses },
@@ -102,9 +110,14 @@ export class AccessScopeService {
     if (!target) throw new ForbiddenException('Access denied: record not found');
     const same = (a: unknown, b: unknown) => Boolean(a && b && String(a) === String(b));
     if (target.branchId && (scope.branchIds || []).some((id: string) => same(id, target.branchId))) return true;
-    if (target.regionId && (scope.regionIds || []).some((id: string) => same(id, target.regionId))) return true;
-    if (target.divisionId && (scope.divisionIds || []).some((id: string) => same(id, target.divisionId))) return true;
-    if (target.areaId && (scope.areaIds || []).some((id: string) => same(id, target.areaId))) return true;
+    if (scope.role === 'REGIONAL_MANAGER' && target.regionId && (scope.regionIds || []).some((id: string) => same(id, target.regionId))) return true;
+    if (scope.role === 'DIVISIONAL_MANAGER' && target.divisionId && (scope.divisionIds || []).some((id: string) => same(id, target.divisionId))) return true;
+    if (scope.role === 'AREA_MANAGER' && target.areaId && (scope.areaIds || []).some((id: string) => same(id, target.areaId))) return true;
+    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
+      if (target.regionId && (scope.regionIds || []).some((id: string) => same(id, target.regionId))) return true;
+      if (target.divisionId && (scope.divisionIds || []).some((id: string) => same(id, target.divisionId))) return true;
+      if (target.areaId && (scope.areaIds || []).some((id: string) => same(id, target.areaId))) return true;
+    }
     if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
       if (same(scope.staffId, target.assignedStaffId)) return true;
       throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
@@ -188,9 +201,14 @@ export class AccessScopeService {
   private orgCondition(scope: any, alias: string) {
     const arraySql = (values: string[]) =>
       `ARRAY[${values.map((value) => `'${this.escape(value)}'`).join(',')}]::text[]`;
-    if (scope.regionIds?.length) return `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
-    if (scope.divisionIds?.length) return `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
-    if (scope.areaIds?.length) return `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
+    if (scope.role === 'REGIONAL_MANAGER' && scope.regionIds?.length) return `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
+    if (scope.role === 'DIVISIONAL_MANAGER' && scope.divisionIds?.length) return `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
+    if (scope.role === 'AREA_MANAGER' && scope.areaIds?.length) return `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
+    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
+      if (scope.regionIds?.length) return `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
+      if (scope.divisionIds?.length) return `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
+      if (scope.areaIds?.length) return `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
+    }
     const branches = scope.branchIds || [];
     if (alias === 'b') return branches.length
       ? `"${alias}"."id" = ANY(${arraySql(branches)})`

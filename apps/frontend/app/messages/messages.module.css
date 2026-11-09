@@ -96,3 +96,29 @@
 .pageFoot{max-width:1500px;margin:13px auto 0;color:#8a978f;font-size:10px;line-height:1.5}
 @media(max-width:850px){.page{padding:15px 10px 20px;border-radius:15px}.pageHeader{align-items:flex-start}.headingIcon{width:44px;height:44px;border-radius:14px}.heading h1{font-size:21px}.subheading{font-size:11px}.headerStats{padding:8px 10px;font-size:0}.headerStats strong{font-size:11px}.headerStats small{font-size:10px}.workspace{grid-template-columns:1fr;height:calc(100vh - 225px);min-height:580px}.inbox{border-right:0;border-bottom:1px solid #e8efeb;max-height:270px}.conversationList{display:flex;overflow-x:auto;overflow-y:hidden}.conversationItem{width:260px;min-width:260px;border-top:0;border-right:1px solid #edf2ef}.inboxFoot{display:none}.chatPanel{min-height:310px}.chatHeader{height:65px;flex-basis:65px;padding:0 13px}.secureTag{font-size:0}.secureTag:first-letter{font-size:10px}.messageStream{padding:15px}.messageRow{max-width:95%}.composerPanel{width:calc(100% - 20px);padding:16px}.pageFoot{font-size:9px}}
 @media(max-width:480px){.pageHeader{flex-direction:column}.headerStats{align-self:flex-end;margin-top:-5px}.workspace{height:calc(100vh - 265px);min-height:550px}.inbox{max-height:245px}.newButtons{grid-template-columns:1fr 1fr}.messageComposer{padding:10px}.messageComposer button{padding:9px 12px}}
+
+/* LAB Microfinance dark surfaces and controls for Branch Messenger. */
+:global(html[data-theme="dark"]) .page{background:#0b1410;color:#e8f1eb}
+:global(html[data-theme="dark"]) .workspace,:global(html[data-theme="dark"]) .chatPanel,
+:global(html[data-theme="dark"]) .composerPanel{background:#122019;border-color:#2b4034;color:#e8f1eb}
+:global(html[data-theme="dark"]) .inbox{background:#0f1b15;border-color:#2b4034}
+:global(html[data-theme="dark"]) .inboxTop h2,:global(html[data-theme="dark"]) .heading h1,
+:global(html[data-theme="dark"]) .chatHeading strong,:global(html[data-theme="dark"]) .panelTitle h2{color:#e7f2ea}
+:global(html[data-theme="dark"]) .subheading,:global(html[data-theme="dark"]) .chatHeading small,
+:global(html[data-theme="dark"]) .conversationMeta,:global(html[data-theme="dark"]) .preview,
+:global(html[data-theme="dark"]) .helper,:global(html[data-theme="dark"]) .messageComposer small,
+:global(html[data-theme="dark"]) .inboxFoot{color:#9caf9f}
+:global(html[data-theme="dark"]) .conversationItem{border-color:#26382e}
+:global(html[data-theme="dark"]) .conversationItem:hover,:global(html[data-theme="dark"]) .activeConversation{background:#1a3023!important}
+:global(html[data-theme="dark"]) .conversationTitle,:global(html[data-theme="dark"]) .messageBubble p{color:#e0ece4}
+:global(html[data-theme="dark"]) .messageStream{background:#101c16}
+:global(html[data-theme="dark"]) .messageBubble{background:#17271f;border-color:#34483c}
+:global(html[data-theme="dark"]) .ownMessage .messageBubble{background:#173725;border-color:#2d6040}
+:global(html[data-theme="dark"]) .messageMeta strong{color:#c5e8ce}
+:global(html[data-theme="dark"]) .messageComposer,:global(html[data-theme="dark"]) .chatHeader{background:#122019;border-color:#2b4034}
+:global(html[data-theme="dark"]) .messageComposer textarea,:global(html[data-theme="dark"]) .field input,
+:global(html[data-theme="dark"]) .field select,:global(html[data-theme="dark"]) .field textarea{background:#101c16;color:#edf5ef;border-color:#40594a}
+:global(html[data-theme="dark"]) .newButtons button{background:#1a3023;color:#c5e8ce;border-color:#34483c}
+:global(html[data-theme="dark"]) .newButtons button:first-child{background:#176c3b;color:#fff}
+:global(html[data-theme="dark"]) .headerStats{background:#122019;border-color:#34483c;color:#b5c6ba}
+:global(html[data-theme="dark"]) .headerStats strong{background:#1a3023;color:#c5e8ce}

@@ -30,6 +30,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
       if (path.includes('/staff')) await this.scope.assertStaff(user, String(id));
       else if (path.includes('/customers')) await this.scope.assertCustomer(user, String(id));
       else if (path.includes('/loans')) await this.scope.assertLoan(user, String(id));
+      else if (path.includes('/transactions')) await this.scope.assertTransaction(user, String(id));
       else if (path.includes('/savings')) await this.scope.assertSavings(user, String(id));
       else if (path.includes('/collections')) await this.scope.assertCollection(user, String(id));
       else if (path.includes('/branches')) await this.scope.assertBranch(user, String(id));
@@ -39,6 +40,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
     const resource = path.includes('/staff') ? 'staff'
       : path.includes('/customers') ? 'customers'
       : path.includes('/loans') ? 'loans'
+      : path.includes('/transactions') ? 'transactions'
       : path.includes('/savings') ? 'savings'
       : path.includes('/collections') ? 'collections'
       : path.includes('/branches') ? 'branches'

@@ -2,7 +2,10 @@
 
 ## Branch Messenger
 - Available to authenticated PWFB staff and administrators.
-- Role channels are branch-scoped; group conversations require active staff memberships in the selected branch.
+- Role channels are branch-scoped; the recipient-role list is loaded dynamically from active staff accounts and active, date-valid `StaffAssignment` records in the selected branch.
+- The branch picker shows the detected branch for single-branch staff and lists all branches allowed by the signed-in user's active organization assignments. If no branch is available, the page displays a branch-assignment warning instead of presenting a misleading role list.
+- `GET /messages/roles?branchId=<branch-id>` returns only allowed message roles that have active recipients in the selected branch. `GET /messages/staff?branchId=<branch-id>` returns linked staff in that branch, including staff whose primary branch differs but who have an active assignment there.
+- Sending a role message validates the selected role against the same active branch assignment rules; historic or ended assignments do not qualify.
 - Messages are limited to 5,000 characters.
 - Unread counts are calculated using each user's own read-state record.
 - Customers do not receive staff messenger access.

@@ -46,8 +46,54 @@ export class BankingService {
   async generateBranchVirtualAccount(branchId:string,institutionId:string){const branch=await this.prisma.branch.findUnique({where:{id:branchId}});if(!branch)throw new NotFoundException('Branch not found');const institution=await this.prisma.bankInstitution.findUnique({where:{id:institutionId}});if(!institution)throw new NotFoundException('Bank or payment institution not found');if(!institution.active)throw new BadRequestException('Bank or payment institution is inactive');const existing=await this.prisma.branchVirtualAccount.findUnique({where:{branchId_institutionId:{branchId,institutionId}},include:{institution:true,branch:true}});if(existing)return existing;let accountNumber='';do{accountNumber=`9${Date.now().toString().slice(-8)}${Math.floor(Math.random()*10)}`}while(await this.prisma.branchVirtualAccount.findUnique({where:{accountNumber}}));return this.prisma.branchVirtualAccount.create({data:{branchId,institutionId,accountNumber,accountName:`PWFB - ${branch.name}`,isGenerated:true,generatedAt:new Date()},include:{institution:true,branch:true}})}
   private amount(value:any){const n=Number(value);if(!Number.isFinite(n)||n<=0)throw new BadRequestException('Amount must be greater than zero');return Math.round(n*100)/100}
   private ref(prefix:string){return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2,10).toUpperCase()}`}
-  private async openPeriod(tx:any){let p=await tx.financialPeriod.findFirst({where:{status:'OPEN'},orderBy:{startDate:'desc'}});if(p)return p;const now=new Date();const end=new Date(now);end.setDate(end.getDate()+1);return tx.financialPeriod.create({data:{name:`Auto ${now.toISOString().slice(0,10)}`,startDate:now,endDate:end,status:'OPEN'}})}
-  async recordBranchDeposit(data:{accountNumber:string;amount:number;reference?:string;narration?:string}){const amount=this.amount(data.amount);return this.prisma.$transaction(async tx=>{const account=await tx.branchVirtualAccount.findUnique({where:{accountNumber:data.accountNumber},include:{branch:true,institution:true}});if(!account)throw new NotFoundException('Branch virtual account not found');if(account.status!=='ACTIVE')throw new BadRequestException('Branch virtual account is not active');const period=await this.openPeriod(tx);const reference=data.reference?.trim()||this.ref('BDEP');const entry=await tx.cashbookEntry.create({data:{periodId:period.id,branchId:account.branchId,type:'CASH_IN',amount,reference,description:data.narration||`Virtual account deposit - ${account.accountNumber}`}});return{branch:account.branch,virtualAccount:account,institution:account.institution,entry}})}
+  private async openPeriod(tx: any) {
+    const period = await tx.financialPeriod.findFirst({
+      where: { status: 'OPEN' },
+      orderBy: { startDate: 'desc' },
+    });
+    if (!period) throw new BadRequestException('No open financial period is available for this branch deposit');
+    return period;
+  }
+
+  async recordBranchDeposit(data: { accountNumber: string; amount: number; reference?: string; narration?: string }) {
+    const amount = this.amount(data.amount);
+    const accountNumber = String(data.accountNumber || '').replace(/\D/g, '');
+    const reference = String(data.reference || '').trim();
+    if (!/^\d{10}$/.test(accountNumber)) throw new BadRequestException('Branch virtual account number is invalid');
+    if (!reference) throw new BadRequestException('A verified bank/provider reference is required to record a branch deposit');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        `BRANCH-DVA-DEPOSIT:${accountNumber}:${reference}`,
+      );
+      const account = await tx.branchVirtualAccount.findUnique({
+        where: { accountNumber },
+        include: { branch: true, institution: true },
+      });
+      if (!account) throw new NotFoundException('Branch virtual account not found');
+      if (account.status !== 'ACTIVE') throw new BadRequestException('Branch virtual account is not active');
+
+      const duplicate = await tx.cashbookEntry.findFirst({
+        where: { branchId: account.branchId, reference },
+        select: { id: true },
+      });
+      if (duplicate) throw new BadRequestException('This branch deposit reference has already been recorded');
+
+      const period = await this.openPeriod(tx);
+      const entry = await tx.cashbookEntry.create({
+        data: {
+          periodId: period.id,
+          branchId: account.branchId,
+          type: 'CASH_IN',
+          amount,
+          reference,
+          description: data.narration || `Virtual account deposit - ${account.accountNumber}`,
+        },
+      });
+      return { branch: account.branch, virtualAccount: account, institution: account.institution, entry };
+    });
+  }
   async getBranchLedger(branchId:string){const branch=await this.prisma.branch.findUnique({where:{id:branchId}});if(!branch)throw new NotFoundException('Branch not found');const entries=await this.prisma.cashbookEntry.findMany({where:{branchId},orderBy:{entryDate:'desc'}});const totalIn=entries.filter(e=>e.type==='CASH_IN').reduce((s,e)=>s+e.amount,0);const totalOut=entries.filter(e=>e.type==='CASH_OUT').reduce((s,e)=>s+e.amount,0);return{branch,entries,totalIn,totalOut,balance:totalIn-totalOut}}
   async getCustomerWallet(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.customerWallet.upsert({where:{customerId},create:{customerId},update:{}})}
   async getCustomerTransactions(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.walletTransaction.findMany({where:{customerId},orderBy:{createdAt:'desc'}})}

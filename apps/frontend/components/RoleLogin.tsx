@@ -27,8 +27,8 @@ const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 const cards: Array<{ mode: LoginMode; title: string; subtitle: string; placeholder: string; tone: string }> = [
   { mode: "SUPER_ADMIN", title: "Super Admin", subtitle: "Full system control", placeholder: "11-digit User ID or Email Address", tone: "super" },
-  { mode: "ADMIN", title: "Admin", subtitle: "Administrative access", placeholder: "Email Address", tone: "admin" },
-  { mode: "STAFF", title: "Staff", subtitle: "Staff operations", placeholder: "Email Address", tone: "staff" },
+  { mode: "ADMIN", title: "Admin", subtitle: "Administrative access", placeholder: "11-digit User ID or Email Address", tone: "admin" },
+  { mode: "STAFF", title: "Staff", subtitle: "Staff operations", placeholder: "11-digit User ID or Email Address", tone: "staff" },
   { mode: "CUSTOMER", title: "Customer", subtitle: "Customer account access", placeholder: "11-digit User ID / Customer ID / Email / Phone", tone: "customer" },
 ];
 

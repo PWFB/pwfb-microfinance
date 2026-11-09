@@ -17,6 +17,11 @@ describe('WorkLogService', () => {
     expect(sessionKey).toMatch(/^PWFB-SESSION-\d{8}$/);
   });
 
+  it('uses the Lagos calendar date when a session crosses UTC midnight', () => {
+    const date = new Date('2026-11-09T23:30:00.000Z');
+    expect((service as any).localDateKey(date)).toBe('20261110');
+  });
+
   it('uses an explicitly configured session key so several tasks can be grouped', () => {
     process.env.PWFB_WORK_SESSION_KEY = 'PWFB-SESSION-RELEASE-2026-11';
     expect((service as any).sessionKey()).toBe('PWFB-SESSION-RELEASE-2026-11');

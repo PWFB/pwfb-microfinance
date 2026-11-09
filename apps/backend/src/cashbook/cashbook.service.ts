@@ -24,8 +24,9 @@ type CashbookStaffProfile = {
   branchId: string; regionId: string | null; divisionId: string | null; areaId: string | null;
 };
 type CashbookScope =
-  | { kind: 'all'; role: string; branchIds: string[]; canWrite: boolean }
-  | { kind: 'branches' | 'staff'; role: string; branchIds: string[]; staff: CashbookStaffProfile; canWrite: boolean };
+  | { kind: 'all'; role: string; branchIds: string[]; staff?: undefined; canWrite: boolean }
+  | { kind: 'branches'; role: string; branchIds: string[]; staff: CashbookStaffProfile; canWrite: boolean }
+  | { kind: 'staff'; role: string; branchIds: string[]; staff: CashbookStaffProfile; canWrite: boolean };
 
 const MONEY_FIELDS = [
   'previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','fixedOther','otherIncome',
@@ -73,14 +74,15 @@ export class CashbookService {
     });
     const now = new Date();
     const active = assignments.filter((a) => a.startsAt <= now && (!a.endsAt || a.endsAt > now));
-    const unique = (values) => [...new Set(values.filter((v) => Boolean(v)))];
+    const unique = (values: Array<string | null | undefined>): string[] =>
+      [...new Set(values.filter((value): value is string => Boolean(value)))];
     const branchIds = role === 'ADMIN'
       ? [staff.branchId]
       : unique([staff.branchId, ...active.map((a) => a.branchId)]);
     const areaIds = unique([staff.areaId, ...active.map((a) => a.areaId)]);
     const divisionIds = unique([staff.divisionId, ...active.map((a) => a.divisionId)]);
     const regionIds = unique([staff.regionId, ...active.map((a) => a.regionId)]);
-    const clauses = [];
+    const clauses: any[] = [];
 
     if (role === 'ADMIN' || role === 'BRANCH_MANAGER') {
       if (branchIds.length) clauses.push({ id: { in: branchIds } });
@@ -179,7 +181,7 @@ export class CashbookService {
   private async openingBalanceFor(branchId: string, staffId: string, entryDate: Date) {
     await this.ensureDailyTable();
     const startOfDay = new Date(Date.UTC(entryDate.getUTCFullYear(), entryDate.getUTCMonth(), entryDate.getUTCDate()));
-    const rows = await this.prisma.$queryRawUnsafe(
+    const rows: any[] = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT other_after_total FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id=$2 AND entry_date < $3 ORDER BY entry_date DESC, created_at DESC LIMIT 1',
       branchId, staffId, startOfDay,
     );
@@ -367,7 +369,7 @@ export class CashbookService {
 
   async dailyOne(id: string, actor: CashbookActor) {
     await this.ensureDailyTable();
-    const rows = await this.prisma.$queryRawUnsafe(
+    const rows: any[] = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT r.*, b.name AS branch_name, p.name AS period_name, s."staffId" AS staff_code, s."firstName" AS staff_first_name, s."lastName" AS staff_last_name, s.position AS staff_position FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id WHERE r.id=$1',
       id,
     );
@@ -381,8 +383,8 @@ export class CashbookService {
     const scope = await this.accessScope(actor);
     this.assertBranch(scope, branchId);
     await this.ensureDailyTable();
-    const clauses = [];
-    const params = [];
+    const clauses: string[] = [];
+    const params: any[] = [];
     if (periodId) { params.push(periodId); clauses.push('r.period_id=$' + params.length); }
     if (branchId) { params.push(branchId); clauses.push('r.branch_id=$' + params.length); }
     if (from) {
@@ -402,7 +404,7 @@ export class CashbookService {
       const slots = scope.branchIds.map(id => { params.push(id); return '$' + params.length; });
       clauses.push('r.branch_id IN (' + slots.join(',') + ')');
     }
-    const rows = await this.prisma.$queryRawUnsafe(
+    const rows: any[] = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT r.*, b.name AS branch_name, p.name AS period_name, s."staffId" AS staff_code, s."firstName" AS staff_first_name, s."lastName" AS staff_last_name, s.position AS staff_position FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id ' +
       (clauses.length ? 'WHERE ' + clauses.join(' AND ') : '') +
       ' ORDER BY r.entry_date DESC, r.created_at DESC',
@@ -413,7 +415,7 @@ export class CashbookService {
 
   async dailySummary(periodId: string | undefined, branchId: string | undefined, from: string | undefined, to: string | undefined, actor: CashbookActor) {
     const rows = await this.findDaily(periodId, branchId, from, to, actor);
-    const totals = { records: rows.length };
+    const totals: Record<string, number> = { records: rows.length };
     for (const field of ALL_FIELDS) totals[field] = rows.reduce((sum, row) => sum + Number(row[field] || 0), 0);
     totals.totalReceipts = rows.reduce((sum, row) => sum + Number(row.totalReceipts || 0), 0);
     totals.totalPayments = rows.reduce((sum, row) => sum + Number(row.totalPayments || 0), 0);

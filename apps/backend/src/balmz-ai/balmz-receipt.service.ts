@@ -87,7 +87,7 @@ export class BalmzReceiptService {
         reference: receiptReference,
         fileName: String(file.originalname || 'receipt').slice(0, 255),
         mimeType: file.mimetype,
-        file: file.buffer,
+        file: Uint8Array.from(file.buffer),
         status: result.status,
         confidence: result.confidence,
         extracted: result.extracted as any,

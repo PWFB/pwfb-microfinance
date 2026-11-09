@@ -65,6 +65,18 @@ describe('CashbookService daily posting safeguards', () => {
     expect(insertParameters).toContain(125);
   });
 
+
+  it('rejects a period that closes after the initial check but before a daily post', async () => {
+    const { service, tx } = setup([[]]);
+    tx.financialPeriod.findUnique.mockResolvedValue({
+      ...period,
+      status: 'CLOSED',
+    });
+
+    await expect(service.createDaily(input)).rejects.toThrow('Cannot add entries to a closed period');
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
   it('rejects a second daily register for the same branch, staff member and day', async () => {
     const { service, tx } = setup([
       [], // financial-period row lock
@@ -142,6 +154,27 @@ describe('CashbookService manual ledger entries', () => {
       'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
       'CASHBOOK-ENTRY:branch-1:BANK-REF-001',
     );
+    expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
+  });
+
+
+  it('rejects a period closed after the manual entry pre-check', async () => {
+    const { service, tx } = setup();
+    tx.financialPeriod.findUnique.mockResolvedValue({
+      id: 'period-1',
+      status: 'CLOSED',
+      startDate: new Date('2026-11-01T00:00:00.000Z'),
+      endDate: new Date('2026-11-30T23:59:59.999Z'),
+    });
+
+    await expect(service.create({
+      periodId: 'period-1',
+      branchId: 'branch-1',
+      type: 'CASH_IN',
+      amount: 50,
+      reference: 'BANK-REF-CLOSED',
+      entryDate: '2026-11-09T12:00:00.000Z',
+    })).rejects.toThrow('Cannot add cashbook entries to a closed period');
     expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
   });
 

@@ -208,20 +208,75 @@ INSERT INTO "PWFBLoanRate" ("id","loanType","interestRate") VALUES
 ON CONFLICT ("loanType") DO NOTHING;
 
 
--- Branch closing was previously created lazily by BranchClosingService.
-CREATE TABLE IF NOT EXISTS "BranchClosing" (
-  "id" TEXT PRIMARY KEY,
-  "branchId" TEXT NOT NULL,
-  "periodId" TEXT NOT NULL,
-  "closingDate" DATE NOT NULL,
-  "status" TEXT NOT NULL DEFAULT 'SUBMITTED',
-  "submittedBy" TEXT,
-  "submittedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  "approvedBy" TEXT,
-  "approvedAt" TIMESTAMPTZ,
-  "checklist" JSONB NOT NULL DEFAULT '{}'::JSONB,
-  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT "BranchClosing_branchId_periodId_closingDate_key"
-    UNIQUE ("branchId", "periodId", "closingDate")
-);
+-- Add referential integrity to tables that may already exist from the old
+-- runtime-created versions. NOT VALID preserves existing legacy rows while
+-- enforcing the relationships for all new and changed rows.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CustomerAtmCard_customerId_fkey' AND conrelid = '"CustomerAtmCard"'::regclass) THEN
+    ALTER TABLE "CustomerAtmCard"
+      ADD CONSTRAINT "CustomerAtmCard_customerId_fkey"
+      FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE NOT VALID;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PaystackCardAttemptGuard_cardId_fkey' AND conrelid = '"PaystackCardAttemptGuard"'::regclass) THEN
+    ALTER TABLE "PaystackCardAttemptGuard"
+      ADD CONSTRAINT "PaystackCardAttemptGuard_cardId_fkey"
+      FOREIGN KEY ("cardId") REFERENCES "CustomerAtmCard"("id") ON DELETE CASCADE NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PaystackCardAttemptGuard_customerId_fkey' AND conrelid = '"PaystackCardAttemptGuard"'::regclass) THEN
+    ALTER TABLE "PaystackCardAttemptGuard"
+      ADD CONSTRAINT "PaystackCardAttemptGuard_customerId_fkey"
+      FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE CASCADE NOT VALID;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SalaryDisbursement_staffId_fkey' AND conrelid = '"SalaryDisbursement"'::regclass) THEN
+    ALTER TABLE "SalaryDisbursement"
+      ADD CONSTRAINT "SalaryDisbursement_staffId_fkey"
+      FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE RESTRICT NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SalaryDisbursement_payrollId_fkey' AND conrelid = '"SalaryDisbursement"'::regclass) THEN
+    ALTER TABLE "SalaryDisbursement"
+      ADD CONSTRAINT "SalaryDisbursement_payrollId_fkey"
+      FOREIGN KEY ("payrollId") REFERENCES "Payroll"("id") ON DELETE SET NULL NOT VALID;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PasskeyChallenge_userId_fkey' AND conrelid = '"PasskeyChallenge"'::regclass) THEN
+    ALTER TABLE "PasskeyChallenge"
+      ADD CONSTRAINT "PasskeyChallenge_userId_fkey"
+      FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE NOT VALID;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PWFBRepaymentAllocation_repaymentId_fkey' AND conrelid = '"PWFBRepaymentAllocation"'::regclass) THEN
+    ALTER TABLE "PWFBRepaymentAllocation"
+      ADD CONSTRAINT "PWFBRepaymentAllocation_repaymentId_fkey"
+      FOREIGN KEY ("repaymentId") REFERENCES "Repayment"("id") ON DELETE CASCADE NOT VALID;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'PWFBLoanMeta_loanId_fkey' AND conrelid = '"PWFBLoanMeta"'::regclass) THEN
+    ALTER TABLE "PWFBLoanMeta"
+      ADD CONSTRAINT "PWFBLoanMeta_loanId_fkey"
+      FOREIGN KEY ("loanId") REFERENCES "Loan"("id") ON DELETE CASCADE NOT VALID;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'BranchClosing_branchId_fkey' AND conrelid = '"BranchClosing"'::regclass) THEN
+    ALTER TABLE "BranchClosing"
+      ADD CONSTRAINT "BranchClosing_branchId_fkey"
+      FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE RESTRICT NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'BranchClosing_periodId_fkey' AND conrelid = '"BranchClosing"'::regclass) THEN
+    ALTER TABLE "BranchClosing"
+      ADD CONSTRAINT "BranchClosing_periodId_fkey"
+      FOREIGN KEY ("periodId") REFERENCES "FinancialPeriod"("id") ON DELETE RESTRICT NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'BranchClosing_submittedBy_fkey' AND conrelid = '"BranchClosing"'::regclass) THEN
+    ALTER TABLE "BranchClosing"
+      ADD CONSTRAINT "BranchClosing_submittedBy_fkey"
+      FOREIGN KEY ("submittedBy") REFERENCES "User"("id") ON DELETE SET NULL NOT VALID;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'BranchClosing_approvedBy_fkey' AND conrelid = '"BranchClosing"'::regclass) THEN
+    ALTER TABLE "BranchClosing"
+      ADD CONSTRAINT "BranchClosing_approvedBy_fkey"
+      FOREIGN KEY ("approvedBy") REFERENCES "User"("id") ON DELETE SET NULL NOT VALID;
+  END IF;
+END $$;

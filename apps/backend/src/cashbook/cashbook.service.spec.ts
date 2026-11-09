@@ -8,7 +8,7 @@ describe('CashbookService access and daily cash', () => {
 
   const profile = {
     id: 'staff-internal-1', staffId: 'PWFB-001', firstName: 'Ada', lastName: 'Okafor',
-    position: 'Credit Officer', branchId: 'branch-1', regionId: null, divisionId: null, areaId: null,
+    position: 'Credit Officer', branchId: 'branch-1', regionId: null, divisionId: null, areaId: null, employmentStatus: 'ACTIVE',
   };
   const actor = { id: 'user-1', role: 'CREDIT_OFFICER', staffId: profile.id };
 

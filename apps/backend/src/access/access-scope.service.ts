@@ -8,11 +8,28 @@ export class AccessScopeService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getScope(user: AccessUser) {
-    const role = String(user?.role || '');
-    if (!user?.staffId) return { role, staffId: null, branchId: null, areaId: null, divisionId: null, regionId: null, global: role === 'SUPER_ADMIN' || role === 'ADMIN' };
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, user.staffId);
+    const role = String(user?.role || '').toUpperCase();
+    if (role === 'SUPER_ADMIN') return { role, staffId: user?.staffId ?? null, branchId: null, areaId: null, divisionId: null, regionId: null, global: true };
+    const userId = String(user?.id || '').trim();
+    const staffId = String(user?.staffId || '').trim();
+    const rows = (staffId || userId)
+      ? await this.prisma.$queryRawUnsafe<any[]>(
+          `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE ($1 <> '' AND "id" = $1) OR ($2 <> '' AND "userId" = $2) LIMIT 1`,
+          staffId, userId,
+        )
+      : [];
     const staff = rows[0] || {};
-    return { role, staffId: user.staffId, branchId: staff.branchId ?? null, areaId: staff.areaId ?? null, divisionId: staff.divisionId ?? null, regionId: staff.regionId ?? null, global: role === 'SUPER_ADMIN' || role === 'ADMIN' };
+    return {
+      role,
+      staffId: staff.id ?? null,
+      branchId: staff.branchId ?? null,
+      areaId: staff.areaId ?? null,
+      divisionId: staff.divisionId ?? null,
+      regionId: staff.regionId ?? null,
+      // Only Super Admin is organization-wide. An Admin without an assigned
+      // organizational record is deliberately not granted global access.
+      global: false,
+    };
   }
 
   private async assertOrg(user: AccessUser, target: any) {
@@ -23,6 +40,10 @@ export class AccessScopeService {
     if (scope.role === 'REGIONAL_MANAGER' && same(scope.regionId, target.regionId)) return true;
     if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;
     if (scope.role === 'AREA_MANAGER' && same(scope.areaId, target.areaId)) return true;
+    if (scope.role === 'CREDIT_OFFICER') {
+      if (same(scope.staffId, target.assignedStaffId)) return true;
+      throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
+    }
     if (same(scope.branchId, target.branchId)) return true;
     throw new ForbiddenException('Access denied: outside your organizational scope');
   }
@@ -37,9 +58,9 @@ export class AccessScopeService {
     if (resource === 'staff') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Staff')})`, ids);
     } else if (resource === 'customers') {
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id" FROM "Customer" c LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE c."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id" FROM "Customer" c LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE c."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'loans') {
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id" FROM "Loan" l JOIN "Customer" c ON c."id"=l."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE l."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id" FROM "Loan" l JOIN "Customer" c ON c."id"=l."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE l."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'savings') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE s."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
     } else if (resource === 'collections') {
@@ -70,10 +91,10 @@ export class AccessScopeService {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`, targetStaffId); return this.assertOrg(user, rows[0]);
   }
   async assertCustomer(user: AccessUser, customerId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id", c."branchId", b."areaId", b."divisionId", b."regionId" FROM "Customer" c LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE c."id" = $1 LIMIT 1`, customerId); return this.assertOrg(user, rows[0]);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Customer" c LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE c."id" = $1 LIMIT 1`, customerId); return this.assertOrg(user, rows[0]);
   }
   async assertLoan(user: AccessUser, loanId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id", c."branchId", b."areaId", b."divisionId", b."regionId" FROM "Loan" l JOIN "Customer" c ON c."id" = l."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE l."id" = $1 LIMIT 1`, loanId); return this.assertOrg(user, rows[0]);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Loan" l JOIN "Customer" c ON c."id" = l."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE l."id" = $1 LIMIT 1`, loanId); return this.assertOrg(user, rows[0]);
   }
   async assertSavings(user: AccessUser, savingsId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id", c."branchId", b."areaId", b."divisionId", b."regionId" FROM "Savings" s JOIN "Customer" c ON c."id" = s."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE s."id" = $1 LIMIT 1`, savingsId); return this.assertOrg(user, rows[0]);

@@ -34,7 +34,7 @@ describe('TransactionsService', () => {
     await expect(service.create(dto as any, user)).resolves.toBe(result);
     expect(accessScope.assertCustomer).toHaveBeenCalledWith(user, 'customer-1');
     expect(prisma.transaction.create).toHaveBeenCalledWith({
-      data: dto,
+      data: { ...dto, reference: expect.stringMatching(/^PWFB-TXN-/) },
       include: { customer: true },
     });
   });

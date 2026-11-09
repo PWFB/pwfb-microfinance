@@ -1,5 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 import { AccessScopeService } from './access-scope.service';
+import { AccessScopeInterceptor } from './access-scope.interceptor';
+import { lastValueFrom, of } from 'rxjs';
 
 describe('AccessScopeService', () => {
   let query: jest.Mock;
@@ -69,4 +71,30 @@ describe('AccessScopeService', () => {
     })).rejects.toThrow('Staff identity links do not match');
   });
 
+});
+describe('AccessScopeInterceptor async response filtering', () => {
+  it('awaits the access-scope database filter before emitting a list response', async () => {
+    const filterList = jest.fn().mockResolvedValue([{ id: 'customer-own' }]);
+    const interceptor = new AccessScopeInterceptor({ filterList } as any);
+    const user = { id: 'officer-user', role: 'CREDIT_OFFICER' };
+    const request = { user, originalUrl: '/customers', params: {}, query: {}, body: {} };
+    const context = {
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as any;
+    const handler = {
+      handle: () => of([
+        { id: 'customer-own' },
+        { id: 'customer-other' },
+      ]),
+    } as any;
+
+    const response = await lastValueFrom(interceptor.intercept(context, handler));
+
+    expect(filterList).toHaveBeenCalledWith(user, 'customers', [
+      { id: 'customer-own' },
+      { id: 'customer-other' },
+    ]);
+    expect(response).toEqual([{ id: 'customer-own' }]);
+    expect(response).not.toBeInstanceOf(Promise);
+  });
 });

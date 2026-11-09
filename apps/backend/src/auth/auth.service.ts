@@ -102,7 +102,7 @@ export class AuthService {
     const email = identifier.toLowerCase();
 
     if (mode === 'CUSTOMER') {
-      if (/^\\d{11}$/.test(identifier)) user = await this.prisma.user.findUnique({ where: { publicUserId: identifier } });
+      if (/^\d{11}$/.test(identifier)) user = await this.prisma.user.findUnique({ where: { publicUserId: identifier } });
       const customer = user ? null : await this.prisma.customer.findFirst({
         where: { OR: [{ id: identifier }, { email }, { phone: identifier }] },
         include: { user: true },

@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { createFinancialReference } from '../common/financial-reference';
 
 export type CashbookDailyInput = {
   periodId: string; branchId: string; staffId?: string; entryDate?: string; description?: string; narration?: string; referenceNo?: string;
@@ -288,7 +289,7 @@ export class CashbookService {
     const amount = this.number(data.amount);
     if (amount <= 0) throw new BadRequestException('Amount must be greater than zero');
     return this.prisma.cashbookEntry.create({
-      data: { periodId: data.periodId, branchId: data.branchId, type: data.type, amount, reference: data.reference, description: data.description, entryDate: data.entryDate ? new Date(data.entryDate) : new Date() },
+      data: { periodId: data.periodId, branchId: data.branchId, type: data.type, amount, reference: data.reference?.trim() || createFinancialReference('PWFB-CB'), description: data.description, entryDate: data.entryDate ? new Date(data.entryDate) : new Date() },
       include: { period: true, branch: true },
     });
   }
@@ -360,7 +361,7 @@ export class CashbookService {
     const columns = ALL_FIELDS.map(snake);
     const params = [
       id, data.periodId, identity.branchId, identity.staffId, selectedDate, data.description ?? null,
-      ...ALL_FIELDS.map(field => values[field]), data.narration ?? null, data.referenceNo ?? null,
+      ...ALL_FIELDS.map(field => values[field]), data.narration ?? null, data.referenceNo?.trim() || createFinancialReference('PWFB-DAILY'),
     ];
     const placeholders = params.map((_, index) => '$' + (index + 1));
     await this.prisma.$executeRawUnsafe(

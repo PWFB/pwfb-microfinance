@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
@@ -175,13 +175,81 @@ export class StaffRepository {
 
   createAssignment(staffId: string, data: { role: any; regionId?: string; divisionId?: string; areaId?: string; branchId?: string; notes?: string }) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.staffAssignment.updateMany({ where: { staffId, active: true }, data: { active: false, endsAt: new Date() } });
+      const role = String(data.role || '').toUpperCase();
+      const branchRoles = ['ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
+      let target: any = {
+        regionId: null,
+        divisionId: null,
+        areaId: null,
+        branchId: null,
+      };
+
+      if (branchRoles.includes(role)) {
+        if (!data.branchId) throw new BadRequestException(`${role} must be assigned to a branch`);
+        const branch = await tx.branch.findUnique({
+          where: { id: data.branchId },
+          select: { id: true, regionId: true, divisionId: true, areaId: true },
+        });
+        if (!branch) throw new NotFoundException('Assigned branch not found');
+        target = { ...branch };
+      } else if (role === 'AREA_MANAGER') {
+        if (!data.areaId) throw new BadRequestException('AREA_MANAGER must be assigned to an area');
+        const area = await tx.area.findUnique({
+          where: { id: data.areaId },
+          select: { id: true, regionId: true, divisionId: true },
+        });
+        if (!area) throw new NotFoundException('Assigned area not found');
+        target = { regionId: area.regionId, divisionId: area.divisionId, areaId: area.id, branchId: null };
+      } else if (role === 'DIVISIONAL_MANAGER') {
+        if (!data.divisionId) throw new BadRequestException('DIVISIONAL_MANAGER must be assigned to a division');
+        const division = await tx.division.findUnique({
+          where: { id: data.divisionId },
+          select: { id: true, regionId: true },
+        });
+        if (!division) throw new NotFoundException('Assigned division not found');
+        target = { regionId: division.regionId, divisionId: division.id, areaId: null, branchId: null };
+      } else if (role === 'REGIONAL_MANAGER') {
+        if (!data.regionId) throw new BadRequestException('REGIONAL_MANAGER must be assigned to a region');
+        const region = await tx.region.findUnique({ where: { id: data.regionId }, select: { id: true } });
+        if (!region) throw new NotFoundException('Assigned region not found');
+        target = { regionId: region.id, divisionId: null, areaId: null, branchId: null };
+      } else if (['AUDITOR', 'MONITORING_TEAM'].includes(role)) {
+        if (data.branchId) {
+          const branch = await tx.branch.findUnique({ where: { id: data.branchId }, select: { id: true, regionId: true, divisionId: true, areaId: true } });
+          if (!branch) throw new NotFoundException('Assigned branch not found');
+          target = { ...branch };
+        } else if (data.areaId) {
+          const area = await tx.area.findUnique({ where: { id: data.areaId }, select: { id: true, regionId: true, divisionId: true } });
+          if (!area) throw new NotFoundException('Assigned area not found');
+          target = { regionId: area.regionId, divisionId: area.divisionId, areaId: area.id, branchId: null };
+        } else if (data.divisionId) {
+          const division = await tx.division.findUnique({ where: { id: data.divisionId }, select: { id: true, regionId: true } });
+          if (!division) throw new NotFoundException('Assigned division not found');
+          target = { regionId: division.regionId, divisionId: division.id, areaId: null, branchId: null };
+        } else if (data.regionId) {
+          const region = await tx.region.findUnique({ where: { id: data.regionId }, select: { id: true } });
+          if (!region) throw new NotFoundException('Assigned region not found');
+          target = { regionId: region.id, divisionId: null, areaId: null, branchId: null };
+        }
+      } else {
+        throw new BadRequestException('This role cannot be assigned through the staff assignment workflow');
+      }
+
+      await tx.staffAssignment.updateMany({
+        where: { staffId, active: true },
+        data: { active: false, endsAt: new Date() },
+      });
       const assignment = await tx.staffAssignment.create({
-        data: { staffId, role: data.role, regionId: data.regionId, divisionId: data.divisionId, areaId: data.areaId, branchId: data.branchId, notes: data.notes },
+        data: {
+          staffId,
+          role: role as any,
+          ...target,
+          notes: data.notes,
+        },
         include: { region: true, division: true, area: true, branch: true },
       });
-      await tx.staff.update({ where: { id: staffId }, data: { regionId: data.regionId, divisionId: data.divisionId, areaId: data.areaId, ...(data.branchId ? { branchId: data.branchId } : {}) } });
-      await tx.user.updateMany({ where: { staffId }, data: { role: data.role } });
+      await tx.staff.update({ where: { id: staffId }, data: target });
+      await tx.user.updateMany({ where: { staffId }, data: { role: role as any } });
       return assignment;
     });
   }

@@ -88,7 +88,8 @@ describe('AccessScopeInterceptor async response filtering', () => {
       ]),
     } as any;
 
-    const response = await lastValueFrom(interceptor.intercept(context, handler));
+    const response$ = await interceptor.intercept(context, handler);
+    const response = await lastValueFrom(response$ as any);
 
     expect(filterList).toHaveBeenCalledWith(user, 'customers', [
       { id: 'customer-own' },

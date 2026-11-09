@@ -14,6 +14,10 @@ type ProfileRecord = {
   area?: { name?: string }; assignedStaff?: { staffId?: string; firstName?: string; lastName?: string };
   clientGroup?: { name?: string }; groupId?: string; branchId?: string; address?: string;
   dateOfBirth?: string; wallet?: { balance?: number; status?: string };
+  identityVerification?: {
+    bvn?: string | null; bvnStatus?: string; bvnProvider?: string;
+    nin?: string | null; ninStatus?: string; ninProvider?: string;
+  } | null;
 };
 
 const value = (v: unknown) => v === null || v === undefined || v === "" ? "Not provided" : String(v);
@@ -25,6 +29,11 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState("");
+  const [identityType, setIdentityType] = useState<"BVN" | "NIN">("BVN");
+  const [identityValue, setIdentityValue] = useState("");
+  const [identityConsent, setIdentityConsent] = useState(false);
+  const [identityBusy, setIdentityBusy] = useState(false);
+  const [identityMessage, setIdentityMessage] = useState("");
 
   const role = String(user?.role || "").toUpperCase();
   const isCustomer = role === "CUSTOMER";
@@ -49,6 +58,38 @@ export default function ProfilePage() {
     })();
     return () => { active = false; };
   }, [loading, user, isCustomer, router]);
+
+  async function verifyMyIdentity() {
+    const normalized = identityValue.replace(/\D/g, "");
+    if (!/^\d{11}$/.test(normalized)) {
+      setIdentityMessage(`${identityType} must contain exactly 11 digits.`);
+      return;
+    }
+    if (!identityConsent) {
+      setIdentityMessage("Please confirm your consent before submitting your identity number.");
+      return;
+    }
+    setIdentityBusy(true);
+    setIdentityMessage("");
+    try {
+      const result = await apiRequest(`/customers/me/identity/verify/${identityType}`, {
+        method: "POST",
+        body: JSON.stringify({ value: normalized, consentConfirmed: true }),
+      });
+      setIdentityValue("");
+      setIdentityConsent(false);
+      setIdentityMessage(result?.status === "VERIFIED"
+        ? `${identityType} verification succeeded. Your profile stores a masked number only.`
+        : `${identityType} was checked but did not pass the customer record match. Status: ${result?.status || "NOT_VERIFIED"}. Please contact LAB Microfinance to review your legal profile details.`);
+      const refreshed = await apiRequest("/customers/me");
+      const record = refreshed?.data ?? refreshed?.profile ?? refreshed?.customer ?? refreshed;
+      setProfile(record);
+    } catch (error) {
+      setIdentityMessage(error instanceof Error ? error.message : `Unable to verify ${identityType}.`);
+    } finally {
+      setIdentityBusy(false);
+    }
+  }
 
   const rows: [string, string][] = isCustomer ? [
     ["Customer ID", value(profile?.id)],
@@ -96,6 +137,42 @@ export default function ProfilePage() {
           </div>
         </header>
         {profileError && <div role="status" className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Some linked profile details could not be loaded: {profileError}. Basic account details are still shown where available.</div>}
+        {isCustomer && (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-900">Identity verification</h2>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Verify your BVN or NIN against the configured identity provider. Your clear consent is required. LAB Microfinance stores only a masked number and the verification outcome, not provider photos.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-100 p-3">
+                <p className="text-sm font-semibold text-slate-700">BVN</p>
+                <p className="mt-1 text-sm text-slate-900">{value(profile?.identityVerification?.bvn)}</p>
+                <p className="mt-1 text-xs text-slate-600">Status: {profile?.identityVerification?.bvnStatus || "NOT_VERIFIED"}</p>
+                {profile?.identityVerification?.bvnProvider && <p className="text-xs text-slate-500">Provider: {profile.identityVerification.bvnProvider}</p>}
+              </div>
+              <div className="rounded-xl border border-slate-100 p-3">
+                <p className="text-sm font-semibold text-slate-700">NIN</p>
+                <p className="mt-1 text-sm text-slate-900">{value(profile?.identityVerification?.nin)}</p>
+                <p className="mt-1 text-xs text-slate-600">Status: {profile?.identityVerification?.ninStatus || "NOT_VERIFIED"}</p>
+                {profile?.identityVerification?.ninProvider && <p className="text-xs text-slate-500">Provider: {profile.identityVerification.ninProvider}</p>}
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button type="button" onClick={() => { setIdentityType("BVN"); setIdentityValue(""); }} disabled={identityBusy || identityType === "BVN"} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">Verify BVN</button>
+              <button type="button" onClick={() => { setIdentityType("NIN"); setIdentityValue(""); }} disabled={identityBusy || identityType === "NIN"} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">Verify NIN</button>
+            </div>
+            <label className="mt-3 grid max-w-md gap-2 text-sm font-medium text-slate-700">
+              {identityType}
+              <input type="password" autoComplete="off" inputMode="numeric" maxLength={11} value={identityValue} onChange={(event) => setIdentityValue(event.target.value.replace(/\D/g, "").slice(0, 11))} placeholder={`Enter your 11-digit ${identityType}`} className="rounded-lg border border-slate-300 px-3 py-3 text-base" />
+            </label>
+            <label className="mt-3 flex items-start gap-2 text-sm leading-6 text-slate-700">
+              <input type="checkbox" checked={identityConsent} onChange={(event) => setIdentityConsent(event.target.checked)} className="mt-1" />
+              <span>I consent to LAB Microfinance submitting this {identityType} to its configured identity-verification provider for checking against my legal name and date of birth.</span>
+            </label>
+            <button type="button" onClick={verifyMyIdentity} disabled={identityBusy || !identityConsent} className="mt-3 rounded-lg bg-emerald-800 px-4 py-3 text-sm font-bold text-white disabled:opacity-50">
+              {identityBusy ? "Verifying..." : `Verify ${identityType}`}
+            </button>
+            {identityMessage && <p role="status" className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{identityMessage}</p>}
+          </section>
+        )}
         <section className="mt-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
           {rows.map(([label, item]) => (
             <div key={label} className="grid gap-2 border-b border-slate-100 p-5 last:border-b-0 sm:grid-cols-[180px_1fr] sm:gap-5 sm:p-6">

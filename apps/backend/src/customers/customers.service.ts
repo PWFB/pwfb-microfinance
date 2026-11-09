@@ -45,7 +45,7 @@ export class CustomersService {
 
   async findMe(authUser: any) {
     if (!authUser?.id) throw new UnauthorizedException('Authentication required');
-    const user = await this.prisma.user.findUnique({ where: { id: authUser.id }, include: { customer: { include: { savings: true, loans: true, transactions: true, branch: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } } } });
+    const user = await this.prisma.user.findUnique({ where: { id: authUser.id }, include: { customer: { include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: { select: { staffId: true, firstName: true, lastName: true } }, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true } } } });
     if (!user?.customer) throw new NotFoundException('Customer profile not found'); return { ...user.customer, identityVerification: await this.getIdentityVerification(user.customer.id) };
   }
 

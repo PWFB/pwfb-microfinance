@@ -40,10 +40,12 @@ export class AccessScopeService {
     if (scope.role === 'REGIONAL_MANAGER' && same(scope.regionId, target.regionId)) return true;
     if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;
     if (scope.role === 'AREA_MANAGER' && same(scope.areaId, target.areaId)) return true;
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (scope.role === 'CREDIT_OFFICER' && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
       if (same(scope.staffId, target.assignedStaffId)) return true;
       throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
     }
+    // Credit Officers still need access to their own branch metadata; record
+    // ownership is checked only for Customer/Loan targets that carry assignedStaffId.
     if (same(scope.branchId, target.branchId)) return true;
     throw new ForbiddenException('Access denied: outside your organizational scope');
   }

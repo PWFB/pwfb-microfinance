@@ -35,6 +35,21 @@ export class CustomersController {
   @Roles('CUSTOMER')
   me(@Req() req: any) { return this.customersService.findMe(req.user); }
 
+  @Post('me/identity/verify/:type')
+  @Roles('CUSTOMER')
+  verifyMyIdentity(
+    @Param('type') type: string,
+    @Body() body: { value: string; consentConfirmed?: boolean },
+    @Req() req: any,
+  ) {
+    return this.customersService.verifyMyIdentifier(
+      type,
+      body?.value,
+      body?.consentConfirmed === true,
+      req.user,
+    );
+  }
+
   @Get()
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'CREDIT_OFFICER', 'LOAN_OFFICER', 'TELLER', 'AUDITOR', 'STAFF')
   findAll(@Req() req: any, @Query('search') search?: string) { return this.customersService.findAll(req.user, search); }
@@ -65,6 +80,23 @@ export class CustomersController {
   @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CUSTOMER_SERVICE', 'STAFF')
   verifyIdentity(@Param('id') id: string, @Body() body: { bvn: string; bankCode: string; accountNumber: string; consentConfirmed?: boolean }, @Req() req: any) {
     return this.customersService.verifyIdentity(id, body, req.user);
+  }
+
+  @Post(':id/identity/verify/:type')
+  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'CUSTOMER_SERVICE', 'STAFF')
+  verifyCustomerIdentifier(
+    @Param('id') id: string,
+    @Param('type') type: string,
+    @Body() body: { value: string; consentConfirmed?: boolean },
+    @Req() req: any,
+  ) {
+    return this.customersService.verifyCustomerIdentifier(
+      id,
+      type,
+      body?.value,
+      body?.consentConfirmed === true,
+      req.user,
+    );
   }
 
   @Delete(':id')

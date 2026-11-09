@@ -65,6 +65,19 @@ export class AccessScopeService {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE s."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
     } else if (resource === 'collections') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id"=dc."branchId" WHERE dc."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`, ids);
+    } else if (resource === 'cashbook_daily') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT r.id FROM cashbook_daily_records r JOIN "Branch" b ON b.id = r.branch_id
+         WHERE r.id = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})
+         ${scope.role === 'CREDIT_OFFICER' ? `AND r.staff_id = '${this.escape(scope.staffId)}'` : ''}`,
+        ids,
+      );
+    } else if (resource === 'cashbook_entries') {
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT e."id" FROM "CashbookEntry" e JOIN "Branch" b ON b."id" = e."branchId"
+         WHERE e."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})`,
+        ids,
+      );
     } else if (resource === 'branches') {
       const condition = scope.role === 'REGIONAL_MANAGER' ? `"regionId"='${this.escape(scope.regionId)}'` : scope.role === 'DIVISIONAL_MANAGER' ? `"divisionId"='${this.escape(scope.divisionId)}'` : scope.role === 'AREA_MANAGER' ? `"areaId"='${this.escape(scope.areaId)}'` : `"id"='${this.escape(scope.branchId)}'`;
       allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND ${condition}`, ids);

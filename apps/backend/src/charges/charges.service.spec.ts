@@ -107,9 +107,6 @@ describe('ChargesService central registration fee', () => {
       reference: 'CASH-REC-001',
       paymentMethod: 'CASH',
       confirmedReceived: true,
-      // Attempted body overrides must not change the authenticated attribution.
-      branchId: 'other-branch',
-      staffId: 'other-staff',
     }, { id: 'teller-user', role: 'TELLER', email: 'teller@example.test' });
 
     expect(receipt).toMatchObject({

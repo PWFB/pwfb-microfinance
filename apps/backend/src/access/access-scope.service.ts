@@ -48,6 +48,24 @@ export class AccessScopeService {
     if (staffId && staff.id && staff.id !== staffId) {
       throw new ForbiddenException('Staff identity links do not match. Contact Super Admin to reconcile the login before processing financial records.');
     }
+    const assignments = staff.id
+      ? await this.prisma.staffAssignment.findMany({
+          where: {
+            staffId: staff.id,
+            role: role as any,
+            active: true,
+            startsAt: { lte: new Date() },
+            OR: [{ endsAt: null }, { endsAt: { gt: new Date() } }],
+          },
+          select: { branchId: true, areaId: true, divisionId: true, regionId: true },
+        })
+      : [];
+    const unique = (values: Array<string | null | undefined>) =>
+      [...new Set(values.filter((value): value is string => Boolean(value)))];
+    const branchIds = unique([staff.branchId, ...assignments.map((a: any) => a.branchId)]);
+    const areaIds = unique([staff.areaId, ...assignments.map((a: any) => a.areaId)]);
+    const divisionIds = unique([staff.divisionId, ...assignments.map((a: any) => a.divisionId)]);
+    const regionIds = unique([staff.regionId, ...assignments.map((a: any) => a.regionId)]);
     return {
       role,
       staffId: staff.id ?? null,
@@ -55,7 +73,8 @@ export class AccessScopeService {
       areaId: staff.areaId ?? null,
       divisionId: staff.divisionId ?? null,
       regionId: staff.regionId ?? null,
-      // Only Super Admin is organization-wide. Managers use their active role assignment.
+      branchIds, areaIds, divisionIds, regionIds,
+      // Only Super Admin is organization-wide. Managers use all active role assignments.
       global: false,
     };
   }
@@ -63,25 +82,17 @@ export class AccessScopeService {
   async getScopedBranchIds(user: AccessUser): Promise<string[] | null> {
     const scope = await this.getScope(user);
     if (scope.global) return null;
-    let rows: any[] = [];
-    if (scope.role === 'REGIONAL_MANAGER' && scope.regionId) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id" FROM "Branch" WHERE "regionId" = $1 ORDER BY "name" ASC`,
-        scope.regionId,
-      );
-    } else if (scope.role === 'DIVISIONAL_MANAGER' && scope.divisionId) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id" FROM "Branch" WHERE "divisionId" = $1 ORDER BY "name" ASC`,
-        scope.divisionId,
-      );
-    } else if (scope.role === 'AREA_MANAGER' && scope.areaId) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id" FROM "Branch" WHERE "areaId" = $1 ORDER BY "name" ASC`,
-        scope.areaId,
-      );
-    } else if (scope.branchId) {
-      rows = [{ id: scope.branchId }];
-    }
+    const clauses: any[] = [];
+    if (scope.branchIds?.length) clauses.push({ id: { in: scope.branchIds } });
+    if (scope.areaIds?.length) clauses.push({ areaId: { in: scope.areaIds } });
+    if (scope.divisionIds?.length) clauses.push({ divisionId: { in: scope.divisionIds } });
+    if (scope.regionIds?.length) clauses.push({ regionId: { in: scope.regionIds } });
+    if (!clauses.length) return [];
+    const rows = await this.prisma.branch.findMany({
+      where: { OR: clauses },
+      select: { id: true },
+      orderBy: { name: 'asc' },
+    });
     return rows.map((row) => String(row.id)).filter(Boolean);
   }
 
@@ -90,9 +101,10 @@ export class AccessScopeService {
     if (scope.global) return true;
     if (!target) throw new ForbiddenException('Access denied: record not found');
     const same = (a: unknown, b: unknown) => Boolean(a && b && String(a) === String(b));
-    if (scope.role === 'REGIONAL_MANAGER' && same(scope.regionId, target.regionId)) return true;
-    if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;
-    if (scope.role === 'AREA_MANAGER' && same(scope.areaId, target.areaId)) return true;
+    if (target.branchId && (scope.branchIds || []).some((id: string) => same(id, target.branchId))) return true;
+    if (target.regionId && (scope.regionIds || []).some((id: string) => same(id, target.regionId))) return true;
+    if (target.divisionId && (scope.divisionIds || []).some((id: string) => same(id, target.divisionId))) return true;
+    if (target.areaId && (scope.areaIds || []).some((id: string) => same(id, target.areaId))) return true;
     if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
       if (same(scope.staffId, target.assignedStaffId)) return true;
       throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
@@ -163,19 +175,29 @@ export class AccessScopeService {
         ids,
       );
     } else if (resource === 'branches') {
-      const condition = scope.role === 'REGIONAL_MANAGER' ? `"regionId"='${this.escape(scope.regionId)}'` : scope.role === 'DIVISIONAL_MANAGER' ? `"divisionId"='${this.escape(scope.divisionId)}'` : scope.role === 'AREA_MANAGER' ? `"areaId"='${this.escape(scope.areaId)}'` : `"id"='${this.escape(scope.branchId)}'`;
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND ${condition}`, ids);
+      const condition = this.orgCondition(scope, 'Branch');
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id" FROM "Branch" WHERE "id" = ANY($1::text[]) AND ${condition}`,
+        ids,
+      );
     } else return rows;
     const allowedIds = new Set(allowed.map((row) => String(row.id)));
     return rows.filter((row) => allowedIds.has(String(row?.id)));
   }
 
   private orgCondition(scope: any, alias: string) {
-    if (scope.role === 'REGIONAL_MANAGER') return `"${alias}"."regionId" = '${this.escape(scope.regionId)}'`;
-    if (scope.role === 'DIVISIONAL_MANAGER') return `"${alias}"."divisionId" = '${this.escape(scope.divisionId)}'`;
-    if (scope.role === 'AREA_MANAGER') return `"${alias}"."areaId" = '${this.escape(scope.areaId)}'`;
-    if (alias === 'b') return `"${alias}"."id" = '${this.escape(scope.branchId)}'`;
-    return `"${alias}"."branchId" = '${this.escape(scope.branchId)}'`;
+    const arraySql = (values: string[]) =>
+      `ARRAY[${values.map((value) => `'${this.escape(value)}'`).join(',')}]::text[]`;
+    if (scope.regionIds?.length) return `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
+    if (scope.divisionIds?.length) return `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
+    if (scope.areaIds?.length) return `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
+    const branches = scope.branchIds || [];
+    if (alias === 'b') return branches.length
+      ? `"${alias}"."id" = ANY(${arraySql(branches)})`
+      : 'FALSE';
+    return branches.length
+      ? `"${alias}"."branchId" = ANY(${arraySql(branches)})`
+      : 'FALSE';
   }
 
   private escape(value: unknown) { return String(value ?? '').replace(/'/g, "''"); }

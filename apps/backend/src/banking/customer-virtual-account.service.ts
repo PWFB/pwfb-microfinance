@@ -308,6 +308,10 @@ export class CustomerVirtualAccountService {
       }
     } catch (error) {
       if (error instanceof BadRequestException || error instanceof ServiceUnavailableException) throw error;
+      await this.persistIdentityResult({
+        customerId, type: identityType as 'BVN' | 'NIN', value: identifier,
+        status: 'UNAVAILABLE', reference, nameMatch: null, dateOfBirthMatch: null, actor,
+      }).catch(() => undefined);
       throw new ServiceUnavailableException('Identity provider request failed. No identity was marked as verified.');
     }
 
@@ -336,7 +340,9 @@ export class CustomerVirtualAccountService {
     const providerDob = this.normalizeIdentityDate(entity.date_of_birth ?? entity.dob ?? entity.dateOfBirth);
     const customerDob = this.normalizeIdentityDate(customer.dateOfBirth);
     const dateOfBirthMatch = customerDob && providerDob ? customerDob === providerDob : null;
-    const passed = nameMatch && dateOfBirthMatch !== false;
+    // A positive identity match requires both the legal name and date of birth.
+    // Missing DOB in either source is not evidence of a match.
+    const passed = nameMatch && dateOfBirthMatch === true;
     const status = passed ? 'VERIFIED' : 'MISMATCH';
     const result = await this.persistIdentityResult({
       customerId, type: identityType as 'BVN' | 'NIN', value: identifier,

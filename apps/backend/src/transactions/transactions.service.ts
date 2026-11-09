@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AccessScopeService } from '../access/access-scope.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { createFinancialReference } from '../common/financial-reference';
 
 type TransactionUser = { id: string; role: string; staffId?: string | null };
 
@@ -44,6 +45,7 @@ export class TransactionsService {
     return this.prisma.transaction.create({
       data: {
         customerId: createTransactionDto.customerId,
+        reference: createFinancialReference('PWFB-TXN'),
         type: createTransactionDto.type,
         amount: createTransactionDto.amount,
         description: createTransactionDto.description,

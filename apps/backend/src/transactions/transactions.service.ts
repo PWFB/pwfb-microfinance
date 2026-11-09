@@ -27,7 +27,7 @@ export class TransactionsService {
     if (!branchIds?.length) return { id: '__no_access__' };
 
     const where: any = { branchId: { in: branchIds } };
-    if (scope.role === 'CREDIT_OFFICER') {
+    if (['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role)) {
       if (!scope.staffId) return { id: '__no_access__' };
       where.assignedStaffId = scope.staffId;
     }

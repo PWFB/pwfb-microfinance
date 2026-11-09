@@ -72,7 +72,7 @@ export class CashbookService {
     }
 
     const assignments = await this.prisma.staffAssignment.findMany({
-      where: { staffId: staff.id, active: true },
+      where: { staffId: staff.id, role: role as any, active: true },
       select: { branchId: true, areaId: true, divisionId: true, regionId: true, startsAt: true, endsAt: true },
     });
     const now = new Date();

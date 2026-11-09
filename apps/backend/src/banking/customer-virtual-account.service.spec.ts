@@ -573,3 +573,97 @@ describe('CustomerVirtualAccountService dedicated-account deposits', () => {
     expect(prismaForDeposit.customerVirtualAccount.findFirst).not.toHaveBeenCalled();
   });
 });
+
+describe('BVN and NIN provider verification safeguards', () => {
+  const originalAppId = process.env.DOJAH_APP_ID;
+  const originalSecret = process.env.DOJAH_SECRET_KEY;
+  const originalEnvironment = process.env.DOJAH_ENVIRONMENT;
+
+  beforeEach(() => {
+    process.env.DOJAH_APP_ID = 'dojah-test-app';
+    process.env.DOJAH_SECRET_KEY = 'dojah-test-secret';
+    process.env.DOJAH_ENVIRONMENT = 'sandbox';
+    prisma.customer.findUnique.mockResolvedValue({
+      id: customer.id,
+      firstName: 'Test',
+      middleName: null,
+      lastName: 'Customer',
+      dateOfBirth: new Date('1990-05-12T00:00:00.000Z'),
+    });
+  });
+
+  afterEach(() => {
+    if (originalAppId === undefined) delete process.env.DOJAH_APP_ID;
+    else process.env.DOJAH_APP_ID = originalAppId;
+    if (originalSecret === undefined) delete process.env.DOJAH_SECRET_KEY;
+    else process.env.DOJAH_SECRET_KEY = originalSecret;
+    if (originalEnvironment === undefined) delete process.env.DOJAH_ENVIRONMENT;
+    else process.env.DOJAH_ENVIRONMENT = originalEnvironment;
+    jest.restoreAllMocks();
+  });
+
+  it.each(['BVN', 'NIN'])('verifies %s only when legal name and DOB both match', async (type) => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        entity: {
+          first_name: 'Test',
+          last_name: 'Customer',
+          date_of_birth: '1990-05-12',
+        },
+      }),
+    } as Response);
+
+    const result = await service.verifyCustomerIdentity(
+      customer.id, type, '12345678901', true, { id: 'customer-user', email: customer.email },
+    );
+
+    expect(result.status).toBe('VERIFIED');
+    expect(result.maskedValue).toBe('•••••••8901');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining(type === 'BVN' ? '/api/v1/kyc/bvn/full?bvn=' : '/api/v1/kyc/nin?nin='),
+      expect.objectContaining({ method: 'GET', headers: expect.objectContaining({ AppId: 'dojah-test-app' }) }),
+    );
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO customer_identity_verifications'),
+      expect.any(String), customer.id, '•••••••8901',
+      'VERIFIED', expect.any(Date), expect.any(String), expect.any(String),
+      true, true, expect.any(String),
+    );
+  });
+
+  it('does not verify when the provider omits date of birth even if names match', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true, status: 200,
+      json: async () => ({ entity: { first_name: 'Test', last_name: 'Customer' } }),
+    } as Response);
+
+    const result = await service.verifyCustomerIdentity(
+      customer.id, 'BVN', '12345678901', true, { id: 'customer-user' },
+    );
+
+    expect(result.status).toBe('MISMATCH');
+    expect(result.dateOfBirthMatch).toBeNull();
+  });
+
+  it('requires explicit consent and an 11-digit identifier before provider calls', async () => {
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, json: async () => ({}) } as Response);
+    await expect(service.verifyCustomerIdentity(customer.id, 'NIN', '12345678901', false, { id: 'customer-user' })).rejects.toThrow('consent');
+    await expect(service.verifyCustomerIdentity(customer.id, 'NIN', '1234', true, { id: 'customer-user' })).rejects.toThrow('11 digits');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('never marks a provider timeout as verified', async () => {
+    jest.spyOn(global, 'fetch').mockRejectedValue(new Error('timeout'));
+    await expect(service.verifyCustomerIdentity(
+      customer.id, 'NIN', '12345678901', true, { id: 'customer-user' },
+    )).rejects.toThrow('provider request failed');
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO customer_identity_verifications'),
+      expect.any(String), customer.id, '•••••••8901',
+      'UNAVAILABLE', null, expect.any(String), expect.any(String),
+      null, null, expect.any(String),
+    );
+  });
+});

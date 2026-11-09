@@ -1,15 +1,19 @@
 package com.pwfb.microfinance;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebStorage;
@@ -57,11 +61,13 @@ public class MainActivity extends Activity {
     private static final String TOKEN = "access_token";
     private static final String ANDROID_ORIGIN = "android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU";
     private static final int GOOGLE_REQUEST = 9101;
+    private static final int AUDIO_PERMISSION_REQUEST = 9201;
     private static final int DEEP_GREEN = Color.rgb(5, 78, 34);
     private static final int GREEN = Color.rgb(8, 117, 52);
     private static final int ORANGE = Color.rgb(244, 119, 18);
     private SwipeRefreshLayout swipeRefresh;
     private WebView webView;
+    private PermissionRequest pendingAudioPermissionRequest;
     private String pendingNativeToken;
     private boolean nativeLoginRedirected;
     private CredentialManager credentialManager;
@@ -109,7 +115,36 @@ public class MainActivity extends Activity {
             @Override public void onPageFinished(WebView view, String url) { if (swipeRefresh != null) swipeRefresh.setRefreshing(false); continueNativeLogin(view, url); }
             @Override public void onReceivedError(WebView view, WebResourceRequest request, android.webkit.WebResourceError error) { if (request.isForMainFrame() && swipeRefresh != null) swipeRefresh.setRefreshing(false); }
         });
-        webView.setWebChromeClient(new WebChromeClient()); swipeRefresh.addView(webView); swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); }); swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.canScrollVertically(-1)); setContentView(swipeRefresh); webView.loadUrl(START_URL);
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override public void onPermissionRequest(final PermissionRequest request) {
+                runOnUiThread(() -> {
+                    boolean audioRequested = false;
+                    for (String resource : request.getResources()) {
+                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                            audioRequested = true;
+                        } else {
+                            // PWFB calls require microphone access only; never grant camera
+                            // or other WebView capture permissions implicitly.
+                            request.deny();
+                            return;
+                        }
+                    }
+                    if (!audioRequested) { request.deny(); return; }
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+                            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                        request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+                        return;
+                    }
+                    if (pendingAudioPermissionRequest != null) pendingAudioPermissionRequest.deny();
+                    pendingAudioPermissionRequest = request;
+                    requestPermissions(new String[] { Manifest.permission.RECORD_AUDIO }, AUDIO_PERMISSION_REQUEST);
+                });
+            }
+
+            @Override public void onPermissionRequestCanceled(PermissionRequest request) {
+                if (pendingAudioPermissionRequest == request) pendingAudioPermissionRequest = null;
+            }
+        }); swipeRefresh.addView(webView); swipeRefresh.setOnRefreshListener(() -> { if (webView != null) webView.reload(); else swipeRefresh.setRefreshing(false); }); swipeRefresh.setOnChildScrollUpCallback((parent, child) -> webView != null && webView.canScrollVertically(-1)); setContentView(swipeRefresh); webView.loadUrl(START_URL);
     }
 
     public final class NativePasskeyBridge {
@@ -208,6 +243,17 @@ public class MainActivity extends Activity {
                 }));
             } catch (Exception e) { sendNativeGoogleResult(false, e.getMessage() == null ? "Google sign-in is unavailable." : e.getMessage(), null, pendingGoogleLoginMode); }
         }).start();
+    }
+
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode != AUDIO_PERMISSION_REQUEST) return;
+        PermissionRequest request = pendingAudioPermissionRequest;
+        pendingAudioPermissionRequest = null;
+        if (request == null) return;
+        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        if (granted) request.grant(new String[] { PermissionRequest.RESOURCE_AUDIO_CAPTURE });
+        else request.deny();
     }
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {

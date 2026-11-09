@@ -80,6 +80,7 @@ enum WalletTransactionStatus {
 
 model User {
   id String @id @default(cuid())
+  publicUserId String @unique @default(dbgenerated("nextval('\"User_publicUserId_seq\"'::regclass)::text"))
   email String @unique
   password String
   firstName String
@@ -92,6 +93,7 @@ model User {
   customerId String? @unique
   customer Customer? @relation(fields: [customerId], references: [id])
   passkeys Passkey[]
+  uploadedReceipts ReceiptVerification[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -210,6 +212,7 @@ model Guarantor {
 
 model Transaction {
   id String @id @default(cuid())
+  reference String? @unique
   customerId String
   type String
   amount Float
@@ -219,8 +222,30 @@ model Transaction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  receiptVerifications ReceiptVerification[]
   @@index([customerId])
   @@index([periodId])
+}
+
+model ReceiptVerification {
+  id String @id @default(cuid())
+  reference String @unique
+  fileName String
+  mimeType String
+  file Bytes
+  status String
+  confidence Float
+  extracted Json
+  databaseMatch Json
+  reasons Json
+  uploadedByUserId String
+  transactionId String?
+  createdAt DateTime @default(now())
+  uploadedBy User @relation(fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  @@index([uploadedByUserId])
+  @@index([transactionId])
+  @@index([createdAt])
 }
 
 model Repayment {

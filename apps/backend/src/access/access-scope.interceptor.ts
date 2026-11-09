@@ -16,7 +16,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
     const isCustomerBankingRoute = String(user.role || '').toUpperCase() === 'CUSTOMER' && requestPath.includes('/banking/customers/');
     if (isCustomerBankingRoute) return next.handle();
 
-    const path = String(request.route?.path || request.path || '').toLowerCase();
+    const path = String(request.originalUrl || request.path || request.route?.path || '').split('?')[0].toLowerCase();
     const id = request.params?.id;
     const branchId = request.params?.branchId || request.body?.branchId || request.query?.branchId;
     const staffId = request.params?.staffId || request.body?.staffId || request.query?.staffId;

@@ -206,3 +206,22 @@ INSERT INTO "PWFBLoanRate" ("id","loanType","interestRate") VALUES
   ('rate_individual_loan','Individual Loan',0),
   ('rate_monthly_loan','Monthly Loan',0)
 ON CONFLICT ("loanType") DO NOTHING;
+
+
+-- Branch closing was previously created lazily by BranchClosingService.
+CREATE TABLE IF NOT EXISTS "BranchClosing" (
+  "id" TEXT PRIMARY KEY,
+  "branchId" TEXT NOT NULL,
+  "periodId" TEXT NOT NULL,
+  "closingDate" DATE NOT NULL,
+  "status" TEXT NOT NULL DEFAULT 'SUBMITTED',
+  "submittedBy" TEXT,
+  "submittedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "approvedBy" TEXT,
+  "approvedAt" TIMESTAMPTZ,
+  "checklist" JSONB NOT NULL DEFAULT '{}'::JSONB,
+  "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT "BranchClosing_branchId_periodId_closingDate_key"
+    UNIQUE ("branchId", "periodId", "closingDate")
+);

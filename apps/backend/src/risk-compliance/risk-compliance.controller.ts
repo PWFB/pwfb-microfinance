@@ -12,7 +12,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('risk-compliance')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN', 'ADMIN')
+@Roles('SUPER_ADMIN')
 export class RiskComplianceController {
   constructor(
     private readonly riskComplianceService: RiskComplianceService,

@@ -30,6 +30,18 @@ describe('AccessScopeService', () => {
     await expect(service.assertCustomer({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'customer-b')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
+  it('denies Credit Officers access to another staff member or another officer collection', async () => {
+    query
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
+      .mockResolvedValueOnce([{ id: 'staff-b', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
+    await expect(service.assertStaff({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'staff-b')).rejects.toBeInstanceOf(ForbiddenException);
+
+    query
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
+      .mockResolvedValueOnce([{ id: 'collection-b', branchId: 'branch-a', staffId: 'staff-b', areaId: null, divisionId: null, regionId: null }]);
+    await expect(service.assertCollection({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'collection-b')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('still allows a Credit Officer to access branch metadata for assigned-branch operations', async () => {
     query
       .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])

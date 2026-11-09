@@ -12,7 +12,7 @@ export class PayrollController {
   constructor(private readonly payrollService: PayrollService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   create(@Body() body: { periodId: string; branchId?: string }) { return this.payrollService.create(body); }
 
   @Get()

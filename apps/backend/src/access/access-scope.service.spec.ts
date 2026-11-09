@@ -20,39 +20,37 @@ describe('AccessScopeService', () => {
 
   it('allows a Credit Officer to access their own customer but denies another officer customer in the same branch', async () => {
     query
-      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
-      .mockResolvedValueOnce([{ id: 'customer-a', branchId: 'branch-a', assignedStaffId: 'staff-a' }]);
+      .mockResolvedValueOnce([{ id: 'customer-a', branchId: 'branch-a', assignedStaffId: 'staff-a' }])
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
     await expect(service.assertCustomer({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'customer-a')).resolves.toBe(true);
 
     query
-      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
-      .mockResolvedValueOnce([{ id: 'customer-b', branchId: 'branch-a', assignedStaffId: 'staff-b' }]);
+      .mockResolvedValueOnce([{ id: 'customer-b', branchId: 'branch-a', assignedStaffId: 'staff-b' }])
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
     await expect(service.assertCustomer({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'customer-b')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('denies Credit Officers access to another staff member or another officer collection', async () => {
-    query
-      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
-      .mockResolvedValueOnce([{ id: 'staff-b', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
+    query.mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
     await expect(service.assertStaff({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'staff-b')).rejects.toBeInstanceOf(ForbiddenException);
 
     query
-      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
-      .mockResolvedValueOnce([{ id: 'collection-b', branchId: 'branch-a', staffId: 'staff-b', areaId: null, divisionId: null, regionId: null }]);
+      .mockResolvedValueOnce([{ id: 'collection-b', branchId: 'branch-a', staffId: 'staff-b', areaId: null, divisionId: null, regionId: null }])
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
     await expect(service.assertCollection({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'collection-b')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('denies access to ledger transactions belonging to another officer customer', async () => {
     query
-      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
-      .mockResolvedValueOnce([{ id: 'transaction-b', branchId: 'branch-a', assignedStaffId: 'staff-b', areaId: null, divisionId: null, regionId: null }]);
+      .mockResolvedValueOnce([{ id: 'transaction-b', branchId: 'branch-a', assignedStaffId: 'staff-b', areaId: null, divisionId: null, regionId: null }])
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
     await expect(service.assertTransaction({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'transaction-b')).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('still allows a Credit Officer to access branch metadata for assigned-branch operations', async () => {
     query
-      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
-      .mockResolvedValueOnce([{ id: 'branch-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
+      .mockResolvedValueOnce([{ id: 'branch-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }])
+      .mockResolvedValueOnce([{ id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null }]);
     await expect(service.assertBranch({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'branch-a')).resolves.toBe(true);
   });
 });

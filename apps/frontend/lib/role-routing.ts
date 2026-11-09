@@ -10,3 +10,18 @@ export function getDashboardPath(role?: string): string {
   if (STAFF_ROLES.has(role as UserRole)) return "/staff-dashboard";
   return "/login";
 }
+
+
+/**
+ * Dashboard routes are role-aware, but the Staff Dashboard is also an
+ * authorized workspace for Super Admin users. Do not force Super Admins
+ * back to their default dashboard when they intentionally open it.
+ */
+export function isDashboardPathAllowed(role?: string, pathname?: string): boolean {
+  if (pathname === "/dashboard") return role === "SUPER_ADMIN";
+  if (pathname === "/customer-dashboard") return role === "CUSTOMER";
+  if (pathname === "/staff-dashboard") {
+    return role === "SUPER_ADMIN" || STAFF_ROLES.has(role as UserRole);
+  }
+  return true;
+}

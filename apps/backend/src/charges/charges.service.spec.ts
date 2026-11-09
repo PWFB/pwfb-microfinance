@@ -206,4 +206,53 @@ describe('ChargesService central registration fee', () => {
       'credit-officer-1',
     );
   });
+  it('lets a same-branch Credit Officer use a Teller-collected receipt without posting a second cashbook entry', async () => {
+    const { service, tx, accessScope, prisma } = scopeFixture('CREDIT_OFFICER');
+    accessScope.getScope.mockResolvedValue({
+      role: 'CREDIT_OFFICER',
+      staffId: 'credit-officer-1',
+      branchId: 'branch-1',
+      global: false,
+    });
+    prisma.staff.findUnique.mockResolvedValue({
+      id: 'credit-officer-1',
+      branchId: 'branch-1',
+      employmentStatus: 'ACTIVE',
+    });
+    tx.$queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ amount: 1500, currency: 'NGN' }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{
+        id: 'receipt-from-teller',
+        amount: 1500,
+        currency: 'NGN',
+        paymentMethod: 'CASH',
+        branchId: 'branch-1',
+        staffId: 'teller-1',
+        status: 'COLLECTED',
+        customerId: null,
+        cashbookEntryId: 'cashbook-entry-1',
+      }]);
+
+    const receipt = await service.collectRegistrationFee({
+      reference: 'TELLER-REC-005',
+      paymentMethod: 'CASH',
+      confirmedReceived: true,
+    }, { id: 'officer-user', role: 'CREDIT_OFFICER' });
+
+    expect(receipt).toMatchObject({
+      id: 'receipt-from-teller',
+      amount: 1500,
+      staffId: 'teller-1',
+      branchId: 'branch-1',
+      reused: true,
+    });
+    expect(tx.cashbookEntry.create).not.toHaveBeenCalled();
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO "PWFBRegistrationChargeReceipt"'),
+      expect.anything(),
+    );
+  });
+
 });

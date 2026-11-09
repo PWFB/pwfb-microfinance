@@ -16,7 +16,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
     const requestPath = String(request.originalUrl || request.url || request.path || '').toLowerCase();
     // Communication endpoints enforce branch and participant policy in their own services.
     // Internal staff voice calls span branches; client calls remain explicitly branch-scoped.
-    if (requestPath.startsWith('/calls') || requestPath.startsWith('/messages')) return next.handle();
+    if (requestPath.includes('/calls/') || requestPath.endsWith('/calls') || requestPath.includes('/messages/') || requestPath.endsWith('/messages')) return next.handle();
     const isCustomerBankingRoute = String(user.role || '').toUpperCase() === 'CUSTOMER' && requestPath.includes('/banking/customers/');
     if (isCustomerBankingRoute) return next.handle();
 
@@ -33,7 +33,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
     if (loanId) await this.scope.assertLoan(user, String(loanId));
 
     if (id) {
-      if (path.includes('/staff')) await this.scope.assertStaff(user, String(id));
+      if (path.includes('/staff/') && !path.includes('/staff-wallet/') && !path.includes('/staff/organization/')) await this.scope.assertStaff(user, String(id));
       else if (path.includes('/customers')) await this.scope.assertCustomer(user, String(id));
       else if (path.includes('/loans')) await this.scope.assertLoan(user, String(id));
       else if (path.includes('/savings')) await this.scope.assertSavings(user, String(id));
@@ -43,16 +43,19 @@ export class AccessScopeInterceptor implements NestInterceptor {
       else if (path.includes('/branches')) await this.scope.assertBranch(user, String(id));
     }
 
-    const resource = path.includes('/staff') ? 'staff'
-      : path.includes('/customers') ? 'customers'
-      : path.includes('/loans') ? 'loans'
-      : path.includes('/savings') ? 'savings'
-      : path.includes('/collections') ? 'collections'
-      : path.includes('/branches') ? 'branches'
-      : path.includes('/repayments') ? 'repayments'
-      : path.includes('/transactions') ? 'transactions'
-      : path.includes('/cashbook/daily') ? 'cashbook_daily'
-      : path.includes('/cashbook/entries') ? 'cashbook_entries'
+    // Filter only true collection-list routes. Sub-resources such as staff-wallet,
+    // organization hierarchy, loan rates and account provisioning have their own
+    // service-level access rules and must not be mistaken for base record lists.
+    const resource = path.endsWith('/staff') ? 'staff'
+      : path.endsWith('/customers') ? 'customers'
+      : path.endsWith('/loans') ? 'loans'
+      : path.endsWith('/savings') ? 'savings'
+      : path.endsWith('/collections') ? 'collections'
+      : path.endsWith('/branches') ? 'branches'
+      : path.endsWith('/repayments') ? 'repayments'
+      : path.endsWith('/transactions') ? 'transactions'
+      : path.endsWith('/cashbook/daily') ? 'cashbook_daily'
+      : path.endsWith('/cashbook/entries') ? 'cashbook_entries'
       : '';
 
     if (!resource || id) return next.handle();

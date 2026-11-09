@@ -142,6 +142,7 @@ export class CollectionsService {
       if (!collection) throw new NotFoundException('Daily collection not found');
       if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period');
       if (collection.settled) throw new BadRequestException('Collection has already been settled');
+      await this.ensureAllocationTable(tx);
 
       const amount = Number(collection.amount);
       const reference = String(collection.reference || `COL-${collection.id}`);

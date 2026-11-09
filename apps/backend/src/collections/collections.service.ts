@@ -122,7 +122,7 @@ export class CollectionsService {
         if (!savings) throw new NotFoundException('Savings account not found');
         if (savings.customerId !== collection.customerId) throw new BadRequestException('Savings account does not belong to the collection customer');
         await tx.savings.update({ where: { id: savings.id }, data: { amount: { increment: amount } } });
-        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'DEPOSIT', amount, description, periodId: collection.periodId } });
+        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, reference: createFinancialReference('PWFB-COL'), type: 'DEPOSIT', amount, description, periodId: collection.periodId } });
         transactionId = transaction.id;
       } else if (collection.type === 'LOAN_REPAYMENT') {
         if (!targetId) throw new BadRequestException('A loan is required to settle a loan repayment collection');
@@ -132,10 +132,10 @@ export class CollectionsService {
         const repayment = await tx.repayment.create({ data: { loanId: loan.id, amount, paymentDate: collection.collectionDate, method: 'FIELD_COLLECTION', notes: collection.notes || description, periodId: collection.periodId } });
         recordId = repayment.id;
         allocation = await this.allocateLoanRepayment(tx, loan.id, repayment.id, amount);
-        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'LOAN_REPAYMENT', amount, description: `${description} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`, periodId: collection.periodId } });
+        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, reference: createFinancialReference('PWFB-REP'), type: 'LOAN_REPAYMENT', amount, description: `${description} — Interest ₦${allocation.interestPaid.toFixed(2)} / Principal ₦${allocation.principalPaid.toFixed(2)}`, periodId: collection.periodId } });
         transactionId = transaction.id;
       } else {
-        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, type: 'COLLECTION_OTHER', amount, description, periodId: collection.periodId } });
+        const transaction = await tx.transaction.create({ data: { customerId: collection.customerId, reference: createFinancialReference('PWFB-COL'), type: 'COLLECTION_OTHER', amount, description, periodId: collection.periodId } });
         transactionId = transaction.id;
       }
       await this.staffWallet.debit(collection.staffId, amount, reference, `Field collection settled — ${collection.type}`, tx);

@@ -23,13 +23,9 @@ type CashbookStaffProfile = {
   id: string; staffId: string; firstName: string; lastName: string; position: string;
   branchId: string; regionId: string | null; divisionId: string | null; areaId: string | null;
 };
-type CashbookScope = {
-  kind: 'all' | 'branches' | 'staff';
-  role: string;
-  branchIds: string[];
-  staff?: CashbookStaffProfile;
-  canWrite: boolean;
-};
+type CashbookScope =
+  | { kind: 'all'; role: string; branchIds: string[]; canWrite: boolean }
+  | { kind: 'branches' | 'staff'; role: string; branchIds: string[]; staff: CashbookStaffProfile; canWrite: boolean };
 
 const MONEY_FIELDS = [
   'previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','fixedOther','otherIncome',
@@ -61,9 +57,10 @@ export class CashbookService {
     staffOr.push({ userId: actor.id });
     const staff = await this.prisma.staff.findFirst({
       where: { OR: staffOr },
-      select: { id: true, staffId: true, firstName: true, lastName: true, position: true, branchId: true, regionId: true, divisionId: true, areaId: true },
+      select: { id: true, staffId: true, firstName: true, lastName: true, position: true, branchId: true, regionId: true, divisionId: true, areaId: true, employmentStatus: true },
     });
     if (!staff) throw new ForbiddenException('Your account is not linked to a staff profile. Ask an administrator to attach your Staff ID.');
+    if (staff.employmentStatus !== 'ACTIVE') throw new ForbiddenException('Inactive staff accounts cannot access the cashbook.');
 
     const individualRoles = ['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
     if (individualRoles.includes(role)) {
@@ -77,7 +74,9 @@ export class CashbookService {
     const now = new Date();
     const active = assignments.filter((a) => a.startsAt <= now && (!a.endsAt || a.endsAt > now));
     const unique = (values) => [...new Set(values.filter((v) => Boolean(v)))];
-    const branchIds = unique([staff.branchId, ...active.map((a) => a.branchId)]);
+    const branchIds = role === 'ADMIN'
+      ? [staff.branchId]
+      : unique([staff.branchId, ...active.map((a) => a.branchId)]);
     const areaIds = unique([staff.areaId, ...active.map((a) => a.areaId)]);
     const divisionIds = unique([staff.divisionId, ...active.map((a) => a.divisionId)]);
     const regionIds = unique([staff.regionId, ...active.map((a) => a.regionId)]);

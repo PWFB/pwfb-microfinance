@@ -43,7 +43,7 @@ describe('WorkLogService', () => {
 
   it('writes the item and its initial history event in one database transaction', async () => {
     const item = {
-      id: 'work-item-1', reference: 'PWFB-WORK-20261109-1234ABCD',
+      id: 'work-item-1', reference: 'PWFB-WORK-20261109-1234567890ABCDEF',
       sessionKey: 'PWFB-SESSION-20261109', title: 'Audit backend cleanup',
       status: 'TODO', priority: 'NORMAL', category: 'BACKEND',
     };

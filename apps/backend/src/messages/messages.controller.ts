@@ -24,6 +24,11 @@ export class MessagesController {
     return this.messages.getBranchStaff(req.user, branchId);
   }
 
+  @Get('roles')
+  roles(@Req() req: any, @Query('branchId') branchId: string) {
+    return this.messages.getBranchRoleTargets(req.user, branchId);
+  }
+
   @Get()
   list(@Req() req: any) { return this.messages.listConversations(req.user); }
 

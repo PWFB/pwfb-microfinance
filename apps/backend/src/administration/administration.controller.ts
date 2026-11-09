@@ -13,7 +13,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('administration')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN', 'ADMIN')
+@Roles('SUPER_ADMIN')
 export class AdministrationController {
   constructor(
     private readonly administrationService: AdministrationService,
@@ -25,6 +25,7 @@ export class AdministrationController {
   }
 
   @Get('users')
+  @Roles('SUPER_ADMIN')
   users() {
     return this.administrationService.getUsers();
   }
@@ -40,6 +41,7 @@ export class AdministrationController {
   }
 
   @Get('departments/:id')
+  @Roles('SUPER_ADMIN')
   department(@Param('id') id: string) {
     return this.administrationService.getDepartment(id);
   }

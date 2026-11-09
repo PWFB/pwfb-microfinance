@@ -19,11 +19,6 @@ export class StaffService {
   private async generateStaffId() { const count = await this.staffRepository.count(); let number = count + 1; let staffId = `PWFB-STF-${String(number).padStart(4, '0')}`; while (await this.staffRepository.staffIdExists(staffId)) { number++; staffId = `PWFB-STF-${String(number).padStart(4, '0')}`; } return staffId; }
   private hashBvn(bvn: string) { return createHash('sha256').update(String(bvn).replace(/\D/g, '')).digest('hex'); }
 
-  private async ensureBvnVerificationTable() {
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "StaffBvnVerification" ("id" TEXT PRIMARY KEY,"reference" TEXT NOT NULL UNIQUE,"bvnHash" TEXT,"requestedFirstName" TEXT NOT NULL,"requestedLastName" TEXT NOT NULL,"firstName" TEXT,"middleName" TEXT,"lastName" TEXT,"fullName" TEXT,"status" TEXT NOT NULL DEFAULT 'PENDING',"message" TEXT,"createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,"verifiedAt" TIMESTAMP(3))`);
-    await this.prisma.$executeRawUnsafe(`ALTER TABLE "StaffBvnVerification" ADD COLUMN IF NOT EXISTS "bvnHash" TEXT`);
-    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "StaffBvnVerification_bvnHash_idx" ON "StaffBvnVerification" ("bvnHash")`);
-  }
 
   async paystackBanks() { return this.paystack.listBanks(); }
 
@@ -39,14 +34,12 @@ export class StaffService {
     const email = `${this.normalizeName(firstName)}.${this.normalizeName(lastName)}+kyc${Date.now()}@pwfb.com`;
     const customer = await this.paystack.createCustomer({ email, firstName, lastName, phone });
     const validation = await this.paystack.validateCustomer({ customerCode: customer.customerCode, bvn, firstName, lastName, middleName: input.middleName?.trim(), accountNumber: account.accountNumber, bankCode: account.bankCode });
-    await this.ensureBvnVerificationTable();
     await this.prisma.$executeRawUnsafe(`INSERT INTO "StaffBvnVerification" ("id","reference","bvnHash","requestedFirstName","requestedLastName","status","message") VALUES ($1,$2,$3,$4,$5,'PENDING',$6) ON CONFLICT ("reference") DO UPDATE SET "bvnHash"=EXCLUDED."bvnHash","requestedFirstName"=EXCLUDED."requestedFirstName","requestedLastName"=EXCLUDED."requestedLastName","status"='PENDING',"message"=EXCLUDED."message","updatedAt"=CURRENT_TIMESTAMP`, randomUUID(), customer.customerCode, this.hashBvn(bvn), firstName, lastName, validation.message || 'Paystack BVN and bank-account verification in progress');
     return { verified: false, pending: true, reference: customer.customerCode, accountName: account.accountName, bankCode: account.bankCode, accountNumber: account.accountNumber, message: validation.message || 'Paystack accepted the identity verification request. Waiting for verification.' };
   }
 
   async getBvnVerification(reference: string) {
     const ref = String(reference || '').trim(); if (!ref) throw new BadRequestException('Paystack verification reference is required');
-    await this.ensureBvnVerificationTable();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "reference","status","requestedFirstName","requestedLastName","firstName","middleName","lastName","fullName","message" FROM "StaffBvnVerification" WHERE "reference" = $1 LIMIT 1`, ref); const row = rows[0];
     if (!row) throw new NotFoundException('Paystack BVN verification request not found');
     let firstName = row.firstName || row.requestedFirstName;
@@ -73,7 +66,6 @@ export class StaffService {
     const data = body?.data || {};
     const reference = String(data?.customer_code || data?.customerCode || '').trim();
     if (!reference) return { ok: true, ignored: true, reason: 'no-customer-code' };
-    await this.ensureBvnVerificationTable();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT * FROM "StaffBvnVerification" WHERE "reference" = $1 LIMIT 1`, reference); const row = rows[0];
     if (!row) return { ok: true, ignored: true, reason: 'no-matching-request', reference };
     const failed = event.endsWith('.failed');

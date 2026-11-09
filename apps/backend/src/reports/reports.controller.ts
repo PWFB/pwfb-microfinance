@@ -16,13 +16,13 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get('summary')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'AUDITOR')
+  @Roles('SUPER_ADMIN')
   getSummary() {
     return this.reportsService.getSummary();
   }
 
   @Get('operations')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   getOperations(@Query() query: Record<string, string>) {
     return this.reportsService.getOperations(query);
   }

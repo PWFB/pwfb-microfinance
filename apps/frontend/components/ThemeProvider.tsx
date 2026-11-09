@@ -70,6 +70,45 @@ html[data-theme="dark"] .pwfb-theme-option{color:#b4c8ba!important}
 html[data-theme="dark"] .pwfb-theme-option:hover{background:#1d3626!important;color:#b8ebc6!important}
 html[data-theme="dark"] .pwfb-theme-option-active{background:#168342!important;color:#fff!important}
 @media(max-width:760px){.pwfb-theme-switcher{position:fixed!important;right:10px!important;top:68px!important;z-index:99999!important;pointer-events:auto!important;touch-action:manipulation!important}.pwfb-theme-fold{min-width:64px!important;min-height:40px!important;padding:9px 8px!important}.pwfb-theme-option{min-height:40px!important;padding:9px 7px!important;font-size:10px!important}}
+/* LAB Microfinance dark-mode finish: deep green surfaces, readable data, and restrained gold accents. */
+html[data-theme="dark"] .pwfb-content{background:transparent!important;color:#e8f1eb!important}
+html[data-theme="dark"] .pwfb-content main{color:#e8f1eb!important}
+html[data-theme="dark"] .pwfb-content main :is(h1,h2,h3,h4,.section-title,.report-head h2,.pwfb-operation-control-header h2){color:#e7f2ea!important}
+html[data-theme="dark"] .pwfb-content main :is(p,small,label,.muted,.description,.pwfb-page-description,.atm-muted){color:#b5c6ba!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-panel,.pwfb-card,.pwfb-stat-card,.pwfb-summary-card,.report-stat,.report-panel,.report-link,.pwfb-operation-control-card,.staff-stat-card,.staff-module-card,.staff-panel,.staff-profile-card,.atm-panel,.profile-info-card){background:#122019!important;color:#e8f1eb!important;border-color:#2b4034!important;box-shadow:0 8px 24px rgba(0,0,0,.2)!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-panel-header,.pwfb-operation-header,.pwfb-deposit-actions){background:#14251c!important;border-color:#2b4034!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-stat-card strong,.staff-stat-card strong,.pwfb-operation-control-card strong,.report-stat strong,.profile-info-item strong){color:#f0f6f1!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-stat-card span,.pwfb-stat-card small,.staff-stat-card span,.staff-stat-card small,.staff-module-card p,.staff-panel p,.profile-info-item span,.atm-muted){color:#b5c6ba!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table){border-color:#34483c!important;background:#122019!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) thead th{background:#1a3023!important;color:#c5e8ce!important;border-color:#34483c!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tbody td,html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tfoot td{background:#122019!important;color:#d5e1d8!important;border-color:#2b4034!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tbody tr:nth-child(even) td{background:#17271f!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tbody tr:hover td{background:#213528!important}
+html[data-theme="dark"] .pwfb-content main :is(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),select,textarea,.pwfb-input,.input,.audit-input,.atm-input){background:#101c16!important;color:#edf5ef!important;border:1px solid #40594a!important;-webkit-text-fill-color:#edf5ef!important;box-shadow:none!important}
+html[data-theme="dark"] .pwfb-content main :is(input,textarea)::placeholder{color:#9caf9f!important;-webkit-text-fill-color:#9caf9f!important;opacity:1!important}
+html[data-theme="dark"] .pwfb-content main select option{background:#101c16!important;color:#edf5ef!important}
+html[data-theme="dark"] .pwfb-content main :is(input,select,textarea):focus{border-color:#e69a37!important;outline:3px solid rgba(242,140,24,.2)!important;outline-offset:1px!important}
+html[data-theme="dark"] .pwfb-content main :is(label,.field,.form-label,.label,.pwfb-label,.atm-label){color:#d5e1d8!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-secondary-button,.atm-actions button){background:#1a3023!important;color:#c5e8ce!important;border-color:#40594a!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-primary-button,.pwfb-banking-submit,.atm-submit){background:linear-gradient(135deg,#f28c18,#d96f00)!important;color:#fff!important;border-color:#d96f00!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-record-count,.pwfb-verify-field.verified){background:#193522!important;color:#c5e8ce!important;border-color:#386047!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-alert-success,.atm-security){background:#193522!important;color:#c5e8ce!important;border-color:#386047!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-alert-error,.atm-error){background:#351d19!important;color:#ffc5b8!important;border-color:#744037!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-alert:not(.pwfb-alert-success):not(.pwfb-alert-error)){background:#302719!important;color:#f7d7a4!important;border-color:#6b512c!important}
+html[data-theme="dark"] .pwfb-content main .customer-profile-page{background:linear-gradient(145deg,rgba(15,123,53,.12),rgba(242,140,24,.08) 55%,transparent)!important}
+html[data-theme="dark"] .pwfb-content main .customer-profile-page .customer-photo-card{background:linear-gradient(110deg,#1c3023 0%,#14251c 56%,#1b2b20 100%)!important;border-color:#8a5a25!important}
+html[data-theme="dark"] .pwfb-content main .customer-profile-page section:not(.customer-photo-card){background:#122019!important;border-color:#2b4034!important}
+html[data-theme="dark"] .pwfb-content main .customer-profile-page :is(section h2,section h3,.profile-title h1,.profile-info-item strong){color:#e7f2ea!important}
+html[data-theme="dark"] .pwfb-content main .customer-profile-page :is(.section-icon,.section-edit){background:#302719!important;color:#f7c477!important;border-color:#75552b!important}
+html[data-theme="dark"] .pwfb-content main .atm-results{border-color:#34483c!important}
+html[data-theme="dark"] .pwfb-content main .atm-result{background:#14251c!important;color:#e8f1eb!important;border-color:#2b4034!important}
+html[data-theme="dark"] .pwfb-content main .atm-drop{background:#14251c!important;color:#d5e1d8!important;border-color:#40594a!important}
+html[data-theme="dark"] .pwfb-content main .atm-drop img{background:#0b1410!important}
+html[data-theme="dark"] .pwfb-content main a:not(.pwfb-primary-button):focus-visible,html[data-theme="dark"] .pwfb-content main button:focus-visible{outline-color:#f28c18!important}
+html[data-theme="dark"] .pwfb-pull-refresh{background:#14251c!important;color:#c5e8ce!important}
+html[data-theme="dark"] .pwfb-pull-refresh-icon{background:#302719!important;color:#f7c477!important}
+html[data-theme="dark"] .pwfb-bottom-accent{box-shadow:0 -2px 12px rgba(0,0,0,.28)!important}
+
 `;
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {

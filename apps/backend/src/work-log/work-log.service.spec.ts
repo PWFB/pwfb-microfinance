@@ -64,6 +64,41 @@ describe('WorkLogService', () => {
     }));
   });
 
+  it('defaults searches to open work and allows explicit session/status search', async () => {
+    const count = jest.fn().mockResolvedValue(1);
+    const findMany = jest.fn().mockResolvedValue([{ reference: 'PWFB-WORK-20261109-1234567890ABCDEF' }]);
+    const transaction = jest.fn(async (operations: any[]) => Promise.all(operations));
+    service = new WorkLogService({
+      workItem: { count, findMany },
+      $transaction: transaction,
+    } as any);
+
+    const open = await service.list({ q: 'access-scope' });
+    expect(open.pagination.total).toBe(1);
+    expect(count).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        status: { in: ['TODO', 'IN_PROGRESS', 'BLOCKED', 'UNVERIFIED'] },
+        OR: expect.arrayContaining([
+          { reference: expect.objectContaining({ contains: 'access-scope', mode: 'insensitive' }) },
+          { sessionKey: expect.objectContaining({ contains: 'access-scope', mode: 'insensitive' }) },
+        ]),
+      }),
+    }));
+
+    await service.list({
+      q: 'PWFB-SESSION-20261109',
+      status: 'COMPLETED',
+      sessionKey: 'PWFB-SESSION-20261109',
+      includeCompleted: true,
+    });
+    expect(count).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        status: 'COMPLETED',
+        sessionKey: { equals: 'PWFB-SESSION-20261109', mode: 'insensitive' },
+      }),
+    }));
+  });
+
   it('rejects completion before opening a transaction if evidence is missing', async () => {
     const prisma = { $transaction: jest.fn() };
     service = new WorkLogService(prisma as any);

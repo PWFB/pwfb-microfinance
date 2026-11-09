@@ -13,6 +13,7 @@ describe('LoansController', () => {
       create: jest.fn(),
       findAll: jest.fn(),
       findOne: jest.fn(),
+      getRepaymentSchedule: jest.fn(),
       update: jest.fn(),
       remove: jest.fn(),
     } as unknown as jest.Mocked<LoansService>;
@@ -115,4 +116,35 @@ describe('LoansController', () => {
 
     expect(service.remove).toHaveBeenCalledWith('loan-1');
   });
+  it('includes only disbursed daily-frequency loans in the daily register', async () => {
+    service.findAll.mockResolvedValue([
+      { id: 'daily-paid-loan', status: 'DISBURSED', repaymentFrequency: 'Daily', customerId: 'customer-1', customer: { firstName: 'A', lastName: 'Client', assignedStaffId: 'staff-1' } },
+      { id: 'pending-daily-loan', status: 'PENDING', repaymentFrequency: 'Daily', customerId: 'customer-2' },
+      { id: 'weekly-loan', status: 'DISBURSED', repaymentFrequency: 'Weekly', customerId: 'customer-3' },
+    ] as any);
+    service.getRepaymentSchedule.mockResolvedValue({
+      schedule: [{
+        installmentNumber: 1,
+        dueDate: '2026-11-09T00:00:00.000Z',
+        amount: 100,
+        paidAmount: 100,
+        remainingAmount: 0,
+        status: 'PAID',
+      }],
+    } as any);
+
+    const result = await controller.dailyRepaymentRegister('2026-11-09', req);
+
+    expect(service.getRepaymentSchedule).toHaveBeenCalledTimes(1);
+    expect(service.getRepaymentSchedule).toHaveBeenCalledWith('daily-paid-loan');
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      loanId: 'daily-paid-loan',
+      status: 'PAID',
+      amountDue: 100,
+      paidAmount: 100,
+      outstandingAmount: 0,
+    }));
+  });
+
 });

@@ -2,6 +2,7 @@ import { fetchWithTimeout } from '../ai/ai-http.util';
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { createFinancialReference } from '../common/financial-reference';
+import { AccessScopeService } from '../access/access-scope.service';
 
 type ReceiptStatus = 'VERIFIED' | 'FAILED' | 'REVIEW';
 
@@ -34,7 +35,7 @@ type ReceiptResult = {
 
 @Injectable()
 export class BalmzReceiptService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly accessScope: AccessScopeService) {}
 
   private parseJson(text: string): any {
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
@@ -52,12 +53,33 @@ export class BalmzReceiptService {
     return parts.join('\n').trim();
   }
 
-  private async findDatabaseMatch(reference: string | null, amount: number | null) {
+  private async findDatabaseMatch(reference: string | null, amount: number | null, user: { id: string; role: string; customerId?: string | null; staffId?: string | null }) {
     if (!reference && amount == null) return { matched: false, source: null, id: null, amount: null, status: null };
+
+    const role = String(user.role || '').toUpperCase();
+    let transactionScope: any = {};
+    let collectionScope: any = {};
+    if (role === 'CUSTOMER') {
+      const customerId = String(user.customerId || '').trim();
+      if (!customerId) return { matched: false, source: null, id: null, amount: null, status: null };
+      transactionScope.customerId = customerId;
+      collectionScope.customerId = customerId;
+    } else if (role !== 'SUPER_ADMIN') {
+      const scope = await this.accessScope.getScope(user);
+      const branchIds = await this.accessScope.getScopedBranchIds(user) || [];
+      if (!branchIds.length) return { matched: false, source: null, id: null, amount: null, status: null };
+      transactionScope.customer = { branchId: { in: branchIds } };
+      collectionScope.branchId = { in: branchIds };
+      if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(role)) {
+        if (!scope.staffId) return { matched: false, source: null, id: null, amount: null, status: null };
+        transactionScope.customer.assignedStaffId = scope.staffId;
+        collectionScope.staffId = scope.staffId;
+      }
+    }
 
     if (reference) {
       const transactions = await this.prisma.transaction.findMany({
-        where: { reference: { contains: reference, mode: 'insensitive' } },
+        where: { ...transactionScope, reference: { contains: reference, mode: 'insensitive' } },
         select: { id: true, amount: true, type: true },
         take: 5,
       });
@@ -67,7 +89,7 @@ export class BalmzReceiptService {
       }
 
       const collections = await this.prisma.dailyCollection.findMany({
-        where: { reference: { contains: reference, mode: 'insensitive' } },
+        where: { ...collectionScope, reference: { contains: reference, mode: 'insensitive' } },
         select: { id: true, amount: true, reconciled: true },
         take: 5,
       });
@@ -143,7 +165,7 @@ export class BalmzReceiptService {
       bankOrProvider: parsed.bankOrProvider || null,
     };
     const confidence = Math.max(0, Math.min(100, Number(parsed.confidence) || 0));
-    const databaseMatch = await this.findDatabaseMatch(extracted.reference, extracted.amount);
+    const databaseMatch = await this.findDatabaseMatch(extracted.reference, extracted.amount, user);
     const reasons = Array.isArray(parsed.reasons) ? parsed.reasons.map(String) : [];
 
     if (extracted.paymentStatus === 'failed' || extracted.paymentStatus === 'declined' || extracted.paymentStatus === 'reversed') {

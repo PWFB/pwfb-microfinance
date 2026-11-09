@@ -22,16 +22,25 @@ const OPEN_STATUSES: WorkItemStatus[] = [
 export class WorkLogService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private localDateKey(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Lagos',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}${values.month}${values.day}`;
+  }
+
   private reference() {
-    const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    return 'PWFB-WORK-' + day + '-' + randomBytes(8).toString('hex').toUpperCase();
+    return 'PWFB-WORK-' + this.localDateKey() + '-' + randomBytes(8).toString('hex').toUpperCase();
   }
 
   private sessionKey() {
     const configured = process.env.PWFB_WORK_SESSION_KEY?.trim();
     if (configured) return configured.slice(0, 80);
-    const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    return 'PWFB-SESSION-' + day;
+    return 'PWFB-SESSION-' + this.localDateKey();
   }
 
   private cleanText(value: unknown, label: string, max: number, required = false): string | undefined {

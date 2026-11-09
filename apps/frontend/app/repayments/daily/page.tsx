@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { apiRequest } from "../../../lib/api";
 
 type Item = {
-  loanId: string; clientId: string; customerName: string; assignedStaffId?: string | null;
-  branchId?: string | null; installmentNumber: number; dueDate: string;
+  loanId: string; clientId: string; customerName: string; assignedStaffId?: string | null; assignedStaffName?: string | null;
+  branchId?: string | null; branchName?: string | null; installmentNumber: number; dueDate: string;
   amountDue: number; paidAmount: number; outstandingAmount: number;
   status: "PAID" | "NOT_PAID"; overdue: boolean;
 };
@@ -14,12 +14,13 @@ type Register = {
   date: string; items: Item[]; totalInstallments: number; paidCount: number; unpaidCount: number;
   totalDue: number; totalPaid: number; totalOutstanding: number;
 };
+const localDate = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10); };
 const money = (value: number) => new Intl.NumberFormat("en-NG", {
   style: "currency", currency: "NGN", maximumFractionDigits: 2,
 }).format(Number(value || 0));
 
 export default function DailyRepaymentsPage() {
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => localDate());
   const [register, setRegister] = useState<Register | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -77,13 +78,13 @@ export default function DailyRepaymentsPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[900px] text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr>
-                <th className="px-4 py-3">Client / ID</th><th className="px-4 py-3">Loan</th><th className="px-4 py-3">Installment</th>
+                <th className="px-4 py-3">Client / ID</th><th className="px-4 py-3">Branch / Officer</th><th className="px-4 py-3">Loan</th><th className="px-4 py-3">Installment</th>
                 <th className="px-4 py-3">Due</th><th className="px-4 py-3">Paid</th><th className="px-4 py-3">Outstanding</th><th className="px-4 py-3">Status</th>
               </tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {register.items.map((item) => <tr key={item.loanId + "-" + item.installmentNumber}>
                   <td className="px-4 py-4"><strong className="block text-slate-900">{item.customerName || "Customer"}</strong><span className="text-xs text-slate-500">{item.clientId}</span></td>
-                  <td className="px-4 py-4 font-mono text-xs text-slate-700">{item.loanId}</td>
+                  <td className="px-4 py-4"><strong className="block text-slate-800">{item.branchName || "Branch"}</strong><span className="text-xs text-slate-500">{item.assignedStaffName || item.assignedStaffId || "No assigned officer"}</span></td><td className="px-4 py-4 font-mono text-xs text-slate-700">{item.loanId}</td>
                   <td className="px-4 py-4 text-slate-700">#{item.installmentNumber}</td>
                   <td className="px-4 py-4 font-semibold text-slate-900">{money(item.amountDue)}</td>
                   <td className="px-4 py-4 text-slate-700">{money(item.paidAmount)}</td>

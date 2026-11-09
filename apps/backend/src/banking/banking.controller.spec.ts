@@ -130,4 +130,27 @@ describe('Teller separation of duties', () => {
     jest.spyOn(permissions, 'get').mockResolvedValue(true);
     await expect(permissions.assert('TELLER', 'WALLET_DEPOSIT')).resolves.toBe(true);
   });
+
+  it('hides stale Teller withdrawal/transfer permissions from the role settings list', async () => {
+    const prisma = {
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $queryRawUnsafe: jest.fn().mockResolvedValue([
+        { role: 'TELLER', permission: 'WALLET_WITHDRAWAL', enabled: true },
+        { role: 'TELLER', permission: 'BANK_TRANSFER', enabled: true },
+      ]),
+    };
+    const permissions = new PermissionsService(prisma as any);
+    const roles = await permissions.list();
+    const teller = roles.find((item: any) => item.role === 'TELLER');
+
+    expect(teller.permissions.WALLET_WITHDRAWAL).toBe(false);
+    expect(teller.permissions.BANK_TRANSFER).toBe(false);
+  });
+
+  it('rejects attempts to enable a restricted Teller permission', async () => {
+    const permissions = new PermissionsService({} as any);
+    await expect(permissions.set('TELLER', 'WALLET_WITHDRAWAL', true)).rejects.toThrow(
+      'WALLET_WITHDRAWAL is not available to Tellers',
+    );
+  });
 });

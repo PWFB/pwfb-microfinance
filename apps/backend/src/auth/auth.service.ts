@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, TooManyRequestsException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes } from 'crypto';
@@ -13,6 +13,34 @@ export class AuthService {
   private googleIdentityTableReady = false;
   private authenticatorTableReady = false;
   constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
+  private async ensureLoginAttemptTable() {
+    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "AuthLoginAttempt" ("id" TEXT PRIMARY KEY, "keyHash" TEXT NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
+    await this.prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AuthLoginAttempt_key_created_idx" ON "AuthLoginAttempt" ("keyHash", "createdAt")`);
+  }
+  private loginKey(value: string) { return createHash('sha256').update(String(value || '').trim().toLowerCase()).digest('hex'); }
+  private async assertLoginRateLimit(identifier: string, ip: string) {
+    await this.ensureLoginAttemptTable();
+    const emailKey = this.loginKey(`email:${identifier}`);
+    const ipKey = this.loginKey(`ip:${ip || 'unknown'}`);
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ keyHash: string; attempts: number }>>(
+      `SELECT "keyHash", COUNT(*)::int AS attempts FROM "AuthLoginAttempt" WHERE "keyHash" IN ($1,$2) AND "createdAt" > CURRENT_TIMESTAMP - INTERVAL '15 minutes' GROUP BY "keyHash"`,
+      emailKey, ipKey,
+    );
+    const counts = new Map(rows.map((row) => [row.keyHash, Number(row.attempts)]));
+    if ((counts.get(emailKey) || 0) >= 5 || (counts.get(ipKey) || 0) >= 30) {
+      throw new TooManyRequestsException('Too many failed login attempts. Please wait 15 minutes and try again.');
+    }
+    return { emailKey, ipKey };
+  }
+  private async recordFailedLogin(keys: { emailKey: string; ipKey: string }) {
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "AuthLoginAttempt" ("id","keyHash","createdAt") VALUES ($1,$2,CURRENT_TIMESTAMP),($3,$4,CURRENT_TIMESTAMP)`,
+      randomBytes(16).toString('hex'), keys.emailKey, randomBytes(16).toString('hex'), keys.ipKey,
+    );
+  }
+  private async clearFailedLogin(keyHash: string) {
+    await this.prisma.$executeRawUnsafe(`DELETE FROM "AuthLoginAttempt" WHERE "keyHash" = $1`, keyHash);
+  }
   private issueToken(user: any) { return this.jwtService.signAsync({ sub: user.id, email: user.email, role: user.role }); }
   private async enforceConfiguredSuperAdmin(user: any) {
     const configured = String(process.env.SUPER_ADMIN_EMAIL || '').trim().toLowerCase();
@@ -92,11 +120,12 @@ export class AuthService {
       },
     };
   }
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, clientIp = 'unknown') {
     const identifier = String(dto.identifier || dto.email || '').trim();
     const password = String(dto.password || '');
     const mode = String(dto.loginMode || '').trim().toUpperCase();
     if (!identifier || !password) throw new UnauthorizedException('Login ID and password are required');
+    const loginKeys = await this.assertLoginRateLimit(identifier, clientIp);
 
     let user: any = null;
     const email = identifier.toLowerCase();
@@ -114,8 +143,10 @@ export class AuthService {
     }
 
     if (!user || !user.password || !await bcrypt.compare(password, user.password)) {
+      await this.recordFailedLogin(loginKeys);
       throw new UnauthorizedException('Invalid login ID or password');
     }
+    await this.clearFailedLogin(loginKeys.emailKey);
 
     user = await this.enforceConfiguredSuperAdmin(user);
     if (!user) throw new UnauthorizedException('User not found');

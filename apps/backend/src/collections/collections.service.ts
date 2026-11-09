@@ -1,10 +1,35 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StaffWalletService } from '../staff-wallet/staff-wallet.service';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Injectable()
 export class CollectionsService {
-  constructor(private readonly prisma: PrismaService, private readonly staffWallet: StaffWalletService) {}
+  constructor(private readonly prisma: PrismaService, private readonly staffWallet: StaffWalletService, private readonly accessScope: AccessScopeService) {}
+
+  private async scopedCollectionWhere(user: any, branchId?: string, staffId?: string) {
+    const scope = await this.accessScope.getScope(user);
+    const requestedStaffId = String(staffId || '').trim();
+    if (scope.global) return { ...(branchId ? { branchId } : {}), ...(requestedStaffId ? { staffId: requestedStaffId } : {}) };
+    const branchIds = await this.accessScope.getScopedBranchIds(user) || [];
+    if (branchId && !branchIds.includes(branchId)) {
+      await this.accessScope.assertBranch(user, branchId);
+      throw new BadRequestException('Requested branch is outside your assigned scope');
+    }
+    const allowedBranches = branchId ? [branchId] : branchIds;
+    const where: any = { branchId: { in: allowedBranches.length ? allowedBranches : ['__no_access__'] } };
+    const personalRoles = ['CREDIT_OFFICER', 'STAFF', 'TELLER', 'LOAN_OFFICER'];
+    if (personalRoles.includes(scope.role)) {
+      if (!scope.staffId) return { id: '__no_access__' };
+      if (requestedStaffId && requestedStaffId !== scope.staffId) {
+        throw new BadRequestException('You can only access collection records linked to your Staff ID');
+      }
+      where.staffId = scope.staffId;
+    } else if (requestedStaffId) {
+      where.staffId = requestedStaffId;
+    }
+    return where;
+  }
 
   private async ensureAllocationTable(tx: any = this.prisma) {
     await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PWFBRepaymentAllocation" ("repaymentId" TEXT PRIMARY KEY,"principalPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,"interestPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,"createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
@@ -38,7 +63,15 @@ export class CollectionsService {
     return active[0].id;
   }
 
-  async create(data: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }) {
+  async create(data: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }, user: any) {
+    await this.accessScope.assertBranch(user, data.branchId);
+    const scope = await this.accessScope.getScope(user);
+    const personalRoles = ['CREDIT_OFFICER', 'STAFF', 'TELLER', 'LOAN_OFFICER'];
+    if (personalRoles.includes(scope.role) && (!scope.staffId || data.staffId !== scope.staffId)) {
+      throw new BadRequestException('Collection must be linked to your own Staff ID');
+    }
+    await this.accessScope.assertStaff(user, data.staffId);
+    await this.accessScope.assertCustomer(user, data.customerId);
     const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
     if (!period) throw new NotFoundException('Financial period not found');
     if (period.status === 'CLOSED') throw new BadRequestException('Cannot add collections to a closed period');
@@ -49,26 +82,29 @@ export class CollectionsService {
     if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
     const customer = await this.prisma.customer.findUnique({ where: { id: data.customerId } });
     if (!customer) throw new NotFoundException('Customer not found');
+    if (customer.branchId !== data.branchId) throw new BadRequestException('Customer does not belong to the selected collection branch');
     const amount = Number(data.amount);
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Collection amount must be greater than zero');
     const created = await this.prisma.dailyCollection.create({ data: { periodId: data.periodId, branchId: data.branchId, staffId: data.staffId, customerId: data.customerId, type: data.type, amount, reference: data.reference, notes: data.notes, collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date() }, include: { period: true, branch: true, staff: true, customer: true } });
     if (!data.settleNow) return created;
     const targetId = await this.resolveSettlementTarget(data.customerId, data.type);
-    return this.settle(created.id, targetId);
+    return this.settle(created.id, targetId, user);
   }
 
-  async findAll(periodId?: string, branchId?: string, staffId?: string, type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER') {
-    return this.prisma.dailyCollection.findMany({ where: { ...(periodId ? { periodId } : {}), ...(branchId ? { branchId } : {}), ...(staffId ? { staffId } : {}), ...(type ? { type } : {}) }, orderBy: { collectionDate: 'desc' }, include: { period: true, branch: true, staff: true, customer: true } });
+  async findAll(user: any, periodId?: string, branchId?: string, staffId?: string, type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER') {
+    const scopedWhere = await this.scopedCollectionWhere(user, branchId, staffId);
+    return this.prisma.dailyCollection.findMany({ where: { ...scopedWhere, ...(periodId ? { periodId } : {}), ...(type ? { type } : {}) }, orderBy: { collectionDate: 'desc' }, include: { period: true, branch: true, staff: true, customer: true } });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: any) {
+    await this.accessScope.assertCollection(user, id);
     const collection = await this.prisma.dailyCollection.findUnique({ where: { id }, include: { period: true, branch: true, staff: true, customer: true } });
     if (!collection) throw new NotFoundException('Daily collection not found');
     return collection;
   }
 
-  async settle(id: string, targetId?: string) {
-    const collection = await this.findOne(id);
+  async settle(id: string, targetId: string | undefined, user: any) {
+    const collection = await this.findOne(id, user);
     if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period');
     if (collection.settled) throw new BadRequestException('Collection has already been settled');
     const amount = Number(collection.amount), reference = collection.reference || `COL-${collection.id}`, description = `Field collection ${reference} — ${collection.type}`;
@@ -107,12 +143,13 @@ export class CollectionsService {
     });
   }
 
-  async summary(periodId?: string, branchId?: string, staffId?: string) {
-    const collections = await this.prisma.dailyCollection.findMany({ where: { ...(periodId ? { periodId } : {}), ...(branchId ? { branchId } : {}), ...(staffId ? { staffId } : {}) } });
+  async summary(user: any, periodId?: string, branchId?: string, staffId?: string) {
+    const scopedWhere = await this.scopedCollectionWhere(user, branchId, staffId);
+    const collections = await this.prisma.dailyCollection.findMany({ where: { ...scopedWhere, ...(periodId ? { periodId } : {}) } });
     return collections.reduce((summary, collection) => { summary.total += collection.amount; if (collection.type === 'SAVINGS') summary.savings += collection.amount; if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += collection.amount; if (collection.type === 'OTHER') summary.other += collection.amount; if (collection.reconciled) summary.reconciled += collection.amount; else summary.unreconciled += collection.amount; if (collection.settled) summary.settled += collection.amount; else summary.unsettled += collection.amount; summary.collectionCount++; return summary; }, { total: 0, savings: 0, loanRepayments: 0, other: 0, reconciled: 0, unreconciled: 0, settled: 0, unsettled: 0, collectionCount: 0 });
   }
 
-  async reconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } }); }
-  async unreconcile(id: string) { const collection = await this.findOne(id); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); if (collection.settled) throw new BadRequestException('A settled collection cannot be unreconciled'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: false } }); }
-  async dailySummary(date: string, branchId?: string) { const start = new Date(`${date}T00:00:00.000Z`), end = new Date(`${date}T23:59:59.999Z`); if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date'); const collections = await this.prisma.dailyCollection.findMany({ where: { collectionDate: { gte: start, lte: end }, ...(branchId ? { branchId } : {}) } }); return collections.reduce((summary, collection) => { summary.total += collection.amount; if (collection.type === 'SAVINGS') summary.savings += collection.amount; if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += collection.amount; if (collection.type === 'OTHER') summary.other += collection.amount; if (collection.settled) summary.settled += collection.amount; else summary.unsettled += collection.amount; summary.collectionCount++; return summary; }, { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0 }); }
+  async reconcile(id: string, user: any) { const collection = await this.findOne(id, user); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: true }, include: { period: true, branch: true, staff: true, customer: true } }); }
+  async unreconcile(id: string, user: any) { const collection = await this.findOne(id, user); if (collection.period.status === 'CLOSED') throw new BadRequestException('Collection belongs to a closed period'); if (collection.settled) throw new BadRequestException('A settled collection cannot be unreconciled'); return this.prisma.dailyCollection.update({ where: { id }, data: { reconciled: false } }); }
+  async dailySummary(user: any, date: string, branchId?: string) { const start = new Date(`${date}T00:00:00.000Z`), end = new Date(`${date}T23:59:59.999Z`); if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new BadRequestException('Invalid collection date'); const scopedWhere = await this.scopedCollectionWhere(user, branchId); const collections = await this.prisma.dailyCollection.findMany({ where: { ...scopedWhere, collectionDate: { gte: start, lte: end } } }); return collections.reduce((summary, collection) => { summary.total += collection.amount; if (collection.type === 'SAVINGS') summary.savings += collection.amount; if (collection.type === 'LOAN_REPAYMENT') summary.loanRepayments += collection.amount; if (collection.type === 'OTHER') summary.other += collection.amount; if (collection.settled) summary.settled += collection.amount; else summary.unsettled += collection.amount; summary.collectionCount++; return summary; }, { date, total: 0, savings: 0, loanRepayments: 0, other: 0, settled: 0, unsettled: 0, collectionCount: 0 }); }
 }

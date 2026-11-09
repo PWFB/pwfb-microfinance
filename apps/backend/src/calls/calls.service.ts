@@ -7,7 +7,7 @@ type CallActor = { id: string; role: string; staffId?: string; customerId?: stri
 const STAFF_ROLES = new Set([
   'SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER',
   'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER',
-  'LOAN_OFFICER', 'AUDITOR', 'MONITORING_TEAM', 'STAFF',
+  'LOAN_OFFICER', 'AUDITOR', 'MONITORING_TEAM', 'COLLECTOR', 'STAFF',
 ]);
 const ACTIVE_CALL_STATUSES = ['RINGING', 'ACCEPTED'];
 
@@ -130,16 +130,20 @@ export class CallsService {
     );
 
     // Client calls remain branch-bound and require explicit client opt-in.
+    const creditOfficerOnly = result.actor.role === 'CREDIT_OFFICER' ? ' AND c."assignedStaffId" = $3' : '';
+    const clientParams = result.actor.role === 'CREDIT_OFFICER'
+      ? [id, like, result.scope.staffId]
+      : [id, like];
     const clients = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT DISTINCT ON (c."id") c."id" AS "customerId", u."id" AS "userId", ' +
       'c."firstName", c."lastName", c."phone", COALESCE(p."enabled", FALSE) AS "callEnabled" ' +
       'FROM "Customer" c LEFT JOIN LATERAL (SELECT u."id" FROM "User" u ' +
       'WHERE u."id" = c."userId" OR u."customerId" = c."id" ORDER BY CASE WHEN u."id" = c."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
       'LEFT JOIN "CustomerCallPreference" p ON p."customerId" = c."id" ' +
-      'WHERE c."branchId" = $1 AND c."phone" IS NOT NULL AND BTRIM(c."phone") <> \'\' ' +
+      'WHERE c."branchId" = $1 AND c."phone" IS NOT NULL AND BTRIM(c."phone") <> \'\'' + creditOfficerOnly + ' ' +
       'AND ($2 = \'%%\' OR c."firstName" ILIKE $2 OR c."lastName" ILIKE $2 OR c."phone" ILIKE $2) ' +
       'ORDER BY c."id", c."firstName", c."lastName"',
-      id, like,
+      ...clientParams,
     );
     return {
       branchId: id,

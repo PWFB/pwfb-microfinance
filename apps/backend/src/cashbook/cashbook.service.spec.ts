@@ -19,6 +19,7 @@ describe('CashbookService daily posting safeguards', () => {
     const tx = {
       $queryRawUnsafe: jest.fn().mockImplementation(async () => queryResults.shift() ?? []),
       $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      financialPeriod: { findUnique: jest.fn().mockResolvedValue(period) },
     };
     const prisma: any = {
       $executeRawUnsafe: jest.fn().mockResolvedValue(1),
@@ -45,6 +46,7 @@ describe('CashbookService daily posting safeguards', () => {
 
   it('serializes postings and carries forward the preceding closing cash', async () => {
     const { service, tx } = setup([
+      [], // financial-period row lock
       [], // advisory lock
       [{ latestDay: '2026-11-08' }],
       [], // no existing record for this staff/date
@@ -65,6 +67,7 @@ describe('CashbookService daily posting safeguards', () => {
 
   it('rejects a second daily register for the same branch, staff member and day', async () => {
     const { service, tx } = setup([
+      [], // financial-period row lock
       [], // advisory lock
       [{ latestDay: '2026-11-08' }],
       [{ id: 'already-posted' }],
@@ -79,6 +82,7 @@ describe('CashbookService daily posting safeguards', () => {
 
   it('rejects backdated postings that would invalidate a later carry-forward', async () => {
     const { service, tx } = setup([
+      [], // financial-period row lock
       [], // advisory lock
       [{ latestDay: '2026-11-10' }],
     ]);

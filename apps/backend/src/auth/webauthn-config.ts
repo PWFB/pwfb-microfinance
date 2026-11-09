@@ -78,3 +78,10 @@ export function getWebAuthnRpId(requestOrigin?: string | null): string {
   }
   return hostname || DEFAULT_PRODUCTION_RP_ID;
 }
+
+export function assertAllowedWebAuthnOrigin(requestOrigin?: string | null): string {
+  const origin = normalizeOrigin(requestOrigin);
+  if (!origin) throw new Error('WebAuthn request origin is missing');
+  getWebAuthnExpectedOrigins(origin);
+  return origin;
+}

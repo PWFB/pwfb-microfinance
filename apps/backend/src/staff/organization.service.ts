@@ -33,6 +33,21 @@ export class OrganizationService {
     if (assignment.role !== user.role) {
       throw new ForbiddenException('Your login role does not match your active Staff Assignment');
     }
+    const requiredTarget: Record<string, string> = {
+      ADMIN: 'branchId',
+      BRANCH_MANAGER: 'branchId',
+      CREDIT_OFFICER: 'branchId',
+      TELLER: 'branchId',
+      LOAN_OFFICER: 'branchId',
+      STAFF: 'branchId',
+      AREA_MANAGER: 'areaId',
+      DIVISIONAL_MANAGER: 'divisionId',
+      REGIONAL_MANAGER: 'regionId',
+    };
+    const requiredField = requiredTarget[String(user.role)];
+    if (requiredField && !assignment[requiredField]) {
+      throw new ForbiddenException(`The active ${user.role} assignment is missing its required ${requiredField} target`);
+    }
     return { role: user.role, assignment, full: false };
   }
 

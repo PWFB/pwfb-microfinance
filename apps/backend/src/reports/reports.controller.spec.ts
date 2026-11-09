@@ -25,7 +25,7 @@ describe('ReportsController', () => {
 
     service.getSummary.mockResolvedValue(result as any);
 
-    await expect(controller.getSummary()).resolves.toBe(result);
-    expect(service.getSummary).toHaveBeenCalled();
+    await expect(controller.getSummary({ user: { id: 'root-user', role: 'SUPER_ADMIN' } } as any)).resolves.toBe(result);
+    expect(service.getSummary).toHaveBeenCalledWith({ id: 'root-user', role: 'SUPER_ADMIN' });
   });
 });

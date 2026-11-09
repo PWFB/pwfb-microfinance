@@ -80,6 +80,7 @@ describe('LoansController', () => {
     const dto = {
       amount: 125000,
       interestRate: 12,
+      customerId: 'customer-2',
     };
 
     const result = {
@@ -99,6 +100,7 @@ describe('LoansController', () => {
       'loan-1',
       dto,
     );
+    expect(accessScope.assertCustomer).toHaveBeenCalledWith(req.user, 'customer-2');
   });
 
   it('should delete a loan', async () => {

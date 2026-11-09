@@ -3,6 +3,7 @@ import { CustomersService } from './customers.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CustomerVirtualAccountService } from '../banking/customer-virtual-account.service';
 import { AccessScopeService } from '../access/access-scope.service';
+import { ChargesService } from '../charges/charges.service';
 
 describe('CustomersService', () => {
   let service: CustomersService;
@@ -17,6 +18,7 @@ describe('CustomersService', () => {
         },
         { provide: CustomerVirtualAccountService, useValue: {} },
         { provide: AccessScopeService, useValue: { getScope: jest.fn(), filterList: jest.fn(), assertCustomer: jest.fn() } },
+        { provide: ChargesService, useValue: { consumeRegistrationReceipt: jest.fn() } },
       ],
     }).compile();
 
@@ -47,7 +49,7 @@ describe('CustomersService registration assignment protection', () => {
       assertCustomer: jest.fn().mockResolvedValue(undefined),
     };
     return {
-      service: new CustomersService(prisma, {} as any, accessScope as any),
+      service: new CustomersService(prisma, {} as any, accessScope as any, { consumeRegistrationReceipt: jest.fn().mockResolvedValue({ receiptId: 'receipt-1', amount: 1500 }) } as any),
       prisma,
       tx,
       accessScope,

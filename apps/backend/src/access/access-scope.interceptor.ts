@@ -38,18 +38,21 @@ export class AccessScopeInterceptor implements NestInterceptor {
       else if (path.includes('/branches')) await this.scope.assertBranch(user, String(id));
     }
 
-    const { map } = require('rxjs');
+    const { mergeMap } = require('rxjs');
     const resource = path.includes('/staff') ? 'staff'
       : path.includes('/customers') ? 'customers'
       : path.includes('/loans') ? 'loans'
       : path.includes('/savings') ? 'savings'
       : path.includes('/collections') ? 'collections'
       : path.includes('/branches') ? 'branches'
+      : path.includes('/transactions') ? 'transactions'
+      : path.includes('/cashbook/daily') ? 'cashbook_daily'
+      : path.includes('/cashbook/entries') ? 'cashbook_entries'
       : '';
 
     if (!resource || id) return next.handle();
 
-    return next.handle().pipe(map(async (data: any) => {
+    return next.handle().pipe(mergeMap(async (data: any) => {
       if (Array.isArray(data)) return this.scope.filterList(user, resource, data);
       if (Array.isArray(data?.data)) return { ...data, data: await this.scope.filterList(user, resource, data.data) };
       if (Array.isArray(data?.items)) return { ...data, items: await this.scope.filterList(user, resource, data.items) };

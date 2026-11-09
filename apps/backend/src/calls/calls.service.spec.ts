@@ -8,6 +8,27 @@ describe('CallsService access and permission boundaries', () => {
     return { service: new CallsService(prisma, scope), prisma, scope };
   };
 
+  it('limits Credit Officer client-call contacts to customers assigned to their own Staff ID', async () => {
+    const { service, scope, prisma } = makeService();
+    scope.getScope = jest.fn().mockResolvedValue({
+      role: 'CREDIT_OFFICER', staffId: 'staff-1', branchId: 'branch-1', global: false,
+    });
+    scope.assertBranch = jest.fn().mockResolvedValue(true);
+    prisma.$queryRawUnsafe = jest.fn()
+      .mockResolvedValueOnce([{ staffId: 'staff-2', userId: 'user-2' }])
+      .mockResolvedValueOnce([{ customerId: 'customer-1', userId: 'client-user', phone: '08000000000', callEnabled: true }]);
+
+    const result = await service.getContacts(
+      { id: 'officer-user', role: 'CREDIT_OFFICER', staffId: 'staff-1' },
+      'branch-1',
+    );
+
+    expect(result.clients).toHaveLength(1);
+    const clientQuery = prisma.$queryRawUnsafe.mock.calls[1];
+    expect(clientQuery[0]).toContain('c."assignedStaffId" = $3');
+    expect(clientQuery.slice(1)).toEqual(['branch-1', '%\\%\\%', 'staff-1']);
+  });
+
   it('rejects call permission changes from staff accounts', async () => {
     const { service } = makeService();
     await expect(service.setClientCallPermission(

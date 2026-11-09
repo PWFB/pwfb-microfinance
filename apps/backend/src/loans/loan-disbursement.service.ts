@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ExternalBankTransferService } from '../banking/external-bank-transfer.service';
+import { createFinancialReference } from '../common/financial-reference';
 
 const SUBMITTED = 'DISBURSEMENT_PENDING_BRANCH_REVIEW';
 const REJECTED = 'DISBURSEMENT_REJECTED';
@@ -94,7 +95,7 @@ export class LoanDisbursementService {
     if (!accountName) throw new BadRequestException('Bank provider did not return a verified beneficiary name');
 
     const amount = loan.disbursementAmount ?? loan.amount;
-    const reference = `LOAN-${loan.id}-${Date.now()}`;
+    const reference = createFinancialReference('PWFB-LOAN');
     const narration = `PWFB loan disbursement ${loan.id}`;
     const providerResult = await this.externalBankTransferService.transferToVerifiedAccount({ bankCode, accountNumber, accountName, amount, narration, reference });
 
@@ -114,6 +115,7 @@ export class LoanDisbursementService {
       await tx.transaction.create({
         data: {
           customerId: loan.customerId,
+          reference,
           type: 'LOAN_DISBURSEMENT',
           amount,
           description: `${finalStatus}: loan ${loan.id} paid to ${accountNumber} (${bankName}) by ${actor.firstName} ${actor.lastName}. Provider reference: ${providerReference}`,

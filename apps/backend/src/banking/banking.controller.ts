@@ -27,15 +27,21 @@ export class BankingController {
     if (!claimedStaffId && !userId) {
       throw new ForbiddenException('This staff login is not linked to a staff record');
     }
-    const staff = await this.prisma.staff.findFirst({
-      where: {
-        OR: [
-          ...(claimedStaffId ? [{ id: claimedStaffId }] : []),
-          ...(userId ? [{ userId }] : []),
-        ],
-      },
-      select: { id: true, branchId: true, employmentStatus: true },
-    });
+    let staff = userId
+      ? await this.prisma.staff.findUnique({
+          where: { userId },
+          select: { id: true, branchId: true, employmentStatus: true },
+        })
+      : null;
+    if (!staff && claimedStaffId) {
+      staff = await this.prisma.staff.findUnique({
+        where: { id: claimedStaffId },
+        select: { id: true, branchId: true, employmentStatus: true },
+      });
+    }
+    if (staff && claimedStaffId && staff.id !== claimedStaffId) {
+      throw new ForbiddenException('Staff identity links do not match. Contact Super Admin before processing financial records.');
+    }
     if (!staff || staff.employmentStatus !== 'ACTIVE' || !staff.branchId) {
       throw new ForbiddenException('Your login must be linked to an active staff member with an assigned branch');
     }

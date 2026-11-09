@@ -14,6 +14,10 @@ describe('CollectionsController', () => {
     collectionsService = {
       create: jest.fn(),
       findAll: jest.fn(),
+      findOne: jest.fn(),
+      settle: jest.fn(),
+      reconcile: jest.fn(),
+      unreconcile: jest.fn(),
       summary: jest.fn(),
       dailySummary: jest.fn(),
     };
@@ -32,6 +36,7 @@ describe('CollectionsController', () => {
       assertBranch: jest.fn().mockResolvedValue(true),
       assertStaff: jest.fn().mockResolvedValue(true),
       assertCustomer: jest.fn().mockResolvedValue(true),
+      assertCollection: jest.fn().mockResolvedValue(true),
     };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [CollectionsController],

@@ -32,7 +32,7 @@ export class BalmzAiController {
   }
 
   @Post('receipts/verify')
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','AREA_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','CUSTOMER','AUDITOR','MONITORING_TEAM')
+  @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF','CUSTOMER','AUDITOR','MONITORING_TEAM')
   @UseInterceptors(FileInterceptor('receipt', {
     limits: { fileSize: MAX_RECEIPT_BYTES },
     fileFilter: (_req, file, callback) => {

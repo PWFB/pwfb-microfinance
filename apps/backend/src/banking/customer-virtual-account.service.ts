@@ -714,6 +714,62 @@ export class CustomerVirtualAccountService {
    * matchedCustomerAccount=false when the account belongs to another ledger
    * (for example, a branch DVA) so the controller can route it appropriately.
    */
+  /**
+   * Requery active Paystack dedicated virtual accounts to recover incoming
+   * deposits whose signed webhook notification was delayed or missed.
+   * Paystack permits one requery per account every ten minutes. The database
+   * timestamp is claimed before the network request so multiple PWFB instances
+   * cannot exceed that provider cooldown.
+   */
+  async requeryDuePaystackAccounts(limit = 50) {
+    const safeLimit = Math.max(1, Math.min(50, Math.floor(Number(limit) || 50)));
+    const accounts = await this.prisma.$transaction(async (tx) => {
+      const due = await tx.$queryRawUnsafe<any[]>(
+        'SELECT "id", "accountNumber" FROM "CustomerVirtualAccount" ' +
+        'WHERE "provider" = \'PAYSTACK\' AND "status" = \'ACTIVE\' ' +
+        'AND "accountNumber" ~ \'^[0-9]{10}$\' ' +
+        'AND ("lastRequeryAt" IS NULL OR "lastRequeryAt" <= CURRENT_TIMESTAMP - INTERVAL \'10 minutes\') ' +
+        'ORDER BY COALESCE("lastRequeryAt", "assignedAt", "createdAt") ASC, "id" ASC ' +
+        'LIMIT $1 FOR UPDATE SKIP LOCKED',
+        safeLimit,
+      );
+      const ids = due.map((row) => String(row.id));
+      if (ids.length) {
+        await tx.$executeRawUnsafe(
+          'UPDATE "CustomerVirtualAccount" SET "lastRequeryAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = ANY($1::text[])',
+          ids,
+        );
+      }
+      return due;
+    });
+
+    if (!accounts.length) return { checked: 0, requested: 0, errors: 0 };
+    let requested = 0;
+    let errors = 0;
+    const providerSlug = this.preferredBank();
+    const date = new Date().toISOString().slice(0, 10);
+    for (const account of accounts) {
+      const accountNumber = String(account.accountNumber || '').replace(/\D/g, '');
+      if (!/^\d{10}$/.test(accountNumber)) {
+        errors += 1;
+        continue;
+      }
+      try {
+        await this.request(
+          '/dedicated_account/requery?account_number=' + encodeURIComponent(accountNumber) +
+          '&provider_slug=' + encodeURIComponent(providerSlug) +
+          '&date=' + encodeURIComponent(date),
+        );
+        requested += 1;
+      } catch {
+        // Keep the cooldown on uncertain provider responses. Retrying sooner
+        // could violate Paystack's one-requery-per-account limit.
+        errors += 1;
+      }
+    }
+    return { checked: accounts.length, requested, errors };
+  }
+
   async handleDedicatedDepositWebhook(event: any) {
     const eventName = String(event?.event || '').trim().toLowerCase();
     const data = event?.data || {};

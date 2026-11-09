@@ -52,7 +52,7 @@ export default function RegisterPage() {
       setCreatedEmail(String(result.user?.email || form.email));
       setCreatedRole(role);
       setCreated(true);
-      setMessage(/^\\d{11}$/.test(publicId)
+      setMessage(/^\d{11}$/.test(publicId)
         ? "Account created. Save this 11-digit User ID for future sign-in."
         : "Account created, but the server did not return a valid 11-digit User ID. Please contact an administrator before relying on ID sign-in.");
     } catch (error: any) {
@@ -74,12 +74,12 @@ export default function RegisterPage() {
           <section style={{ display: "grid", gap: 14 }}>
             <div style={{ padding: 18, borderRadius: 16, background: "#f0faf3", border: "1px solid #cce8d5" }}>
               <p style={{ margin: 0, color: "#087534", fontSize: 11, fontWeight: 900, letterSpacing: ".12em" }}>YOUR PWFB USER ID</p>
-              <strong style={{ display: "block", marginTop: 8, color: "#075e2c", fontSize: 30, letterSpacing: ".08em", overflowWrap: "anywhere" }}>{/^\\d{11}$/.test(createdUserId) ? createdUserId : "Not available"}</strong>
+              <strong style={{ display: "block", marginTop: 8, color: "#075e2c", fontSize: 30, letterSpacing: ".08em", overflowWrap: "anywhere" }}>{/^\d{11}$/.test(createdUserId) ? createdUserId : "Not available"}</strong>
               <p style={{ margin: "8px 0 0", color: "#52645a", fontSize: 12 }}>Login email: {createdEmail || "—"}</p>
               <p style={{ margin: "8px 0 0", color: "#52645a", fontSize: 12 }}>Keep this 11-digit ID private and use it with your password to sign in.</p>
             </div>
             {copyMessage && <p role="status" style={{ margin: 0, color: "#087534", fontSize: 12 }}>{copyMessage}</p>}
-            <button type="button" disabled={!/^\\d{11}$/.test(createdUserId)} onClick={async () => { try { await navigator.clipboard.writeText(createdUserId); setCopyMessage("User ID copied."); } catch { setCopyMessage("Copy is unavailable on this browser. Select the ID above to copy it."); } }} style={{ height: 46, border: "1px solid #087534", borderRadius: 10, background: "#fff", color: "#087534", fontWeight: 900, opacity: /^\\d{11}$/.test(createdUserId) ? 1 : .5 }}>Copy 11-digit User ID</button>
+            <button type="button" disabled={!/^\d{11}$/.test(createdUserId)} onClick={async () => { try { await navigator.clipboard.writeText(createdUserId); setCopyMessage("User ID copied."); } catch { setCopyMessage("Copy is unavailable on this browser. Select the ID above to copy it."); } }} style={{ height: 46, border: "1px solid #087534", borderRadius: 10, background: "#fff", color: "#087534", fontWeight: 900, opacity: /^\d{11}$/.test(createdUserId) ? 1 : .5 }}>Copy 11-digit User ID</button>
             <button type="button" onClick={() => router.push(createdRole === "CUSTOMER" ? "/customer-dashboard" : createdRole === "SUPER_ADMIN" ? "/dashboard" : "/staff-dashboard")} style={{ height: 48, border: 0, borderRadius: 10, background: "#087534", color: "#fff", fontWeight: 900, borderBottom: "4px solid #f47712" }}>Continue to account</button>
           </section>
         ) : <form onSubmit={handleSubmit} style={{ display: "grid", gap: 13 }}>

@@ -366,7 +366,7 @@ export class StaffWalletService {
     const existing = await this.prisma.$queryRawUnsafe(
       'SELECT id FROM staff_wallet_withdrawal_requests WHERE reference=$1 LIMIT 1',
       reference,
-    );
+    ) as any[];
     if (existing.length) throw new BadRequestException('Staff withdrawal request reference already exists');
 
     const id = randomUUID();
@@ -452,7 +452,7 @@ export class StaffWalletService {
     const requestRows = await this.prisma.$queryRawUnsafe(
       'SELECT * FROM staff_wallet_withdrawal_requests WHERE id=$1 LIMIT 1',
       requestId,
-    );
+    ) as any[];
     const initial = requestRows[0];
     if (!initial) throw new NotFoundException('Staff wallet withdrawal request not found');
     if (String(initial.requested_by_user_id) === actorUserId) {
@@ -597,7 +597,7 @@ export class StaffWalletService {
     const rows = await this.prisma.$queryRawUnsafe(
       'SELECT * FROM staff_wallet_withdrawal_requests WHERE id=$1 LIMIT 1',
       requestId,
-    );
+    ) as any[];
     const request = rows[0];
     if (!request) throw new NotFoundException('Staff wallet withdrawal request not found');
     if (String(request.requested_by_user_id) === actorUserId) {
@@ -621,13 +621,13 @@ export class StaffWalletService {
       const rows = await tx.$queryRawUnsafe(
         'SELECT wallet_id,amount,status FROM staff_wallet_transactions WHERE reference=$1 FOR UPDATE',
         reference,
-      );
+      ) as any[];
       const transaction = rows[0];
       if (!transaction || transaction.status !== 'PROCESSING') return;
       const walletRows = await tx.$queryRawUnsafe(
         'SELECT balance FROM staff_wallets WHERE id=$1 FOR UPDATE',
         transaction.wallet_id,
-      );
+      ) as any[];
       const previous = Number(walletRows[0]?.balance || 0);
       const amount = Number(transaction.amount);
       const restored = Math.round((previous + amount) * 100) / 100;
@@ -659,11 +659,12 @@ export class StaffWalletService {
     const reference = String(input.reference || '').trim();
     if (!reference) throw new BadRequestException('Staff wallet withdrawal reference is required');
     if (input.status === 'FAILED') {
+      const matchingRequests = await this.prisma.$queryRawUnsafe(
+        'SELECT id FROM staff_wallet_withdrawal_requests WHERE provider_reference=$1 OR reference=$1 LIMIT 1',
+        reference,
+      ) as any[];
       await this.refundFailedWithdrawal(
-        String((await this.prisma.$queryRawUnsafe(
-          'SELECT id FROM staff_wallet_withdrawal_requests WHERE provider_reference=$1 OR reference=$1 LIMIT 1',
-          reference,
-        ))[0]?.id || ''),
+        String(matchingRequests[0]?.id || ''),
         reference,
         input.failureReason || 'Provider reported failed staff withdrawal',
       );

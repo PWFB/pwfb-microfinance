@@ -1,6 +1,7 @@
 import { fetchWithTimeout } from '../ai/ai-http.util';
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { createFinancialReference } from '../common/financial-reference';
 
 type ReceiptStatus = 'VERIFIED' | 'FAILED' | 'REVIEW';
 
@@ -27,6 +28,8 @@ type ReceiptResult = {
     status: string | null;
   };
   reasons: string[];
+  receiptReference: string;
+  receiptId: string;
 };
 
 @Injectable()
@@ -77,7 +80,28 @@ export class BalmzReceiptService {
     return { matched: false, source: null, id: null, amount: null, status: null };
   }
 
-  async verifyReceipt(file: { buffer: Buffer; mimetype: string; originalname: string }): Promise<ReceiptResult> {
+  private async persistReceipt(file: { buffer: Buffer; mimetype: string; originalname: string }, user: { id: string }, result: Omit<ReceiptResult, 'receiptReference' | 'receiptId'>): Promise<ReceiptResult> {
+    const receiptReference = createFinancialReference('PWFB-RCP');
+    const saved = await this.prisma.receiptVerification.create({
+      data: {
+        reference: receiptReference,
+        fileName: String(file.originalname || 'receipt').slice(0, 255),
+        mimeType: file.mimetype,
+        file: file.buffer,
+        status: result.status,
+        confidence: result.confidence,
+        extracted: result.extracted as any,
+        databaseMatch: result.databaseMatch as any,
+        reasons: result.reasons as any,
+        uploadedByUserId: user.id,
+        transactionId: result.databaseMatch.source === 'transaction' ? result.databaseMatch.id : null,
+      },
+      select: { id: true },
+    });
+    return { ...result, receiptReference, receiptId: saved.id };
+  }
+
+  async verifyReceipt(file: { buffer: Buffer; mimetype: string; originalname: string }, user: { id: string }): Promise<ReceiptResult> {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowed.includes(file.mimetype)) throw new BadRequestException('Upload a JPG, PNG, WEBP or GIF payment receipt image.');
     if (!file.buffer?.length) throw new BadRequestException('The uploaded receipt is empty.');
@@ -123,20 +147,20 @@ export class BalmzReceiptService {
     const reasons = Array.isArray(parsed.reasons) ? parsed.reasons.map(String) : [];
 
     if (extracted.paymentStatus === 'failed' || extracted.paymentStatus === 'declined' || extracted.paymentStatus === 'reversed') {
-      return { assistant: 'BALMZ AI', status: 'FAILED', confidence, message: 'The uploaded receipt indicates that the payment did not successfully settle.', extracted, databaseMatch, reasons };
+      return this.persistReceipt(file, user, { assistant: 'BALMZ AI', status: 'FAILED', confidence, message: 'The uploaded receipt indicates that the payment did not successfully settle.', extracted, databaseMatch, reasons });
     }
 
     if (extracted.paymentStatus === 'successful' && databaseMatch.matched) {
       reasons.push('Receipt status is successful and the payment reference/amount matches a PWFB financial record.');
-      return { assistant: 'BALMZ AI', status: 'VERIFIED', confidence, message: 'Payment receipt verified against the PWFB financial records.', extracted, databaseMatch, reasons };
+      return this.persistReceipt(file, user, { assistant: 'BALMZ AI', status: 'VERIFIED', confidence, message: 'Payment receipt verified against the PWFB financial records.', extracted, databaseMatch, reasons });
     }
 
     if (extracted.paymentStatus === 'successful' && !databaseMatch.matched) {
       reasons.push('Receipt says successful, but no matching PWFB transaction/collection was found.');
-      return { assistant: 'BALMZ AI', status: 'REVIEW', confidence, message: 'The receipt appears successful, but BALMZ AI could not reconcile it with a PWFB financial record.', extracted, databaseMatch, reasons };
+      return this.persistReceipt(file, user, { assistant: 'BALMZ AI', status: 'REVIEW', confidence, message: 'The receipt appears successful, but BALMZ AI could not reconcile it with a PWFB financial record.', extracted, databaseMatch, reasons });
     }
 
     reasons.push('The receipt status or payment details are incomplete, ambiguous, or not yet reconciled.');
-    return { assistant: 'BALMZ AI', status: 'REVIEW', confidence, message: 'Manual review is required before treating this receipt as a successful payment.', extracted, databaseMatch, reasons };
+    return this.persistReceipt(file, user, { assistant: 'BALMZ AI', status: 'REVIEW', confidence, message: 'Manual review is required before treating this receipt as a successful payment.', extracted, databaseMatch, reasons });
   }
 }

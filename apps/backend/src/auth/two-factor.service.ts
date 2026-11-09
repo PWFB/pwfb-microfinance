@@ -6,16 +6,9 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TwoFactorService {
-  private tablesReady = false;
 
   constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
 
-  private async ensureTables() {
-    if (this.tablesReady) return;
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserAuthenticator" ("userId" TEXT PRIMARY KEY REFERENCES "User"("id") ON DELETE CASCADE, "secretEnc" TEXT NOT NULL, "enabled" BOOLEAN NOT NULL DEFAULT FALSE, "recoveryCodes" TEXT, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-    await this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "UserTwoFactorSession" ("tokenHash" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id") ON DELETE CASCADE, "verifiedUntil" TIMESTAMP(3) NOT NULL, "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-    this.tablesReady = true;
-  }
 
   private encryptionKey() {
     const seed = process.env.AUTHENTICATOR_ENCRYPTION_KEY || process.env.JWT_SECRET;
@@ -62,7 +55,6 @@ export class TwoFactorService {
   }
 
   async verify(token: string, code?: string, recoveryCode?: string) {
-    await this.ensureTables();
     if (!token) throw new UnauthorizedException('Two-factor login session is missing');
 
     let payload: any;
@@ -106,7 +98,6 @@ export class TwoFactorService {
   }
 
   async isVerified(userId: string, token: string) {
-    await this.ensureTables();
     const tokenHash = createHash('sha256').update(token).digest('hex');
     const rows = await this.prisma.$queryRawUnsafe<Array<{ verifiedUntil: Date }>>(`SELECT "verifiedUntil" FROM "UserTwoFactorSession" WHERE "tokenHash" = $1 AND "userId" = $2 AND "verifiedUntil" > CURRENT_TIMESTAMP LIMIT 1`, tokenHash, userId);
     return Boolean(rows.length);

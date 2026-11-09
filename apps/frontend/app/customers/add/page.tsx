@@ -18,6 +18,11 @@ export default function AddCustomerPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [virtualAccountConsent, setVirtualAccountConsent] = useState(false);
+  const [registrationCharge, setRegistrationCharge] = useState<{ amount: number; currency: string } | null>(null);
+  const [registrationChargeError, setRegistrationChargeError] = useState("");
+  const [registrationFeeMethod, setRegistrationFeeMethod] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [registrationFeeReference, setRegistrationFeeReference] = useState("");
+  const [registrationFeeConfirmed, setRegistrationFeeConfirmed] = useState(false);
   const [bvn, setBvn] = useState("");
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -28,6 +33,11 @@ export default function AddCustomerPage() {
       const list = Array.isArray(result) ? result : result?.data ?? [];
       if (alive) setBanks(list.filter((bank: any) => bank?.code && bank?.name).map((bank: any) => ({ code: String(bank.code), name: String(bank.name), shortName: bank.shortName, provider: bank.provider })));
     }).catch(() => { if (alive) setBanks([]); });
+    apiRequest("/charges/registration").then((charge: any) => {
+      if (alive && Number(charge?.amount) > 0) setRegistrationCharge({ amount: Number(charge.amount), currency: String(charge.currency || "NGN") });
+    }).catch((error) => {
+      if (alive) setRegistrationChargeError(error instanceof Error ? error.message : "Registration charge is unavailable.");
+    });
     return () => { alive = false; };
   }, []);
   const fullName = useMemo(() => [form.firstName, form.middleName, form.lastName].filter(Boolean).join(" "), [form.firstName, form.middleName, form.lastName]);
@@ -47,9 +57,32 @@ export default function AddCustomerPage() {
       setMessage("Customer consent is required before sending identity details to Paystack.");
       return;
     }
+    if (!registrationCharge || !Number.isFinite(registrationCharge.amount) || registrationCharge.amount <= 0) {
+      setMessage(registrationChargeError || "The central registration charge must load successfully before customer registration.");
+      return;
+    }
+    if (!registrationFeeReference.trim()) {
+      setMessage("Enter the cash receipt number or bank transfer reference for the registration fee.");
+      return;
+    }
+    if (!registrationFeeConfirmed) {
+      setMessage("Confirm that the registration charge has actually been received before continuing.");
+      return;
+    }
     setLoading(true);
     try {
-      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent }) });
+      const feeReceipt: any = await apiRequest("/charges/registration/collect", {
+        method: "POST",
+        body: JSON.stringify({
+          reference: registrationFeeReference.trim(),
+          paymentMethod: registrationFeeMethod,
+          confirmedReceived: true,
+        }),
+      });
+      if (!feeReceipt?.id || feeReceipt.status !== "COLLECTED") {
+        throw new Error("Registration fee receipt could not be confirmed. Customer creation was stopped.");
+      }
+      const created: any = await apiRequest("/customers", { method: "POST", body: JSON.stringify({ ...form, virtualAccountConsent, registrationFeeReceiptId: feeReceipt.id }) });
       const customerId = String(created?.client?.id ?? created?.customer?.id ?? created?.id ?? "");
       if (!customerId) {
         setMessage("Customer profile was submitted, but the server response did not include a customer ID. Wallet and virtual-account setup could not be confirmed.");
@@ -116,7 +149,19 @@ export default function AddCustomerPage() {
             </div>
           </section>
           <section className={styles.section}>
-            <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
+            <div className={styles.sectionHead}><div className={styles.number}>03</div><div><h2>Registration Fee</h2><p>The current amount is managed centrally by LAB Microfinance Super Admin.</p></div></div>
+            <div className={styles.gridTwo}>
+              <div className={styles.infoBox}><span>₦</span><div><b>{registrationCharge ? `${registrationCharge.currency} ${registrationCharge.amount.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Loading central charge…"}</b><small>{registrationCharge ? "Current approved customer registration charge." : registrationChargeError || "Registration cannot continue until the central charge is available."}</small></div></div>
+              <label>Payment method <em>*</em><select value={registrationFeeMethod} onChange={(e) => setRegistrationFeeMethod(e.target.value as "CASH" | "BANK_TRANSFER")}><option value="CASH">Cash received</option><option value="BANK_TRANSFER">Bank transfer received</option></select></label>
+              <label className={styles.full}>Cash receipt / transfer reference <em>*</em><input value={registrationFeeReference} onChange={(e) => setRegistrationFeeReference(e.target.value)} placeholder="Enter the receipt number or bank transfer reference" maxLength={120} required /></label>
+              <label className={styles.full} style={{ display: "flex", alignItems: "flex-start", gap: 10, lineHeight: 1.5 }}>
+                <input type="checkbox" checked={registrationFeeConfirmed} onChange={(e) => setRegistrationFeeConfirmed(e.target.checked)} required style={{ width: 18, height: 18, marginTop: 3 }} />
+                <span>I confirm that the full registration fee shown above has actually been received. This will create a receipt and a CASH_IN cashbook entry attributed to my branch and Staff ID.</span>
+              </label>
+            </div>
+          </section>
+          <section className={styles.section}>
+            <div className={styles.sectionHead}><div className={styles.number}>04</div><div><h2>Customer Details</h2><p>Complete the profile information before creating the customer record.</p></div></div>
             <div className={styles.gridTwo}>
               <label>Date of Birth <small>Optional</small><input type="date" value={form.dateOfBirth} onChange={(e) => change("dateOfBirth", e.target.value)} /></label>
               <label>BVN <em>*</em> <small>Required for automatic DVA assignment</small><input type="password" inputMode="numeric" autoComplete="off" maxLength={11} value={bvn} onChange={(e) => setBvn(e.target.value.replace(/\D/g, "").slice(0, 11))} placeholder="11-digit BVN" required /></label>

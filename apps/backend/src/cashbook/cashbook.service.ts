@@ -100,10 +100,47 @@ export class CashbookService {
     return { totalReceipts, totalPayments, netAmount: totalReceipts-totalPayments };
   }
 
-  async create(data:any){
-    const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}}); if(!p)throw new NotFoundException('Financial period not found'); if(p.status==='CLOSED')throw new BadRequestException('Cannot add cashbook entries to a closed period');
-    const b=await this.prisma.branch.findUnique({where:{id:data.branchId}}); if(!b)throw new NotFoundException('Branch not found'); const amount=this.number(data.amount); if(amount<=0)throw new BadRequestException('Amount must be greater than zero');
-    return this.prisma.cashbookEntry.create({data:{periodId:data.periodId,branchId:data.branchId,type:data.type,amount,reference:data.reference,description:data.description,entryDate:data.entryDate?new Date(data.entryDate):new Date()},include:{period:true,branch:true}});
+  async create(data: any) {
+    const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
+    if (!period) throw new NotFoundException('Financial period not found');
+    if (period.status === 'CLOSED') throw new BadRequestException('Cannot add cashbook entries to a closed period');
+    const branch = await this.prisma.branch.findUnique({ where: { id: data.branchId } });
+    if (!branch) throw new NotFoundException('Branch not found');
+    if (data.type !== 'CASH_IN' && data.type !== 'CASH_OUT') {
+      throw new BadRequestException('Cashbook entry type must be CASH_IN or CASH_OUT');
+    }
+    const amount = this.number(data.amount);
+    if (amount <= 0) throw new BadRequestException('Amount must be greater than zero');
+    const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
+    if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('A valid cashbook entry date is required');
+    if (entryDate < new Date(period.startDate) || entryDate > new Date(period.endDate)) {
+      throw new BadRequestException('Cashbook entry date must fall inside the selected financial period');
+    }
+
+    const reference = String(data.reference || '').trim() || `MANUAL-CASHBOOK-${randomUUID()}`;
+    return this.prisma.$transaction(async (tx: any) => {
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        `CASHBOOK-ENTRY:${data.branchId}:${reference}`,
+      );
+      const duplicate = await tx.cashbookEntry.findFirst({
+        where: { branchId: data.branchId, reference },
+        select: { id: true },
+      });
+      if (duplicate) throw new BadRequestException('This cashbook reference has already been recorded for the selected branch');
+      return tx.cashbookEntry.create({
+        data: {
+          periodId: data.periodId,
+          branchId: data.branchId,
+          type: data.type,
+          amount,
+          reference,
+          description: data.description,
+          entryDate,
+        },
+        include: { period: true, branch: true },
+      });
+    });
   }
   async findAll(periodId?:string,branchId?:string){return this.prisma.cashbookEntry.findMany({where:{...(periodId?{periodId}:{}),...(branchId?{branchId}:{})},orderBy:{entryDate:'desc'},include:{period:true,branch:true}})}
   async findOne(id:string){const e=await this.prisma.cashbookEntry.findUnique({where:{id},include:{period:true,branch:true}});if(!e)throw new NotFoundException('Cashbook entry not found');return e;}

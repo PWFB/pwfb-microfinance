@@ -12,36 +12,36 @@ export class OrganizationController {
   @Get('hierarchy')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER')
   hierarchy(@Req() req: any) {
-    return this.organizationService.listForUser(req.user.sub);
+    return this.organizationService.listForUser(req.user.id);
   }
 
   @Get('registration-hierarchy')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  registrationHierarchy() {
-    return this.organizationService.registrationHierarchy();
+  registrationHierarchy(@Req() req: any) {
+    return this.organizationService.registrationHierarchy(req.user.id);
   }
 
   @Post('regions')
-  @Roles('SUPER_ADMIN', 'ADMIN')
-  createRegion(@Body() body: { name: string; code?: string }) {
-    return this.organizationService.createRegion(body);
+  @Roles('SUPER_ADMIN')
+  createRegion(@Body() body: { name: string; code?: string }, @Req() req: any) {
+    return this.organizationService.createRegion(body, req.user.id);
   }
 
   @Post('divisions')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER')
-  createDivision(@Body() body: { name: string; regionId: string }) {
-    return this.organizationService.createDivision(body);
+  @Roles('SUPER_ADMIN', 'REGIONAL_MANAGER')
+  createDivision(@Body() body: { name: string; regionId: string }, @Req() req: any) {
+    return this.organizationService.createDivision(body, req.user.id);
   }
 
   @Post('areas')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER')
-  createArea(@Body() body: { name: string; regionId: string; divisionId?: string }) {
-    return this.organizationService.createArea(body);
+  @Roles('SUPER_ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER')
+  createArea(@Body() body: { name: string; regionId: string; divisionId?: string }, @Req() req: any) {
+    return this.organizationService.createArea(body, req.user.id);
   }
 
   @Get('regions/:id/staff')
   @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'MONITORING_TEAM', 'AUDITOR', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER')
-  regionStaff(@Param('id') id: string) {
-    return this.organizationService.regionStaff(id);
+  regionStaff(@Param('id') id: string, @Req() req: any) {
+    return this.organizationService.regionStaff(id, req.user.id);
   }
 }

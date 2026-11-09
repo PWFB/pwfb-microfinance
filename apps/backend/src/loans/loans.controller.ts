@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, Query, UseGuards } from '@nestjs/common';
 import { LoansService } from './loans.service';
 import { LoanDisbursementService } from './loan-disbursement.service';
 import { CreateLoanDto } from './dto/create-loan.dto';
@@ -23,6 +23,29 @@ export class LoansController {
     return {...result,customerKnown:false,eligible:true,verification:'VERIFIED',beneficiaryType:'EXTERNAL_BANK_ACCOUNT'};
   }
   @Post() @Roles('CREDIT_OFFICER','SUPER_ADMIN','ADMIN') async create(@Body() dto:CreateLoanDto,@Req() req:any){await this.permissions.assert(req.user.role,'LOAN_CREATE');await this.accessScope.assertCustomer(req.user,dto.customerId);return this.loansService.create(dto);}
+  @Get('repayments/daily') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER')
+  async dailyRepaymentRegister(@Query('date') date:string|undefined,@Req() req:any){
+    const selectedDate=date||new Date().toISOString().slice(0,10);
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(selectedDate))throw new BadRequestException('Date must use YYYY-MM-DD');
+    const loans=await this.loansService.findAll();
+    const visible=await this.accessScope.filterList(req.user,'loans',loans);
+    const schedules=await Promise.all(visible.map(async(loan:any)=>({loan,schedule:await this.loansService.getRepaymentSchedule(loan.id)})));
+    const items=schedules.flatMap(({loan,schedule}:any)=>(schedule.schedule||[])
+      .filter((row:any)=>String(row.dueDate).slice(0,10)===selectedDate)
+      .map((row:any)=>({
+        loanId:loan.id,clientId:loan.customerId,customerName:[loan.customer?.firstName,loan.customer?.middleName,loan.customer?.lastName].filter(Boolean).join(' '),
+        assignedStaffId:loan.customer?.assignedStaffId||null,branchId:loan.customer?.branchId||null,
+        installmentNumber:row.installmentNumber,dueDate:row.dueDate,amountDue:Number(row.amount||0),
+        paidAmount:Number(row.paidAmount||0),outstandingAmount:Number(row.remainingAmount||0),
+        status:row.status==='PAID'?'PAID':'NOT_PAID',overdue:row.status==='OVERDUE',
+      })));
+    const paid=items.filter((row:any)=>row.status==='PAID');
+    const unpaid=items.filter((row:any)=>row.status!=='PAID');
+    return {date:selectedDate,items,totalInstallments:items.length,paidCount:paid.length,unpaidCount:unpaid.length,
+      totalDue:items.reduce((sum:number,row:any)=>sum+row.amountDue,0),
+      totalPaid:items.reduce((sum:number,row:any)=>sum+row.paidAmount,0),
+      totalOutstanding:items.reduce((sum:number,row:any)=>sum+row.outstandingAmount,0)};
+  }
   @Get() @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') async findAll(@Req() req:any){const rows=await this.loansService.findAll();return this.accessScope.filterList(req.user,'loans',rows);}
   @Get(':id/schedule') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') async getSchedule(@Param('id') id:string,@Req() req:any){await this.accessScope.assertLoan(req.user,id);return this.loansService.getRepaymentSchedule(id);}
   @Get(':id') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER') async findOne(@Param('id') id:string,@Req() req:any){await this.accessScope.assertLoan(req.user,id);return this.loansService.findOne(id);}

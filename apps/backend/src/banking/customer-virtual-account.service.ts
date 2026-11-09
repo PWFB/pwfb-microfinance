@@ -431,13 +431,15 @@ export class CustomerVirtualAccountService {
       });
     }
 
+    await this.ensureIdentitySchema();
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO customer_identity_verifications (id, customer_id, bvn, bvn_status, updated_at)
-       VALUES ($1, $2, $3, 'PENDING', NOW())
+      `INSERT INTO customer_identity_verifications (id, customer_id, bvn, bvn_status, bvn_provider, updated_at)
+       VALUES ($1, $2, $3, 'PENDING', 'PAYSTACK', NOW())
        ON CONFLICT (customer_id) DO UPDATE SET bvn = EXCLUDED.bvn, bvn_status = 'PENDING',
-       bvn_verified_at = NULL, bvn_overridden_at = NULL, bvn_override_by_user_id = NULL,
-       bvn_override_by_email = NULL, bvn_override_reason = NULL, updated_at = NOW()`,
-      randomUUID(), customerId, bvn,
+       bvn_provider = 'PAYSTACK', bvn_verified_at = NULL, bvn_overridden_at = NULL,
+       bvn_override_by_user_id = NULL, bvn_override_by_email = NULL,
+       bvn_override_reason = NULL, updated_at = NOW()`,
+      randomUUID(), customerId, this.maskIdentityValue(bvn),
     );
 
     await this.prisma.customerVirtualAccount.update({

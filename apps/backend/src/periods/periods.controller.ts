@@ -14,10 +14,13 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('periods')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER','AUDITOR','MONITORING_TEAM')
 export class PeriodsController {
   constructor(private readonly periodsService: PeriodsService) {}
 
   @Post()
+  @Roles('SUPER_ADMIN')
   create(@Body() body: { name: string; startDate: string; endDate: string }) {
     return this.periodsService.create(body);
   }
@@ -46,7 +49,7 @@ export class PeriodsController {
 
   @Patch(':id/close')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   close(@Param('id') id: string, @Req() req: any) {
     return this.periodsService.close(id, req.user);
   }

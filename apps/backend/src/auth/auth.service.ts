@@ -20,6 +20,7 @@ export class AuthService {
   private loginKey(value: string) { return createHash('sha256').update(String(value || '').trim().toLowerCase()).digest('hex'); }
   private async assertLoginRateLimit(identifier: string, ip: string) {
     await this.ensureLoginAttemptTable();
+    await this.prisma.$executeRawUnsafe(`DELETE FROM "AuthLoginAttempt" WHERE "createdAt" < CURRENT_TIMESTAMP - INTERVAL '1 day'`);
     const emailKey = this.loginKey(`email:${identifier}`);
     const ipKey = this.loginKey(`ip:${ip || 'unknown'}`);
     const rows = await this.prisma.$queryRawUnsafe<Array<{ keyHash: string; attempts: number }>>(

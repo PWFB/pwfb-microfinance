@@ -45,11 +45,13 @@ export class ChargesService {
         "status" TEXT NOT NULL DEFAULT 'COLLECTED',
         "providerVerified" BOOLEAN NOT NULL DEFAULT FALSE,
         "customerId" TEXT UNIQUE REFERENCES "Customer"("id"),
+        "usedByStaffId" TEXT REFERENCES "Staff"("id"),
         "createdBy" TEXT NOT NULL,
         "createdByEmail" TEXT,
         "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
         "usedAt" TIMESTAMP(3)
       );
+      ALTER TABLE "PWFBRegistrationChargeReceipt" ADD COLUMN IF NOT EXISTS "usedByStaffId" TEXT REFERENCES "Staff"("id");
       CREATE INDEX IF NOT EXISTS "PWFBRegistrationChargeReceipt_branch_created_idx"
         ON "PWFBRegistrationChargeReceipt" ("branchId", "createdAt" DESC);
       INSERT INTO "PWFBChargeConfiguration" ("key","amount","currency")
@@ -195,7 +197,7 @@ export class ChargesService {
         lockKey,
       );
       const existing = await tx.$queryRawUnsafe<any[]>(
-        `SELECT "id","amount","branchId","staffId","status","customerId","cashbookEntryId"
+        `SELECT "id","amount","currency","paymentMethod","branchId","staffId","status","customerId","cashbookEntryId"
          FROM "PWFBRegistrationChargeReceipt" WHERE "reference"=$1 LIMIT 1`,
         reference,
       );
@@ -203,12 +205,12 @@ export class ChargesService {
         const receipt = existing[0];
         if (receipt.status === 'COLLECTED' && !receipt.customerId
           && receipt.branchId === branchId && receipt.staffId === staffId
-          && Number(receipt.amount) === amount) {
+          && receipt.paymentMethod === paymentMethod) {
           return {
             id: receipt.id,
             amount: Number(receipt.amount),
-            currency,
-            paymentMethod,
+            currency: String(receipt.currency || currency),
+            paymentMethod: receipt.paymentMethod,
             reference,
             branchId,
             staffId,
@@ -282,18 +284,18 @@ export class ChargesService {
     if (receipt.status !== 'COLLECTED' || receipt.customerId) {
       throw new BadRequestException('This registration fee receipt has already been used');
     }
-    if (receipt.branchId !== branchId || receipt.staffId !== staffId) {
-      throw new ForbiddenException('Registration fee receipt must belong to the same branch and Staff ID creating this customer');
+    if (receipt.branchId !== branchId) {
+      throw new ForbiddenException('Registration fee receipt must belong to the same branch creating this customer');
     }
     const affected = await tx.$executeRawUnsafe(
       `UPDATE "PWFBRegistrationChargeReceipt"
-       SET "status"='USED',"customerId"=$1,"usedAt"=CURRENT_TIMESTAMP
+       SET "status"='USED',"customerId"=$1,"usedByStaffId"=$3,"usedAt"=CURRENT_TIMESTAMP
        WHERE "id"=$2 AND "status"='COLLECTED' AND "customerId" IS NULL`,
-      customerId, id,
+      customerId, id, staffId,
     );
     if (Number(affected) !== 1) {
       throw new BadRequestException('Registration fee receipt could not be consumed. It may already be linked to another customer.');
     }
-    return { receiptId: id, reference: receipt.reference, amount: Number(receipt.amount) };
+    return { receiptId: id, reference: receipt.reference, amount: Number(receipt.amount), collectedByStaffId: receipt.staffId, registeredByStaffId: staffId };
   }
 }

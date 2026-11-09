@@ -5,6 +5,7 @@ describe('StaffService', () => {
   let service: StaffService;
   let repository: jest.Mocked<StaffRepository>;
   let virtualAccounts: { ensureStaff: jest.Mock; getStaff: jest.Mock };
+  let prisma: any;
 
   beforeEach(() => {
     repository = {
@@ -21,13 +22,17 @@ describe('StaffService', () => {
 
     virtualAccounts = { ensureStaff: jest.fn().mockResolvedValue({ status: 'PENDING' }), getStaff: jest.fn().mockResolvedValue({ providerCustomerCode: 'CUS_staff_test' }) };
 
+    prisma = {
+      $executeRawUnsafe: jest.fn(),
+      $queryRawUnsafe: jest.fn(),
+      staff: {
+        update: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn(),
+      },
+    };
     service = new StaffService(
       repository,
-      {
-        $executeRawUnsafe: jest.fn(),
-        $queryRawUnsafe: jest.fn(),
-        staff: { update: jest.fn().mockResolvedValue({}) },
-      } as any,
+      prisma as any,
       { isConfigured: jest.fn().mockReturnValue(false) } as any,
       virtualAccounts as any,
     );
@@ -42,6 +47,65 @@ describe('StaffService', () => {
       status: 'COMPLETED',
       message: '',
     } as any);
+  });
+
+
+  it('resolves the staff profile through Staff.userId', async () => {
+    const staff = {
+      id: 'staff-1',
+      staffId: 'PWFB-STF-0001',
+      firstName: 'Ada',
+      lastName: 'Officer',
+      branchId: 'branch-1',
+    };
+    prisma.staff.findUnique.mockResolvedValueOnce(staff);
+
+    await expect(service.findMe({ id: 'user-1', role: 'CREDIT_OFFICER' })).resolves.toBe(staff);
+    expect(prisma.staff.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: 'user-1' },
+    }));
+  });
+
+  it('falls back to the linked User.staffId for a legacy staff login', async () => {
+    const staff = {
+      id: 'staff-legacy',
+      staffId: 'PWFB-STF-LEGACY',
+      firstName: 'Grace',
+      lastName: 'Teller',
+      branchId: 'branch-1',
+    };
+    prisma.staff.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(staff);
+
+    await expect(service.findMe({
+      id: 'user-legacy',
+      staffId: 'staff-legacy',
+      role: 'TELLER',
+    })).resolves.toBe(staff);
+    expect(prisma.staff.findUnique).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      where: { userId: 'user-legacy' },
+    }));
+    expect(prisma.staff.findUnique).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      where: { id: 'staff-legacy' },
+    }));
+  });
+
+  it('fails closed when the authenticated Staff ID conflicts with the user-linked profile', async () => {
+    prisma.staff.findUnique.mockResolvedValueOnce({ id: 'staff-actual' });
+
+    await expect(service.findMe({
+      id: 'user-1',
+      staffId: 'staff-claimed',
+      role: 'TELLER',
+    })).rejects.toThrow('Staff identity links do not match');
+  });
+
+  it('does not reveal a different Staff profile when no authenticated link exists', async () => {
+    await expect(service.findMe({ id: 'user-1', role: 'TELLER' })).rejects.toThrow(
+      'Staff profile is not linked to this login',
+    );
+    expect(prisma.staff.findUnique).toHaveBeenCalledTimes(1);
   });
 
   it('should be defined', () => {

@@ -51,3 +51,8 @@
 @media (max-width:760px) {
   .login-page .login-card { padding-bottom: 24px !important; }
 }
+
+/* Keep legacy public login overlays readable when Dark or System resolves dark. */
+html[data-theme="dark"] .login-page .google::after{background:#17271f!important;color:#edf5ef!important;border-color:#40594a!important}
+html[data-theme="dark"] .login-page .login-card .or::before,
+html[data-theme="dark"] .login-page .login-card .or::after{background:#34483c!important}

@@ -36,7 +36,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
       else if (path.includes('/branches')) await this.scope.assertBranch(user, String(id));
     }
 
-    const { mergeMap, from } = require('rxjs');
+    const { mergeMap } = require('rxjs/operators');
     const resource = path.includes('/staff') ? 'staff'
       : path.includes('/customers') ? 'customers'
       : path.includes('/loans') ? 'loans'
@@ -48,19 +48,11 @@ export class AccessScopeInterceptor implements NestInterceptor {
 
     if (!resource || id) return next.handle();
 
-    return next.handle().pipe(mergeMap((data: any) => {
-      if (Array.isArray(data)) return from(this.scope.filterList(user, resource, data));
-      if (Array.isArray(data?.data)) {
-        return from(this.scope.filterList(user, resource, data.data)).pipe(
-          require('rxjs').map((filtered: any[]) => ({ ...data, data: filtered })),
-        );
-      }
-      if (Array.isArray(data?.items)) {
-        return from(this.scope.filterList(user, resource, data.items)).pipe(
-          require('rxjs').map((filtered: any[]) => ({ ...data, items: filtered })),
-        );
-      }
-      return from(Promise.resolve(data));
+    return next.handle().pipe(mergeMap(async (data: any) => {
+      if (Array.isArray(data)) return await this.scope.filterList(user, resource, data);
+      if (Array.isArray(data?.data)) return { ...data, data: await this.scope.filterList(user, resource, data.data) };
+      if (Array.isArray(data?.items)) return { ...data, items: await this.scope.filterList(user, resource, data.items) };
+      return data;
     }));
   }
 }

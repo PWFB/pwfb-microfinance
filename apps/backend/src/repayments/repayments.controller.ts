@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { RepaymentsService } from './repayments.service';
 import { CreateRepaymentDto } from './dto/create-repayment.dto';
 import { UpdateRepaymentDto } from './dto/update-repayment.dto';
@@ -14,22 +14,22 @@ export class RepaymentsController {
   constructor(private readonly repaymentsService: RepaymentsService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','LOAN_OFFICER','TELLER')
-  create(@Body() dto: CreateRepaymentDto) { return this.repaymentsService.create(dto); }
+  @Roles('SUPER_ADMIN','ADMIN','BRANCH_MANAGER','CREDIT_OFFICER','LOAN_OFFICER','TELLER')
+  create(@Req() req: any, @Body() dto: CreateRepaymentDto) { return this.repaymentsService.create(dto, req.user); }
 
   @Get()
   @Roles(...VIEW_ROLES)
-  findAll() { return this.repaymentsService.findAll(); }
+  findAll(@Req() req: any) { return this.repaymentsService.findAll(req.user); }
 
   @Get(':id')
   @Roles(...VIEW_ROLES)
-  findOne(@Param('id') id: string) { return this.repaymentsService.findOne(id); }
+  findOne(@Param('id') id: string, @Req() req: any) { return this.repaymentsService.findOne(id, req.user); }
 
   @Patch(':id')
   @Roles('SUPER_ADMIN','ADMIN')
-  update(@Param('id') id: string, @Body() dto: UpdateRepaymentDto) { return this.repaymentsService.update(id, dto); }
+  update(@Param('id') id: string, @Body() dto: UpdateRepaymentDto, @Req() req: any) { return this.repaymentsService.update(id, dto, req.user); }
 
   @Delete(':id')
   @Roles('SUPER_ADMIN','ADMIN')
-  remove(@Param('id') id: string) { return this.repaymentsService.remove(id); }
+  remove(@Param('id') id: string, @Req() req: any) { return this.repaymentsService.remove(id, req.user); }
 }

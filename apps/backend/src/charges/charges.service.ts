@@ -62,7 +62,7 @@ export class ChargesService {
 
   async getRegistrationCharge() {
     await this.ensureTables();
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+    const rows = await this.prisma.$queryRawUnsafe(
       `SELECT "key","amount","currency","updatedBy","updatedAt"
        FROM "PWFBChargeConfiguration" WHERE "key"='CUSTOMER_REGISTRATION' LIMIT 1`,
     );
@@ -95,7 +95,7 @@ export class ChargesService {
         'SELECT "key" FROM "PWFBChargeConfiguration" WHERE "key"=$1 FOR UPDATE',
         'CUSTOMER_REGISTRATION',
       );
-      const rows = await tx.$queryRawUnsafe<any[]>(
+      const rows = await tx.$queryRawUnsafe(
         `SELECT "amount","currency" FROM "PWFBChargeConfiguration" WHERE "key"=$1 LIMIT 1`,
         'CUSTOMER_REGISTRATION',
       );
@@ -122,7 +122,7 @@ export class ChargesService {
       throw new ForbiddenException('Only Super Admin may view registration charge change history');
     }
     await this.ensureTables();
-    return this.prisma.$queryRawUnsafe<any[]>(
+    return this.prisma.$queryRawUnsafe(
       `SELECT "id","chargeKey","previousAmount","newAmount","currency","reason",
         "changedBy","changedByEmail","createdAt"
        FROM "PWFBChargeChangeAudit" WHERE "chargeKey"='CUSTOMER_REGISTRATION'
@@ -183,7 +183,7 @@ export class ChargesService {
         'SELECT "key" FROM "PWFBChargeConfiguration" WHERE "key"=$1 FOR SHARE',
         'CUSTOMER_REGISTRATION',
       );
-      const configRows = await tx.$queryRawUnsafe<any[]>(
+      const configRows = await tx.$queryRawUnsafe(
         `SELECT "amount","currency" FROM "PWFBChargeConfiguration" WHERE "key"=$1 LIMIT 1`,
         'CUSTOMER_REGISTRATION',
       );
@@ -196,7 +196,7 @@ export class ChargesService {
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         lockKey,
       );
-      const existing = await tx.$queryRawUnsafe<any[]>(
+      const existing = await tx.$queryRawUnsafe(
         `SELECT "id","amount","currency","paymentMethod","branchId","staffId","status","customerId","cashbookEntryId"
          FROM "PWFBRegistrationChargeReceipt" WHERE "reference"=$1 LIMIT 1`,
         reference,
@@ -274,7 +274,7 @@ export class ChargesService {
       'SELECT "id" FROM "PWFBRegistrationChargeReceipt" WHERE "id"=$1 FOR UPDATE',
       id,
     );
-    const rows = await tx.$queryRawUnsafe<any[]>(
+    const rows = await tx.$queryRawUnsafe(
       `SELECT "amount","branchId","staffId","status","customerId","reference"
        FROM "PWFBRegistrationChargeReceipt" WHERE "id"=$1 LIMIT 1`,
       id,

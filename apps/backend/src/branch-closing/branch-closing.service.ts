@@ -69,6 +69,7 @@ export class BranchClosingService {
     if(periodId){values.push(periodId);where=' WHERE "periodId"=$1';}
     const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT bc.*,b.name AS "branchName" FROM "BranchClosing" bc JOIN "Branch" b ON b.id=bc."branchId"${where} ORDER BY bc."closingDate" DESC,bc."createdAt" DESC`,...values);
     if(access.global) return rows;
-    return rows.filter(r => r.branchId===access.branchId);
+    const branchIds = new Set(await this.scope.getScopedBranchIds(user) || []);
+    return rows.filter((row) => branchIds.has(String(row.branchId)));
   }
 }

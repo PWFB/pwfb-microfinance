@@ -165,6 +165,23 @@ describe('AccessScopeInterceptor async response filtering', () => {
     expect(response).not.toBeInstanceOf(Promise);
   });
 
+  it('does not bypass scoped routes merely because their path contains a messages segment', async () => {
+    const assertBranch = jest.fn().mockResolvedValue(true);
+    const interceptor = new AccessScopeInterceptor({ assertBranch } as any);
+    const user = { id: 'staff-user', role: 'BRANCH_MANAGER' };
+    const request = {
+      user, originalUrl: '/staff/messages/export', path: '/staff/messages/export',
+      route: { path: '/staff/messages/export' }, params: {}, query: {},
+      body: { branchId: 'branch-a' },
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+    const handler = { handle: () => of({ ok: true }) } as any;
+
+    const response$ = await interceptor.intercept(context, handler);
+    await expect(lastValueFrom(response$ as any)).resolves.toEqual({ ok: true });
+    expect(assertBranch).toHaveBeenCalledWith(user, 'branch-a');
+  });
+
   it('applies repayment list filtering and checks the loan linked to repayment creation', async () => {
     const filterList = jest.fn().mockResolvedValue([{ id: 'repayment-own' }]);
     const assertLoan = jest.fn().mockResolvedValue(true);

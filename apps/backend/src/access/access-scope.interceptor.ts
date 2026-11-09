@@ -1,5 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { AccessScopeService } from './access-scope.service';
+import { mergeMap } from 'rxjs';
 
 @Injectable()
 export class AccessScopeInterceptor implements NestInterceptor {
@@ -24,10 +25,12 @@ export class AccessScopeInterceptor implements NestInterceptor {
     const branchId = request.params?.branchId || request.body?.branchId || request.query?.branchId;
     const staffId = request.params?.staffId || request.body?.staffId || request.query?.staffId;
     const customerId = request.params?.customerId || request.body?.customerId || request.query?.customerId;
+    const loanId = request.params?.loanId || request.body?.loanId || request.query?.loanId;
 
     if (branchId) await this.scope.assertBranch(user, String(branchId));
     if (staffId) await this.scope.assertStaff(user, String(staffId));
     if (customerId) await this.scope.assertCustomer(user, String(customerId));
+    if (loanId) await this.scope.assertLoan(user, String(loanId));
 
     if (id) {
       if (path.includes('/staff')) await this.scope.assertStaff(user, String(id));
@@ -35,17 +38,18 @@ export class AccessScopeInterceptor implements NestInterceptor {
       else if (path.includes('/loans')) await this.scope.assertLoan(user, String(id));
       else if (path.includes('/savings')) await this.scope.assertSavings(user, String(id));
       else if (path.includes('/collections')) await this.scope.assertCollection(user, String(id));
+      else if (path.includes('/repayments')) await this.scope.assertRepayment(user, String(id));
       else if (path.includes('/transactions')) await this.scope.assertTransaction(user, String(id));
       else if (path.includes('/branches')) await this.scope.assertBranch(user, String(id));
     }
 
-    const { mergeMap } = require('rxjs');
     const resource = path.includes('/staff') ? 'staff'
       : path.includes('/customers') ? 'customers'
       : path.includes('/loans') ? 'loans'
       : path.includes('/savings') ? 'savings'
       : path.includes('/collections') ? 'collections'
       : path.includes('/branches') ? 'branches'
+      : path.includes('/repayments') ? 'repayments'
       : path.includes('/transactions') ? 'transactions'
       : path.includes('/cashbook/daily') ? 'cashbook_daily'
       : path.includes('/cashbook/entries') ? 'cashbook_entries'

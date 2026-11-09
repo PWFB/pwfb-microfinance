@@ -4,7 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 
-const PAYROLL_VIEW_ROLES = ['SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'MONITORING_TEAM'];
+const PAYROLL_VIEW_ROLES = ['SUPER_ADMIN'];
 
 @Controller('payroll')
 @UseGuards(JwtAuthGuard, RolesGuard)

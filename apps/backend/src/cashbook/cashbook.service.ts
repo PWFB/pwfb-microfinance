@@ -47,7 +47,7 @@ export class CashbookService {
     const role = String(actor.role).toUpperCase();
     if (role === 'SUPER_ADMIN') return { kind: 'all', role, branchIds: [], canWrite: true };
 
-    const writeRoles = ['ADMIN', 'BRANCH_MANAGER', 'AREA_MANAGER', 'DIVISIONAL_MANAGER', 'REGIONAL_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'COLLECTOR', 'STAFF'];
+    const writeRoles = ['ADMIN', 'BRANCH_MANAGER', 'AREA_MANAGER', 'DIVISIONAL_MANAGER', 'REGIONAL_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
     const readRoles = [...writeRoles, 'AUDITOR', 'MONITORING_TEAM'];
     if (!readRoles.includes(role)) throw new ForbiddenException('Your role is not permitted to access the cashbook.');
     const canWrite = writeRoles.includes(role);

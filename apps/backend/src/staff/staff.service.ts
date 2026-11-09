@@ -150,27 +150,36 @@ export class StaffService {
   async findAll(filter?: StaffFilterDto) { const staff = await this.staffRepository.findAll(); if (!filter) return staff; return staff.filter((member) => { const departmentMatch = !filter.department || member.department.name === filter.department; const branchMatch = !filter.branch || member.branch.name === filter.branch; const statusMatch = !filter.employmentStatus || member.employmentStatus === filter.employmentStatus; const searchMatch = !filter.search || `${member.firstName} ${member.lastName}`.toLowerCase().includes(filter.search.toLowerCase()); return departmentMatch && branchMatch && statusMatch && searchMatch; }); }
   async findMe(authUser: any) {
     const userId = String(authUser?.id || '').trim();
-    if (!userId) throw new BadRequestException('Authentication is required');
-    const staff = await this.prisma.staff.findUnique({
-      where: { userId },
-      select: {
-        id: true, staffId: true, firstName: true, middleName: true, lastName: true,
-        email: true, phone: true, position: true, employmentStatus: true,
-        createdAt: true, updatedAt: true, branchId: true, regionId: true,
-        divisionId: true, areaId: true,
-        branch: { select: { id: true, name: true } },
-        region: { select: { id: true, name: true } },
-        division: { select: { id: true, name: true } },
-        area: { select: { id: true, name: true } },
-        department: { select: { id: true, name: true } },
-        assignments: {
-          where: { active: true },
-          orderBy: { startsAt: 'desc' },
-          take: 1,
-          select: { role: true, startsAt: true, branch: { select: { id: true, name: true } }, area: { select: { id: true, name: true } } },
-        },
+    const claimedStaffId = String(authUser?.staffId || '').trim();
+    if (!userId && !claimedStaffId) throw new BadRequestException('Authentication is required');
+
+    const select = {
+      id: true, staffId: true, firstName: true, middleName: true, lastName: true,
+      email: true, phone: true, position: true, employmentStatus: true,
+      createdAt: true, updatedAt: true, branchId: true, regionId: true,
+      divisionId: true, areaId: true,
+      branch: { select: { id: true, name: true } },
+      region: { select: { id: true, name: true } },
+      division: { select: { id: true, name: true } },
+      area: { select: { id: true, name: true } },
+      department: { select: { id: true, name: true } },
+      assignments: {
+        where: { active: true },
+        orderBy: { startsAt: 'desc' as const },
+        take: 1,
+        select: { role: true, startsAt: true, branch: { select: { id: true, name: true } }, area: { select: { id: true, name: true } } },
       },
-    });
+    };
+
+    let staff = userId
+      ? await this.prisma.staff.findUnique({ where: { userId }, select })
+      : null;
+    if (!staff && claimedStaffId) {
+      staff = await this.prisma.staff.findUnique({ where: { id: claimedStaffId }, select });
+    }
+    if (staff && claimedStaffId && staff.id !== claimedStaffId) {
+      throw new BadRequestException('Staff identity links do not match. Contact Super Admin to reconcile the login profile.');
+    }
     if (!staff) throw new NotFoundException('Staff profile is not linked to this login');
     return staff;
   }

@@ -77,7 +77,7 @@ describe('AccessScopeInterceptor async response filtering', () => {
     const filterList = jest.fn().mockResolvedValue([{ id: 'customer-own' }]);
     const interceptor = new AccessScopeInterceptor({ filterList } as any);
     const user = { id: 'officer-user', role: 'CREDIT_OFFICER' };
-    const request = { user, originalUrl: '/customers', params: {}, query: {}, body: {} };
+    const request = { user, originalUrl: '/customers', path: '/customers', route: { path: '/customers' }, params: {}, query: {}, body: {} };
     const context = {
       switchToHttp: () => ({ getRequest: () => request }),
     } as any;

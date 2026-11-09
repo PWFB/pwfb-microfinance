@@ -1,4 +1,5 @@
 import { BankingController } from './banking.controller';
+import { PermissionsService } from '../permissions/permissions.service';
 
 describe('BankingController customer virtual-account consent forwarding', () => {
   it('forwards explicit consent to the DVA service', async () => {
@@ -108,5 +109,25 @@ describe('BankingController staff attribution', () => {
       { id: 'user-1', role: 'TELLER' },
       'customer-1',
     )).rejects.toThrow('active staff member');
+  });
+});
+
+describe('Teller separation of duties', () => {
+  it.each(['WALLET_WITHDRAWAL', 'BANK_TRANSFER', 'SAVINGS_WITHDRAW', 'LOAN_CREATE', 'LOAN_DISBURSE'] as const)(
+    'denies Teller permission %s even if a stored permission lookup would return true',
+    async (permission) => {
+      const permissions = new PermissionsService({} as any);
+      const get = jest.spyOn(permissions, 'get').mockResolvedValue(true);
+      await expect(permissions.assert('TELLER', permission)).rejects.toThrow(
+        `${permission} is not available to Tellers`,
+      );
+      expect(get).not.toHaveBeenCalled();
+    },
+  );
+
+  it('still allows a Teller cash deposit when explicitly enabled', async () => {
+    const permissions = new PermissionsService({} as any);
+    jest.spyOn(permissions, 'get').mockResolvedValue(true);
+    await expect(permissions.assert('TELLER', 'WALLET_DEPOSIT')).resolves.toBe(true);
   });
 });

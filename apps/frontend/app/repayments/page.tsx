@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { apiRequest } from '../../lib/api';
 import { useEffect, useMemo, useState } from 'react';
 
 interface Repayment {
@@ -15,7 +16,6 @@ interface Repayment {
   loan?: { id?: string; customer?: { firstName?: string; lastName?: string; name?: string } };
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL!;
 const money = (value: number) => `₦${Number(value || 0).toLocaleString('en-NG', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 export default function RepaymentsPage() {
@@ -25,7 +25,7 @@ export default function RepaymentsPage() {
   const [method, setMethod] = useState('ALL');
 
   useEffect(() => {
-    fetch(`${API_URL}/repayments`).then((res) => res.ok ? res.json() : []).then((data) => setRepayments(Array.isArray(data) ? data : [])).catch(() => setRepayments([])).finally(() => setLoading(false));
+    apiRequest('/repayments').then((data) => setRepayments(Array.isArray(data) ? data : data?.data ?? [])).catch(() => setRepayments([])).finally(() => setLoading(false));
   }, []);
 
   const totalCollected = useMemo(() => repayments.reduce((sum, item) => sum + Number(item.amount || 0), 0), [repayments]);

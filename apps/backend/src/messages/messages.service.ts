@@ -246,13 +246,8 @@ export class MessagesService {
     return rows[0];
   }
 
-  async sendToRole(actor: MessageActor, input: { branchId: string; roleTarget: string; message: string }) {
-    const result = await this.scopeFor(actor);
-    const branchId = await this.assertBranch(result.actor, input?.branchId);
-    const roleTarget = String(input?.roleTarget || '').trim().toUpperCase();
-    if (!ROLE_CHANNEL_TARGETS.has(roleTarget)) throw new BadRequestException('Choose a valid branch role as the message recipient');
-    const body = this.validateMessage(input?.message);
-    const linkedRole = await this.prisma.$queryRawUnsafe<Array<{ count: number }>>(
+  private async hasActiveRoleInBranch(branchId: string, roleTarget: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ count: number }>>(
       'SELECT COUNT(DISTINCT s."id")::int AS "count" FROM "Staff" s ' +
       'LEFT JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
       'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
@@ -265,7 +260,17 @@ export class MessagesService {
       'AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP)))',
       branchId, roleTarget,
     );
-    if (Number(linkedRole[0]?.count || 0) < 1) {
+    return Number(rows[0]?.count || 0) > 0;
+  }
+
+  async sendToRole(actor: MessageActor, input: { branchId: string; roleTarget: string; message: string }) {
+    const result = await this.scopeFor(actor);
+    const branchId = await this.assertBranch(result.actor, input?.branchId);
+    const roleTarget = String(input?.roleTarget || '').trim().toUpperCase();
+    if (!ROLE_CHANNEL_TARGETS.has(roleTarget)) throw new BadRequestException('Choose a valid branch role as the message recipient');
+    const body = this.validateMessage(input?.message);
+    const hasRecipients = await this.hasActiveRoleInBranch(branchId, roleTarget);
+    if (!hasRecipients) {
       throw new BadRequestException('The selected role has no active staff member connected to this branch');
     }
     const rows = await this.prisma.$queryRawUnsafe<any[]>(

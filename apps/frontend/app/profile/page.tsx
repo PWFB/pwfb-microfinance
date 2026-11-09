@@ -32,7 +32,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (loading) return;
-    if (!user) { router.replace("/login"); return; }
+    if (!user) { router.replace("/"); return; }
     let active = true;
     (async () => {
       setProfileLoading(true);

@@ -94,13 +94,81 @@ export class CustomersService {
 
   async findOne(id: string, authUser?: any) { const customer = await this.prisma.customer.findUnique({ where: { id }, include: { savings: true, loans: true, transactions: true, branch: true, assignedStaff: true, clientGroup: true, bankAccounts: { include: { institution: true } }, virtualAccounts: { include: { institution: true, branch: true } }, wallet: true, user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, createdAt: true, updatedAt: true } } } }); if (!customer) throw new NotFoundException('Customer not found'); if (authUser) await this.accessScope.assertCustomer(authUser, id); return { ...customer, identityVerification: await this.getIdentityVerification(customer.id) }; }
 
-  async update(id: string, dto: UpdateCustomerDto) {
-    const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } }); if (!customer) throw new NotFoundException('Customer not found');
-    if (dto.branchId && !(await this.prisma.branch.findUnique({ where: { id: dto.branchId } }))) throw new BadRequestException('Branch not found');
-    if (dto.assignedStaffId && !(await this.prisma.staff.findUnique({ where: { id: dto.assignedStaffId } }))) throw new BadRequestException('Assigned staff not found');
-    if (dto.groupId && !(await this.prisma.clientGroup.findUnique({ where: { id: dto.groupId } }))) throw new BadRequestException('Client group not found');
-    const firstName = dto.firstName ?? customer.firstName; const middleName = dto.middleName !== undefined ? (dto.middleName.trim() || null) : customer.middleName; const lastName = dto.lastName ?? customer.lastName; const email = dto.email ?? customer.email; const phone = dto.phone ?? customer.phone;
-    const updated = await this.prisma.$transaction(async (tx) => { const updatedCustomer = await tx.customer.update({ where: { id }, data: { firstName, middleName, lastName, email, phone, address: dto.address, dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined, branchId: dto.branchId, assignedStaffId: dto.assignedStaffId, groupId: dto.groupId } }); if (customer.userId) await tx.user.update({ where: { id: customer.userId }, data: { ...(email ? { email } : {}), firstName, lastName, phone } }); return updatedCustomer; });
+  async update(id: string, dto: UpdateCustomerDto, authUser: any) {
+    const customer = await this.prisma.customer.findUnique({ where: { id }, include: { user: true } });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const role = String(authUser?.role || '').toUpperCase();
+    const assignmentChanges = [
+      ['branchId', customer.branchId],
+      ['assignedStaffId', customer.assignedStaffId],
+      ['groupId', customer.groupId],
+    ] as const;
+    for (const [field, currentValue] of assignmentChanges) {
+      const nextValue = dto[field];
+      if (nextValue !== undefined && String(nextValue || '') !== String(currentValue || '')) {
+        if (currentValue) {
+          throw new BadRequestException(`Customer ${field} is an immutable registration assignment and cannot be changed`);
+        }
+        if (role !== 'SUPER_ADMIN') {
+          throw new BadRequestException(`Only Super Admin may backfill a missing customer ${field}`);
+        }
+      }
+    }
+
+    if (dto.branchId) {
+      await this.accessScope.assertBranch(authUser, dto.branchId);
+      if (!(await this.prisma.branch.findUnique({ where: { id: dto.branchId } }))) throw new BadRequestException('Branch not found');
+    }
+
+    const assignedStaff = dto.assignedStaffId
+      ? await this.prisma.staff.findUnique({ where: { id: dto.assignedStaffId } })
+      : null;
+    if (dto.assignedStaffId && !assignedStaff) throw new BadRequestException('Assigned staff not found');
+    if (dto.assignedStaffId) await this.accessScope.assertStaff(authUser, dto.assignedStaffId);
+
+    const effectiveBranchId = dto.branchId ?? customer.branchId ?? assignedStaff?.branchId;
+    if (assignedStaff && effectiveBranchId && assignedStaff.branchId !== effectiveBranchId) {
+      throw new BadRequestException('Assigned staff member must belong to the customer branch');
+    }
+
+    if (dto.groupId) {
+      const group = await this.prisma.clientGroup.findUnique({ where: { id: dto.groupId } });
+      if (!group) throw new BadRequestException('Client group not found');
+      if (group.branchId && effectiveBranchId && group.branchId !== effectiveBranchId) {
+        throw new BadRequestException('Client group belongs to another branch');
+      }
+    }
+
+    const firstName = dto.firstName ?? customer.firstName;
+    const middleName = dto.middleName !== undefined ? (dto.middleName.trim() || null) : customer.middleName;
+    const lastName = dto.lastName ?? customer.lastName;
+    const email = dto.email ?? customer.email;
+    const phone = dto.phone ?? customer.phone;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const updatedCustomer = await tx.customer.update({
+        where: { id },
+        data: {
+          firstName,
+          middleName,
+          lastName,
+          email,
+          phone,
+          address: dto.address,
+          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+          branchId: dto.branchId,
+          assignedStaffId: dto.assignedStaffId,
+          groupId: dto.groupId,
+        },
+      });
+      if (customer.userId) {
+        await tx.user.update({
+          where: { id: customer.userId },
+          data: { ...(email ? { email } : {}), firstName, lastName, phone },
+        });
+      }
+      return updatedCustomer;
+    });
     return { message: 'Customer profile updated successfully', customer: updated };
   }
 

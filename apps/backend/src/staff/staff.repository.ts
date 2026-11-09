@@ -145,7 +145,7 @@ export class StaffRepository {
     return this.prisma.staff.findMany({
       include: {
         department: true, branch: true, region: true, division: true, area: true,
-        user: { select: { id: true, email: true, firstName: true, lastName: true, phone: true, role: true, staffId: true, createdAt: true, updatedAt: true } }, customers: true,
+        user: { select: { id: true, publicUserId: true, email: true, firstName: true, lastName: true, phone: true, role: true, staffId: true, createdAt: true, updatedAt: true } }, customers: true,
         assignments: { orderBy: { startsAt: 'desc' }, include: { region: true, division: true, area: true, branch: true } },
       },
     });

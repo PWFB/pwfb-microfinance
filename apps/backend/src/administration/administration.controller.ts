@@ -25,6 +25,7 @@ export class AdministrationController {
   }
 
   @Get('users')
+  @Roles('SUPER_ADMIN')
   users() {
     return this.administrationService.getUsers();
   }

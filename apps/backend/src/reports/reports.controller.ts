@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 
@@ -16,14 +17,14 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get('summary')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'AUDITOR')
-  getSummary() {
-    return this.reportsService.getSummary();
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'AUDITOR')
+  getSummary(@Req() req: any) {
+    return this.reportsService.getSummary(req.user);
   }
 
   @Get('operations')
-  @Roles('SUPER_ADMIN', 'ADMIN')
-  getOperations(@Query() query: Record<string, string>) {
-    return this.reportsService.getOperations(query);
+  @Roles('SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER', 'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'AUDITOR')
+  getOperations(@Query() query: Record<string, string>, @Req() req: any) {
+    return this.reportsService.getOperations(query, req.user);
   }
 }

@@ -201,21 +201,26 @@ export class AccessScopeService {
   private orgCondition(scope: any, alias: string) {
     const arraySql = (values: string[]) =>
       `ARRAY[${values.map((value) => `'${this.escape(value)}'`).join(',')}]::text[]`;
-    if (scope.role === 'REGIONAL_MANAGER' && scope.regionIds?.length) return `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
-    if (scope.role === 'DIVISIONAL_MANAGER' && scope.divisionIds?.length) return `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
-    if (scope.role === 'AREA_MANAGER' && scope.areaIds?.length) return `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
-    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
-      if (scope.regionIds?.length) return `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
-      if (scope.divisionIds?.length) return `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
-      if (scope.areaIds?.length) return `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
-    }
     const branches = scope.branchIds || [];
-    if (alias === 'b') return branches.length
-      ? `"${alias}"."id" = ANY(${arraySql(branches)})`
-      : 'FALSE';
-    return branches.length
-      ? `"${alias}"."branchId" = ANY(${arraySql(branches)})`
-      : 'FALSE';
+    const branchCondition = branches.length
+      ? (['b', 'Branch'].includes(alias)
+        ? `"${alias}"."id" = ANY(${arraySql(branches)})`
+        : `"${alias}"."branchId" = ANY(${arraySql(branches)})`)
+      : '';
+    let hierarchyCondition = '';
+    if (scope.role === 'REGIONAL_MANAGER' && scope.regionIds?.length) {
+      hierarchyCondition = `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
+    } else if (scope.role === 'DIVISIONAL_MANAGER' && scope.divisionIds?.length) {
+      hierarchyCondition = `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
+    } else if (scope.role === 'AREA_MANAGER' && scope.areaIds?.length) {
+      hierarchyCondition = `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
+    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role)) {
+      if (scope.regionIds?.length) hierarchyCondition = `"${alias}"."regionId" = ANY(${arraySql(scope.regionIds)})`;
+      else if (scope.divisionIds?.length) hierarchyCondition = `"${alias}"."divisionId" = ANY(${arraySql(scope.divisionIds)})`;
+      else if (scope.areaIds?.length) hierarchyCondition = `"${alias}"."areaId" = ANY(${arraySql(scope.areaIds)})`;
+    }
+    if (hierarchyCondition && branchCondition) return `(${hierarchyCondition} OR ${branchCondition})`;
+    return hierarchyCondition || branchCondition || 'FALSE';
   }
 
   private escape(value: unknown) { return String(value ?? '').replace(/'/g, "''"); }

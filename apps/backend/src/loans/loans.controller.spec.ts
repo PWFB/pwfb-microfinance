@@ -5,6 +5,8 @@ import { PermissionsService } from '../permissions/permissions.service';
 describe('LoansController', () => {
   let controller: LoansController;
   let service: jest.Mocked<LoansService>;
+  let accessScope: any;
+  const req = { user: { id: 'admin-user', role: 'ADMIN' } } as any;
 
   beforeEach(() => {
     service = {
@@ -15,7 +17,8 @@ describe('LoansController', () => {
       remove: jest.fn(),
     } as unknown as jest.Mocked<LoansService>;
 
-    controller = new LoansController(service, {} as any, {} as any, { assert: jest.fn().mockResolvedValue(undefined) } as unknown as PermissionsService);
+    accessScope = { assertCustomer: jest.fn().mockResolvedValue(undefined), assertLoan: jest.fn().mockResolvedValue(undefined), filterList: jest.fn((_user: any, _resource: string, rows: any[]) => rows) };
+    controller = new LoansController(service, {} as any, {} as any, { assert: jest.fn().mockResolvedValue(undefined) } as unknown as PermissionsService, accessScope);
   });
 
   it('should be defined', () => {
@@ -52,7 +55,7 @@ describe('LoansController', () => {
 
     service.findAll.mockResolvedValue(result as any);
 
-    await expect(controller.findAll()).resolves.toBe(result);
+    await expect(controller.findAll(req)).resolves.toBe(result);
     expect(service.findAll).toHaveBeenCalled();
   });
 
@@ -66,7 +69,7 @@ describe('LoansController', () => {
     service.findOne.mockResolvedValue(result as any);
 
     await expect(
-      controller.findOne('loan-1'),
+      controller.findOne('loan-1', req),
     ).resolves.toBe(result);
 
     expect(service.findOne).toHaveBeenCalledWith('loan-1');
@@ -88,7 +91,7 @@ describe('LoansController', () => {
     service.update.mockResolvedValue(result as any);
 
     await expect(
-      controller.update('loan-1', dto),
+      controller.update('loan-1', dto, req),
     ).resolves.toBe(result);
 
     expect(service.update).toHaveBeenCalledWith(
@@ -107,7 +110,7 @@ describe('LoansController', () => {
     service.remove.mockResolvedValue(result as any);
 
     await expect(
-      controller.remove('loan-1'),
+      controller.remove('loan-1', req),
     ).resolves.toBe(result);
 
     expect(service.remove).toHaveBeenCalledWith('loan-1');

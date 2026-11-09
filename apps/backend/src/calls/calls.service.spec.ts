@@ -26,7 +26,7 @@ describe('CallsService access and permission boundaries', () => {
     expect(result.clients).toHaveLength(1);
     const clientQuery = prisma.$queryRawUnsafe.mock.calls[1];
     expect(clientQuery[0]).toContain('c."assignedStaffId" = $3');
-    expect(clientQuery.slice(1)).toEqual(['branch-1', '%\\%\\%', 'staff-1']);
+    expect(clientQuery.slice(1)).toEqual(['branch-1', '%%', 'staff-1']);
   });
 
   it('rejects call permission changes from staff accounts', async () => {

@@ -8,11 +8,11 @@ import { Roles } from '../auth/decorators/roles.decorator';
 type CashbookRequest = { user: { id: string; role: string; staffId?: string | null } };
 const CASHBOOK_ROLES = [
   'SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'AREA_MANAGER', 'DIVISIONAL_MANAGER', 'REGIONAL_MANAGER',
-  'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF', 'AUDITOR', 'MONITORING_TEAM',
+  'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'COLLECTOR', 'STAFF', 'AUDITOR', 'MONITORING_TEAM',
 ];
 const CASHBOOK_WRITE_ROLES = [
   'SUPER_ADMIN', 'ADMIN', 'BRANCH_MANAGER', 'AREA_MANAGER', 'DIVISIONAL_MANAGER', 'REGIONAL_MANAGER',
-  'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF',
+  'CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'COLLECTOR', 'STAFF',
 ];
 
 @Controller('cashbook')

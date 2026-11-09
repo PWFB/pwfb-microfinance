@@ -7,7 +7,7 @@ type CallActor = { id: string; role: string; staffId?: string; customerId?: stri
 const STAFF_ROLES = new Set([
   'SUPER_ADMIN', 'ADMIN', 'REGIONAL_MANAGER', 'DIVISIONAL_MANAGER',
   'AREA_MANAGER', 'BRANCH_MANAGER', 'CREDIT_OFFICER', 'TELLER',
-  'LOAN_OFFICER', 'AUDITOR', 'MONITORING_TEAM', 'COLLECTOR', 'STAFF',
+  'LOAN_OFFICER', 'AUDITOR', 'MONITORING_TEAM', 'STAFF',
 ]);
 const ACTIVE_CALL_STATUSES = ['RINGING', 'ACCEPTED'];
 

@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
-import { WorkLogService, WorkItemInput } from './work-log.service';
+import { WorkLogService } from './work-log.service';
+import type { WorkItemInput } from './work-log.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';

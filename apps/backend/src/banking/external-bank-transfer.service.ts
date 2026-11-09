@@ -208,7 +208,7 @@ export class ExternalBankTransferService {
     return this.nibssService.transfer({ bankCode: input.bankCode, accountNumber: input.accountNumber, amount: input.amount, narration: input.narration, xref: input.reference });
   }
 
-  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string }) {
+  async transfer(input: { customerId: string; bankCode: string; accountNumber: string; accountName?: string; amount: number; description?: string; provider?: string; staffId?: string; branchId?: string }) {
     const bankCode = String(input.bankCode || '').trim();
     const amount = Math.round(Number(input.amount) * 100) / 100;
     const accountNumber = String(input.accountNumber || '').replace(/\D/g, '');
@@ -253,7 +253,7 @@ export class ExternalBankTransferService {
           customerId: input.customerId, type: 'WITHDRAWAL', amount,
           previousBalance: currentWallet.balance, newBalance, reference: xref,
           description: input.description || `Bank withdrawal to ${verifiedAccountName}`,
-          provider, providerReference: xref, status: 'PROCESSING',
+          provider, providerReference: xref, status: 'PROCESSING', staffId: input.staffId, branchId: input.branchId,
         },
       });
       return { wallet: { ...currentWallet, balance: newBalance }, transaction };

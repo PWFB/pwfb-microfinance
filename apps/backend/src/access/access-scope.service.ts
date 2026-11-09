@@ -120,6 +120,11 @@ export class AccessScopeService {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id", c."branchId", c."assignedStaffId", b."areaId", b."divisionId", b."regionId" FROM "Savings" s JOIN "Customer" c ON c."id" = s."customerId" LEFT JOIN "Branch" b ON b."id" = c."branchId" WHERE s."id" = $1 LIMIT 1`, savingsId); return this.assertOrg(user, rows[0]);
   }
   async assertCollection(user: AccessUser, collectionId: string) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id", dc."branchId", dc."staffId", b."areaId", b."divisionId", b."regionId" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id" = dc."branchId" WHERE dc."id" = $1 LIMIT 1`, collectionId); return this.assertOrg(user, rows[0]);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id", dc."branchId", dc."staffId", b."areaId", b."divisionId", b."regionId" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id" = dc."branchId" WHERE dc."id" = $1 LIMIT 1`, collectionId);
+    const scope = await this.getScope(user);
+    if (scope.role === 'CREDIT_OFFICER' && String(rows[0]?.staffId || '') !== String(scope.staffId || '')) {
+      throw new ForbiddenException('A Credit Officer can only access their own collection records');
+    }
+    return this.assertOrg(user, rows[0]);
   }
 }

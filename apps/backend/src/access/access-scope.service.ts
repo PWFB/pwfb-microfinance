@@ -12,13 +12,26 @@ export class AccessScopeService {
     if (role === 'SUPER_ADMIN') return { role, staffId: user?.staffId ?? null, branchId: null, areaId: null, divisionId: null, regionId: null, global: true };
     const userId = String(user?.id || '').trim();
     const staffId = String(user?.staffId || '').trim();
-    const rows = (staffId || userId)
-      ? await this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE ($1 <> '' AND "id" = $1) OR ($2 <> '' AND "userId" = $2) LIMIT 1`,
-          staffId, userId,
-        )
-      : [];
+    let rows: any[] = [];
+    if (userId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "userId" = $1 LIMIT 1`,
+        userId,
+      );
+    }
+    if (!rows[0] && staffId) {
+      // Backward compatibility for staff logins created before Staff.userId
+      // was populated; do not let a conflicting duplicate link choose either
+      // record nondeterministically.
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`,
+        staffId,
+      );
+    }
     const staff = rows[0] || {};
+    if (staffId && staff.id && staff.id !== staffId) {
+      throw new ForbiddenException('Staff identity links do not match. Contact Super Admin to reconcile the login before processing financial records.');
+    }
     return {
       role,
       staffId: staff.id ?? null,

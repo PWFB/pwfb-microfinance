@@ -71,6 +71,24 @@ describe('AccessScopeService', () => {
     })).rejects.toThrow('Staff identity links do not match');
   });
 
+  it('uses the active assignment matching the authenticated role before staff profile fallback', async () => {
+    query.mockResolvedValueOnce([{
+      id: 'staff-manager', branchId: 'branch-assigned', areaId: 'area-assigned',
+      divisionId: 'division-assigned', regionId: 'region-assigned',
+    }]);
+    await expect(service.getScope({ id: 'manager-user', role: 'AREA_MANAGER' })).resolves.toMatchObject({
+      staffId: 'staff-manager', branchId: 'branch-assigned', areaId: 'area-assigned',
+      divisionId: 'division-assigned', regionId: 'region-assigned', global: false,
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('FROM "StaffAssignment"'),
+      'manager-user',
+      'AREA_MANAGER',
+    );
+    expect(query.mock.calls[0][0]).toContain('a."active" = TRUE');
+    expect(query.mock.calls[0][0]).toContain('a."startsAt" <= CURRENT_TIMESTAMP');
+  });
+
 });
 describe('AccessScopeInterceptor async response filtering', () => {
   it('awaits the access-scope database filter before emitting a list response', async () => {

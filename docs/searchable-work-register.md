@@ -60,6 +60,22 @@ A record cannot be marked `COMPLETED` without a verification summary and at leas
 
 For a completed record, also supply `verificationSummary` and at least one of `commitSha`, `pullRequestUrl`, `deploymentUrl` or `evidenceUrl`.
 
+## Initial seeded status snapshot
+
+When the approved work-register migration is applied, it creates an initial searchable snapshot from already confirmed project history:
+
+| Work item | Initial status | What it records |
+| --- | --- | --- |
+| PR #103 Google/passkey sign-in | COMPLETED | User-confirmed staging sign-in milestone |
+| PR #104 Staff Dashboard redirect | COMPLETED | User-confirmed Super Admin dashboard behavior |
+| PR #106 remaining dark-mode coverage | IN_PROGRESS | Some pages still needed contrast/branding corrections |
+| PR #107 Render staging release | COMPLETED | Merge and both Render staging deploys live; database-backed features excluded |
+| PR #108 cleanup and work register | UNVERIFIED | Fresh CI and approved staging database checks required |
+| Existing Render staging database | BLOCKED | Billing suspension; restore the same database, do not substitute Neon |
+| Vercel deployment quota | BLOCKED | Daily free deployment build-rate limit; no bypass or billing change |
+
+Historical milestones use the `PWFB-SESSION-HISTORY-2026-11` session key. The current cleanup run uses `PWFB-SESSION-20261109`. These are initial records only; the API appends future changes and status history when the database is available.
+
 ## Persistence and deployment gate
 
 Migration `20261109133000_searchable_work_register` is additive and is not yet applied. Do not seed or use the work register until the intended staging database is restored, confirmed and approved for migration. Never point this workflow at Neon unless the user explicitly designates that database for this environment. No financial or customer records are written by the work register itself.

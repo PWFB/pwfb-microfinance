@@ -26,7 +26,7 @@ export class LoansController {
   @Get('repayments/daily') @Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','MONITORING_TEAM','AUDITOR','AREA_MANAGER','BRANCH_MANAGER','CREDIT_OFFICER','TELLER','LOAN_OFFICER')
   async dailyRepaymentRegister(@Query('date') date:string|undefined,@Req() req:any){
     const selectedDate=date||new Date().toISOString().slice(0,10);
-    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(selectedDate))throw new BadRequestException('Date must use YYYY-MM-DD');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(selectedDate))throw new BadRequestException('Date must use YYYY-MM-DD');
     const loans=await this.loansService.findAll();
     const visible=await this.accessScope.filterList(req.user,'loans',loans);
     const schedules=await Promise.all(visible.map(async(loan:any)=>({loan,schedule:await this.loansService.getRepaymentSchedule(loan.id)})));

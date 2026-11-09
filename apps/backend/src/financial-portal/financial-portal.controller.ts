@@ -17,13 +17,13 @@ export class FinancialPortalController {
   }
 
   @Get('payroll/summary')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'AUDITOR')
+  @Roles('SUPER_ADMIN')
   payrollSummary(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string) {
     return this.service.payrollSummary(periodId, branchId);
   }
 
   @Get('disbursements')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'AUDITOR')
+  @Roles('SUPER_ADMIN')
   disbursements(@Query('batchReference') batchReference?: string, @Query('status') status?: string) {
     return this.service.disbursements(batchReference, status);
   }
@@ -39,13 +39,13 @@ export class FinancialPortalController {
   }
 
   @Get('cooperative')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'AUDITOR')
+  @Roles('SUPER_ADMIN')
   cooperative(@Query('query') query?: string) {
     return this.service.cooperative(query);
   }
 
   @Get('dashboard')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'AUDITOR')
+  @Roles('SUPER_ADMIN')
   dashboard(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string) {
     return this.service.dashboard(periodId, branchId);
   }

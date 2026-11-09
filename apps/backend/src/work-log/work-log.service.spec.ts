@@ -13,7 +13,7 @@ describe('WorkLogService', () => {
   it('generates stable, searchable reference formats and a daily session key', () => {
     const reference = (service as any).reference();
     const sessionKey = (service as any).sessionKey();
-    expect(reference).toMatch(/^PWFB-WORK-\d{8}-[A-F0-9]{8}$/);
+    expect(reference).toMatch(/^PWFB-WORK-\d{8}-[A-F0-9]{16}$/);
     expect(sessionKey).toMatch(/^PWFB-SESSION-\d{8}$/);
   });
 

@@ -25,7 +25,7 @@ export class PeriodsController {
   constructor(private readonly periodsService: PeriodsService) {}
 
   @Post()
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   create(@Body() body: { name: string; startDate: string; endDate: string }) {
     return this.periodsService.create(body);
   }
@@ -55,7 +55,7 @@ export class PeriodsController {
   }
 
   @Patch(':id/close')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   close(@Param('id') id: string, @Req() req: any) {
     return this.periodsService.close(id, req.user);
   }

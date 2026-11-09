@@ -57,7 +57,7 @@ export class BalmzReceiptService {
 
     if (reference) {
       const transactions = await this.prisma.transaction.findMany({
-        where: { description: { contains: reference, mode: 'insensitive' } },
+        where: { reference: { contains: reference, mode: 'insensitive' } },
         select: { id: true, amount: true, type: true },
         take: 5,
       });

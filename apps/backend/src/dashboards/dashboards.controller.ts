@@ -22,7 +22,7 @@ export class DashboardsController {
   }
 
   @Get('co')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'AUDITOR', 'MONITORING_TEAM')
+  @Roles('SUPER_ADMIN')
   coSummary(@Query('periodId') periodId?: string) {
     return this.dashboardsService.coSummary(periodId);
   }

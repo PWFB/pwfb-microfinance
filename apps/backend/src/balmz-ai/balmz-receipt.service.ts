@@ -97,7 +97,7 @@ export class BalmzReceiptService {
         return { matched: amount == null || Math.abs(match.amount - (amount || match.amount)) <= 0.01, source: 'transaction' as const, id: match.id, amount: match.amount, status: match.type };
       }
 
-      const walletWhere = Object.keys(walletScope).length
+      const walletWhere: any = Object.keys(walletScope).length
         ? { AND: [walletScope, { OR: [
             { reference: { contains: reference, mode: 'insensitive' } },
             { providerReference: { contains: reference, mode: 'insensitive' } },

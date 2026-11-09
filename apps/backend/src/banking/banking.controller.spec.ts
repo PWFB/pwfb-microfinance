@@ -53,7 +53,7 @@ describe('BankingController staff attribution', () => {
         }),
       },
       staff: {
-        findFirst: jest.fn().mockResolvedValue({
+        findUnique: jest.fn().mockResolvedValue({
           id: 'staff-1',
           branchId: 'branch-1',
           employmentStatus: 'ACTIVE',

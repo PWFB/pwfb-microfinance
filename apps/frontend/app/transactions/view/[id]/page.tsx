@@ -40,6 +40,7 @@ export default function ViewTransactionPage() {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copyMessage, setCopyMessage] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -78,6 +79,7 @@ export default function ViewTransactionPage() {
         <div><p className="pwfb-eyebrow">FINANCIAL OPERATIONS / TRANSACTION</p><h1 className="pwfb-page-title">Transaction Details</h1><p className="pwfb-page-description">Complete transaction record and audit information.</p></div>
         <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
           <Link href="/transactions" className="pwfb-secondary-button">← Transaction Overview</Link>
+          <button type="button" onClick={async () => { try { await navigator.clipboard.writeText(reference); setCopyMessage("Transaction reference copied."); } catch { setCopyMessage("Copy unavailable; select the reference on the receipt to copy it."); } }} className="pwfb-secondary-button">Copy Reference</button>
           <button type="button" onClick={print} className="pwfb-primary-button">🖨 Print Receipt</button>
           {!isWallet && <Link href={`/transactions/edit/${transaction.id}`} className="pwfb-primary-button">Edit Transaction</Link>}
         </div>
@@ -89,7 +91,7 @@ export default function ViewTransactionPage() {
       </section>
 
       <section className="pwfb-panel" style={{ marginTop: 18 }}>
-        <div className="pwfb-panel-header"><div><h2>Official PWFB Receipt</h2><p>Present or print this record as the transaction receipt.</p></div><span className="pwfb-operation-badge">{transaction.source || 'LEDGER'}</span></div>
+        <div className="pwfb-panel-header"><div><h2>Official PWFB Receipt</h2><p>Present or print this record as the transaction receipt.</p>{copyMessage && <p role="status" className="text-xs">{copyMessage}</p>}</div><span className="pwfb-operation-badge">{transaction.source || 'LEDGER'}</span></div>
         <div className="pwfb-banking-form-grid" style={{ padding: 18 }}>
           <div className="pwfb-verify-field verified"><span>Customer</span><strong>{customerName}</strong><small>{transaction.customerId || transaction.customer?.id || '—'}</small></div>
           <div className="pwfb-verify-field"><span>Transaction Type</span><strong>{operationLabel}</strong></div>

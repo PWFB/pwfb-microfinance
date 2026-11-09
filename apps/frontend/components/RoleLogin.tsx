@@ -26,10 +26,10 @@ const GOOGLE_NONCE_PREFIX = "pwfb_google_oidc_nonce_";
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
 const cards: Array<{ mode: LoginMode; title: string; subtitle: string; placeholder: string; tone: string }> = [
-  { mode: "SUPER_ADMIN", title: "Super Admin", subtitle: "Full system control", placeholder: "Email Address", tone: "super" },
-  { mode: "ADMIN", title: "Admin", subtitle: "Administrative access", placeholder: "Email Address", tone: "admin" },
-  { mode: "STAFF", title: "Staff", subtitle: "Staff operations", placeholder: "Email Address", tone: "staff" },
-  { mode: "CUSTOMER", title: "Customer", subtitle: "Customer account access", placeholder: "Customer ID / Email / Phone", tone: "customer" },
+  { mode: "SUPER_ADMIN", title: "Super Admin", subtitle: "Full system control", placeholder: "11-digit User ID or Email Address", tone: "super" },
+  { mode: "ADMIN", title: "Admin", subtitle: "Administrative access", placeholder: "11-digit User ID or Email Address", tone: "admin" },
+  { mode: "STAFF", title: "Staff", subtitle: "Staff operations", placeholder: "11-digit User ID or Email Address", tone: "staff" },
+  { mode: "CUSTOMER", title: "Customer", subtitle: "Customer account access", placeholder: "11-digit User ID / Customer ID / Email / Phone", tone: "customer" },
 ];
 
 function RoleIcon({ mode }: { mode: LoginMode }) {
@@ -111,7 +111,7 @@ export default function RoleLogin() {
         window.PWFBNative.signInWithPasskey(mode, values[mode].trim());
         return;
       }
-      const options = await apiRequest("/auth/passkey/login/options", { method: "POST", body: JSON.stringify({ email: values[mode].includes("@") ? values[mode].trim() : undefined }) });
+      const options = await apiRequest("/auth/passkey/login/options", { method: "POST", body: JSON.stringify({ identifier: values[mode].trim() || undefined }) });
       const credential = await startAuthentication({ optionsJSON: options });
       await completeLogin(await apiRequest("/auth/passkey/login/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) }), mode);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Fingerprint / Face Unlock failed."); setLoading(null); }
@@ -294,14 +294,14 @@ export default function RoleLogin() {
 
           <form onSubmit={event => login(event, selectedCard.mode)}>
             <label>
-              <span>{selectedCard.mode === "CUSTOMER" ? "Customer ID / Email / Phone Number" : "Email Address"}</span>
+              <span>{selectedCard.mode === "CUSTOMER" ? "11-digit User ID / Customer ID / Email / Phone Number" : "11-digit User ID / Email Address"}</span>
               <div className="pwfb-input">
                 <span className="pwfb-input-icon">♙</span>
                 <input
                   value={values[selectedCard.mode]}
                   onChange={e => setValues(v => ({ ...v, [selectedCard.mode]: e.target.value }))}
                   placeholder={selectedCard.placeholder}
-                  type={selectedCard.mode === "CUSTOMER" ? "text" : "email"}
+                  type="text"
                   autoComplete="username"
                   required
                 />

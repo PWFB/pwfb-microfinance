@@ -46,7 +46,33 @@ describe('StaffWalletService transaction safety', () => {
       previousBalance: 0,
       amount: 250,
       newBalance: 250,
+      reference: 'TEST-REF-1',
     });
+  });
+
+  it('generates and returns a reference when a staff wallet credit has no supplied reference', async () => {
+    const tx = {
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $queryRawUnsafe: jest.fn()
+        .mockResolvedValueOnce([]) // advisory lock
+        .mockResolvedValueOnce([]) // no duplicate generated reference
+        .mockResolvedValueOnce([{ id: 'wallet-1', staffId: 'staff-1', branchId: 'branch-1', balance: 0 }])
+        .mockResolvedValueOnce([{ balance: 0 }]),
+    };
+    const prisma: any = {
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+      $queryRawUnsafe: jest.fn(),
+      $transaction: jest.fn(async (callback: (client: any) => unknown) => callback(tx)),
+    };
+    const service = new StaffWalletService(prisma);
+
+    const result = await service.credit('staff-1', 100);
+
+    const insert = tx.$executeRawUnsafe.mock.calls.find((call: any[]) =>
+      String(call[0]).includes('INSERT INTO staff_wallet_transactions'),
+    );
+    expect(insert?.[6]).toMatch(/^PWFB-STF-/);
+    expect(result.reference).toBe(insert?.[6]);
   });
 
   it('rejects a duplicate transaction reference before changing the balance', async () => {

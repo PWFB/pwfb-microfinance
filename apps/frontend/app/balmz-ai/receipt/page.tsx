@@ -26,6 +26,7 @@ export default function BalmzReceiptPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<Result | null>(null);
+  const [copyMessage, setCopyMessage] = useState('');
 
   function chooseFile(next: File | null) {
     setError('');
@@ -76,7 +77,7 @@ export default function BalmzReceiptPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-bold text-slate-900">Verification result</h2>
             {!result ? <div className="flex min-h-56 items-center justify-center text-center text-sm text-slate-400">Upload a receipt to see the verification result.</div> : <div className="mt-4 space-y-4">
-              <div className={`rounded-xl border p-4 ${statusClass}`}><div className="flex items-center justify-between gap-3"><strong className="text-lg">{result.status}</strong><span className="text-xs font-bold">{result.confidence}% confidence</span></div><p className="mt-1 text-sm">{result.message}</p><div className="mt-3 border-t border-current/15 pt-3"><span className="block text-[11px] font-semibold uppercase tracking-wide opacity-70">Permanent receipt reference</span><strong className="mt-1 block break-all text-sm">{result.receiptReference}</strong></div></div>
+              <div className={`rounded-xl border p-4 ${statusClass}`}><div className="flex items-center justify-between gap-3"><strong className="text-lg">{result.status}</strong><span className="text-xs font-bold">{result.confidence}% confidence</span></div><p className="mt-1 text-sm">{result.message}</p><div className="mt-3 border-t border-current/15 pt-3"><span className="block text-[11px] font-semibold uppercase tracking-wide opacity-70">Permanent receipt reference</span><div className="mt-1 flex flex-wrap items-center gap-2"><strong className="break-all text-sm">{result.receiptReference}</strong><button type="button" onClick={async () => { try { await navigator.clipboard.writeText(result.receiptReference); setCopyMessage("Receipt reference copied."); } catch { setCopyMessage("Copy unavailable; select the reference to copy it."); } }} className="rounded-lg border border-current/30 px-2 py-1 text-[11px] font-bold">Copy reference</button></div>{copyMessage && <p role="status" className="mt-2 text-xs">{copyMessage}</p>}</div></div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-xl bg-slate-50 p-3"><span className="block text-xs text-slate-500">Amount</span><strong>{money(result.extracted.amount, result.extracted.currency)}</strong></div>
                 <div className="rounded-xl bg-slate-50 p-3"><span className="block text-xs text-slate-500">Payment status</span><strong className="capitalize">{result.extracted.paymentStatus || 'unknown'}</strong></div>

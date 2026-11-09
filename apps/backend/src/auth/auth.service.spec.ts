@@ -3,6 +3,7 @@ import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -61,6 +62,7 @@ describe('AuthService', () => {
     });
     const userCreate = jest.fn().mockResolvedValue({
       id: 'user-1',
+      publicUserId: '10000000000',
       email: 'ada@example.com',
       password: 'hashed-password',
       firstName: 'Ada',
@@ -116,11 +118,40 @@ describe('AuthService', () => {
       },
     });
     expect((result as any).user.password).toBeUndefined();
+    expect((result as any).user.userId).toBe('10000000000');
+    expect((result as any).user.userId).toMatch(/^\d{11}$/);
     expect(jwtService.signAsync).toHaveBeenCalledWith({
       sub: 'user-1',
       email: 'ada@example.com',
       role: 'CUSTOMER',
     });
+  });
+
+  it('authenticates staff with an exact 11-digit public User ID', async () => {
+    const passwordHash = await bcrypt.hash('secure-password', 4);
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'staff-user-1',
+      publicUserId: '10000000001',
+      email: 'credit.officer@example.com',
+      password: passwordHash,
+      firstName: 'Credit',
+      lastName: 'Officer',
+      role: 'CREDIT_OFFICER',
+      staffId: 'staff-1',
+    });
+
+    const result = await service.login({
+      identifier: '10000000001',
+      password: 'secure-password',
+      loginMode: 'STAFF',
+    } as any);
+
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { publicUserId: '10000000001' },
+    });
+    expect(result.user.userId).toBe('10000000001');
+    expect(result.user.userId).toMatch(/^\d{11}$/);
+    expect(result.user.password).toBeUndefined();
   });
 
   it('does not let public registration create the configured Super Admin identity', async () => {

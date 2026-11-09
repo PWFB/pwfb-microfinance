@@ -18,8 +18,20 @@ export class CustomersService {
 
   async create(dto: CreateCustomerDto, authUser: any) {
     if (dto.virtualAccountConsent !== true) throw new BadRequestException('Customer consent is required before creating a Paystack virtual account');
-    const staff = await this.prisma.staff.findUnique({ where: { userId: authUser.id }, include: { branch: true } });
-    if (!staff) throw new UnauthorizedException('Staff account is not linked to a staff record');
+    const userId = String(authUser?.id || '').trim();
+    const claimedStaffId = String(authUser?.staffId || '').trim();
+    let staff = userId
+      ? await this.prisma.staff.findUnique({ where: { userId }, include: { branch: true } })
+      : null;
+    if (!staff && claimedStaffId) {
+      staff = await this.prisma.staff.findUnique({ where: { id: claimedStaffId }, include: { branch: true } });
+    }
+    if (staff && claimedStaffId && staff.id !== claimedStaffId) {
+      throw new UnauthorizedException('Staff identity links do not match. Contact Super Admin before registering customers.');
+    }
+    if (!staff || staff.employmentStatus !== 'ACTIVE') {
+      throw new UnauthorizedException('An active staff account linked to this login is required to register customers');
+    }
     const customerId = await this.generateCustomerId(); const email = String(dto.email || '').trim().toLowerCase() || await this.generateLoginEmail(dto.firstName, dto.lastName); const temporaryPassword = this.generateTemporaryPassword(); const hashedPassword = await bcrypt.hash(temporaryPassword, 10);
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -51,9 +63,9 @@ export class CustomersService {
 
   async findAll(authUser?: any, search?: string) {
     const role = String(authUser?.role || '').toUpperCase();
-    const staff = authUser?.id ? await this.prisma.staff.findUnique({ where: { userId: authUser.id }, select: { id: true } }) : null;
+    const scope = authUser ? await this.accessScope.getScope(authUser) : null;
     const q = String(search || '').trim();
-    const where: any = role === 'CREDIT_OFFICER' ? { assignedStaffId: staff?.id || '__NO_ASSIGNED_STAFF__' } : {};
+    const where: any = role === 'CREDIT_OFFICER' ? { assignedStaffId: scope?.staffId || '__NO_ASSIGNED_STAFF__' } : {};
     if (q) where.OR = [
       { firstName: { contains: q, mode: 'insensitive' } }, { lastName: { contains: q, mode: 'insensitive' } },
       { id: { contains: q, mode: 'insensitive' } }, { phone: { contains: q } }, { email: { contains: q, mode: 'insensitive' } },

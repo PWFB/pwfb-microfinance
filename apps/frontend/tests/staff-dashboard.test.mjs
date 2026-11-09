@@ -170,3 +170,21 @@ test("Super Admin financial action cards have consistent hover, keyboard focus, 
   assert.ok(brandCss.includes(":focus-visible"));
   assert.ok(brandCss.includes("@media (prefers-reduced-motion: reduce)"));
 });
+
+
+test("Super Admin can remain on Staff Dashboard while customers cannot access it", () => {
+  const routingPath = path.resolve(process.cwd(), "lib/role-routing.ts");
+  const routingSource = fs.readFileSync(routingPath, "utf8");
+  const authPath = path.resolve(process.cwd(), "context/AuthContext.tsx");
+  const authSource = fs.readFileSync(authPath, "utf8");
+  assert.ok(routingSource.includes('if (pathname === "/staff-dashboard")'));
+  assert.ok(routingSource.includes('role === "SUPER_ADMIN" || STAFF_ROLES.has(role as UserRole)'));
+  assert.ok(authSource.includes("!isDashboardPathAllowed(currentUser.role, pathname || \"\")"));
+});
+
+test("Staff Dashboard is not treated as Super Admin's forbidden default-dashboard route", () => {
+  const authPath = path.resolve(process.cwd(), "context/AuthContext.tsx");
+  const authSource = fs.readFileSync(authPath, "utf8");
+  assert.ok(authSource.includes('import { getDashboardPath, isDashboardPathAllowed }'));
+  assert.ok(!authSource.includes('protectedDashboards.includes(pathname || "") && pathname !== dashboardPath'));
+});

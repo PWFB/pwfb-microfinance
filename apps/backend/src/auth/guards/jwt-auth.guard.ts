@@ -9,9 +9,16 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     if (user.twoFactorPending) {
       const request = context.switchToHttp().getRequest();
-      const path = String(request?.route?.path || request?.path || '');
-      if (path !== '/auth/profile') {
-        throw new UnauthorizedException('Two-factor authentication required');
+      const fullPath = String(request?.originalUrl || request?.path || '').split('?')[0];
+      const routePath = String(request?.route?.path || '');
+      const allowed = new Set([
+        '/auth/profile', '/profile',
+        '/auth/authenticator/status', '/authenticator/status',
+        '/auth/authenticator/setup', '/authenticator/setup',
+        '/auth/authenticator/verify', '/authenticator/verify',
+      ]);
+      if (!allowed.has(fullPath) && !allowed.has(routePath)) {
+        throw new UnauthorizedException('Two-factor setup or verification is required before protected access');
       }
     }
 

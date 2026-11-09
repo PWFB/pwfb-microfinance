@@ -55,6 +55,21 @@ export class AccessScopeService {
     if (String(assignment.role || '').toUpperCase() !== role) {
       throw new ForbiddenException('Your login role does not match your active Staff Assignment. Ask an administrator to reconcile the assignment.');
     }
+    const requiredTarget: Record<string, string> = {
+      ADMIN: 'branchId',
+      BRANCH_MANAGER: 'branchId',
+      CREDIT_OFFICER: 'branchId',
+      TELLER: 'branchId',
+      LOAN_OFFICER: 'branchId',
+      STAFF: 'branchId',
+      AREA_MANAGER: 'areaId',
+      DIVISIONAL_MANAGER: 'divisionId',
+      REGIONAL_MANAGER: 'regionId',
+    };
+    const requiredField = requiredTarget[role];
+    if (requiredField && !assignment[requiredField]) {
+      throw new ForbiddenException(`The active ${role} assignment is missing its required ${requiredField} target.`);
+    }
 
     return {
       role,

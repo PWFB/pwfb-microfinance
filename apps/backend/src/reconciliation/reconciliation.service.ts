@@ -53,14 +53,14 @@ export class ReconciliationService {
     let staffWallet = { wallets: 0, balance: 0 };
     if (access.global) {
       const rows: any[] = await this.prisma.$queryRawUnsafe(
-        \`SELECT COUNT(*)::int AS wallets, COALESCE(SUM(w.balance),0)::float AS balance FROM staff_wallets w \${branchId ? 'WHERE w.branch_id=$1' : ''}\`,
+        `SELECT COUNT(*)::int AS wallets, COALESCE(SUM(w.balance),0)::float AS balance FROM staff_wallets w ${branchId ? 'WHERE w.branch_id=$1' : ''}`,
         ...(branchId ? [branchId] : []),
       );
       staffWallet = { wallets: Number(rows[0]?.wallets || 0), balance: Number(rows[0]?.balance || 0) };
     } else {
       const rows: any[] = await this.prisma.$queryRawUnsafe(
-        \`SELECT COUNT(*)::int AS wallets, COALESCE(SUM(w.balance),0)::float AS balance
-         FROM staff_wallets w WHERE w.branch_id = ANY($1::text[])\`,
+        `SELECT COUNT(*)::int AS wallets, COALESCE(SUM(w.balance),0)::float AS balance
+         FROM staff_wallets w WHERE w.branch_id = ANY($1::text[])`,
         allowedBranchIds?.length ? allowedBranchIds : ['__no_access__'],
       );
       staffWallet = { wallets: Number(rows[0]?.wallets || 0), balance: Number(rows[0]?.balance || 0) };
@@ -72,7 +72,7 @@ export class ReconciliationService {
     if (access.global) {
       try {
         const rows: any[] = await this.prisma.$queryRawUnsafe(
-          \`SELECT balance FROM head_office_accounts WHERE id='HEAD_OFFICE' LIMIT 1\`,
+          `SELECT balance FROM head_office_accounts WHERE id='HEAD_OFFICE' LIMIT 1`,
         );
         headOffice = { balance: Number(rows[0]?.balance || 0) };
       } catch {

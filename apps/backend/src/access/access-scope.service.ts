@@ -100,35 +100,35 @@ export class AccessScopeService {
     if (!ids.length) return rows;
     let allowed: any[] = [];
     if (resource === 'staff') {
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Staff')}) ${scope.role === 'CREDIT_OFFICER' ? `AND "id" = '${this.escape(scope.staffId)}'` : ''}`, ids);
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id" FROM "Staff" WHERE "id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'Staff')}) ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND "id" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'customers') {
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id" FROM "Customer" c LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE c."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT c."id" FROM "Customer" c LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE c."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'loans') {
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id" FROM "Loan" l JOIN "Customer" c ON c."id"=l."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE l."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT l."id" FROM "Loan" l JOIN "Customer" c ON c."id"=l."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE l."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'savings') {
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE s."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT s."id" FROM "Savings" s JOIN "Customer" c ON c."id"=s."customerId" LEFT JOIN "Branch" b ON b."id"=c."branchId" WHERE s."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'collections') {
-      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id"=dc."branchId" WHERE dc."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${scope.role === 'CREDIT_OFFICER' ? `AND dc."staffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
+      allowed = await this.prisma.$queryRawUnsafe<any[]>(`SELECT dc."id" FROM "DailyCollection" dc LEFT JOIN "Branch" b ON b."id"=dc."branchId" WHERE dc."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')}) ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND dc."staffId" = '${this.escape(scope.staffId)}'` : ''}`, ids);
     } else if (resource === 'transactions') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(
         `SELECT t."id" FROM "Transaction" t
          JOIN "Customer" c ON c."id"=t."customerId"
          LEFT JOIN "Branch" b ON b."id"=c."branchId"
          WHERE t."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})
-         ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}
+         ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}
          UNION
          SELECT w."id" FROM "WalletTransaction" w
          JOIN "Customer" c ON c."id"=w."customerId"
          LEFT JOIN "Branch" b ON b."id"=COALESCE(w."branchId",c."branchId")
          WHERE w."id" = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})
-         ${scope.role === 'CREDIT_OFFICER' ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`,
+         ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND c."assignedStaffId" = '${this.escape(scope.staffId)}'` : ''}`,
         ids,
       );
     } else if (resource === 'cashbook_daily') {
       allowed = await this.prisma.$queryRawUnsafe<any[]>(
         `SELECT r.id FROM cashbook_daily_records r JOIN "Branch" b ON b.id = r.branch_id
          WHERE r.id = ANY($1::text[]) AND (${this.orgCondition(scope, 'b')})
-         ${scope.role === 'CREDIT_OFFICER' ? `AND r.staff_id = '${this.escape(scope.staffId)}'` : ''}`,
+         ${['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role) ? `AND r.staff_id = '${this.escape(scope.staffId)}'` : ''}`,
         ids,
       );
     } else if (resource === 'cashbook_entries') {

@@ -100,3 +100,27 @@
 @media(max-width:850px){.page{padding:15px 10px 22px;border-radius:14px}.header{align-items:flex-start}.brandIcon{width:45px;height:45px;border-radius:14px}.header h1{font-size:22px}.subtitle{font-size:10px}.serverBadge{display:none}.summaryRow{gap:7px}.summaryRow>div{padding:10px}.summaryRow small{font-size:8px}.summaryRow strong{font-size:13px}.layout{height:auto;min-height:0;grid-template-columns:1fr;gap:12px}.directoryPanel{min-height:420px;max-height:560px}.callPanel{min-height:390px}.callWelcome{padding:25px 15px}.clientPermission{margin:15px 0;padding:15px;gap:10px}.permissionText strong{font-size:12px}.permissionText p{font-size:10px}.clientStatus{padding:12px 14px}}
 @media(max-width:480px){.summaryRow{grid-template-columns:1fr 1fr}.summaryRow>div:last-child{grid-column:span 2}.contact{padding:10px 11px}.activeCallCard{padding:22px 14px}.callActions{gap:7px}.callActions button{padding:10px 13px}.clientPermission{align-items:flex-start}.toggle{margin-top:4px}}
 .historyItem>span.historyGood{background:#edf7ef;color:#277345}
+
+/* LAB Microfinance dark surfaces and controls for Voice Calls. */
+:global(html[data-theme="dark"]) .page{background:#0b1410;color:#e8f1eb}
+:global(html[data-theme="dark"]) .directoryPanel,:global(html[data-theme="dark"]) .callPanel,
+:global(html[data-theme="dark"]) .summaryRow>div,:global(html[data-theme="dark"]) .clientPermission,
+:global(html[data-theme="dark"]) .clientStatus,:global(html[data-theme="dark"]) .incomingCard,
+:global(html[data-theme="dark"]) .endedCard{background:#122019;border-color:#2b4034;color:#e8f1eb}
+:global(html[data-theme="dark"]) .header h1,:global(html[data-theme="dark"]) .panelHeader h2,
+:global(html[data-theme="dark"]) .summaryRow strong,:global(html[data-theme="dark"]) .callWelcome h2,
+:global(html[data-theme="dark"]) .activeCallCard h2,:global(html[data-theme="dark"]) .incomingCard h2,
+:global(html[data-theme="dark"]) .permissionText strong,:global(html[data-theme="dark"]) .clientStatus strong{color:#e7f2ea}
+:global(html[data-theme="dark"]) .subtitle,:global(html[data-theme="dark"]) .summaryRow small,
+:global(html[data-theme="dark"]) .contactText small,:global(html[data-theme="dark"]) .callWelcome>p,
+:global(html[data-theme="dark"]) .activeCallCard>p,:global(html[data-theme="dark"]) .permissionText p,
+:global(html[data-theme="dark"]) .privacyNote,:global(html[data-theme="dark"]) .footnote{color:#aebfb4}
+:global(html[data-theme="dark"]) .contact{border-color:#26382e}
+:global(html[data-theme="dark"]) .contactText strong{color:#e0ece4}
+:global(html[data-theme="dark"]) .branchSelect select,:global(html[data-theme="dark"]) .search input{background:#101c16;color:#edf5ef;border-color:#40594a}
+:global(html[data-theme="dark"]) .search{background:#101c16;border-color:#34483c}
+:global(html[data-theme="dark"]) .tabs{background:#17271f}
+:global(html[data-theme="dark"]) .tabs .activeTab{background:#1d3626;color:#c5e8ce}
+:global(html[data-theme="dark"]) .callWelcome,:global(html[data-theme="dark"]) .activeCallCard{background:#101c16}
+:global(html[data-theme="dark"]) .clientPermission .permissionIcon{background:#1a3023;color:#c5e8ce}
+:global(html[data-theme="dark"]) .clientStatus small{color:#9caf9f}

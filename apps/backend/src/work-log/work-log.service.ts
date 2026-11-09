@@ -209,7 +209,7 @@ export class WorkLogService {
       (data as any)[field] = value ?? null;
       changeLog[field] = value ?? null;
     };
-    assignText('title', 'title', 180);
+    if (input.title !== undefined) { data.title = this.cleanText(input.title, 'title', 180, true)!; changeLog.title = data.title; }
     assignText('description', 'description', 8000);
     assignText('environment', 'environment', 40);
     assignText('branch', 'branch', 160);

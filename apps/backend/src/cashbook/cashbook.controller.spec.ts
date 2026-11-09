@@ -51,4 +51,60 @@ describe('CashbookController', () => {
     expect(result.netAmount).toBe(165);
   });
 
+  it('blocks Teller daily cashbook cash-out, withdrawal and transfer values', async () => {
+    const cashbookService = { createDaily: jest.fn() };
+    const accessScope = {
+      getScope: jest.fn().mockResolvedValue({
+        global: false,
+        role: 'TELLER',
+        staffId: 'teller-staff-1',
+        branchId: 'branch-1',
+      }),
+      assertBranch: jest.fn(),
+      filterList: jest.fn(),
+    };
+    const scopedController = new CashbookController(cashbookService as any, accessScope as any);
+
+    await expect(scopedController.createDaily(
+      {
+        periodId: 'period-1',
+        branchId: 'branch-1',
+        dailyDisbursementAmount: 100,
+      } as any,
+      { user: { id: 'teller-user', role: 'TELLER' } },
+    )).rejects.toThrow('Teller daily cashbook entries may record receipts only');
+
+    expect(cashbookService.createDaily).not.toHaveBeenCalled();
+  });
+
+  it('allows Teller daily cashbook receipts with authenticated staff and branch attribution', async () => {
+    const cashbookService = { createDaily: jest.fn().mockResolvedValue({ id: 'daily-1' }) };
+    const accessScope = {
+      getScope: jest.fn().mockResolvedValue({
+        global: false,
+        role: 'TELLER',
+        staffId: 'teller-staff-1',
+        branchId: 'branch-1',
+      }),
+      assertBranch: jest.fn(),
+      filterList: jest.fn(),
+    };
+    const scopedController = new CashbookController(cashbookService as any, accessScope as any);
+
+    await expect(scopedController.createDaily(
+      {
+        periodId: 'period-1',
+        branchId: 'branch-1',
+        dailyCollection: 250,
+      } as any,
+      { user: { id: 'teller-user', role: 'TELLER' } },
+    )).resolves.toEqual({ id: 'daily-1' });
+
+    expect(cashbookService.createDaily).toHaveBeenCalledWith(expect.objectContaining({
+      branchId: 'branch-1',
+      staffId: 'teller-staff-1',
+      dailyCollection: 250,
+    }));
+  });
+
 });

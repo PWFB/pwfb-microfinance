@@ -7,8 +7,8 @@ import styles from "./cashbook.module.css";
 
 type Branch={id:string;name:string};
 type Period={id:string;name:string;status?:string};
-type Staff={id:string;firstName?:string;lastName?:string;position?:string;branchId?:string};
-type Row={id:string;entryDate:string;description?:string;referenceNo?:string;staffId?:string;branch?:{name?:string};[key:string]:any};
+type Staff={id:string;staffId?:string;firstName?:string;lastName?:string;position?:string;branchId?:string};
+type Row={id:string;entryDate:string;description?:string;referenceNo?:string;staffId?:string;staff?:{staffId?:string;firstName?:string;lastName?:string};branch?:{name?:string};[key:string]:any};
 
 const receipts=[
   ["previousCashAtHand","Previous day's cash-in-hand"],
@@ -80,6 +80,7 @@ export default function CashbookPage(){
   const [branches,setBranches]=useState<Branch[]>([]);
   const [periods,setPeriods]=useState<Period[]>([]);
   const [staff,setStaff]=useState<Staff[]>([]);
+  const [access,setAccess]=useState<any>(null);
   const [branchId,setBranchId]=useState("");
   const [periodId,setPeriodId]=useState("");
   const [form,setForm]=useState<any>(blank());
@@ -95,15 +96,16 @@ export default function CashbookPage(){
 
   async function init(){
     try{
-      const [b,p]=await Promise.all([apiRequest("/branches"),apiRequest("/periods")]);
-      const bs=Array.isArray(b)?b:[],ps=Array.isArray(p)?p:[];
-      setBranches(bs);setPeriods(ps);
-      if(bs[0])setBranchId(bs[0].id);
+      const a=await apiRequest("/cashbook/access");
+      const bs=Array.isArray(a?.branches)?a.branches:[],ps=Array.isArray(a?.periods)?a.periods:[];
+      const ss=Array.isArray(a?.staff)?a.staff:[];
+      setAccess(a);setBranches(bs);setPeriods(ps);setStaff(ss);
+      if(a?.branchId)setBranchId(a.branchId);else if(bs[0])setBranchId(bs[0].id);
       const open=ps.find((x:Period)=>x.status==="OPEN")||ps[0];
       if(open)setPeriodId(open.id);
-    }catch(e:any){setError(e?.message||"Unable to load cashbook settings");}
+      if(a?.staffId)setForm((x:any)=>({...x,staffId:a.staffId}));
+    }catch(e:any){setError(e?.message||"Unable to load cashbook access and settings");}
   }
-  async function loadStaff(){try{const s=await apiRequest("/staff");setStaff(Array.isArray(s)?s:[]);}catch{setStaff([]);}}
   async function load(){
     if(!periodId||!branchId)return;
     try{
@@ -113,19 +115,31 @@ export default function CashbookPage(){
       const d=await apiRequest(`/cashbook/daily?${q}`);setRows(Array.isArray(d)?d:[]);
     }catch(e:any){setError(e?.message||"Unable to load cashbook");}finally{setLoading(false);}
   }
-  useEffect(()=>{void init();void loadStaff();},[]);
+  useEffect(()=>{void init();},[]);
   useEffect(()=>{void load();},[periodId,branchId,from,to]);
+  useEffect(()=>{
+    let cancelled=false;
+    if(!access||!branchId||!form.entryDate)return;
+    const selectedStaffId=access.staffId||form.staffId;
+    if(!selectedStaffId){setForm((current:any)=>({...current,previousCashAtHand:"0"}));return;}
+    const query=new URLSearchParams({branchId,staffId:selectedStaffId,entryDate:form.entryDate});
+    apiRequest(`/cashbook/daily/opening-balance?${query.toString()}`)
+      .then((result:any)=>{if(!cancelled)setForm((current:any)=>({...current,previousCashAtHand:String(result?.balance??0)}));})
+      .catch((e:any)=>{if(!cancelled)setError(e?.message||"Unable to load previous closing cash.");});
+    return ()=>{cancelled=true;};
+  },[access?.staffId,access?.selfOnly,branchId,form.staffId,form.entryDate]);
 
   async function submit(e:React.FormEvent){
     e.preventDefault();setError("");setMessage("");
     if(!periodId||!branchId)return setError("Select a financial period and branch.");
+    if(!access?.staffId&&!form.staffId)return setError("Select the staff member responsible for this daily work.");
     if(receiptTotal(form)<=0&&paymentTotal(form)<=0)return setError("Enter at least one cashbook amount.");
     setSaving(true);
     try{
-      const body:any={periodId,branchId,entryDate:form.entryDate,description:form.description,referenceNo:form.referenceNo,staffId:form.staffId||undefined};
+      const body:any={periodId,branchId,entryDate:form.entryDate,description:form.description,referenceNo:form.referenceNo,staffId:access?.staffId||form.staffId};
       for(const k of all)body[k]=n(form[k]);
       await apiRequest("/cashbook/daily",{method:"POST",body:JSON.stringify(body)});
-      setMessage("✓ Cashbook row posted successfully.");setForm(blank());await load();
+      setMessage("✓ Cashbook row posted successfully.");setForm({...blank(),staffId:access?.staffId||form.staffId||""});await load();
     }catch(e:any){setError(e?.message||"Unable to post cashbook row");}finally{setSaving(false);}
   }
 
@@ -147,7 +161,7 @@ export default function CashbookPage(){
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-4">
           <label className="field">Cash Book for the Month<select value={periodId} onChange={e=>setPeriodId(e.target.value)}>{periods.map(p=><option key={p.id} value={p.id}>{p.name}{p.status==="CLOSED"?" — CLOSED":""}</option>)}</select></label>
-          <label className="field">Branch<select value={branchId} onChange={e=>{setBranchId(e.target.value);set("staffId","")}}>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+          {access?.canSelectBranch&&branches.length>1 ? <label className="field">Branch<select value={branchId} onChange={e=>{setBranchId(e.target.value);set("staffId","")}}>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</select></label> : <div className="field"><span>Assigned Branch</span><strong>{branches.find(b=>b.id===branchId)?.name||"Loading branch…"}</strong></div>}
           <label className="field">From<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label>
           <label className="field">To<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label>
         </div>
@@ -156,12 +170,12 @@ export default function CashbookPage(){
       {message&&<div className={`mb-4 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-bold text-emerald-900 ${styles.cashbookSuccess}`}>{message}</div>}
 
       <section className="mb-5 overflow-hidden rounded-2xl border bg-white shadow-sm">
-        <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">The input fields follow the same categories and No./N columns as the physical register.</p></div>
+        <div className="border-b bg-emerald-950 p-4 text-white"><h2 className="font-black">New Daily Cash Book Entry</h2><p className="text-xs text-emerald-100">The input fields follow the Admin cashbook categories. Staff ID is attached automatically; only the previous closing Cash at Hand carries forward.</p></div>
         <form onSubmit={submit} className="p-4">
           <div className="grid gap-3 md:grid-cols-4">
             <label className="field">Date<input type="date" value={form.entryDate} onChange={e=>set("entryDate",e.target.value)}/></label>
             <label className="field">Description<input value={form.description} onChange={e=>set("description",e.target.value)} placeholder="Customer / daily description"/></label>
-            <label className="field">Field staff / collector<select value={form.staffId} onChange={e=>set("staffId",e.target.value)}><option value="">Not assigned</option>{staff.filter(s=>!s.branchId||s.branchId===branchId).map(s=><option key={s.id} value={s.id}>{s.firstName} {s.lastName} — {s.position||"Staff"}</option>)}</select></label>
+            {access?.canSelectStaff ? <label className="field">Field staff / collector<select required value={form.staffId} onChange={e=>set("staffId",e.target.value)}><option value="">Select assigned staff</option>{staff.filter(s=>s.branchId===branchId).map(s=><option key={s.id} value={s.id}>{s.staffId||"Staff ID"} · {s.firstName} {s.lastName} — {s.position||"Staff"}</option>)}</select></label> : <div className="field"><span>Signed-in staff</span><strong>{access?.currentStaff ? (access.currentStaff.staffId+" · "+access.currentStaff.firstName+" "+access.currentStaff.lastName) : "Verifying Staff ID…"}</strong></div>}
             <label className="field">Reference<input value={form.referenceNo} onChange={e=>set("referenceNo",e.target.value)} placeholder="Voucher / reference"/></label>
           </div>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -232,7 +246,7 @@ function InputGroup({title,items,form,set,payment=false}:{title:string;items:rea
     <div className="divide-y divide-slate-200">
       {items.map(([k,l])=><div key={k} className="grid grid-cols-[minmax(0,1fr)_minmax(112px,0.8fr)] items-center gap-3 px-3 py-2">
         <label htmlFor={`cashbook-${k}`} className="text-sm font-bold text-slate-900">{l}</label>
-        <input id={`cashbook-${k}`} className={styles.cashbookAmountInput} aria-label={`${l} amount in naira`} type="number" min="0" step="0.01" inputMode="decimal" value={form[k]||"0"} onChange={e=>set(k,e.target.value)}/>
+        <input id={`cashbook-${k}`} className={styles.cashbookAmountInput} aria-label={k==="previousCashAtHand"?"Previous closing cash at hand (automatically carried forward)":`${l} amount in naira`} type="number" min="0" step="0.01" inputMode="decimal" value={form[k]||"0"} readOnly={k==="previousCashAtHand"} onChange={e=>set(k,e.target.value)}/>
       </div>)}
     </div>
   </div>;
@@ -240,7 +254,7 @@ function InputGroup({title,items,form,set,payment=false}:{title:string;items:rea
 
 function WeekRows({week,items}:{week:number;items:Row[]}){
   const totalR=items.reduce((s,r)=>s+receiptTotal(r),0),totalP=items.reduce((s,r)=>s+paymentTotal(r),0),other=items.reduce((s,r)=>s+n(r.otherAfterTotal),0);
-  const staffName=(r:Row)=>r.description||"";
+  const staffName=(r:Row)=>[r.staff?.staffId,r.staff?.firstName,r.staff?.lastName].filter(Boolean).join(" · ")+(r.description?" — "+r.description:"");
   return <>
     {items.map(r=><tr key={r.id} className="odd:bg-white even:bg-slate-50">
       <td className="border p-2">{new Date(r.entryDate).toLocaleDateString("en-NG",{day:"2-digit",month:"2-digit"})}</td>

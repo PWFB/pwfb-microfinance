@@ -114,7 +114,7 @@ export class UsersService {
 
     const { password, ...safeUser } = user;
 
-    return safeUser;
+    return { ...safeUser, userId: safeUser.publicUserId };
   }
 
   async remove(id: string) {

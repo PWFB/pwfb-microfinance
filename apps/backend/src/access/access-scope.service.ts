@@ -113,6 +113,19 @@ export class AccessScopeService {
     if (scope.global) return true;
     if (!target) throw new ForbiddenException('Access denied: record not found');
     const same = (a: unknown, b: unknown) => Boolean(a && b && String(a) === String(b));
+    const personalRoles = ['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'];
+
+    // Individual staff ownership must be checked before branch/hierarchy access.
+    // Otherwise another officer's customer inside the same branch would pass.
+    if (personalRoles.includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
+      if (same(scope.staffId, target.assignedStaffId)) return true;
+      throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
+    }
+    if (personalRoles.includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'staffId')) {
+      if (same(scope.staffId, target.staffId)) return true;
+      throw new ForbiddenException('Access denied: this record is not linked to your Staff ID');
+    }
+
     if (target.branchId && (scope.branchIds || []).some((id: string) => same(id, target.branchId))) return true;
     if (scope.role === 'REGIONAL_MANAGER' && target.regionId && (scope.regionIds || []).some((id: string) => same(id, target.regionId))) return true;
     if (scope.role === 'DIVISIONAL_MANAGER' && target.divisionId && (scope.divisionIds || []).some((id: string) => same(id, target.divisionId))) return true;
@@ -122,17 +135,6 @@ export class AccessScopeService {
       if (target.divisionId && (scope.divisionIds || []).some((id: string) => same(id, target.divisionId))) return true;
       if (target.areaId && (scope.areaIds || []).some((id: string) => same(id, target.areaId))) return true;
     }
-    if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
-      if (same(scope.staffId, target.assignedStaffId)) return true;
-      throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
-    }
-    if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'staffId')) {
-      if (same(scope.staffId, target.staffId)) return true;
-      throw new ForbiddenException('Access denied: this record is not linked to your Staff ID');
-    }
-    // Credit Officers still need access to their own branch metadata; record
-    // ownership is checked only for Customer/Loan targets that carry assignedStaffId.
-    if (same(scope.branchId, target.branchId)) return true;
     throw new ForbiddenException('Access denied: outside your organizational scope');
   }
 

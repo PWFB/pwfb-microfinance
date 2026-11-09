@@ -41,6 +41,7 @@ export class AdministrationController {
   }
 
   @Get('departments/:id')
+  @Roles('SUPER_ADMIN')
   department(@Param('id') id: string) {
     return this.administrationService.getDepartment(id);
   }

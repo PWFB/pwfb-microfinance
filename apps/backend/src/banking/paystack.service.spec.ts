@@ -255,6 +255,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
     const tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       walletTransaction: {
+        findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'wallet-transaction-1', ...data })),
       },
@@ -321,7 +322,7 @@ describe('Paystack wallet deposit balance concurrency protection', () => {
   it('rejects a wallet that is inactive after its row is locked', async () => {
     const tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
-      walletTransaction: { findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
+      walletTransaction: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn() },
       customerWallet: {
         upsert: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 10, status: 'ACTIVE' }),
         findUnique: jest.fn().mockResolvedValue({ id: 'wallet-1', balance: 10, status: 'SUSPENDED' }),

@@ -10,6 +10,7 @@ describe('CustomerVirtualAccountService', () => {
     firstName: 'Test',
     middleName: null,
     lastName: 'Customer',
+    dateOfBirth: new Date('1990-01-01T00:00:00.000Z'),
     email: 'test.customer@example.invalid',
     phone: '08000000000',
     user: { email: 'test.customer@example.invalid' },
@@ -592,6 +593,7 @@ describe('BVN and NIN provider verification safeguards', () => {
   beforeEach(() => {
     prisma = {
       customer: { findUnique: jest.fn().mockResolvedValue(customer) },
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
       $executeRawUnsafe: jest.fn().mockResolvedValue(1),
     };
     service = new CustomerVirtualAccountService(prisma);

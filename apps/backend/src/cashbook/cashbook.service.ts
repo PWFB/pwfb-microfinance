@@ -119,6 +119,13 @@ export class CashbookService {
 
     const reference = String(data.reference || '').trim() || `MANUAL-CASHBOOK-${randomUUID()}`;
     return this.prisma.$transaction(async (tx: any) => {
+      await tx.$queryRawUnsafe('SELECT id FROM "FinancialPeriod" WHERE id = $1 FOR UPDATE', data.periodId);
+      const lockedPeriod = await tx.financialPeriod.findUnique({ where: { id: data.periodId } });
+      if (!lockedPeriod) throw new NotFoundException('Financial period not found');
+      if (lockedPeriod.status === 'CLOSED') throw new BadRequestException('Cannot add cashbook entries to a closed period');
+      if (entryDate < new Date(lockedPeriod.startDate) || entryDate > new Date(lockedPeriod.endDate)) {
+        throw new BadRequestException('Cashbook entry date must fall inside the selected financial period');
+      }
       await tx.$queryRawUnsafe(
         'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
         `CASHBOOK-ENTRY:${data.branchId}:${reference}`,
@@ -174,6 +181,17 @@ export class CashbookService {
     const id = randomUUID();
     const columns = ALL_FIELDS.map(snake);
     await this.prisma.$transaction(async (tx: any) => {
+      // Lock the accounting period so period closure cannot race a cashbook post.
+      await tx.$queryRawUnsafe('SELECT id FROM "FinancialPeriod" WHERE id = $1 FOR UPDATE', data.periodId);
+      const lockedPeriod = await tx.financialPeriod.findUnique({ where: { id: data.periodId } });
+      if (!lockedPeriod) throw new NotFoundException('Financial period not found');
+      if (lockedPeriod.status === 'CLOSED') throw new BadRequestException('Cannot add entries to a closed period');
+      const lockedStart = new Date(lockedPeriod.startDate).toISOString().slice(0, 10);
+      const lockedEnd = new Date(lockedPeriod.endDate).toISOString().slice(0, 10);
+      if (dayKey < lockedStart || dayKey > lockedEnd) {
+        throw new BadRequestException('Cashbook work date must fall inside the selected financial period');
+      }
+
       // Serialize postings for this branch/collector before reading the prior
       // closing balance. This prevents two requests from using the same opening cash.
       const lockKey = `DAILY-CASHBOOK:${data.branchId}:${data.staffId || 'UNASSIGNED'}`;

@@ -1,5 +1,6 @@
 const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-microfinance-1.onrender.com';
 const DEFAULT_PRODUCTION_RP_ID = 'pwfb-microfinance-1.onrender.com';
+const STAGING_FRONTEND_ORIGIN = 'https://pwfb-microfinance-staging.onrender.com';
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
 const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
@@ -13,7 +14,10 @@ export function isAndroidAppOrigin(value?: string | null): boolean {
   return /^android:apk-key-hash:[A-Za-z0-9_-]+$/.test(normalizeOrigin(value));
 }
 
-function configuredOrigin(): string {
+function configuredOrigin(requestOrigin?: string | null): string {
+  const request = normalizeOrigin(requestOrigin);
+  const staging = normalizeOrigin(process.env.STAGING_FRONTEND_URL) || STAGING_FRONTEND_ORIGIN;
+  if (request === staging) return staging;
   const value = normalizeOrigin(process.env.WEBAUTHN_ORIGIN);
   return value === 'https://your-frontend-domain.com' || value === 'your-frontend-domain.com' ? '' : value;
 }
@@ -28,7 +32,7 @@ function configuredAndroidOrigins(): string[] {
 }
 
 export function getWebAuthnOrigin(requestOrigin?: string | null): string {
-  const configured = configuredOrigin();
+  const configured = configuredOrigin(requestOrigin);
   if (configured) return configured;
   if (process.env.NODE_ENV === 'production') return DEFAULT_PRODUCTION_ORIGIN;
   const request = normalizeOrigin(requestOrigin);
@@ -46,7 +50,7 @@ export function getWebAuthnRpId(requestOrigin?: string | null): string {
 }
 
 export function getWebAuthnExpectedOrigins(requestOrigin?: string | null): string[] {
-  const configured = (process.env.WEBAUTHN_ALLOWED_ORIGINS || process.env.WEBAUTHN_ORIGIN || '')
+  const configured = [process.env.WEBAUTHN_ALLOWED_ORIGINS, process.env.WEBAUTHN_ORIGIN, process.env.STAGING_FRONTEND_URL, STAGING_FRONTEND_ORIGIN].filter(Boolean).join(',')
     .split(',')
     .map(normalizeOrigin)
     .filter(Boolean)

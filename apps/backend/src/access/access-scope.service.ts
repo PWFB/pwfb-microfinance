@@ -45,6 +45,31 @@ export class AccessScopeService {
     };
   }
 
+  async getScopedBranchIds(user: AccessUser): Promise<string[] | null> {
+    const scope = await this.getScope(user);
+    if (scope.global) return null;
+    let rows: any[] = [];
+    if (scope.role === 'REGIONAL_MANAGER' && scope.regionId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id" FROM "Branch" WHERE "regionId" = $1 ORDER BY "name" ASC`,
+        scope.regionId,
+      );
+    } else if (scope.role === 'DIVISIONAL_MANAGER' && scope.divisionId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id" FROM "Branch" WHERE "divisionId" = $1 ORDER BY "name" ASC`,
+        scope.divisionId,
+      );
+    } else if (scope.role === 'AREA_MANAGER' && scope.areaId) {
+      rows = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT "id" FROM "Branch" WHERE "areaId" = $1 ORDER BY "name" ASC`,
+        scope.areaId,
+      );
+    } else if (scope.branchId) {
+      rows = [{ id: scope.branchId }];
+    }
+    return rows.map((row) => String(row.id)).filter(Boolean);
+  }
+
   private async assertOrg(user: AccessUser, target: any) {
     const scope = await this.getScope(user);
     if (scope.global) return true;

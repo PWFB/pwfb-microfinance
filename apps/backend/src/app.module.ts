@@ -33,6 +33,7 @@ import { ApprovalsModule } from './approvals/approvals.module';
 import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import { BranchClosingModule } from './branch-closing/branch-closing.module';
 import { FinancialPortalModule } from './financial-portal/financial-portal.module';
+import { WorkProgressModule } from './work-progress/work-progress.module';
 
 @Module({
   imports: [
@@ -42,7 +43,7 @@ import { FinancialPortalModule } from './financial-portal/financial-portal.modul
     LoansModule, RepaymentsModule, TransactionsModule, ReportsModule, PeriodsModule,
     PayrollModule, CashbookModule, CollectionsModule, DashboardsModule,
     BalmzAiModule, CustomerAiModule, PermissionsModule, AuditModule, AccessScopeModule,
-    ApprovalsModule, ReconciliationModule, BranchClosingModule, FinancialPortalModule,
+    ApprovalsModule, ReconciliationModule, BranchClosingModule, FinancialPortalModule, WorkProgressModule,
   ],
   controllers: [AppController],
 })

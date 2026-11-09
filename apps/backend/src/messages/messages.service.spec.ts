@@ -63,6 +63,17 @@ describe('MessagesService messaging boundaries', () => {
     expect(sql).toContain('COALESCE(sa."role"::text, u."role"::text)');
   });
 
+  it('returns an empty role list for an assigned branch with no active staff recipients', async () => {
+    accessScope.assertBranch = jest.fn().mockResolvedValue(true);
+    prisma.$queryRawUnsafe = jest.fn().mockResolvedValue([]);
+
+    await expect(service.getBranchRoleTargets(
+      { id: 'manager-user', role: 'BRANCH_MANAGER', staffId: 'staff-1' },
+      'assigned-branch-3',
+    )).resolves.toEqual([]);
+    expect(prisma.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects role targets outside the branch-role allowlist', async () => {
     accessScope.getScope = jest.fn().mockResolvedValue({ role: 'TELLER', staffId: 'staff-1', branchId: 'branch-1', global: false });
     accessScope.assertBranch = jest.fn().mockResolvedValue(true);

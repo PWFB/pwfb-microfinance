@@ -127,7 +127,7 @@ export default function AddCustomerPage() {
 
       <div className={styles.progressCard}>
         <div className={styles.progressIntro}><span className={styles.progressBadge}>NEW PROFILE</span><strong>Customer registration</strong><small>Complete the required details to activate the profile.</small></div>
-        <div className={styles.steps}><div className={`${styles.step} ${styles.stepActive}`}><span>01</span><b>Personal</b></div><i /><div className={`${styles.step} ${completed >= 3 ? styles.stepDone : ""}`}><span>02</span><b>Contact</b></div><i /><div className={`${styles.step} ${styles.stepActive}`}><span>03</span><b>Review</b></div></div>
+        <div className={styles.steps}><div className={`${styles.step} ${styles.stepActive}`}><span>01</span><b>Personal</b></div><i /><div className={`${styles.step} ${completed >= 3 ? styles.stepDone : ""}`}><span>02</span><b>Contact</b></div><i /><div className={`${styles.step} ${registrationFeeConfirmed ? styles.stepDone : styles.stepActive}`}><span>03</span><b>Fee</b></div><i /><div className={`${styles.step} ${styles.stepActive}`}><span>04</span><b>Identity</b></div></div>
       </div>
 
       <div className={styles.layout}>

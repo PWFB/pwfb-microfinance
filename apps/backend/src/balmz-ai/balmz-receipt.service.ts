@@ -23,7 +23,7 @@ type ReceiptResult = {
   };
   databaseMatch: {
     matched: boolean;
-    source: 'transaction' | 'collection' | null;
+    source: 'transaction' | 'wallet' | 'collection' | null;
     id: string | null;
     amount: number | null;
     status: string | null;
@@ -59,11 +59,14 @@ export class BalmzReceiptService {
     const role = String(user.role || '').toUpperCase();
     let transactionScope: any = {};
     let collectionScope: any = {};
+    let walletCustomerScope: any = {};
+    let walletScope: any = {};
     if (role === 'CUSTOMER') {
       const customerId = String(user.customerId || '').trim();
       if (!customerId) return { matched: false, source: null, id: null, amount: null, status: null };
       transactionScope.customerId = customerId;
       collectionScope.customerId = customerId;
+      walletCustomerScope.customerId = customerId;
     } else if (role !== 'SUPER_ADMIN') {
       const scopeActor = { id: user.id, role: user.role, ...(user.staffId ? { staffId: user.staffId } : {}) };
       const scope = await this.accessScope.getScope(scopeActor);
@@ -71,12 +74,17 @@ export class BalmzReceiptService {
       if (!branchIds.length) return { matched: false, source: null, id: null, amount: null, status: null };
       transactionScope.customer = { branchId: { in: branchIds } };
       collectionScope.branchId = { in: branchIds };
+      walletCustomerScope.branchId = { in: branchIds };
+      walletScope.OR = [{ branchId: { in: branchIds } }, { branchId: null }];
       if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(role)) {
         if (!scope.staffId) return { matched: false, source: null, id: null, amount: null, status: null };
         transactionScope.customer.assignedStaffId = scope.staffId;
         collectionScope.staffId = scope.staffId;
+        walletCustomerScope.assignedStaffId = scope.staffId;
       }
     }
+
+    if (Object.keys(walletCustomerScope).length) walletScope.customer = walletCustomerScope;
 
     if (reference) {
       const transactions = await this.prisma.transaction.findMany({
@@ -87,6 +95,25 @@ export class BalmzReceiptService {
       if (transactions.length) {
         const match = transactions.find((row) => amount == null || Math.abs(row.amount - amount) <= 0.01) || transactions[0];
         return { matched: amount == null || Math.abs(match.amount - (amount || match.amount)) <= 0.01, source: 'transaction' as const, id: match.id, amount: match.amount, status: match.type };
+      }
+
+      const walletWhere = Object.keys(walletScope).length
+        ? { AND: [walletScope, { OR: [
+            { reference: { contains: reference, mode: 'insensitive' } },
+            { providerReference: { contains: reference, mode: 'insensitive' } },
+          ] }] }
+        : { OR: [
+            { reference: { contains: reference, mode: 'insensitive' } },
+            { providerReference: { contains: reference, mode: 'insensitive' } },
+          ] };
+      const walletTransactions = await this.prisma.walletTransaction.findMany({
+        where: walletWhere,
+        select: { id: true, amount: true, type: true, status: true },
+        take: 5,
+      });
+      if (walletTransactions.length) {
+        const match = walletTransactions.find((row) => amount == null || Math.abs(row.amount - amount) <= 0.01) || walletTransactions[0];
+        return { matched: amount == null || Math.abs(match.amount - (amount || match.amount)) <= 0.01, source: 'wallet' as const, id: match.id, amount: match.amount, status: match.status || match.type };
       }
 
       const collections = await this.prisma.dailyCollection.findMany({

@@ -204,7 +204,7 @@ export class ChargesService {
       if (existing[0]) {
         const receipt = existing[0];
         if (receipt.status === 'COLLECTED' && !receipt.customerId
-          && receipt.branchId === branchId && receipt.staffId === staffId
+          && receipt.branchId === branchId
           && receipt.paymentMethod === paymentMethod) {
           return {
             id: receipt.id,
@@ -213,7 +213,7 @@ export class ChargesService {
             paymentMethod: receipt.paymentMethod,
             reference,
             branchId,
-            staffId,
+            staffId: receipt.staffId,
             status: 'COLLECTED',
             reused: true,
             providerVerified: false,

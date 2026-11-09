@@ -6,11 +6,12 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('financial-portal')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('SUPER_ADMIN')
 export class FinancialPortalController {
   constructor(private readonly service: FinancialPortalService) {}
 
   @Get('payroll')
-  @Roles('SUPER_ADMIN', 'ADMIN', 'AUDITOR')
+  @Roles('SUPER_ADMIN')
   payroll(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('query') query?: string) {
     return this.service.payroll(periodId, branchId, query);
   }
@@ -28,7 +29,7 @@ export class FinancialPortalController {
   }
 
   @Post('disbursements')
-  @Roles('SUPER_ADMIN', 'ADMIN')
+  @Roles('SUPER_ADMIN')
   createDisbursement(@Body() body: {
     staffId: string; payrollId?: string; bankCode: string; bankName: string;
     accountNumber: string; accountName: string; amount: number;

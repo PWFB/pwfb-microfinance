@@ -65,8 +65,9 @@ export class BalmzReceiptService {
       transactionScope.customerId = customerId;
       collectionScope.customerId = customerId;
     } else if (role !== 'SUPER_ADMIN') {
-      const scope = await this.accessScope.getScope(user);
-      const branchIds = await this.accessScope.getScopedBranchIds(user) || [];
+      const scopeActor = { id: user.id, role: user.role, ...(user.staffId ? { staffId: user.staffId } : {}) };
+      const scope = await this.accessScope.getScope(scopeActor);
+      const branchIds = await this.accessScope.getScopedBranchIds(scopeActor) || [];
       if (!branchIds.length) return { matched: false, source: null, id: null, amount: null, status: null };
       transactionScope.customer = { branchId: { in: branchIds } };
       collectionScope.branchId = { in: branchIds };
@@ -123,7 +124,7 @@ export class BalmzReceiptService {
     return { ...result, receiptReference, receiptId: saved.id };
   }
 
-  async verifyReceipt(file: { buffer: Buffer; mimetype: string; originalname: string }, user: { id: string }): Promise<ReceiptResult> {
+  async verifyReceipt(file: { buffer: Buffer; mimetype: string; originalname: string }, user: { id: string; role: string; customerId?: string | null; staffId?: string | null }): Promise<ReceiptResult> {
     const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowed.includes(file.mimetype)) throw new BadRequestException('Upload a JPG, PNG, WEBP or GIF payment receipt image.');
     if (!file.buffer?.length) throw new BadRequestException('The uploaded receipt is empty.');

@@ -326,9 +326,10 @@ export class MessagesService {
       'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
       'LEFT JOIN LATERAL (SELECT a."role" FROM "StaffAssignment" a ' +
       'WHERE a."staffId" = s."id" AND a."branchId" = $2 AND a."active" = TRUE ' +
+      'AND a."role"::text = u."role"::text ' +
       'AND a."startsAt" <= CURRENT_TIMESTAMP AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP) ' +
       'ORDER BY a."startsAt" DESC, a."updatedAt" DESC LIMIT 1) sa ON TRUE ' +
-      'WHERE s."id" = ANY($1::text[]) AND s."employmentStatus" = \'ACTIVE\' ' +
+      'WHERE s."id" = ANY($1::text[]) AND s."employmentStatus" = \'ACTIVE\' AND u."role" <> \'CUSTOMER\' ' +
       'AND (s."branchId" = $2 OR sa."role" IS NOT NULL) ' +
       'ORDER BY s."id"',
       selectedIds, branchId,

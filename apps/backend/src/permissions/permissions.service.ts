@@ -23,7 +23,7 @@ const DEFAULTS: Record<string, Record<PermissionKey, boolean>> = {
   SUPER_ADMIN: { ...ALL },
   ADMIN: { ...ALL },
   BRANCH_MANAGER: { ...ALL },
-  TELLER: { ...ALL, LOAN_CREATE: false, LOAN_DISBURSE: false, COLLECTION_CREATE: true },
+  TELLER: { ...NONE, WALLET_DEPOSIT: true, CUSTOMER_CREATE: true, SAVINGS_CREATE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
   STAFF: { ...NONE, BANK_TRANSFER: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true, SAVINGS_CREATE: true },
   CUSTOMER_SERVICE: { ...NONE, CUSTOMER_CREATE: true, CUSTOMER_EDIT: true, SAVINGS_CREATE: true },
   LOAN_OFFICER: { ...NONE, LOAN_CREATE: true, COLLECTION_CREATE: true, COLLECTION_SETTLE: true },
@@ -83,7 +83,23 @@ export class PermissionsService {
   }
 
   async assert(role: string, permission: PermissionKey) {
-    if (!(await this.get(role, permission))) throw new ForbiddenException(`Permission denied: ${permission}`);
+    const normalizedRole = String(role || '').toUpperCase();
+    // These are separation-of-duties restrictions, not editable permission
+    // defaults. A stale or manually enabled RolePermission row must not let
+    // a Teller withdraw funds, transfer funds or approve a payout.
+    const tellerRestricted = new Set<PermissionKey>([
+      'WALLET_WITHDRAWAL',
+      'BANK_TRANSFER',
+      'SAVINGS_WITHDRAW',
+      'LOAN_DISBURSE',
+      'LOAN_CREATE',
+    ]);
+    if (normalizedRole === 'TELLER' && tellerRestricted.has(permission)) {
+      throw new ForbiddenException(`Permission denied: ${permission} is not available to Tellers`);
+    }
+    if (!(await this.get(normalizedRole, permission))) {
+      throw new ForbiddenException(`Permission denied: ${permission}`);
+    }
     return true;
   }
 

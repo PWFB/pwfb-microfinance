@@ -107,6 +107,23 @@ export class CashbookController {
     if (!branchId) throw new ForbiddenException('Your staff account must be assigned to a branch before posting daily cashbook work');
     const staffId = scope.global ? body.staffId : scope.staffId;
     if (!scope.global && !staffId) throw new ForbiddenException('Your login is not linked to an assigned staff record');
+
+    if (scope.role === 'TELLER') {
+      const cashOutFields: (keyof CashbookDailyInput)[] = [
+        'dailyDisbursementCount', 'dailyDisbursementAmount',
+        'weeklyDisbursementCount', 'weeklyDisbursementAmount',
+        'monthlyDisbursementCount', 'monthlyDisbursementAmount',
+        'bankDeposit', 'savingsWithdrawalCount', 'savingsWithdrawalAmount',
+        'savingsReturnedDW', 'savingsReturnedD', 'savingsReturnedW',
+        'savingsReturnedCash', 'savingsReturnedAdjust',
+        'fundTransferHeadOffice', 'fundTransferBranch', 'others',
+      ];
+      const hasCashOut = cashOutFields.some((field) => Number(body[field] ?? 0) > 0);
+      if (hasCashOut) {
+        throw new ForbiddenException('Teller daily cashbook entries may record receipts only. Cashbook payments, transfers and withdrawals require an authorized approver.');
+      }
+    }
+
     return this.cashbookService.createDaily({ ...body, branchId, staffId });
   }
 

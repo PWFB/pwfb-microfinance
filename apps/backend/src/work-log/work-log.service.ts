@@ -31,7 +31,7 @@ export class WorkLogService {
     const configured = process.env.PWFB_WORK_SESSION_KEY?.trim();
     if (configured) return configured.slice(0, 80);
     const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    return 'PWFB-SESSION-' + day + '-' + randomBytes(3).toString('hex').toUpperCase();
+    return 'PWFB-SESSION-' + day;
   }
 
   private cleanText(value: unknown, label: string, max: number, required = false): string | undefined {

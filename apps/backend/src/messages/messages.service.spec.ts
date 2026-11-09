@@ -6,6 +6,63 @@ describe('MessagesService messaging boundaries', () => {
   const accessScope: any = {};
   const service = new MessagesService(prisma, accessScope);
 
+  it('detects recipient roles from active branch assignments even when the primary Staff.branchId differs', async () => {
+    accessScope.assertBranch = jest.fn().mockResolvedValue(true);
+    prisma.$queryRawUnsafe = jest.fn().mockResolvedValue([
+      { roleTarget: 'CREDIT_OFFICER' },
+      { roleTarget: 'TELLER' },
+      { roleTarget: 'CUSTOMER' },
+    ]);
+
+    await expect(service.getBranchRoleTargets(
+      { id: 'manager-user', role: 'BRANCH_MANAGER', staffId: 'staff-1' },
+      'assigned-branch-2',
+    )).resolves.toEqual(['CREDIT_OFFICER', 'TELLER']);
+
+    const [sql, branchId, allowedRoles] = prisma.$queryRawUnsafe.mock.calls[0];
+    expect(branchId).toBe('assigned-branch-2');
+    expect(allowedRoles).toContain('CREDIT_OFFICER');
+    expect(sql).toContain('FROM "StaffAssignment" a');
+    expect(sql).toContain('a."branchId" = $1');
+    expect(sql).toContain('a."active" = TRUE');
+    expect(sql).toContain('a."startsAt" <= CURRENT_TIMESTAMP');
+    expect(sql).toContain('a."endsAt" > CURRENT_TIMESTAMP');
+  });
+
+  it('accepts a role recipient linked through an active StaffAssignment for the selected branch', async () => {
+    prisma.$queryRawUnsafe = jest.fn().mockResolvedValue([{ count: 1 }]);
+
+    await expect((service as any).hasActiveRoleInBranch('assigned-branch-2', 'TELLER'))
+      .resolves.toBe(true);
+
+    const [sql, branchId, role] = prisma.$queryRawUnsafe.mock.calls[0];
+    expect(branchId).toBe('assigned-branch-2');
+    expect(role).toBe('TELLER');
+    expect(sql).toContain('FROM "StaffAssignment" a');
+    expect(sql).toContain('a."branchId" = $1');
+    expect(sql).toContain('a."role"::text = $2');
+    expect(sql).toContain('a."active" = TRUE');
+  });
+
+  it('lists active staff assigned to the chosen branch even when their home branch is different', async () => {
+    accessScope.assertBranch = jest.fn().mockResolvedValue(true);
+    prisma.$queryRawUnsafe = jest.fn().mockResolvedValue([
+      { staffId: 'staff-2', userId: 'user-2', firstName: 'Branch', lastName: 'Officer', role: 'CREDIT_OFFICER' },
+    ]);
+
+    const result = await service.getBranchStaff(
+      { id: 'manager-user', role: 'BRANCH_MANAGER', staffId: 'manager-staff' },
+      'assigned-branch-2',
+    );
+
+    expect(result).toHaveLength(1);
+    const [sql, branchId] = prisma.$queryRawUnsafe.mock.calls[0];
+    expect(branchId).toBe('assigned-branch-2');
+    expect(sql).toContain('LEFT JOIN LATERAL (SELECT a."role" FROM "StaffAssignment" a');
+    expect(sql).toContain('(s."branchId" = $1 OR sa."role" IS NOT NULL)');
+    expect(sql).toContain('COALESCE(sa."role"::text, u."role"::text)');
+  });
+
   it('rejects role targets outside the branch-role allowlist', async () => {
     accessScope.getScope = jest.fn().mockResolvedValue({ role: 'TELLER', staffId: 'staff-1', branchId: 'branch-1', global: false });
     accessScope.assertBranch = jest.fn().mockResolvedValue(true);

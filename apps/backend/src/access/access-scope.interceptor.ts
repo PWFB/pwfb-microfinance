@@ -14,7 +14,7 @@ export class AccessScopeInterceptor implements NestInterceptor {
     // Customer banking endpoints enforce ownership in BankingController.resolveCustomerId.
     // Do not apply staff branch/organization scope to a customer's own wallet/account routes.
     const requestPath = String(request.originalUrl || request.url || request.path || '').toLowerCase();
-    const path = requestPath.split('?')[0].replace(/\\/+$/, '');
+    const path = requestPath.split('?')[0].replace(/\/+$/, '');
     // Delegate only the exact Messages/Calls route trees; similarly named routes
     // elsewhere in the API must remain subject to the normal scope checks.
     if (path === '/calls' || path.startsWith('/calls/') || path === '/messages' || path.startsWith('/messages/')) {
@@ -23,7 +23,6 @@ export class AccessScopeInterceptor implements NestInterceptor {
     const isCustomerBankingRoute = String(user.role || '').toUpperCase() === 'CUSTOMER' && requestPath.includes('/banking/customers/');
     if (isCustomerBankingRoute) return next.handle();
 
-    const path = requestPath.split('?')[0].replace(/\/+$/, '');
     const id = request.params?.id;
     const branchId = request.params?.branchId || request.body?.branchId || request.query?.branchId;
     const staffId = request.params?.staffId || request.body?.staffId || request.query?.staffId;

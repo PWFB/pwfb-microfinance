@@ -49,7 +49,7 @@ export class CustomersController {
 
   @Patch(':id')
   @Roles('SUPER_ADMIN', 'ADMIN')
-  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto, @Req() req: any) { await this.accessScope.assertCustomer(req.user, id); return this.customersService.update(id, updateCustomerDto); }
+  async update(@Param('id') id: string, @Body() updateCustomerDto: UpdateCustomerDto, @Req() req: any) { await this.accessScope.assertCustomer(req.user, id); return this.customersService.update(id, updateCustomerDto, req.user); }
 
   @Post(':id/reset-password')
   @Roles('SUPER_ADMIN')

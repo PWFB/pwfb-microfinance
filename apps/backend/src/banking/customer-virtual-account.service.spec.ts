@@ -101,7 +101,7 @@ describe('CustomerVirtualAccountService', () => {
         expect.stringContaining('INSERT INTO customer_identity_verifications'),
         expect.any(String),
         customer.id,
-        testBvn,
+        '•••••••1111',
       );
       expect(prisma.customerVirtualAccount.updateMany).toHaveBeenCalledWith(expect.objectContaining({
         where: expect.objectContaining({ id: local.id, status: 'PENDING' }),
@@ -269,8 +269,6 @@ describe('CustomerVirtualAccountService', () => {
     await expect(service.ensure('missing-customer', undefined, true)).rejects.toThrow('Customer not found');
     expect(prisma.customerVirtualAccount.create).not.toHaveBeenCalled();
   });
-});
-
 
   it('verifies BVN through Dojah using consent and persists only a masked identifier', async () => {
     const originals = {
@@ -405,6 +403,7 @@ describe('CustomerVirtualAccountService', () => {
       if (originals.secret === undefined) delete process.env.DOJAH_SECRET_KEY; else process.env.DOJAH_SECRET_KEY = originals.secret;
     }
   });
+});
 
 describe('CustomerVirtualAccountService dedicated-account deposits', () => {
   const payment = {

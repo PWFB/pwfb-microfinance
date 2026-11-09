@@ -1,0 +1,126 @@
+.page{min-height:calc(100vh - 110px);padding:22px 20px 28px;border-radius:20px;background:#f4f7f5;color:#183a2b}
+.loading{min-height:45vh;display:grid;place-items:center;color:#166d3b;font-weight:750}
+.header{max-width:1450px;margin:0 auto 20px;display:flex;align-items:center;gap:14px}
+.brandIcon{width:54px;height:54px;border-radius:17px;display:grid;place-items:center;background:#e4f3e9;color:#15723e;font-size:26px;font-weight:900}
+.eyebrow{margin:0;color:#4f8965;font-size:10px;font-weight:900;letter-spacing:.14em}
+.header h1{margin:4px 0 3px;color:#143d2c;font-size:27px;font-weight:900;line-height:1.15}
+.subtitle{margin:0;color:#76877d;font-size:12px}
+.serverBadge{margin-left:auto;display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #dfeae3;border-radius:12px;background:white;color:#51705d;font-size:10px;font-weight:750}
+.serverBadge span,.enabledDot{width:8px;height:8px;border-radius:50%;background:#16a05b;box-shadow:0 0 0 4px #e4f5e9}
+.error{max-width:1450px;margin:0 auto 14px;padding:11px 14px;border:1px solid #f0caca;border-radius:11px;background:#fff2f2;color:#963838;font-size:12px;display:flex;justify-content:space-between;gap:10px}
+.error button{text-decoration:underline;font-weight:800}
+.summaryRow{max-width:1450px;margin:0 auto 16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.summaryRow>div{padding:13px 16px;border:1px solid #e2ebe5;border-radius:13px;background:#fff;display:flex;flex-direction:column;gap:5px}
+.summaryRow small,.clientStatus small{color:#7a9081;font-size:9px;font-weight:850;letter-spacing:.1em}
+.summaryRow strong{color:#1c5032;font-size:17px;font-weight:900}
+.layout{max-width:1450px;min-height:610px;height:calc(100vh - 310px);max-height:850px;margin:0 auto;display:grid;grid-template-columns:minmax(310px,430px) minmax(0,1fr);gap:15px}
+.directoryPanel,.callPanel{min-height:0;border:1px solid #e1eae4;border-radius:17px;background:#fff;box-shadow:0 9px 26px #21452d0b;overflow:hidden}
+.directoryPanel{display:flex;flex-direction:column}
+.panelHeader{padding:17px 18px 12px;display:flex;align-items:center;justify-content:space-between}
+.panelHeader small{color:#5d8b6d;font-size:9px;letter-spacing:.13em;font-weight:900}
+.panelHeader h2{margin:4px 0 0;color:#1a452d;font-size:18px;font-weight:900}
+.countPill{display:grid;place-items:center;min-width:27px;height:27px;padding:0 7px;border-radius:20px;background:#eaf6ed;color:#1c7140;font-size:10px;font-weight:900}
+.branchSelect{margin:0 15px 10px;display:flex;flex-direction:column;gap:6px;color:#66806e;font-size:10px;font-weight:800}
+.branchSelect select{border:1px solid #dde8e0;border-radius:9px;padding:9px 10px;background:#fff;color:#264a34;font-size:12px}
+.branchName{margin:0 16px 10px;padding:9px 10px;border-radius:9px;background:#f4f8f5;color:#3f694d;font-size:11px;font-weight:800}
+.search{margin:0 15px 12px;display:flex;align-items:center;gap:8px;padding:0 10px;border:1px solid #e4ece6;border-radius:10px;background:#f7faf8;color:#829187}
+.search input{height:38px;min-width:0;flex:1;border:0;outline:0;background:transparent;color:#1f4630;font-size:11px}
+.tabs{margin:0 15px 10px;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border-radius:10px;background:#f0f5f1}
+.tabs button{padding:9px 6px;border-radius:8px;color:#718279;font-size:11px;font-weight:800}
+.tabs .activeTab{background:#fff;color:#196b3a;box-shadow:0 2px 8px #153a230d}
+.contactList{min-height:0;flex:1;overflow-y:auto}
+.contact{display:flex;align-items:center;gap:10px;padding:12px 15px;border-top:1px solid #eff3f0}
+.avatar,.clientAvatar{width:39px;height:39px;flex:0 0 39px;border-radius:13px;display:grid;place-items:center;background:#e6f3e9;color:#256e41;font-size:11px;font-weight:900}
+.clientAvatar{background:#fff0dc;color:#9a5a11}
+.contactText{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.contactText strong{font-size:12px;color:#244a33;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.contactText small{font-size:9px;color:#819087;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.callButton{width:34px;height:34px;flex:0 0 34px;border:0;border-radius:11px;background:#1b7841;color:#fff;font-size:17px;box-shadow:0 4px 10px #1b78412a}
+.callButton:disabled{background:#dfe8e2;color:#96a49a;box-shadow:none;cursor:not-allowed}
+.loadingContacts,.emptyContacts{min-height:130px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px;color:#839187;font-size:11px;text-align:center}
+.emptyContacts span{font-size:27px;color:#6aa87c}
+.emptyContacts strong{color:#456b50;font-size:12px}
+.directoryNote{margin:0;padding:11px 15px;border-top:1px solid #edf2ee;color:#8b988f;font-size:9px;line-height:1.5}
+.callPanel{display:flex;flex-direction:column}
+.callWelcome{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:35px;text-align:center}
+.welcomeIcon{width:83px;height:83px;border-radius:25px;display:grid;place-items:center;background:#e4f4e9;color:#1a7b44;font-size:38px;margin-bottom:14px}
+.callWelcome h2{margin:0;color:#1c482f;font-size:21px;font-weight:900}
+.callWelcome>p{max-width:420px;margin:9px 0 20px;color:#78887e;font-size:12px;line-height:1.6}
+.networkSteps{display:grid;grid-template-columns:25px auto;align-items:center;gap:10px 12px;text-align:left}
+.networkSteps span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#eef7f0;color:#267244;font-size:10px;font-weight:900}
+.networkSteps p{margin:0;color:#597262;font-size:11px}
+.activeCallCard{flex:1;min-height:320px;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:30px;text-align:center;background:radial-gradient(circle at 50% 35%,#f0f9f2 0,#fff 55%)}
+.callPulse,.ringingAvatar{width:90px;height:90px;border:1px solid #d4ecdc;border-radius:50%;display:grid;place-items:center;background:#e7f5eb;color:#1d7b44;font-size:36px;box-shadow:0 0 0 12px #f5faf6,0 0 0 24px #fafdfa;margin-bottom:24px}
+.activeCallCard>small,.incomingCard>small{color:#528468;font-size:9px;font-weight:900;letter-spacing:.16em}
+.activeCallCard h2,.incomingCard h2{margin:7px 0;color:#1c482f;font-size:24px;font-weight:900}
+.activeCallCard>p,.incomingCard>p{margin:0;color:#76877d;font-size:12px}
+.callActions{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:24px;flex-wrap:wrap}
+.acceptButton,.endButton,.declineButton,.controlButton,.activeControl{border:0;border-radius:11px;padding:11px 18px;font-size:11px;font-weight:900}
+.acceptButton{background:#1c7a42;color:white;box-shadow:0 5px 12px #1c7a4226}
+.endButton,.declineButton{background:#c94a4a;color:white}
+.controlButton{background:#eaf3ed;color:#245b38}
+.activeControl{background:#fff0dc;color:#965810}
+.callSecurity{margin-top:24px!important;color:#91a096!important;font-size:9px!important}
+.history{border-top:1px solid #eaf0ec;padding:12px 17px}
+.historyToggle{width:100%;display:flex;align-items:center;gap:10px;color:#365d43;text-align:left;font-size:11px;font-weight:850}
+.historyToggle span:nth-child(2){margin-left:auto;color:#8c9a91;font-size:9px;font-weight:650}
+.historyToggle b{font-size:17px;color:#6b9076}
+.historyList{max-height:230px;overflow-y:auto;margin-top:10px}
+.historyItem{display:flex;align-items:center;gap:9px;padding:9px 0;border-top:1px solid #f0f4f1}
+.historyItem>span{width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:#edf7ef;color:#277345;font-size:13px}
+.historyItem>span.historyMuted{background:#f3f4f3;color:#8b9690}
+.historyItem>div{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.historyItem strong{color:#355541;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.historyItem small{color:#849188;font-size:9px}
+.historyItem time{color:#89968e;font-size:9px}
+.footnote{max-width:1450px;margin:12px auto 0;color:#8a978f;font-size:9px;line-height:1.55}
+.clientPermission{max-width:850px;margin:24px auto 16px;padding:20px;border:1px solid #dfebe3;border-radius:17px;background:white;display:flex;align-items:center;gap:15px;box-shadow:0 8px 25px #193c280b}
+.permissionIcon{width:47px;height:47px;flex:0 0 47px;border-radius:15px;display:grid;place-items:center;background:#e6f4ea;color:#1b7541;font-size:23px}
+.permissionText{flex:1}
+.permissionText strong{color:#204a32;font-size:14px;font-weight:900}
+.permissionText p{margin:5px 0 0;color:#7a897f;font-size:11px;line-height:1.6}
+.toggle{position:relative;width:48px;height:27px;flex:0 0 48px}
+.toggle input{position:absolute;width:1px;height:1px;opacity:0}
+.toggle span{position:absolute;inset:0;border-radius:30px;background:#d8e1dc;transition:.2s}
+.toggle span:before{content:"";position:absolute;left:3px;top:3px;width:21px;height:21px;border-radius:50%;background:white;box-shadow:0 1px 4px #0002;transition:.2s}
+.toggle input:checked+span{background:#1d8047}
+.toggle input:checked+span:before{transform:translateX(21px)}
+.toggle input:focus-visible+span{outline:3px solid #b9e2c6;outline-offset:2px}
+.clientStatus{max-width:850px;margin:0 auto;padding:14px 18px;border:1px solid #e3ece6;border-radius:13px;background:#fff;display:flex;align-items:center;justify-content:space-between}
+.clientStatus>div{display:flex;flex-direction:column;gap:5px}
+.clientStatus strong{color:#315a40;font-size:12px}
+.disabledDot{width:8px;height:8px;border-radius:50%;background:#c7d0cb}
+.incomingCard,.endedCard{max-width:500px;margin:20px auto;padding:27px;border:1px solid #e1ece4;border-radius:19px;background:white;text-align:center;box-shadow:0 12px 32px #20462d10}
+.incomingCard .ringingAvatar{margin:0 auto 22px}
+.incomingCard h2{font-size:22px}
+.endedCard strong{color:#385d44;font-size:16px}
+.endedCard p{color:#849188;font-size:12px}
+.endedCard button{padding:9px 16px;border-radius:9px;background:#eaf4ed;color:#23673c;font-size:11px;font-weight:850}
+.privacyNote{max-width:850px;margin:15px auto;color:#89968d;font-size:10px;line-height:1.6;text-align:center}
+@media(max-width:850px){.page{padding:15px 10px 22px;border-radius:14px}.header{align-items:flex-start}.brandIcon{width:45px;height:45px;border-radius:14px}.header h1{font-size:22px}.subtitle{font-size:10px}.serverBadge{display:none}.summaryRow{gap:7px}.summaryRow>div{padding:10px}.summaryRow small{font-size:8px}.summaryRow strong{font-size:13px}.layout{height:auto;min-height:0;grid-template-columns:1fr;gap:12px}.directoryPanel{min-height:420px;max-height:560px}.callPanel{min-height:390px}.callWelcome{padding:25px 15px}.clientPermission{margin:15px 0;padding:15px;gap:10px}.permissionText strong{font-size:12px}.permissionText p{font-size:10px}.clientStatus{padding:12px 14px}}
+@media(max-width:480px){.summaryRow{grid-template-columns:1fr 1fr}.summaryRow>div:last-child{grid-column:span 2}.contact{padding:10px 11px}.activeCallCard{padding:22px 14px}.callActions{gap:7px}.callActions button{padding:10px 13px}.clientPermission{align-items:flex-start}.toggle{margin-top:4px}}
+.historyItem>span.historyGood{background:#edf7ef;color:#277345}
+
+/* LAB Microfinance dark surfaces and controls for Voice Calls. */
+:global(html[data-theme="dark"]) .page{background:#0b1410;color:#e8f1eb}
+:global(html[data-theme="dark"]) .directoryPanel,:global(html[data-theme="dark"]) .callPanel,
+:global(html[data-theme="dark"]) .summaryRow>div,:global(html[data-theme="dark"]) .clientPermission,
+:global(html[data-theme="dark"]) .clientStatus,:global(html[data-theme="dark"]) .incomingCard,
+:global(html[data-theme="dark"]) .endedCard{background:#122019;border-color:#2b4034;color:#e8f1eb}
+:global(html[data-theme="dark"]) .header h1,:global(html[data-theme="dark"]) .panelHeader h2,
+:global(html[data-theme="dark"]) .summaryRow strong,:global(html[data-theme="dark"]) .callWelcome h2,
+:global(html[data-theme="dark"]) .activeCallCard h2,:global(html[data-theme="dark"]) .incomingCard h2,
+:global(html[data-theme="dark"]) .permissionText strong,:global(html[data-theme="dark"]) .clientStatus strong{color:#e7f2ea}
+:global(html[data-theme="dark"]) .subtitle,:global(html[data-theme="dark"]) .summaryRow small,
+:global(html[data-theme="dark"]) .contactText small,:global(html[data-theme="dark"]) .callWelcome>p,
+:global(html[data-theme="dark"]) .activeCallCard>p,:global(html[data-theme="dark"]) .permissionText p,
+:global(html[data-theme="dark"]) .privacyNote,:global(html[data-theme="dark"]) .footnote{color:#aebfb4}
+:global(html[data-theme="dark"]) .contact{border-color:#26382e}
+:global(html[data-theme="dark"]) .contactText strong{color:#e0ece4}
+:global(html[data-theme="dark"]) .branchSelect select,:global(html[data-theme="dark"]) .search input{background:#101c16;color:#edf5ef;border-color:#40594a}
+:global(html[data-theme="dark"]) .search{background:#101c16;border-color:#34483c}
+:global(html[data-theme="dark"]) .tabs{background:#17271f}
+:global(html[data-theme="dark"]) .tabs .activeTab{background:#1d3626;color:#c5e8ce}
+:global(html[data-theme="dark"]) .callWelcome,:global(html[data-theme="dark"]) .activeCallCard{background:#101c16}
+:global(html[data-theme="dark"]) .clientPermission .permissionIcon{background:#1a3023;color:#c5e8ce}
+:global(html[data-theme="dark"]) .clientStatus small{color:#9caf9f}

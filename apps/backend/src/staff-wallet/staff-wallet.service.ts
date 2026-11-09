@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessScopeService } from '../access/access-scope.service';
 
 @Injectable()
 export class StaffWalletService {
   private ready: Promise<void> | null = null;
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly accessScope: AccessScopeService) {}
 
   async ensureTables(db: any = this.prisma) {
     if (db !== this.prisma) {
@@ -45,17 +46,45 @@ export class StaffWalletService {
     return created[0];
   }
 
-  async list(branchId?: string) {
+  async list(user: any, branchId?: string) {
     await this.ensureTables();
-    const rows: any[] = await this.prisma.$queryRawUnsafe(`SELECT w.id, w.staff_id AS "staffId", w.branch_id AS "branchId", w.balance, w.currency, s."firstName", s."middleName", s."lastName", s."position", s."employmentStatus", b.name AS "branchName" FROM staff_wallets w JOIN "Staff" s ON s.id=w.staff_id JOIN "Branch" b ON b.id=w.branch_id ${branchId ? 'WHERE w.branch_id=$1' : ''} ORDER BY s."firstName", s."lastName"`, ...(branchId ? [branchId] : []));
-    return rows;
+    const scope = await this.accessScope.getScope(user);
+    if (scope.global) {
+      const rows: any[] = await this.prisma.$queryRawUnsafe(
+        `SELECT w.id, w.staff_id AS "staffId", w.branch_id AS "branchId", w.balance, w.currency, s."firstName", s."middleName", s."lastName", s."position", s."employmentStatus", b.name AS "branchName" FROM staff_wallets w JOIN "Staff" s ON s.id=w.staff_id JOIN "Branch" b ON b.id=w.branch_id ${branchId ? 'WHERE w.branch_id=$1' : ''} ORDER BY s."firstName", s."lastName"`,
+        ...(branchId ? [branchId] : []),
+      );
+      return rows;
+    }
+    const branchIds = await this.accessScope.getScopedBranchIds(user) || [];
+    if (branchId && !branchIds.includes(branchId)) {
+      await this.accessScope.assertBranch(user, branchId);
+      throw new BadRequestException('Requested branch is outside your assigned scope');
+    }
+    const allowed = branchId ? [branchId] : branchIds;
+    if (!allowed.length) return [];
+    return this.prisma.$queryRawUnsafe(
+      `SELECT w.id, w.staff_id AS "staffId", w.branch_id AS "branchId", w.balance, w.currency, s."firstName", s."middleName", s."lastName", s."position", s."employmentStatus", b.name AS "branchName" FROM staff_wallets w JOIN "Staff" s ON s.id=w.staff_id JOIN "Branch" b ON b.id=w.branch_id WHERE w.branch_id = ANY($1::text[]) ORDER BY s."firstName", s."lastName"`,
+      allowed,
+    );
   }
 
-  async get(staffId: string) {
+  async get(staffId: string, user: any) {
+    await this.accessScope.assertStaff(user, staffId);
     await this.ensureTables();
     const wallet = await this.staff(staffId);
     const transactions: any[] = await this.prisma.$queryRawUnsafe(`SELECT id, type, amount, previous_balance AS "previousBalance", new_balance AS "newBalance", reference, description, created_at AS "createdAt" FROM staff_wallet_transactions WHERE wallet_id=$1 ORDER BY created_at DESC LIMIT 100`, wallet.id);
     return { ...wallet, transactions };
+  }
+
+  async creditForUser(user: any, staffId: string, amountValue: number, reference?: string, description = 'Field cash issued to staff') {
+    await this.accessScope.assertStaff(user, staffId);
+    return this.credit(staffId, amountValue, reference, description);
+  }
+
+  async debitForUser(user: any, staffId: string, amountValue: number, reference?: string, description = 'Field cash received/paid by staff') {
+    await this.accessScope.assertStaff(user, staffId);
+    return this.debit(staffId, amountValue, reference, description);
   }
 
   async credit(staffId: string, amountValue: number, reference?: string, description = 'Field cash issued to staff', db: any = this.prisma) {
@@ -93,7 +122,8 @@ export class StaffWalletService {
     return { staffId, previousBalance: previous, amount, newBalance: next };
   }
 
-  async history(staffId: string) {
+  async history(staffId: string, user: any) {
+    await this.accessScope.assertStaff(user, staffId);
     await this.ensureTables();
     const wallet = await this.staff(staffId);
     return this.prisma.$queryRawUnsafe(`SELECT id, type, amount, previous_balance AS "previousBalance", new_balance AS "newBalance", reference, description, created_at AS "createdAt" FROM staff_wallet_transactions WHERE wallet_id=$1 ORDER BY created_at DESC`, wallet.id);

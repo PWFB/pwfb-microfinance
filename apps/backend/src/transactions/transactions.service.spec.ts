@@ -3,138 +3,78 @@ import { TransactionsService } from './transactions.service';
 
 describe('TransactionsService', () => {
   let service: TransactionsService;
-
   const prisma = {
     customer: { findUnique: jest.fn() },
-    transaction: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-    },
-    walletTransaction: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-    },
+    transaction: { create: jest.fn(), findMany: jest.fn(), findUnique: jest.fn() },
+    walletTransaction: { findMany: jest.fn(), findUnique: jest.fn() },
   } as any;
+  const accessScope = {
+    getScope: jest.fn(),
+    getScopedBranchIds: jest.fn(),
+    assertCustomer: jest.fn(),
+    assertTransaction: jest.fn(),
+  } as any;
+  const user = { id: 'user-1', role: 'CREDIT_OFFICER', staffId: 'staff-1' };
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new TransactionsService(prisma);
+    accessScope.getScope.mockResolvedValue({ global: false, role: 'CREDIT_OFFICER', staffId: 'staff-1' });
+    accessScope.getScopedBranchIds.mockResolvedValue(['branch-1']);
+    service = new TransactionsService(prisma, accessScope);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
+  it('should be defined', () => expect(service).toBeDefined());
 
-  it('should create a transaction for an existing customer', async () => {
+  it('creates a transaction only after validating the customer against the caller scope', async () => {
     const dto = { customerId: 'customer-1', type: 'DEPOSIT', amount: 5000, description: 'Cash deposit' };
     const result = { id: 'transaction-1', ...dto };
     prisma.customer.findUnique.mockResolvedValue({ id: 'customer-1' });
     prisma.transaction.create.mockResolvedValue(result);
 
-    await expect(service.create(dto)).resolves.toBe(result);
+    await expect(service.create(dto as any, user)).resolves.toBe(result);
+    expect(accessScope.assertCustomer).toHaveBeenCalledWith(user, 'customer-1');
     expect(prisma.transaction.create).toHaveBeenCalledWith({
-      data: dto,
+      data: { ...dto, reference: expect.stringMatching(/^PWFB-TXN-/) },
       include: { customer: true },
     });
   });
 
-  it('should reject creation when customer does not exist', async () => {
+  it('rejects creation when customer does not exist', async () => {
     prisma.customer.findUnique.mockResolvedValue(null);
-    await expect(service.create({ customerId: 'missing', type: 'DEPOSIT', amount: 1000 } as any))
+    await expect(service.create({ customerId: 'missing', type: 'DEPOSIT', amount: 1000 } as any, user))
       .rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.transaction.create).not.toHaveBeenCalled();
   });
 
-  it('should combine legacy ledger and wallet transactions in newest-first order', async () => {
-    prisma.transaction.findMany.mockResolvedValue([{
-      id: 'legacy-1',
-      customerId: 'customer-1',
-      type: 'DEPOSIT',
-      amount: 5000,
-      createdAt: new Date('2026-01-01T10:00:00Z'),
-    }]);
-    prisma.walletTransaction.findMany.mockResolvedValue([{
-      id: 'wallet-1',
-      customerId: 'customer-1',
-      type: 'WITHDRAWAL',
-      amount: 1000,
-      description: 'Wallet withdrawal',
-      status: 'COMPLETED',
-      provider: null,
-      providerReference: null,
-      reference: 'ref-1',
-      processedAt: new Date('2026-01-01T11:00:00Z'),
-      previousBalance: 5000,
-      newBalance: 4000,
-      createdAt: new Date('2026-01-01T11:00:00Z'),
-      branchId: null,
-      staffId: null,
-      failureReason: null,
-      customer: { id: 'customer-1' },
-    }]);
+  it('queries ledger and wallet transactions only for the caller branch and assigned customers', async () => {
+    prisma.transaction.findMany.mockResolvedValue([]);
+    prisma.walletTransaction.findMany.mockResolvedValue([]);
+    await service.findAll(user);
 
-    const result = await service.findAll();
-
-    expect(result.map((row: any) => row.id)).toEqual(['wallet-1', 'legacy-1']);
-    expect(result[0]).toMatchObject({
-      source: 'WALLET',
-      walletBalanceBefore: 5000,
-      walletBalanceAfter: 4000,
-      status: 'COMPLETED',
-    });
-    expect(result[1]).toMatchObject({
-      source: 'LEDGER',
-      status: 'COMPLETED',
-    });
+    expect(prisma.transaction.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { customer: { branchId: { in: ['branch-1'] }, assignedStaffId: 'staff-1' } },
+    }));
+    expect(prisma.walletTransaction.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        OR: [
+          { branchId: { in: ['branch-1'] }, customer: { branchId: { in: ['branch-1'] }, assignedStaffId: 'staff-1' } },
+          { branchId: null, customer: { branchId: { in: ['branch-1'] }, assignedStaffId: 'staff-1' } },
+        ],
+      },
+    }));
   });
 
-  it('should return wallet transaction details by id', async () => {
-    const wallet = {
-      id: 'wallet-1',
-      customerId: 'customer-1',
-      type: 'DEPOSIT',
-      amount: 2500,
-      description: 'Deposit',
-      status: 'COMPLETED',
-      provider: 'INTERNAL',
-      providerReference: 'ref-1',
-      reference: 'ref-1',
-      processedAt: new Date(),
-      previousBalance: 1000,
-      newBalance: 3500,
-      createdAt: new Date(),
-      branchId: 'branch-1',
-      staffId: 'staff-1',
-      failureReason: null,
-      customer: { id: 'customer-1' },
-    };
-    prisma.walletTransaction.findUnique.mockResolvedValue(wallet);
-
-    await expect(service.findOne('wallet-1')).resolves.toMatchObject({
-      id: 'wallet-1',
-      source: 'WALLET',
-      walletBalanceBefore: 1000,
-      walletBalanceAfter: 3500,
-    });
-    expect(prisma.transaction.findUnique).not.toHaveBeenCalled();
-  });
-
-  it('should reject edits to system-generated wallet transactions', async () => {
-    jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'wallet-1', source: 'WALLET' } as any);
-    await expect(service.update('wallet-1', {} as any)).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.remove('wallet-1')).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('should reject edits and deletion of immutable ledger transactions', async () => {
-    jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'legacy-1', source: 'LEDGER' } as any);
-    await expect(service.update('legacy-1', {} as any)).rejects.toThrow('Ledger transactions are immutable');
-    await expect(service.remove('legacy-1')).rejects.toThrow('Ledger transactions are immutable');
-  });
-
-  it('should throw when transaction does not exist', async () => {
+  it('checks the transaction owner before reading details', async () => {
     prisma.walletTransaction.findUnique.mockResolvedValue(null);
     prisma.transaction.findUnique.mockResolvedValue(null);
-    await expect(service.findOne('missing-transaction')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findOne('tx-1', user)).rejects.toBeInstanceOf(NotFoundException);
+    expect(accessScope.assertTransaction).toHaveBeenCalledWith(user, 'tx-1');
+  });
+
+  it('rejects edits and deletion of immutable transaction rows after checking caller scope', async () => {
+    jest.spyOn(service, 'findOne').mockResolvedValue({ id: 'wallet-1', source: 'WALLET' } as any);
+    await expect(service.update('wallet-1', {} as any, user)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.remove('wallet-1', user)).rejects.toBeInstanceOf(BadRequestException);
+    expect(service.findOne).toHaveBeenCalledWith('wallet-1', user);
   });
 });

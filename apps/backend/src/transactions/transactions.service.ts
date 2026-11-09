@@ -5,14 +5,37 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessScopeService } from '../access/access-scope.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
+import { createFinancialReference } from '../common/financial-reference';
+
+type TransactionUser = { id: string; role: string; staffId?: string };
 
 @Injectable()
 export class TransactionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly accessScope: AccessScopeService,
+  ) {}
 
-  async create(createTransactionDto: CreateTransactionDto) {
+  private async scopedCustomerWhere(user: TransactionUser) {
+    const scope = await this.accessScope.getScope(user);
+    if (scope.global) return null;
+
+    const branchIds = await this.accessScope.getScopedBranchIds(user);
+    if (!branchIds?.length) return { id: '__no_access__' };
+
+    const where: any = { branchId: { in: branchIds } };
+    if (['CREDIT_OFFICER','TELLER','LOAN_OFFICER','STAFF'].includes(scope.role)) {
+      if (!scope.staffId) return { id: '__no_access__' };
+      where.assignedStaffId = scope.staffId;
+    }
+    return where;
+  }
+
+  async create(createTransactionDto: CreateTransactionDto, user: TransactionUser) {
+    await this.accessScope.assertCustomer(user, createTransactionDto.customerId);
     const customer = await this.prisma.customer.findUnique({
       where: { id: createTransactionDto.customerId },
     });
@@ -22,6 +45,7 @@ export class TransactionsService {
     return this.prisma.transaction.create({
       data: {
         customerId: createTransactionDto.customerId,
+        reference: createFinancialReference('PWFB-TXN'),
         type: createTransactionDto.type,
         amount: createTransactionDto.amount,
         description: createTransactionDto.description,
@@ -30,13 +54,26 @@ export class TransactionsService {
     });
   }
 
-  async findAll() {
+  async findAll(user: TransactionUser) {
+    const customerWhere = await this.scopedCustomerWhere(user);
+    const legacyWhere = customerWhere ? { customer: customerWhere } : {};
+    const walletWhere: any = customerWhere
+      ? {
+          OR: [
+            { branchId: { in: customerWhere.branchId?.in || [] }, customer: customerWhere },
+            { branchId: null, customer: customerWhere },
+          ],
+        }
+      : {};
+
     const [ledgerTransactions, walletTransactions] = await Promise.all([
       this.prisma.transaction.findMany({
+        where: legacyWhere as any,
         orderBy: { createdAt: 'desc' },
         include: { customer: true },
       }),
       this.prisma.walletTransaction.findMany({
+        where: walletWhere,
         orderBy: { createdAt: 'desc' },
         include: { customer: true },
       }),
@@ -81,7 +118,7 @@ export class TransactionsService {
     );
   }
 
-  async findOne(id: string) {
+  private async loadOne(id: string) {
     const walletTransaction = await this.prisma.walletTransaction.findUnique({
       where: { id },
       include: { customer: true },
@@ -130,8 +167,13 @@ export class TransactionsService {
     };
   }
 
-  async update(id: string, _updateTransactionDto: UpdateTransactionDto) {
-    const transaction = await this.findOne(id);
+  async findOne(id: string, user: TransactionUser) {
+    await this.accessScope.assertTransaction(user, id);
+    return this.loadOne(id);
+  }
+
+  async update(id: string, _updateTransactionDto: UpdateTransactionDto, user: TransactionUser) {
+    const transaction = await this.findOne(id, user);
 
     if (transaction.source === 'WALLET') {
       throw new BadRequestException(
@@ -144,8 +186,8 @@ export class TransactionsService {
     );
   }
 
-  async remove(id: string) {
-    const transaction = await this.findOne(id);
+  async remove(id: string, user: TransactionUser) {
+    const transaction = await this.findOne(id, user);
 
     if (transaction.source === 'WALLET') {
       throw new BadRequestException(

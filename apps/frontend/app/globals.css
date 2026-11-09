@@ -213,3 +213,30 @@ html[data-theme="dark"] textarea::placeholder { color: #9caf9f !important; opaci
   .customer-profile-page { border-radius: 14px; }
   .customer-profile-page .customer-photo-card { background: linear-gradient(160deg, #fff4e5, #fff 60%, #eaf7ef); }
 }
+
+
+/* Branch Messenger unread indicator */
+.pwfb-message-unread{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;margin-left:auto;padding:0 6px;border-radius:999px;background:#f28c18;color:#fff;font-size:10px;font-weight:900;line-height:1;box-shadow:0 2px 8px rgba(242,140,24,.22)}
+
+/* Global incoming-call overlay (staff + customer app) */
+.pwfb-call-incoming-backdrop{position:fixed;inset:0;z-index:300;display:grid;place-items:center;padding:18px;background:rgba(5,32,17,.48);backdrop-filter:blur(5px)}
+.pwfb-call-incoming-card{width:min(390px,100%);padding:28px 24px 22px;border:1px solid #dcebe0;border-radius:22px;background:#fff;text-align:center;box-shadow:0 25px 80px rgba(0,0,0,.22)}
+.pwfb-call-ring{width:76px;height:76px;margin:0 auto 18px;border-radius:50%;display:grid;place-items:center;background:#e5f5ea;color:#1b7943;font-size:32px;box-shadow:0 0 0 10px #f3faf5,0 0 0 18px #fafdfb;animation:pwfb-call-ring-pulse 1.7s ease-in-out infinite}
+.pwfb-call-incoming-card>small{color:#54866a;font-size:9px;font-weight:900;letter-spacing:.15em}
+.pwfb-call-incoming-card h2{margin:7px 0;color:#1b462d;font-size:22px;font-weight:900}
+.pwfb-call-incoming-card>p{margin:0;color:#78877e;font-size:11px}
+.pwfb-call-branch{display:inline-block;margin-top:12px;padding:6px 9px;border-radius:8px;background:#f1f7f3;color:#62806c;font-size:9px}
+.pwfb-call-listener-actions{display:flex;justify-content:center;gap:9px;margin-top:22px}
+.pwfb-call-listener-actions button{min-height:41px;padding:0 17px;border:0;border-radius:10px;font-size:11px;font-weight:850}
+.pwfb-call-open{background:#197743;color:white}
+.pwfb-call-decline{background:#f7eaea;color:#ac3e3e}
+.pwfb-call-listener-actions button:disabled{opacity:.55}
+.pwfb-call-listener-note{display:block;margin-top:18px;color:#929c95;font-size:9px}
+.pwfb-call-error{margin:10px 0 0!important;color:#a33b3b!important}
+@keyframes pwfb-call-ring-pulse{0%,100%{transform:scale(1);box-shadow:0 0 0 10px #f3faf5,0 0 0 18px #fafdfb}50%{transform:scale(1.08);box-shadow:0 0 0 13px #f3faf5,0 0 0 23px #fafdfb}}
+html[data-theme="dark"] .pwfb-call-incoming-card{background:#122019!important;border-color:#34483c!important;color:#e8f1eb!important}
+html[data-theme="dark"] .pwfb-call-incoming-card h2{color:#edf5ef!important}
+html[data-theme="dark"] .pwfb-call-incoming-card>p{color:#b5c6ba!important}
+html[data-theme="dark"] .pwfb-call-branch{background:#1a3023!important;color:#c5e8ce!important}
+html[data-theme="dark"] .pwfb-message-unread{background:#f28c18!important;color:#fff!important}
+

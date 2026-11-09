@@ -5,6 +5,8 @@ describe('TransactionsController', () => {
   let controller: TransactionsController;
   let service: jest.Mocked<TransactionsService>;
 
+  const req = { user: { id: 'user-1', role: 'CREDIT_OFFICER', staffId: 'staff-1' } };
+
   beforeEach(() => {
     service = {
       create: jest.fn(),
@@ -36,10 +38,10 @@ describe('TransactionsController', () => {
     service.create.mockResolvedValue(result as any);
 
     await expect(
-      controller.create(dto),
+      controller.create(dto, req),
     ).resolves.toBe(result);
 
-    expect(service.create).toHaveBeenCalledWith(dto);
+    expect(service.create).toHaveBeenCalledWith(dto, req.user);
   });
 
   it('should return all transactions', async () => {
@@ -54,10 +56,10 @@ describe('TransactionsController', () => {
     service.findAll.mockResolvedValue(result as any);
 
     await expect(
-      controller.findAll(),
+      controller.findAll(req),
     ).resolves.toBe(result);
 
-    expect(service.findAll).toHaveBeenCalled();
+    expect(service.findAll).toHaveBeenCalledWith(req.user);
   });
 
   it('should return one transaction', async () => {
@@ -70,11 +72,11 @@ describe('TransactionsController', () => {
     service.findOne.mockResolvedValue(result as any);
 
     await expect(
-      controller.findOne('transaction-1'),
+      controller.findOne('transaction-1', req),
     ).resolves.toBe(result);
 
     expect(service.findOne).toHaveBeenCalledWith(
-      'transaction-1',
+      'transaction-1', req.user,
     );
   });
 
@@ -91,12 +93,12 @@ describe('TransactionsController', () => {
     service.update.mockResolvedValue(result as any);
 
     await expect(
-      controller.update('transaction-1', dto),
+      controller.update('transaction-1', dto, req),
     ).resolves.toBe(result);
 
     expect(service.update).toHaveBeenCalledWith(
       'transaction-1',
-      dto,
+      dto, req.user,
     );
   });
 
@@ -108,11 +110,9 @@ describe('TransactionsController', () => {
     service.remove.mockResolvedValue(result as any);
 
     await expect(
-      controller.remove('transaction-1'),
+      controller.remove('transaction-1', req),
     ).resolves.toBe(result);
 
-    expect(service.remove).toHaveBeenCalledWith(
-      'transaction-1',
-    );
+    expect(service.remove).toHaveBeenCalledWith('transaction-1', req.user);
   });
 });

@@ -45,7 +45,7 @@ export class UsersService {
 
     const { password, ...safeUser } = user;
 
-    return safeUser;
+    return { ...safeUser, userId: safeUser.publicUserId };
   }
 
   async findAll() {
@@ -55,7 +55,7 @@ export class UsersService {
       },
     });
 
-    return users.map(({ password, ...user }) => user);
+    return users.map(({ password, ...user }) => ({ ...user, userId: user.publicUserId }));
   }
 
   async findOne(id: string) {
@@ -71,7 +71,7 @@ export class UsersService {
 
     const { password, ...safeUser } = user;
 
-    return safeUser;
+    return { ...safeUser, userId: safeUser.publicUserId };
   }
 
   async update(id: string, data: any) {
@@ -114,7 +114,7 @@ export class UsersService {
 
     const { password, ...safeUser } = user;
 
-    return safeUser;
+    return { ...safeUser, userId: safeUser.publicUserId };
   }
 
   async remove(id: string) {

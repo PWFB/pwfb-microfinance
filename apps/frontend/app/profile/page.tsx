@@ -39,7 +39,7 @@ export default function ProfilePage() {
             ["Full name", displayName],
             ["Email", user.email || "Not provided"],
             ["Role", user.role.replaceAll("_", " ")],
-            ["User ID", user.id || "Not available"],
+            ["User ID", user.userId || user.publicUserId || user.id || "Not available"],
           ].map(([label, value]) => (
             <div key={label} className="grid gap-2 border-b border-slate-100 p-5 last:border-b-0 sm:grid-cols-[180px_1fr] sm:gap-5 sm:p-6">
               <span className="text-base font-medium text-slate-600">{label}</span>

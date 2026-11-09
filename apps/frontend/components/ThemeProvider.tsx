@@ -108,6 +108,16 @@ html[data-theme="dark"] .pwfb-content main a:not(.pwfb-primary-button):focus-vis
 html[data-theme="dark"] .pwfb-pull-refresh{background:#14251c!important;color:#c5e8ce!important}
 html[data-theme="dark"] .pwfb-pull-refresh-icon{background:#302719!important;color:#f7c477!important}
 html[data-theme="dark"] .pwfb-bottom-accent{box-shadow:0 -2px 12px rgba(0,0,0,.28)!important}
+/* Second-pass LAB dark theme coverage for component-specific light surfaces. */
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-banking-balance,.pwfb-form-card,.pwfb-form-panel,.form-card,.form-section,.staff-dashboard-card,.staff-dashboard-panel,.staff-work-card,.customer-card,.customer-panel,.pwfb-profile-panel,.report-card){background:#122019!important;color:#e8f1eb!important;border-color:#2b4034!important;box-shadow:0 8px 24px rgba(0,0,0,.2)!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-banking-balance strong,.pwfb-form-card h1,.pwfb-form-card h2,.form-card h1,.form-card h2,.staff-dashboard-card h2,.customer-card h2){color:#e7f2ea!important}
+html[data-theme="dark"] .pwfb-content main :is(.bg-emerald-50,.bg-emerald-100,.bg-green-50,.bg-green-100,.bg-orange-50,.bg-orange-100,.bg-amber-50,.bg-amber-100){background:#1a3023!important;color:#d5e1d8!important}
+html[data-theme="dark"] .pwfb-content main :is(.text-emerald-950,.text-emerald-900,.text-green-950,.text-green-900,.text-orange-950,.text-amber-950,.text-black){color:#e8f1eb!important}
+html[data-theme="dark"] .pwfb-content main :is(.border-emerald-100,.border-emerald-200,.border-orange-100,.border-orange-200,.border-green-100,.border-green-200){border-color:#34483c!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-banking-balance small,.pwfb-banking-balance span,.form-card p,.form-section p,.staff-dashboard-card p,.staff-work-card p,.customer-card p){color:#b5c6ba!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-form-card input,.pwfb-form-card select,.pwfb-form-card textarea,.form-card input,.form-card select,.form-card textarea,.form-section input,.form-section select,.form-section textarea){background:#101c16!important;color:#edf5ef!important;border-color:#40594a!important;color-scheme:dark!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-form-card label,.form-card label,.form-section label,.staff-dashboard-card label,.customer-card label){color:#d5e1d8!important}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-banking-balance,.pwfb-form-card,.form-card,.form-section,.staff-dashboard-card,.staff-dashboard-panel,.staff-work-card,.customer-card,.customer-panel) a:not(.pwfb-primary-button){color:#c5e8ce!important}
 
 `;
 

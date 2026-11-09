@@ -17,43 +17,43 @@ export class CollectionsController {
   @Roles(...SETTLE_ROLES)
   async create(@Req() req:any,@Body() body: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }) {
     await this.permissions.assert(req.user.role,'COLLECTION_CREATE');
-    return this.collectionsService.create(body);
+    return this.collectionsService.create(body, req.user);
   }
 
   @Get()
   @Roles(...VIEW_ROLES)
-  findAll(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('staffId') staffId?: string, @Query('type') type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER') {
-    return this.collectionsService.findAll(periodId, branchId, staffId, type);
+  findAll(@Req() req: any,@Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('staffId') staffId?: string, @Query('type') type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER') {
+    return this.collectionsService.findAll(req.user, periodId, branchId, staffId, type);
   }
 
   @Get('summary')
   @Roles(...VIEW_ROLES)
-  summary(@Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('staffId') staffId?: string) {
-    return this.collectionsService.summary(periodId, branchId, staffId);
+  summary(@Req() req: any,@Query('periodId') periodId?: string, @Query('branchId') branchId?: string, @Query('staffId') staffId?: string) {
+    return this.collectionsService.summary(req.user, periodId, branchId, staffId);
   }
 
   @Get('daily/:date')
   @Roles(...VIEW_ROLES)
-  dailySummary(@Param('date') date: string, @Query('branchId') branchId?: string) {
-    return this.collectionsService.dailySummary(date, branchId);
+  dailySummary(@Req() req: any,@Param('date') date: string, @Query('branchId') branchId?: string) {
+    return this.collectionsService.dailySummary(req.user, date, branchId);
   }
 
   @Get(':id')
   @Roles(...VIEW_ROLES)
-  findOne(@Param('id') id:string) { return this.collectionsService.findOne(id); }
+  findOne(@Req() req: any,@Param('id') id:string) { return this.collectionsService.findOne(id, req.user); }
 
   @Post(':id/settle')
   @Roles(...SETTLE_ROLES)
   async settle(@Req() req:any,@Param('id') id:string,@Body() body:{targetId?:string}) {
     await this.permissions.assert(req.user.role,'COLLECTION_SETTLE');
-    return this.collectionsService.settle(id, body.targetId);
+    return this.collectionsService.settle(id, body.targetId, req.user);
   }
 
   @Patch(':id/reconcile')
   @Roles('SUPER_ADMIN','ADMIN')
-  reconcile(@Param('id') id:string) { return this.collectionsService.reconcile(id); }
+  reconcile(@Req() req: any,@Param('id') id:string) { return this.collectionsService.reconcile(id, req.user); }
 
   @Patch(':id/unreconcile')
   @Roles('SUPER_ADMIN','ADMIN')
-  unreconcile(@Param('id') id:string) { return this.collectionsService.unreconcile(id); }
+  unreconcile(@Req() req: any,@Param('id') id:string) { return this.collectionsService.unreconcile(id, req.user); }
 }

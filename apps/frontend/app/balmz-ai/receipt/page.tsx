@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { apiUpload } from '../../../lib/api';
 
 type Result = {
+  receiptReference: string;
+  receiptId: string;
   status: 'VERIFIED' | 'FAILED' | 'REVIEW';
   confidence: number;
   message: string;
@@ -74,7 +76,7 @@ export default function BalmzReceiptPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-bold text-slate-900">Verification result</h2>
             {!result ? <div className="flex min-h-56 items-center justify-center text-center text-sm text-slate-400">Upload a receipt to see the verification result.</div> : <div className="mt-4 space-y-4">
-              <div className={`rounded-xl border p-4 ${statusClass}`}><div className="flex items-center justify-between gap-3"><strong className="text-lg">{result.status}</strong><span className="text-xs font-bold">{result.confidence}% confidence</span></div><p className="mt-1 text-sm">{result.message}</p></div>
+              <div className={`rounded-xl border p-4 ${statusClass}`}><div className="flex items-center justify-between gap-3"><strong className="text-lg">{result.status}</strong><span className="text-xs font-bold">{result.confidence}% confidence</span></div><p className="mt-1 text-sm">{result.message}</p><div className="mt-3 border-t border-current/15 pt-3"><span className="block text-[11px] font-semibold uppercase tracking-wide opacity-70">Permanent receipt reference</span><strong className="mt-1 block break-all text-sm">{result.receiptReference}</strong></div></div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="rounded-xl bg-slate-50 p-3"><span className="block text-xs text-slate-500">Amount</span><strong>{money(result.extracted.amount, result.extracted.currency)}</strong></div>
                 <div className="rounded-xl bg-slate-50 p-3"><span className="block text-xs text-slate-500">Payment status</span><strong className="capitalize">{result.extracted.paymentStatus || 'unknown'}</strong></div>

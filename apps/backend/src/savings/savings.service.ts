@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { createFinancialReference } from '../common/financial-reference';
 import { CreateSavingsDto } from './dto/create-savings.dto';
 import { UpdateSavingsDto } from './dto/update-savings.dto';
 
@@ -43,6 +44,7 @@ export class SavingsService {
         await tx.transaction.create({
           data: {
             customerId: createSavingsDto.customerId,
+            reference: createFinancialReference('PWFB-SAV'),
             type: 'Deposit',
             amount: openingAmount,
             description: `Savings account opening deposit — ${createSavingsDto.accountType}`,
@@ -72,6 +74,7 @@ export class SavingsService {
       await tx.transaction.create({
         data: {
           customerId: savings.customerId,
+          reference: createFinancialReference('PWFB-SAV'),
           type: 'Deposit',
           amount: value,
           description: description || `Savings deposit — ${savings.id}`,
@@ -105,6 +108,7 @@ export class SavingsService {
       await tx.transaction.create({
         data: {
           customerId: savings.customerId,
+          reference: createFinancialReference('PWFB-SAV'),
           type: 'Withdrawal',
           amount: value,
           description: description || `Savings withdrawal — ${savings.id}`,
@@ -164,6 +168,7 @@ export class SavingsService {
           await tx.transaction.create({
             data: {
               customerId: updated.customerId,
+              reference: createFinancialReference('PWFB-SAV-ADJ'),
               type: delta > 0 ? 'Deposit' : 'Withdrawal',
               amount: Math.abs(delta),
               description: `Savings balance correction — ${id}`,

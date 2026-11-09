@@ -118,3 +118,44 @@
     font-size: 0.95rem;
   }
 }
+
+
+/* LAB appearance: the physical cashbook remains legible in Light, Dark, and System modes. */
+:global(html[data-theme="dark"]) .cashbookPage .field { color: #d5e1d8 !important; }
+:global(html[data-theme="dark"]) .cashbookPage .field input,
+:global(html[data-theme="dark"]) .cashbookPage .field select,
+:global(html[data-theme="dark"]) .cashbookPage .cashbookAmountInput {
+  background: #101c16 !important; color: #edf5ef !important; border-color: #40594a !important;
+  color-scheme: dark !important; -webkit-text-fill-color: #edf5ef !important;
+}
+:global(html[data-theme="dark"]) .cashbookPage .field select option { background: #101c16 !important; color: #edf5ef !important; }
+:global(html[data-theme="dark"]) .cashbookPage .cashbookAmountInput:read-only {
+  border-color: #6c582d !important; background: #1c2419 !important;
+  color: #f5d59a !important; -webkit-text-fill-color: #f5d59a !important;
+}
+:global(html[data-theme="dark"]) .cashbookPage .field input:focus,
+:global(html[data-theme="dark"]) .cashbookPage .field select:focus,
+:global(html[data-theme="dark"]) .cashbookPage .cashbookAmountInput:focus {
+  border-color: #e69a37 !important; outline: 3px solid rgba(242,140,24,.2) !important;
+}
+:global(html[data-theme="dark"]) .cashbookPage > div > header,
+:global(html[data-theme="dark"]) .cashbookPage > div > section {
+  background: #122019 !important; color: #e8f1eb !important; border-color: #2b4034 !important;
+}
+:global(html[data-theme="dark"]) .cashbookPage :is(.bg-white,.bg-slate-50,.bg-slate-100,.bg-emerald-50,.bg-emerald-100,.bg-orange-100) {
+  background: #14251c !important; color: #d5e1d8 !important;
+}
+:global(html[data-theme="dark"]) .cashbookPage :is(.text-slate-900,.text-slate-800,.text-slate-700,.text-slate-600,.text-emerald-950,.text-emerald-900,.text-orange-950) {
+  color: #e8f1eb !important;
+}
+:global(html[data-theme="dark"]) .cashbookPage table th,
+:global(html[data-theme="dark"]) .cashbookPage table td { border-color: #34483c !important; }
+:global(html[data-theme="dark"]) .cashbookPage table thead tr { background: #1a3023 !important; color: #e7f2ea !important; }
+:global(html[data-theme="dark"]) .cashbookPage table tbody tr:not(.bg-emerald-900):not(.bg-slate-200) td {
+  background: #122019 !important; color: #d5e1d8 !important;
+}
+:global(html[data-theme="dark"]) .cashbookPage table tbody tr.bg-slate-200 td { background: #1a3023 !important; color: #e7f2ea !important; }
+:global(html[data-theme="dark"]) .cashbookPage table tfoot td { background: #14532d !important; color: #fff !important; }
+:global(html[data-theme="dark"]) .cashbookPage .cashbookSuccess {
+  background: #193522 !important; color: #c5e8ce !important; border-color: #386047 !important;
+}

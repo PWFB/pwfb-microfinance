@@ -247,4 +247,36 @@ describe('LoansService', () => {
       },
     });
   });
+  it('applies a late confirmed repayment to the oldest installment', async () => {
+    const loan = {
+      id: 'loan-1',
+      duration: 2,
+      repaymentFrequency: 'Daily',
+      totalRepayment: 2000,
+      amount: 1800,
+      interestAmount: 200,
+      createdAt: new Date('2026-11-01T00:00:00.000Z'),
+      repayments: [{
+        amount: 1000,
+        paymentDate: new Date('2026-11-04T10:00:00.000Z'),
+      }],
+    };
+    jest.spyOn(service, 'findOne').mockResolvedValue(loan as any);
+
+    const result = await service.getRepaymentSchedule('loan-1');
+
+    expect(result.schedule[0]).toEqual(expect.objectContaining({
+      installmentNumber: 1,
+      status: 'PAID',
+      paidAmount: 1000,
+      remainingAmount: 0,
+    }));
+    expect(result.schedule[1]).toEqual(expect.objectContaining({
+      installmentNumber: 2,
+      status: 'OVERDUE',
+      paidAmount: 0,
+      remainingAmount: 1000,
+    }));
+  });
+
 });

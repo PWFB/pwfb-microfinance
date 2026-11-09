@@ -17,6 +17,10 @@ export class AccessScopeService {
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT
            s."id",
+           s."branchId" AS "profileBranchId",
+           s."areaId" AS "profileAreaId",
+           s."divisionId" AS "profileDivisionId",
+           s."regionId" AS "profileRegionId",
            CASE WHEN sa."id" IS NOT NULL THEN sa."branchId" ELSE s."branchId" END AS "branchId",
            CASE WHEN sa."id" IS NOT NULL THEN sa."areaId" ELSE s."areaId" END AS "areaId",
            CASE WHEN sa."id" IS NOT NULL THEN sa."divisionId" ELSE s."divisionId" END AS "divisionId",
@@ -62,10 +66,10 @@ export class AccessScopeService {
       : [];
     const unique = (values: Array<string | null | undefined>) =>
       [...new Set(values.filter((value): value is string => Boolean(value)))];
-    const branchIds = unique([staff.branchId, ...assignments.map((a: any) => a.branchId)]);
-    const areaIds = unique([staff.areaId, ...assignments.map((a: any) => a.areaId)]);
-    const divisionIds = unique([staff.divisionId, ...assignments.map((a: any) => a.divisionId)]);
-    const regionIds = unique([staff.regionId, ...assignments.map((a: any) => a.regionId)]);
+    const branchIds = unique([staff.profileBranchId, staff.branchId, ...assignments.map((a: any) => a.branchId)]);
+    const areaIds = unique([staff.profileAreaId, staff.areaId, ...assignments.map((a: any) => a.areaId)]);
+    const divisionIds = unique([staff.profileDivisionId, staff.divisionId, ...assignments.map((a: any) => a.divisionId)]);
+    const regionIds = unique([staff.profileRegionId, staff.regionId, ...assignments.map((a: any) => a.regionId)]);
     return {
       role,
       staffId: staff.id ?? null,

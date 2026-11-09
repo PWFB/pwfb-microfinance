@@ -1,4 +1,4 @@
-import { BadGatewayException, BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -99,6 +99,256 @@ export class CustomerVirtualAccountService {
     const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true } });
     if (!customer) throw new NotFoundException('Customer not found');
     return this.get(customerId);
+  }
+
+  private maskIdentityValue(value: string) {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits ? `${'•'.repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}` : null;
+  }
+
+  async ensureIdentitySchema() {
+    await this.prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS customer_identity_verifications (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL UNIQUE REFERENCES "Customer"(id) ON DELETE CASCADE,
+        bvn TEXT,
+        bvn_status TEXT NOT NULL DEFAULT 'NOT_VERIFIED',
+        bvn_verified_at TIMESTAMP,
+        bvn_overridden_at TIMESTAMP,
+        bvn_override_by_user_id TEXT,
+        bvn_override_by_email TEXT,
+        bvn_override_reason TEXT,
+        nin TEXT,
+        nin_status TEXT NOT NULL DEFAULT 'NOT_VERIFIED',
+        nin_verified_at TIMESTAMP,
+        nin_overridden_at TIMESTAMP,
+        nin_override_by_user_id TEXT,
+        nin_override_by_email TEXT,
+        nin_override_reason TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS customer_identity_override_audits (
+        id TEXT PRIMARY KEY,
+        verification_id TEXT NOT NULL REFERENCES customer_identity_verifications(id) ON DELETE CASCADE,
+        identity_type TEXT NOT NULL,
+        previous_status TEXT NOT NULL,
+        new_status TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        admin_user_id TEXT NOT NULL,
+        admin_email TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      CREATE TABLE IF NOT EXISTS customer_identity_verification_audits (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT NOT NULL REFERENCES "Customer"(id) ON DELETE CASCADE,
+        identity_type TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        reference TEXT NOT NULL,
+        status TEXT NOT NULL,
+        name_match BOOLEAN,
+        date_of_birth_match BOOLEAN,
+        actor_user_id TEXT,
+        actor_email TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      );
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS bvn_provider TEXT;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS bvn_reference TEXT;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS bvn_name_match BOOLEAN;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS bvn_dob_match BOOLEAN;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS bvn_consent_at TIMESTAMP;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS bvn_consent_by_user_id TEXT;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS nin_provider TEXT;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS nin_reference TEXT;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS nin_name_match BOOLEAN;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS nin_dob_match BOOLEAN;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS nin_consent_at TIMESTAMP;
+      ALTER TABLE customer_identity_verifications ADD COLUMN IF NOT EXISTS nin_consent_by_user_id TEXT;
+    `);
+  }
+
+  private normalizeIdentityName(value: unknown) {
+    return String(value || '').normalize('NFKD').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter((part) => part.length > 1);
+  }
+
+  private normalizeIdentityDate(value: unknown) {
+    const date = String(value || '').trim();
+    if (!date) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return date;
+    const dmy = date.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+    if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+    const parsed = new Date(date);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
+  }
+
+  private async persistIdentityResult(input: {
+    customerId: string;
+    type: 'BVN' | 'NIN';
+    value: string;
+    status: 'VERIFIED' | 'MISMATCH' | 'FAILED' | 'UNAVAILABLE';
+    reference: string;
+    nameMatch: boolean | null;
+    dateOfBirthMatch: boolean | null;
+    actor: any;
+  }) {
+    await this.ensureIdentitySchema();
+    const prefix = input.type.toLowerCase();
+    const maskedValue = this.maskIdentityValue(input.value);
+    const previousRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id, ${prefix}_status AS status FROM customer_identity_verifications WHERE customer_id = $1 LIMIT 1`,
+      input.customerId,
+    );
+    const previousStatus = String(previousRows[0]?.status || 'NOT_VERIFIED');
+    const verifiedAt = input.status === 'VERIFIED' ? new Date() : null;
+    const actorId = String(input.actor?.id || input.actor?.sub || '').trim() || null;
+    const actorEmail = String(input.actor?.email || '').trim() || null;
+    const columns = {
+      value: prefix,
+      status: `${prefix}_status`,
+      verifiedAt: `${prefix}_verified_at`,
+      provider: `${prefix}_provider`,
+      reference: `${prefix}_reference`,
+      nameMatch: `${prefix}_name_match`,
+      dobMatch: `${prefix}_dob_match`,
+      consentAt: `${prefix}_consent_at`,
+      consentBy: `${prefix}_consent_by_user_id`,
+    };
+    const verificationId = String(previousRows[0]?.id || randomUUID());
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO customer_identity_verifications
+        (id, customer_id, ${columns.value}, ${columns.status}, ${columns.verifiedAt},
+         ${columns.provider}, ${columns.reference}, ${columns.nameMatch}, ${columns.dobMatch},
+         ${columns.consentAt}, ${columns.consentBy}, updated_at)
+       VALUES ($1,$2,$3,$4,$5,'DOJAH',$6,$7,$8,NOW(),$9,NOW())
+       ON CONFLICT (customer_id) DO UPDATE SET
+         ${columns.value}=EXCLUDED.${columns.value},
+         ${columns.status}=EXCLUDED.${columns.status},
+         ${columns.verifiedAt}=EXCLUDED.${columns.verifiedAt},
+         ${columns.provider}=EXCLUDED.${columns.provider},
+         ${columns.reference}=EXCLUDED.${columns.reference},
+         ${columns.nameMatch}=EXCLUDED.${columns.nameMatch},
+         ${columns.dobMatch}=EXCLUDED.${columns.dobMatch},
+         ${columns.consentAt}=EXCLUDED.${columns.consentAt},
+         ${columns.consentBy}=EXCLUDED.${columns.consentBy},
+         updated_at=NOW()`,
+      verificationId, input.customerId, maskedValue, input.status, verifiedAt,
+      input.reference, input.nameMatch, input.dateOfBirthMatch, actorId,
+    );
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO customer_identity_verification_audits
+        (id, customer_id, identity_type, provider, reference, status, name_match,
+         date_of_birth_match, actor_user_id, actor_email)
+       VALUES ($1,$2,$3,'DOJAH',$4,$5,$6,$7,$8,$9)`,
+      randomUUID(), input.customerId, input.type, input.reference, input.status,
+      input.nameMatch, input.dateOfBirthMatch, actorId, actorEmail,
+    );
+    return {
+      customerId: input.customerId,
+      type: input.type,
+      status: input.status,
+      maskedValue,
+      provider: 'DOJAH',
+      reference: input.reference,
+      nameMatch: input.nameMatch,
+      dateOfBirthMatch: input.dateOfBirthMatch,
+      previousStatus,
+      verifiedAt,
+    };
+  }
+
+  async verifyCustomerIdentity(customerId: string, type: string, value: string, consentConfirmed: boolean, actor: any) {
+    const identityType = String(type || '').toUpperCase();
+    if (identityType !== 'BVN' && identityType !== 'NIN') {
+      throw new BadRequestException('Identity type must be BVN or NIN');
+    }
+    if (consentConfirmed !== true) {
+      throw new BadRequestException('Confirm that the customer has explicitly consented to this identity check');
+    }
+    const identifier = String(value || '').replace(/\D/g, '');
+    if (!/^\d{11}$/.test(identifier)) {
+      throw new BadRequestException(`${identityType} must contain exactly 11 digits`);
+    }
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, firstName: true, middleName: true, lastName: true, dateOfBirth: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const appId = String(process.env.DOJAH_APP_ID || '').trim();
+    const secretKey = String(process.env.DOJAH_SECRET_KEY || '').trim();
+    if (!appId || !secretKey) {
+      throw new ServiceUnavailableException('DOJAH_APP_ID and DOJAH_SECRET_KEY must be configured before BVN/NIN provider verification can run');
+    }
+    const environment = String(process.env.DOJAH_ENVIRONMENT || 'sandbox').trim().toLowerCase();
+    const configuredBase = String(process.env.DOJAH_API_BASE_URL || '').trim();
+    const baseUrl = (configuredBase || (environment === 'live' || environment === 'production'
+      ? 'https://api.dojah.io'
+      : 'https://sandbox.dojah.io')).replace(/\/$/, '');
+    const endpoint = identityType === 'BVN' ? '/api/v1/kyc/bvn/full' : '/api/v1/kyc/nin';
+    const parameter = identityType === 'BVN' ? 'bvn' : 'nin';
+    const reference = `DOJAH-${identityType}-${randomUUID()}`;
+
+    let payload: any;
+    try {
+      const response = await fetch(`${baseUrl}${endpoint}?${parameter}=${encodeURIComponent(identifier)}`, {
+        method: 'GET',
+        headers: { AppId: appId, Authorization: secretKey, Accept: 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+      payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        const unavailable = response.status === 401 || response.status === 402 || response.status === 424 || response.status >= 500;
+        const result = await this.persistIdentityResult({
+          customerId, type: identityType as 'BVN' | 'NIN', value: identifier,
+          status: unavailable ? 'UNAVAILABLE' : 'FAILED', reference,
+          nameMatch: null, dateOfBirthMatch: null, actor,
+        });
+        if (unavailable) throw new ServiceUnavailableException('Identity provider is unavailable or not funded. No identity was marked as verified.');
+        throw new BadRequestException(`${identityType} could not be verified by the provider. Check the entered number and try again.`);
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof ServiceUnavailableException) throw error;
+      throw new ServiceUnavailableException('Identity provider request failed. No identity was marked as verified.');
+    }
+
+    const entity = payload?.entity ?? payload?.data?.entity ?? payload?.data ?? null;
+    if (!entity || typeof entity !== 'object') {
+      await this.persistIdentityResult({
+        customerId, type: identityType as 'BVN' | 'NIN', value: identifier,
+        status: 'FAILED', reference, nameMatch: false, dateOfBirthMatch: null, actor,
+      });
+      throw new BadRequestException(`${identityType} was not found in the provider identity registry`);
+    }
+
+    const verifiedFirst = entity.first_name ?? entity.firstname ?? entity.firstName;
+    const verifiedMiddle = entity.middle_name ?? entity.middlename ?? entity.middleName ?? entity.other_names;
+    const verifiedLast = entity.last_name ?? entity.lastname ?? entity.lastName ?? entity.surname;
+    const expectedParts = [customer.firstName, customer.middleName, customer.lastName]
+      .flatMap((part) => this.normalizeIdentityName(part));
+    const distinctExpected = [...new Set(expectedParts)];
+    const verifiedParts = new Set([
+      ...this.normalizeIdentityName(verifiedFirst),
+      ...this.normalizeIdentityName(verifiedMiddle),
+      ...this.normalizeIdentityName(verifiedLast),
+    ]);
+    const matchedNameParts = distinctExpected.filter((part) => verifiedParts.has(part)).length;
+    const nameMatch = distinctExpected.length >= 2 && matchedNameParts >= Math.min(2, distinctExpected.length);
+    const providerDob = this.normalizeIdentityDate(entity.date_of_birth ?? entity.dob ?? entity.dateOfBirth);
+    const customerDob = this.normalizeIdentityDate(customer.dateOfBirth);
+    const dateOfBirthMatch = customerDob && providerDob ? customerDob === providerDob : null;
+    const passed = nameMatch && dateOfBirthMatch !== false;
+    const status = passed ? 'VERIFIED' : 'MISMATCH';
+    const result = await this.persistIdentityResult({
+      customerId, type: identityType as 'BVN' | 'NIN', value: identifier,
+      status, reference, nameMatch, dateOfBirthMatch, actor,
+    });
+    if (!passed) {
+      return {
+        ...result,
+        message: 'Provider record returned, but the legal name or date of birth did not match the customer profile. Review the customer details; this identity is not verified.',
+      };
+    }
+    return { ...result, message: `${identityType} verified successfully against the provider record.` };
   }
 
   /**

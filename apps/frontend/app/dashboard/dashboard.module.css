@@ -41,3 +41,21 @@
   border-color: #9aafa0;
   background-color: #f7faf8;
 }
+
+/* LAB dark appearance for management dashboard panels and data cards. */
+:global(html[data-theme="dark"]) .dashboard{color:#e8f1eb}
+:global(html[data-theme="dark"]) .heading h1,:global(html[data-theme="dark"]) .panelHead h2,:global(html[data-theme="dark"]) .portfolioMain strong,:global(html[data-theme="dark"]) .miniMetric strong,:global(html[data-theme="dark"]) .donutCenter strong,:global(html[data-theme="dark"]) .activityRow strong,:global(html[data-theme="dark"]) .activityAmount,:global(html[data-theme="dark"]) .status strong,:global(html[data-theme="dark"]) .feature strong{color:#e8f1eb}
+:global(html[data-theme="dark"]) .heading p,:global(html[data-theme="dark"]) .panelHead small,:global(html[data-theme="dark"]) .portfolioMain span,:global(html[data-theme="dark"]) .miniMetric span,:global(html[data-theme="dark"]) .donutCenter span,:global(html[data-theme="dark"]) .activityRow span,:global(html[data-theme="dark"]) .status span,:global(html[data-theme="dark"]) .feature span,:global(html[data-theme="dark"]) .tagline span{color:#91a398}
+:global(html[data-theme="dark"]) .headerButton,:global(html[data-theme="dark"]) .adminChip,:global(html[data-theme="dark"]) .panel,:global(html[data-theme="dark"]) .whatWeDo,:global(html[data-theme="dark"]) .shortcut,:global(html[data-theme="dark"]) .feature{background:#122019;color:#e8f1eb;border-color:#2b4034;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+:global(html[data-theme="dark"]) .portfolioMain,:global(html[data-theme="dark"]) .miniMetric{background:#17271f}
+:global(html[data-theme="dark"]) .barChart{background:repeating-linear-gradient(to bottom,transparent 0,transparent 49px,#2b4034 50px);border-color:#2b4034}
+:global(html[data-theme="dark"]) .donut::after{background:#122019}
+:global(html[data-theme="dark"]) .activityRow,:global(html[data-theme="dark"]) .legend,:global(html[data-theme="dark"]) .tagline{border-color:#2b4034}
+:global(html[data-theme="dark"]) .shortcut{color:#d5e1d8}
+:global(html[data-theme="dark"]) .shortcut:hover,:global(html[data-theme="dark"]) .feature:hover{background:#1a3023;border-color:#d98a2b}
+:global(html[data-theme="dark"]) .shortcut b{background:#193522;color:#a9e4b9}
+:global(html[data-theme="dark"]) .shortcutBanking{background:#251d13;border-color:#6b4c27}
+:global(html[data-theme="dark"]) .featureIcon{background:#332414;color:#f5bd75}
+:global(html[data-theme="dark"]) .sectionTitle{color:#a9e4b9}
+:global(html[data-theme="dark"]) .sectionTitle::before,:global(html[data-theme="dark"]) .sectionTitle::after{background:#40594a}
+:global(html[data-theme="dark"]) .tagline strong{color:#f5bd75}

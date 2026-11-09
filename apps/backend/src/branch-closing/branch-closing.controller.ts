@@ -6,7 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 
 @Controller('branch-closing')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER')
+@Roles('SUPER_ADMIN','ADMIN','REGIONAL_MANAGER','DIVISIONAL_MANAGER','AREA_MANAGER','BRANCH_MANAGER','AUDITOR','MONITORING_TEAM')
 export class BranchClosingController {
   constructor(private readonly closing: BranchClosingService) {}
 
@@ -20,5 +20,6 @@ export class BranchClosingController {
   submit(@Param('branchId') branchId:string,@Body() body:{periodId:string;closingDate:string},@Req() req:any){ return this.closing.submit(req.user,branchId,body.periodId,body.closingDate); }
 
   @Post(':id/approve')
+  @Roles('SUPER_ADMIN','ADMIN')
   approve(@Param('id') id:string,@Req() req:any){ return this.closing.approve(req.user,id); }
 }

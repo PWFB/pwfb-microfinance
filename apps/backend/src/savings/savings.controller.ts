@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { SavingsService } from './savings.service';
 import { CreateSavingsDto } from './dto/create-savings.dto';
 import { UpdateSavingsDto } from './dto/update-savings.dto';
@@ -50,7 +50,10 @@ export class SavingsController {
   @Roles('SUPER_ADMIN','ADMIN')
   async update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateSavingsDto) {
     await this.permissions.assert(req.user.role, 'SAVINGS_CREATE');
-    if (dto.customerId) await this.accessScope.assertCustomer(req.user, dto.customerId);
+    if (dto.customerId !== undefined) {
+      if (!String(dto.customerId).trim()) throw new BadRequestException('A valid destination customer ID is required');
+      await this.accessScope.assertCustomer(req.user, dto.customerId);
+    }
     return this.savingsService.update(id, dto);
   }
 

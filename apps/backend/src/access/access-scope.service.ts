@@ -10,24 +10,40 @@ export class AccessScopeService {
   async getScope(user: AccessUser) {
     const role = String(user?.role || '').toUpperCase();
     if (role === 'SUPER_ADMIN') return { role, staffId: user?.staffId ?? null, branchId: null, areaId: null, divisionId: null, regionId: null, global: true };
+
     const userId = String(user?.id || '').trim();
     const staffId = String(user?.staffId || '').trim();
+    const loadStaffScope = async (predicate: string, value: string) =>
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT
+           s."id",
+           CASE WHEN sa."id" IS NOT NULL THEN sa."branchId" ELSE s."branchId" END AS "branchId",
+           CASE WHEN sa."id" IS NOT NULL THEN sa."areaId" ELSE s."areaId" END AS "areaId",
+           CASE WHEN sa."id" IS NOT NULL THEN sa."divisionId" ELSE s."divisionId" END AS "divisionId",
+           CASE WHEN sa."id" IS NOT NULL THEN sa."regionId" ELSE s."regionId" END AS "regionId"
+         FROM "Staff" s
+         LEFT JOIN LATERAL (
+           SELECT a."id", a."branchId", a."areaId", a."divisionId", a."regionId"
+           FROM "StaffAssignment" a
+           WHERE a."staffId" = s."id"
+             AND a."role" = $2::"Role"
+             AND a."active" = TRUE
+             AND a."startsAt" <= CURRENT_TIMESTAMP
+             AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP)
+           ORDER BY a."startsAt" DESC, a."updatedAt" DESC, a."id" DESC
+           LIMIT 1
+         ) sa ON TRUE
+         WHERE ${predicate}
+           AND s."employmentStatus" = 'ACTIVE'
+         LIMIT 1`,
+        value,
+        role,
+      );
+
     let rows: any[] = [];
-    if (userId) {
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "userId" = $1 LIMIT 1`,
-        userId,
-      );
-    }
-    if (!rows[0] && staffId) {
-      // Backward compatibility for staff logins created before Staff.userId
-      // was populated; do not let a conflicting duplicate link choose either
-      // record nondeterministically.
-      rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`,
-        staffId,
-      );
-    }
+    if (userId) rows = await loadStaffScope('s."userId" = $1', userId);
+    if (!rows[0] && staffId) rows = await loadStaffScope('s."id" = $1', staffId);
+
     const staff = rows[0] || {};
     if (staffId && staff.id && staff.id !== staffId) {
       throw new ForbiddenException('Staff identity links do not match. Contact Super Admin to reconcile the login before processing financial records.');
@@ -39,8 +55,7 @@ export class AccessScopeService {
       areaId: staff.areaId ?? null,
       divisionId: staff.divisionId ?? null,
       regionId: staff.regionId ?? null,
-      // Only Super Admin is organization-wide. An Admin without an assigned
-      // organizational record is deliberately not granted global access.
+      // Only Super Admin is organization-wide. Managers use their active role assignment.
       global: false,
     };
   }

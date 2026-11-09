@@ -111,27 +111,88 @@ export class CashbookService {
 
   private map(r:any){const out:any={id:r.id,periodId:r.period_id,branchId:r.branch_id,staffId:r.staff_id||undefined,entryDate:r.entry_date,description:r.description,narration:r.narration,referenceNo:r.reference_no,branch:{name:r.branch_name},period:{name:r.period_name}};for(const f of ALL_FIELDS)out[f]=Number(r[snake(f)]||0);return {...out,...this.totals(out)};}
 
-  async createDaily(data:CashbookDailyInput){
+  async createDaily(data: CashbookDailyInput) {
     await this.ensureDailyTable();
-    const p=await this.prisma.financialPeriod.findUnique({where:{id:data.periodId}});if(!p)throw new NotFoundException('Financial period not found');if(p.status==='CLOSED')throw new BadRequestException('Cannot add entries to a closed period');
-    const b=await this.prisma.branch.findUnique({where:{id:data.branchId}});if(!b)throw new NotFoundException('Branch not found');
-    if(data.staffId){const staff=await this.prisma.staff.findUnique({where:{id:data.staffId}});if(!staff)throw new NotFoundException('Field staff not found');if(staff.branchId!==data.branchId)throw new BadRequestException('Field staff must belong to the selected branch');}
-    const entryDate=data.entryDate?new Date(data.entryDate):new Date();
-    if(Number.isNaN(entryDate.getTime()))throw new BadRequestException('A valid cashbook entry date is required');
-    // Opening cash is carried forward only from the same staff member's previous
-    // closing balance. Browser-supplied opening cash is ignored to prevent tampering.
-    const previousRows=await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT other_after_total FROM cashbook_daily_records
-       WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date < $3
-       ORDER BY entry_date DESC, created_at DESC LIMIT 1`,
-      data.branchId,data.staffId??null,entryDate,
-    );
-    const openingCash=Number(previousRows[0]?.other_after_total ?? 0);
-    const v=this.values({...data,previousCashAtHand:openingCash}),id=randomUUID();const cols=ALL_FIELDS.map(snake);
-    const rowTotals=this.totals(v);v.otherAfterTotal=rowTotals.totalReceipts-rowTotals.totalPayments;
-    const params:any[]=[id,data.periodId,data.branchId,data.staffId??null,entryDate,data.description??null,...ALL_FIELDS.map(f=>v[f]),data.narration??null,data.referenceNo??null];
-    const placeholders=params.map((_,i)=>`$${i+1}`);
-    await this.prisma.$executeRawUnsafe(`INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${cols.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,...params);
+    const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
+    if (!period) throw new NotFoundException('Financial period not found');
+    if (period.status === 'CLOSED') throw new BadRequestException('Cannot add entries to a closed period');
+    const branch = await this.prisma.branch.findUnique({ where: { id: data.branchId } });
+    if (!branch) throw new NotFoundException('Branch not found');
+    if (data.staffId) {
+      const staff = await this.prisma.staff.findUnique({ where: { id: data.staffId } });
+      if (!staff) throw new NotFoundException('Field staff not found');
+      if (staff.employmentStatus !== 'ACTIVE') throw new BadRequestException('Daily cashbook posting requires an active staff member');
+      if (staff.branchId !== data.branchId) throw new BadRequestException('Field staff must belong to the selected branch');
+    }
+
+    const entryDate = data.entryDate ? new Date(data.entryDate) : new Date();
+    if (Number.isNaN(entryDate.getTime())) throw new BadRequestException('A valid cashbook entry date is required');
+    const dayKey = entryDate.toISOString().slice(0, 10);
+    const periodStart = new Date(period.startDate).toISOString().slice(0, 10);
+    const periodEnd = new Date(period.endDate).toISOString().slice(0, 10);
+    if (dayKey < periodStart || dayKey > periodEnd) {
+      throw new BadRequestException('Cashbook work date must fall inside the selected financial period');
+    }
+
+    const id = randomUUID();
+    const columns = ALL_FIELDS.map(snake);
+    await this.prisma.$transaction(async (tx: any) => {
+      // Serialize postings for this branch/collector before reading the prior
+      // closing balance. This prevents two requests from using the same opening cash.
+      const lockKey = `DAILY-CASHBOOK:${data.branchId}:${data.staffId || 'UNASSIGNED'}`;
+      await tx.$queryRawUnsafe('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', lockKey);
+
+      const latestRows = await tx.$queryRawUnsafe(
+        `SELECT MAX(entry_date::date)::text AS "latestDay"
+         FROM cashbook_daily_records
+         WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2`,
+        data.branchId, data.staffId || null,
+      );
+      const latestDay = String(latestRows[0]?.latestDay || '').slice(0, 10);
+      if (latestDay && latestDay > dayKey) {
+        throw new BadRequestException('Daily cashbook work must be posted in date order. Use a correcting-entry workflow for earlier dates.');
+      }
+
+      const duplicateRows = await tx.$queryRawUnsafe(
+        `SELECT id FROM cashbook_daily_records
+         WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date::date=$3::date
+         LIMIT 1`,
+        data.branchId, data.staffId || null, dayKey,
+      );
+      if (duplicateRows.length) {
+        throw new BadRequestException('A daily cashbook record already exists for this Staff ID, branch and date. Use a correcting-entry workflow instead of posting a duplicate.');
+      }
+
+      const previousRows = await tx.$queryRawUnsafe(
+        `SELECT other_after_total FROM cashbook_daily_records
+         WHERE branch_id=$1 AND staff_id IS NOT DISTINCT FROM $2 AND entry_date < $3
+         ORDER BY entry_date DESC, created_at DESC LIMIT 1`,
+        data.branchId, data.staffId || null, entryDate,
+      );
+      const openingCash = Number(previousRows[0]?.other_after_total ?? 0);
+      if (!Number.isFinite(openingCash) || openingCash < 0) {
+        throw new BadRequestException('The previous cashbook closing balance is invalid. Reconcile the previous record before posting.');
+      }
+
+      const values = this.values({ ...data, previousCashAtHand: openingCash });
+      const rowTotals = this.totals(values);
+      const closingCash = Math.round((rowTotals.totalReceipts - rowTotals.totalPayments) * 100) / 100;
+      if (!Number.isFinite(closingCash) || closingCash < 0) {
+        throw new BadRequestException('Cashbook payments exceed available cash. Reconcile the deficit before posting.');
+      }
+      values.otherAfterTotal = closingCash;
+
+      const params: any[] = [
+        id, data.periodId, data.branchId, data.staffId ?? null, entryDate, data.description ?? null,
+        ...ALL_FIELDS.map((field) => values[field]), data.narration ?? null, data.referenceNo ?? null,
+      ];
+      const placeholders = params.map((_, index) => `${index + 1}`);
+      await tx.$executeRawUnsafe(
+        `INSERT INTO cashbook_daily_records (id,period_id,branch_id,staff_id,entry_date,description,${columns.join(',')},narration,reference_no) VALUES (${placeholders.join(',')})`,
+        ...params,
+      );
+    });
+
     return this.dailyOne(id);
   }
   async dailyOne(id:string){await this.ensureDailyTable();const rows:any[]=await this.prisma.$queryRawUnsafe(`SELECT r.*,b.name AS branch_name,p.name AS period_name FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id WHERE r.id=$1`,id);if(!rows[0])throw new NotFoundException('Daily cashbook record not found');return this.map(rows[0]);}

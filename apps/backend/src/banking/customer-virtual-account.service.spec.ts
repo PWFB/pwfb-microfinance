@@ -628,7 +628,7 @@ describe('BVN and NIN provider verification safeguards', () => {
     expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO customer_identity_verifications'),
       expect.any(String), customer.id, '•••••••8901',
-      'VERIFIED', expect.any(Date), expect.any(String), expect.any(String),
+      'VERIFIED', expect.any(Date), expect.any(String),
       true, true, expect.any(String),
     );
   });
@@ -662,7 +662,7 @@ describe('BVN and NIN provider verification safeguards', () => {
     expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO customer_identity_verifications'),
       expect.any(String), customer.id, '•••••••8901',
-      'UNAVAILABLE', null, expect.any(String), expect.any(String),
+      'UNAVAILABLE', null, expect.any(String),
       null, null, expect.any(String),
     );
   });

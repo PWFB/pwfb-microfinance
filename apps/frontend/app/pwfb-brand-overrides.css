@@ -343,3 +343,113 @@
     opacity: 1 !important;
   }
 }
+
+
+/* LAB dark-mode precedence layer.
+   This file is imported after globals.css, so these selectors intentionally
+   outrank the light-only normalization rules above when ThemeProvider resolves
+   either Dark or System -> Dark. */
+html[data-theme="dark"] .pwfb-content main { color: #e8f1eb !important; }
+html[data-theme="dark"] .pwfb-content main .pwfb-page-title,
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-panel-header h2,.report-head h2,.pwfb-operation-control-header h2,h2.section-title) {
+  color: #a9e4b9 !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-panel,.pwfb-stat-card,.pwfb-summary-card,.pwfb-card,.report-stat,.report-panel,.report-link,.pwfb-operation-control-card) {
+  background: #122019 !important;
+  border-color: #2b4034 !important;
+  color: #e8f1eb !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.22) !important;
+}
+html[data-theme="dark"] .pwfb-content main .pwfb-stat-card > span,
+html[data-theme="dark"] .pwfb-content main .pwfb-stat-card > small,
+html[data-theme="dark"] .pwfb-content main .pwfb-operation-control-card small,
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-panel-header p,.pwfb-page-description) {
+  color: #a6b8ac !important;
+}
+html[data-theme="dark"] .pwfb-content main .pwfb-stat-card > strong,
+html[data-theme="dark"] .pwfb-content main .pwfb-operation-control-card strong {
+  color: #f5d59a !important;
+}
+html[data-theme="dark"] .pwfb-content main .pwfb-operation-control-card:hover,
+html[data-theme="dark"] .pwfb-content main .pwfb-panel a[style*="min-height: 82px"]:hover {
+  background: #1a3023 !important;
+  border-color: #d98a2b !important;
+  color: #f5e8d2 !important;
+  box-shadow: 0 9px 22px rgba(0,0,0,.3) !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(input,select,textarea,.pwfb-input,.input,.audit-input) {
+  background: #101c16 !important;
+  color: #edf5ef !important;
+  -webkit-text-fill-color: #edf5ef !important;
+  border-color: #40594a !important;
+  color-scheme: dark !important;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.2) !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(input,textarea,.pwfb-input,.input,.audit-input)::placeholder {
+  color: #91a398 !important;
+  -webkit-text-fill-color: #91a398 !important;
+}
+html[data-theme="dark"] .pwfb-content main select option {
+  background: #101c16 !important;
+  color: #edf5ef !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(label,.field,.form-label,.label,.pwfb-label) {
+  color: #c7d6cc !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(input,select,textarea):disabled {
+  background: #17271f !important;
+  color: #91a398 !important;
+  -webkit-text-fill-color: #91a398 !important;
+  border-color: #34483c !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) {
+  border-color: #34483c !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) thead th {
+  background: #1a3023 !important;
+  color: #b8ebc5 !important;
+  border-color: #40594a !important;
+  text-shadow: none !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tbody td,
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tfoot td {
+  background: #122019 !important;
+  color: #d5e1d8 !important;
+  border-color: #2d4136 !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tbody tr:nth-child(even) td {
+  background: #14251c !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.pwfb-table,table) tbody tr:hover td {
+  background: #1c2d21 !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.bg-white,.bg-slate-50,.bg-gray-50,.bg-emerald-50,.bg-emerald-100) {
+  background-color: #14251c !important;
+  color: #d5e1d8 !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.bg-slate-100,.bg-gray-100,.bg-orange-50,.bg-orange-100) {
+  background-color: #1a3023 !important;
+  color: #e8f1eb !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.text-slate-900,.text-slate-800,.text-slate-700,.text-slate-600,.text-gray-900,.text-gray-800,.text-gray-700,.text-gray-600,.text-emerald-950,.text-emerald-900,.text-emerald-800,.text-emerald-700,.text-orange-950,.text-orange-900,.text-orange-800) {
+  color: #d5e1d8 !important;
+}
+html[data-theme="dark"] .pwfb-content main :is(.border-slate-200,.border-slate-300,.border-gray-200,.border-gray-300,.border-emerald-100,.border-emerald-200,.border-orange-100,.border-orange-200) {
+  border-color: #34483c !important;
+}
+html[data-theme="dark"] .pwfb-content main .pwfb-primary-button {
+  color: #fff !important;
+}
+html[data-theme="dark"] .pwfb-content main .pwfb-secondary-button {
+  background: #17271f !important;
+  color: #b8ebc5 !important;
+  border-color: #40594a !important;
+}
+html[data-theme="dark"] .pwfb-nav-link-parent-active {
+  background: linear-gradient(90deg,rgba(242,140,24,.2),rgba(255,255,255,.035)) !important;
+  border-color: rgba(242,140,24,.35) !important;
+}
+html[data-theme="dark"] .pwfb-subnav-link-active {
+  background: #1a3023 !important;
+  color: #f5d59a !important;
+}

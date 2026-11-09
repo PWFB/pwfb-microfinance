@@ -5,6 +5,7 @@ import { PermissionsService } from '../permissions/permissions.service';
 describe('SavingsController', () => {
   let controller: SavingsController;
   let service: jest.Mocked<SavingsService>;
+  let accessScope: any;
 
   beforeEach(() => {
     service = {
@@ -15,7 +16,8 @@ describe('SavingsController', () => {
       remove: jest.fn(),
     } as unknown as jest.Mocked<SavingsService>;
 
-    controller = new SavingsController(service, { assert: jest.fn().mockResolvedValue(undefined) } as unknown as PermissionsService);
+    accessScope = { assertCustomer: jest.fn().mockResolvedValue(undefined) };
+    controller = new SavingsController(service, { assert: jest.fn().mockResolvedValue(undefined) } as unknown as PermissionsService, accessScope);
   });
 
   it('should be defined', () => {
@@ -34,6 +36,7 @@ describe('SavingsController', () => {
     service.create.mockResolvedValue(result as any);
 
     await expect(controller.create({ user: { role: 'ADMIN' } } as any, dto)).resolves.toBe(result);
+    expect(accessScope.assertCustomer).toHaveBeenCalledWith({ role: 'ADMIN' }, 'customer-1');
     expect(service.create).toHaveBeenCalledWith(dto);
   });
 

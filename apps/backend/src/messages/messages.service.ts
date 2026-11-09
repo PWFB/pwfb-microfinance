@@ -115,9 +115,16 @@ export class MessagesService {
       'GROUP BY c."id", b."name", rs."lastReadAt", lm."body", lm."createdAt", lm."senderUserId"',
       'ORDER BY COALESCE(lm."createdAt", c."createdAt") DESC',
     ].join(' ');
-    return this.prisma.$queryRawUnsafe<any[]>(
+    const conversations = await this.prisma.$queryRawUnsafe<any[]>(
       sql, branchIds, normalized.id, normalized.role, this.isAdmin(normalized),
     );
+    // Only Admin/Super Admin receive unread counters. Other staff still see
+    // the role/group conversations they are permitted to read.
+    if (this.isAdmin(normalized)) return conversations;
+    return conversations.map(({ unreadCount: _hiddenUnreadCount, ...conversation }) => ({
+      ...conversation,
+      unreadCount: 0,
+    }));
   }
 
   private async loadConversation(conversationId: string) {

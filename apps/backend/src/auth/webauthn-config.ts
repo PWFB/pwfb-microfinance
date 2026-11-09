@@ -4,7 +4,11 @@ const DEFAULT_PRODUCTION_RP_ID = 'pwfb-microfinance-1.onrender.com';
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
 const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
-const PLACEHOLDER_RP_IDS = new Set(['your-frontend-domain.com', 'example.com', 'localhost']);
+const PLACEHOLDER_RP_IDS = new Set([
+  'your-frontend-domain.com', 'example.com', 'localhost',
+  // Public suffixes are not valid RP IDs for a tenant's passkey credentials.
+  'vercel.app', 'onrender.com',
+]);
 
 export function normalizeOrigin(value?: string | null): string {
   return String(value || '').trim().replace(/\/$/, '');
@@ -32,6 +36,7 @@ export function getWebAuthnExpectedOrigins(requestOrigin?: string | null): strin
   const configured = [
     ...(process.env.WEBAUTHN_ALLOWED_ORIGINS || '').split(','),
     ...(process.env.WEBAUTHN_ORIGIN || '').split(','),
+    ...(process.env.VERCEL_FRONTEND_URL || '').split(','),
   ]
     .map(normalizeOrigin)
     .filter(Boolean)

@@ -1,4 +1,5 @@
 import {
+  assertAllowedWebAuthnOrigin,
   getWebAuthnExpectedOrigins,
   getWebAuthnRpId,
 } from './webauthn-config';
@@ -43,5 +44,9 @@ describe('WebAuthn deployment origins', () => {
     expect(origins).toContain('https://pwfb-microfinance-1.onrender.com');
     expect(origins).toContain('https://pwfb-microfinance-staging.onrender.com');
     expect(origins).toContain('https://pwfb-microfinance-33ne.vercel.app');
+  });
+  it('rejects an unapproved host rather than allowing its own RP ID', () => {
+    expect(() => assertAllowedWebAuthnOrigin('https://untrusted.example'))
+      .toThrow('WebAuthn origin is not allowed');
   });
 });

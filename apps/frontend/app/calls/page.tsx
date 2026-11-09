@@ -11,7 +11,7 @@ type CallContext = {
   branches?: Branch[]; iceServers?: RTCIceServer[];
 };
 type StaffContact = {
-  staffId: string; userId: string; name: string; role: string; position?: string; phone?: string; callAvailable: boolean;
+  staffId: string; userId: string; name: string; role: string; branchName?: string; position?: string; phone?: string; callAvailable: boolean;
 };
 type ClientContact = {
   customerId: string; userId?: string | null; name: string; phone: string; callEnabled: boolean; callAvailable: boolean;
@@ -395,9 +395,10 @@ export default function CallsPage() {
             <p>When enabled, authorized staff can call you inside the PWFB app using an internet connection. Your phone number remains on your registered profile; PWFB does not dial your mobile network.</p>
           </div>
           <label className={styles.toggle}>
-            <input type="checkbox" checked={Boolean(context?.callEnabled)} disabled={savingPermission || !context?.phone} onChange={(event) => void setPermission(event.target.checked)} />
+            <input type="checkbox" checked={Boolean(context?.callEnabled)} disabled={savingPermission || (!context?.phone && !context?.callEnabled)} onChange={(event) => void setPermission(event.target.checked)} />
             <span />
           </label>
+          {!context?.phone && <small className={styles.helper}>Add a phone number to your PWFB profile before enabling calls.</small>}
         </section>
         <section className={styles.clientStatus}>
           <div><small>YOUR CALL STATUS</small><strong>{context?.callEnabled ? "Available for in-app calls" : "Calls are turned off"}</strong></div>
@@ -434,7 +435,7 @@ export default function CallsPage() {
       <audio ref={remoteAudioRef} autoPlay playsInline />
       <header className={styles.header}>
         <div className={styles.brandIcon}>☎</div>
-        <div><p className={styles.eyebrow}>LAB MICROFINANCE • PWFB SERVER</p><h1>Voice Calls</h1><p className={styles.subtitle}>Free in-app staff calling and permission-based client calls.</p></div>
+        <div><p className={styles.eyebrow}>LAB MICROFINANCE • PWFB SERVER</p><h1>Voice Calls</h1><p className={styles.subtitle}>Free in-app calls across all active staff branches, plus permission-based client calls.</p></div>
         <div className={styles.serverBadge}><span /> PWFB signalling online</div>
       </header>
       {error && <div className={styles.error} role="alert">{error}<button onClick={() => setError("")}>Dismiss</button></div>}
@@ -457,7 +458,7 @@ export default function CallsPage() {
             {!contactsLoading && tab === "STAFF" && (filteredContacts as StaffContact[]).map((person) => (
               <div className={styles.contact} key={person.staffId}>
                 <span className={styles.avatar}>{initials(person.name)}</span>
-                <div className={styles.contactText}><strong>{person.name}</strong><small>{ROLE_LABELS[person.role] || person.role}{person.position ? " · " + person.position : ""}</small>{person.phone && <small>{person.phone}</small>}</div>
+                <div className={styles.contactText}><strong>{person.name}</strong><small>{ROLE_LABELS[person.role] || person.role}{person.position ? " · " + person.position : ""}</small><small>{person.branchName || "PWFB branch"}</small></div>
                 <button className={styles.callButton} disabled={Boolean(isActive) || !person.callAvailable} onClick={() => void startStaffCall(person)} aria-label={"Call " + person.name}>☎</button>
               </div>
             ))}

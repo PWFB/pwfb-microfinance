@@ -736,7 +736,7 @@ export class CustomerVirtualAccountService {
       const ids = due.map((row) => String(row.id));
       if (ids.length) {
         await tx.$executeRawUnsafe(
-          'UPDATE "CustomerVirtualAccount" SET "lastRequeryAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = ANY($1::text[])',
+          'UPDATE "CustomerVirtualAccount" SET "lastRequeryAt" = CURRENT_TIMESTAMP WHERE "id" = ANY($1::text[])',
           ids,
         );
       }

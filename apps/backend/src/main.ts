@@ -20,12 +20,17 @@ function getCorsOrigins() {
   // even when CORS_ORIGINS is explicitly configured. The optional staging
   // alias remains configurable for branch-specific testing.
   const stagingFrontendOrigin = process.env.STAGING_FRONTEND_URL?.trim();
+  const vercelFrontendOrigins = (process.env.VERCEL_FRONTEND_URL || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
   return [
     ...new Set([
       ...defaults,
       ...configured,
       ...(stagingFrontendOrigin ? [stagingFrontendOrigin] : []),
+      ...vercelFrontendOrigins,
     ]),
   ];
 }

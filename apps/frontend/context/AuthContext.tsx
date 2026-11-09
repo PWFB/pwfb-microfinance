@@ -42,8 +42,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentUser);
       if (currentUser?.role) {
         const dashboardPath = getDashboardPath(currentUser.role);
+        const authEntryPaths = ["/", "/login"];
         const protectedDashboards = ["/dashboard", "/staff-dashboard", "/customer-dashboard"];
-        if (protectedDashboards.includes(pathname || "") && pathname !== dashboardPath) {
+        // Route within the current deployment, preserving Vercel or Render origin.
+        if (authEntryPaths.includes(pathname || "") ||
+            (protectedDashboards.includes(pathname || "") && pathname !== dashboardPath)) {
           router.replace(dashboardPath);
         }
       }

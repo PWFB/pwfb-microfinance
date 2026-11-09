@@ -46,6 +46,7 @@ export default function MessagesPage() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
+  const canSeeUnreadCounts = Boolean(context?.canMonitorAllBranchMessages);
   const unreadTotal = useMemo(
     () => conversations.reduce((total, item) => total + Number(item.unreadCount || 0), 0),
     [conversations],
@@ -215,8 +216,7 @@ export default function MessagesPage() {
         <div className={styles.headerStats}>
           <span className={styles.onlineDot} />
           <span>Secure workspace</span>
-          <strong>{unreadTotal}</strong>
-          <small>unread</small>
+          {canSeeUnreadCounts && <><strong>{unreadTotal}</strong><small>unread</small></>}
         </div>
       </header>
 
@@ -225,7 +225,7 @@ export default function MessagesPage() {
       <section className={styles.workspace}>
         <aside className={styles.inbox}>
           <div className={styles.inboxTop}>
-            <div><span className={styles.sectionLabel}>MESSAGES</span><h2>Inbox <span>{unreadTotal}</span></h2></div>
+            <div><span className={styles.sectionLabel}>MESSAGES</span><h2>Inbox {canSeeUnreadCounts && <span>{unreadTotal}</span>}</h2></div>
             <button className={styles.iconButton} title="Refresh messages" onClick={() => void refreshInbox()}>↻</button>
           </div>
           <label className={styles.searchBox}>
@@ -249,7 +249,7 @@ export default function MessagesPage() {
                   </span>
                   <span className={styles.conversationAside}>
                     <small>{dateLabel(item.lastMessageCreatedAt)}</small>
-                    {Number(item.unreadCount) > 0 && <b>{item.unreadCount > 99 ? "99+" : item.unreadCount}</b>}
+                    {canSeeUnreadCounts && Number(item.unreadCount) > 0 && <b>{item.unreadCount > 99 ? "99+" : item.unreadCount}</b>}
                   </span>
                 </button>
               );

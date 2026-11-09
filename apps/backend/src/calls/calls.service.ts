@@ -108,23 +108,28 @@ export class CallsService {
   async getContacts(actor: CallActor, branchId: string, search?: string) {
     const result = await this.staffScope(actor);
     const id = String(branchId || '').trim();
-    if (!id) throw new BadRequestException('Choose a branch to load contacts');
+    if (!id) throw new BadRequestException('Choose a branch to load client contacts');
     await this.accessScope.assertBranch(result.actor, id);
     const term = String(search || '').trim();
     const like = '%' + term.replace(/[\\%_]/g, '\\$&') + '%';
 
+    // Internal staff voice calls are organisation-wide. The directory only
+    // exposes each active staff account's name, role and branch (not phone
+    // numbers), and every row must be connected to an active staff profile.
     const staff = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT DISTINCT ON (s."id") s."id" AS "staffId", u."id" AS "userId", ' +
-      's."firstName", s."lastName", s."position", s."phone", u."role" ' +
+      's."firstName", s."lastName", s."position", u."role", b."name" AS "branchName" ' +
       'FROM "Staff" s JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
       'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
       'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
-      'WHERE s."branchId" = $1 AND s."employmentStatus" = \'ACTIVE\' ' +
-      'AND u."id" <> $2 AND ($3 = \'%%\' OR s."firstName" ILIKE $3 OR s."lastName" ILIKE $3 OR s."phone" ILIKE $3) ' +
+      'LEFT JOIN "Branch" b ON b."id" = s."branchId" ' +
+      'WHERE s."employmentStatus" = \'ACTIVE\' AND u."role" <> \'CUSTOMER\' AND u."id" <> $1 ' +
+      'AND ($2 = \'%%\' OR s."firstName" ILIKE $2 OR s."lastName" ILIKE $2 OR u."role"::text ILIKE $2 OR b."name" ILIKE $2) ' +
       'ORDER BY s."id", s."firstName", s."lastName"',
-      id, result.actor.id, like,
+      result.actor.id, like,
     );
 
+    // Client calls remain branch-bound and require explicit client opt-in.
     const clients = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT DISTINCT ON (c."id") c."id" AS "customerId", u."id" AS "userId", ' +
       'c."firstName", c."lastName", c."phone", COALESCE(p."enabled", FALSE) AS "callEnabled" ' +
@@ -188,7 +193,6 @@ export class CallsService {
     const result = await this.staffScope(actor);
     const id = String(targetStaffId || '').trim();
     if (!id || id === result.scope.staffId) throw new BadRequestException('Choose another staff member to call');
-    await this.accessScope.assertStaff(result.actor, id);
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT s."id" AS "staffId", s."branchId", u."id" AS "userId" FROM "Staff" s ' +
       'JOIN LATERAL (SELECT u."id" FROM "User" u WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
@@ -198,10 +202,11 @@ export class CallsService {
     );
     if (!rows[0]) throw new NotFoundException('Active linked staff member not found');
     if (String(rows[0].userId) === result.actor.id) throw new BadRequestException('You cannot call your own account');
-    await this.accessScope.assertBranch(result.actor, String(rows[0].branchId));
+    const branchId = String(rows[0].branchId || result.scope.branchId || '').trim();
+    if (!branchId) throw new ConflictException('This staff member has no branch context for call routing');
     return this.createSession({
       type: 'STAFF',
-      branchId: String(rows[0].branchId),
+      branchId,
       callerUserId: result.actor.id,
       callerStaffId: result.scope.staffId ?? null,
       recipientUserId: String(rows[0].userId),
@@ -296,10 +301,7 @@ export class CallsService {
       'WHERE "status" IN (\'RINGING\', \'ACCEPTED\') AND ("callerUserId" = $1 OR "recipientUserId" = $1)',
       normalized.id,
     );
-    const allowedBranchIds = normalized.role === 'CUSTOMER'
-      ? null
-      : await this.branchIds((await this.staffScope(normalized)).actor);
-    if (Array.isArray(allowedBranchIds) && !allowedBranchIds.length) return [];
+    if (normalized.role !== 'CUSTOMER') await this.staffScope(normalized);
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT c."id", c."type", c."branchId", b."name" AS "branchName", c."callerUserId", ' +
       'c."recipientUserId", c."customerId", c."status", c."initiatedAt", c."expiresAt", c."acceptedAt", c."endedAt", ' +
@@ -309,10 +311,9 @@ export class CallsService {
       'FROM "CallSession" c JOIN "Branch" b ON b."id" = c."branchId" ' +
       'JOIN "User" cu ON cu."id" = c."callerUserId" JOIN "User" ru ON ru."id" = c."recipientUserId" ' +
       'WHERE (c."callerUserId" = $1 OR c."recipientUserId" = $1) ' +
-      'AND ($2::text[] IS NULL OR c."branchId" = ANY($2::text[])) ' +
       'AND c."createdAt" > CURRENT_TIMESTAMP - INTERVAL \'7 days\' ' +
       'ORDER BY c."createdAt" DESC LIMIT 50',
-      normalized.id, allowedBranchIds,
+      normalized.id,
     );
     return rows;
   }
@@ -341,7 +342,9 @@ export class CallsService {
     if (normalized.role === 'CUSTOMER' && String(call.recipientUserId) !== normalized.id) {
       throw new ForbiddenException('Customer accounts can only receive staff calls');
     }
-    if (normalized.role !== 'CUSTOMER') await this.accessScope.assertBranch(normalized, String(call.branchId));
+    if (normalized.role !== 'CUSTOMER' && call.type === 'CLIENT') {
+      await this.accessScope.assertBranch(normalized, String(call.branchId));
+    }
     return normalized;
   }
 

@@ -57,14 +57,19 @@ export class LoansService {
   const intervalDays=frequency.includes('daily')?1:frequency.includes('weekly')?7:30;
   const baseInstallment=Math.round((total/duration)*100)/100;
   const repayments=Array.isArray(loan.repayments)?loan.repayments:[];
-  let cumulativePaid=0;
+  // Apply every confirmed repayment to the oldest outstanding installment.
+  // A receipt posted after the due date must still clear that overdue installment.
+  let unappliedPaidCents=repayments.reduce(
+    (sum:number,repayment:any)=>sum+Math.max(0,Math.round(Number(repayment.amount||0)*100)),0,
+  );
   const schedule=Array.from({length:duration},(_,index)=>{
     const installment=index===duration-1?Math.round((total-baseInstallment*(duration-1))*100)/100:baseInstallment;
     const dueDate=new Date(start);
     dueDate.setDate(dueDate.getDate()+intervalDays*(index+1));
-    cumulativePaid+=Number(repayments.filter((r:any)=>new Date(r.paymentDate||r.createdAt)<=dueDate).reduce((s:number,r:any)=>s+Number(r.amount||0),0));
-    const expectedBefore=Math.round((baseInstallment*index)*100)/100;
-    const paidForPeriod=Math.min(installment,Math.max(0,cumulativePaid-expectedBefore));
+    const installmentCents=Math.max(0,Math.round(installment*100));
+    const paidForPeriodCents=Math.min(installmentCents,unappliedPaidCents);
+    unappliedPaidCents=Math.max(0,unappliedPaidCents-paidForPeriodCents);
+    const paidForPeriod=paidForPeriodCents/100;
     const remaining=Math.max(0,installment-paidForPeriod);
     const status=remaining<=0.005?'PAID':new Date()>=dueDate?'OVERDUE':'DUE';
     return {installmentNumber:index+1,dueDate:dueDate.toISOString(),amount:installment,principalAmount:Math.round((principal/duration)*100)/100,interestAmount:Math.round((interest/duration)*100)/100,paidAmount:Math.round(paidForPeriod*100)/100,remainingAmount:Math.round(remaining*100)/100,status};

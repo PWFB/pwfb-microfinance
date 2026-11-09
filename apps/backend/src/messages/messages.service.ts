@@ -66,28 +66,72 @@ export class MessagesService {
   async getContext(actor: MessageActor) {
     const result = await this.scopeFor(actor);
     const branchIds = await this.accessibleBranchIds(result.actor);
-    if (!branchIds.length) return { userRole: result.actor.role, currentBranchId: result.scope.branchId ?? null, branches: [] };
+    if (!branchIds.length) {
+      return {
+        userRole: result.actor.role,
+        currentBranchId: null,
+        canMonitorAllBranchMessages: this.isAdmin(result.actor),
+        branches: [],
+        roleTargets: [],
+      };
+    }
     const branches = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT "id", "name" FROM "Branch" WHERE "id" = ANY($1::text[]) ORDER BY "name" ASC',
       branchIds,
     );
+    const currentBranchId = branches.some((item) => String(item.id) === String(result.scope.branchId))
+      ? result.scope.branchId
+      : branches.length === 1 ? String(branches[0].id) : null;
+    const roleTargets = currentBranchId
+      ? await this.getBranchRoleTargets(result.actor, currentBranchId)
+      : [];
     return {
       userRole: result.actor.role,
-      currentBranchId: result.scope.branchId ?? (branches.length === 1 ? branches[0].id : null),
+      currentBranchId,
       canMonitorAllBranchMessages: this.isAdmin(result.actor),
       branches,
-      roleTargets: [...ROLE_CHANNEL_TARGETS],
+      roleTargets,
     };
+  }
+
+  async getBranchRoleTargets(actor: MessageActor, branchId: string) {
+    const id = await this.assertBranch(actor, branchId);
+    const allowed = [...ROLE_CHANNEL_TARGETS];
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ roleTarget: string }>>(
+      'SELECT DISTINCT roleTarget FROM (' +
+      'SELECT u."role"::text AS roleTarget FROM "Staff" s ' +
+      'JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
+      'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
+      'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
+      'WHERE s."branchId" = $1 AND s."employmentStatus" = \'ACTIVE\' ' +
+      'UNION ' +
+      'SELECT a."role"::text AS roleTarget FROM "StaffAssignment" a ' +
+      'JOIN "Staff" s ON s."id" = a."staffId" ' +
+      'WHERE a."branchId" = $1 AND a."active" = TRUE ' +
+      'AND a."startsAt" <= CURRENT_TIMESTAMP ' +
+      'AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP) ' +
+      'AND s."employmentStatus" = \'ACTIVE\'' +
+      ') available WHERE roleTarget = ANY($2::text[])',
+      id, allowed,
+    );
+    const available = new Set(rows.map((row) => String(row.roleTarget).toUpperCase()));
+    return allowed.filter((role) => available.has(role));
   }
 
   async getBranchStaff(actor: MessageActor, branchId: string) {
     const id = await this.assertBranch(actor, branchId);
     return this.prisma.$queryRawUnsafe<any[]>(
-      'SELECT DISTINCT ON (s."id") s."id" AS "staffId", u."id" AS "userId", s."firstName", s."lastName", s."position", u."role" ' +
+      'SELECT DISTINCT ON (s."id") s."id" AS "staffId", u."id" AS "userId", ' +
+      's."firstName", s."lastName", s."position", COALESCE(sa."role"::text, u."role"::text) AS "role" ' +
       'FROM "Staff" s JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
       'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
       'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
-      'WHERE s."branchId" = $1 AND s."employmentStatus" = \'ACTIVE\' AND u."role" <> \'CUSTOMER\' ' +
+      'LEFT JOIN LATERAL (SELECT a."role" FROM "StaffAssignment" a ' +
+      'WHERE a."staffId" = s."id" AND a."branchId" = $1 AND a."active" = TRUE ' +
+      'AND a."startsAt" <= CURRENT_TIMESTAMP AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP) ' +
+      'ORDER BY a."startsAt" DESC, a."updatedAt" DESC LIMIT 1) sa ON TRUE ' +
+      'WHERE s."employmentStatus" = \'ACTIVE\' AND (s."branchId" = $1 OR sa."role" IS NOT NULL) ' +
+      'AND (u."role" <> \'CUSTOMER\' OR sa."role" IS NOT NULL) ' +
       'ORDER BY s."id", s."firstName", s."lastName"',
       id,
     );
@@ -209,11 +253,16 @@ export class MessagesService {
     if (!ROLE_CHANNEL_TARGETS.has(roleTarget)) throw new BadRequestException('Choose a valid branch role as the message recipient');
     const body = this.validateMessage(input?.message);
     const linkedRole = await this.prisma.$queryRawUnsafe<Array<{ count: number }>>(
-      'SELECT COUNT(*)::int AS "count" FROM "Staff" s ' +
-      'JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
+      'SELECT COUNT(DISTINCT s."id")::int AS "count" FROM "Staff" s ' +
+      'LEFT JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
       'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
       'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
-      'WHERE s."branchId" = $1 AND s."employmentStatus" = \'ACTIVE\' AND u."role" = $2::"Role"',
+      'WHERE s."employmentStatus" = \'ACTIVE\' AND (' +
+      '(s."branchId" = $1 AND u."role"::text = $2) OR EXISTS (' +
+      'SELECT 1 FROM "StaffAssignment" a WHERE a."staffId" = s."id" ' +
+      'AND a."branchId" = $1 AND a."role"::text = $2 AND a."active" = TRUE ' +
+      'AND a."startsAt" <= CURRENT_TIMESTAMP ' +
+      'AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP)))',
       branchId, roleTarget,
     );
     if (Number(linkedRole[0]?.count || 0) < 1) {
@@ -260,11 +309,17 @@ export class MessagesService {
     if (selectedIds.length > 49) throw new BadRequestException('A group can contain no more than 50 staff members including its creator');
 
     const members = await this.prisma.$queryRawUnsafe<any[]>(
-      'SELECT DISTINCT ON (s."id") s."id" AS "staffId", u."id" AS "userId", s."firstName", s."lastName", u."role" ' +
+      'SELECT DISTINCT ON (s."id") s."id" AS "staffId", u."id" AS "userId", ' +
+      's."firstName", s."lastName", COALESCE(sa."role"::text, u."role"::text) AS "role" ' +
       'FROM "Staff" s JOIN LATERAL (SELECT u."id", u."role" FROM "User" u ' +
       'WHERE u."id" = s."userId" OR u."staffId" = s."id" ' +
       'ORDER BY CASE WHEN u."id" = s."userId" THEN 0 ELSE 1 END LIMIT 1) u ON TRUE ' +
-      'WHERE s."id" = ANY($1::text[]) AND s."branchId" = $2 AND s."employmentStatus" = \'ACTIVE\' ' +
+      'LEFT JOIN LATERAL (SELECT a."role" FROM "StaffAssignment" a ' +
+      'WHERE a."staffId" = s."id" AND a."branchId" = $2 AND a."active" = TRUE ' +
+      'AND a."startsAt" <= CURRENT_TIMESTAMP AND (a."endsAt" IS NULL OR a."endsAt" > CURRENT_TIMESTAMP) ' +
+      'ORDER BY a."startsAt" DESC, a."updatedAt" DESC LIMIT 1) sa ON TRUE ' +
+      'WHERE s."id" = ANY($1::text[]) AND s."employmentStatus" = \'ACTIVE\' ' +
+      'AND (s."branchId" = $2 OR sa."role" IS NOT NULL) ' +
       'ORDER BY s."id"',
       selectedIds, branchId,
     );

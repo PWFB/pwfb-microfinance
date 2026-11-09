@@ -39,24 +39,63 @@ export class CollectionsService {
   }
 
   async create(data: { periodId: string; branchId: string; staffId: string; customerId: string; type: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER'; amount: number; reference?: string; notes?: string; collectionDate?: string; settleNow?: boolean }) {
-    const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
-    if (!period) throw new NotFoundException('Financial period not found');
-    if (period.status === 'CLOSED') throw new BadRequestException('Cannot add collections to a closed period');
-    const branch = await this.prisma.branch.findUnique({ where: { id: data.branchId } });
-    if (!branch) throw new NotFoundException('Branch not found');
-    const staff = await this.prisma.staff.findUnique({ where: { id: data.staffId } });
-    if (!staff) throw new NotFoundException('Collector/staff not found');
-    if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
-    const customer = await this.prisma.customer.findUnique({ where: { id: data.customerId } });
-    if (!customer) throw new NotFoundException('Customer not found');
-    const amount = Number(data.amount);
+    const amount = Math.round(Number(data.amount) * 100) / 100;
     if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Collection amount must be greater than zero');
-    const created = await this.prisma.dailyCollection.create({ data: { periodId: data.periodId, branchId: data.branchId, staffId: data.staffId, customerId: data.customerId, type: data.type, amount, reference: data.reference, notes: data.notes, collectionDate: data.collectionDate ? new Date(data.collectionDate) : new Date() }, include: { period: true, branch: true, staff: true, customer: true } });
+    const collectionDate = data.collectionDate ? new Date(data.collectionDate) : new Date();
+    if (Number.isNaN(collectionDate.getTime())) throw new BadRequestException('A valid collection date is required');
+    const reference = String(data.reference || '').trim() || `COL-${Date.now()}-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+
+    const created = await this.prisma.$transaction(async (tx: any) => {
+      // Serialize collection creation against period close and duplicate-reference retries.
+      await tx.$queryRawUnsafe('SELECT id FROM "FinancialPeriod" WHERE id = $1 FOR UPDATE', data.periodId);
+      const period = await tx.financialPeriod.findUnique({ where: { id: data.periodId } });
+      if (!period) throw new NotFoundException('Financial period not found');
+      if (period.status === 'CLOSED') throw new BadRequestException('Cannot add collections to a closed period');
+      if (collectionDate < new Date(period.startDate) || collectionDate > new Date(period.endDate)) {
+        throw new BadRequestException('Collection date must fall inside the selected financial period');
+      }
+
+      const branch = await tx.branch.findUnique({ where: { id: data.branchId } });
+      if (!branch) throw new NotFoundException('Branch not found');
+      const staff = await tx.staff.findUnique({ where: { id: data.staffId } });
+      if (!staff || staff.employmentStatus !== 'ACTIVE') throw new NotFoundException('An active collector/staff record is required');
+      if (staff.branchId !== data.branchId) throw new BadRequestException('Selected staff does not belong to the selected branch');
+      const customer = await tx.customer.findUnique({ where: { id: data.customerId } });
+      if (!customer) throw new NotFoundException('Customer not found');
+      if (!customer.branchId || customer.branchId !== data.branchId) {
+        throw new BadRequestException('Customer must belong to the collection branch');
+      }
+
+      await tx.$queryRawUnsafe(
+        'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+        `DAILY-COLLECTION:${data.branchId}:${reference}`,
+      );
+      const duplicate = await tx.dailyCollection.findFirst({
+        where: { branchId: data.branchId, reference },
+        select: { id: true },
+      });
+      if (duplicate) throw new BadRequestException('This collection reference has already been recorded for the selected branch');
+
+      return tx.dailyCollection.create({
+        data: {
+          periodId: data.periodId,
+          branchId: data.branchId,
+          staffId: data.staffId,
+          customerId: data.customerId,
+          type: data.type,
+          amount,
+          reference,
+          notes: data.notes,
+          collectionDate,
+        },
+        include: { period: true, branch: true, staff: true, customer: true },
+      });
+    });
+
     if (!data.settleNow) return created;
     const targetId = await this.resolveSettlementTarget(data.customerId, data.type);
     return this.settle(created.id, targetId);
   }
-
   async findAll(periodId?: string, branchId?: string, staffId?: string, type?: 'SAVINGS' | 'LOAN_REPAYMENT' | 'OTHER', branchIds?: string[]) {
     const branchFilter = branchId
       ? { branchId }

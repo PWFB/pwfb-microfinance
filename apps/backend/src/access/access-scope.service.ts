@@ -221,6 +221,30 @@ export class AccessScopeService {
 
   private escape(value: unknown) { return String(value ?? '').replace(/'/g, "''"); }
 
+  async assertArea(user: AccessUser, areaId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT "id", "id" AS "areaId", "divisionId", "regionId" FROM "Area" WHERE "id" = $1 LIMIT 1`,
+      areaId,
+    );
+    return this.assertOrg(user, rows[0]);
+  }
+
+  async assertDivision(user: AccessUser, divisionId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT "id", "id" AS "divisionId", "regionId" FROM "Division" WHERE "id" = $1 LIMIT 1`,
+      divisionId,
+    );
+    return this.assertOrg(user, rows[0]);
+  }
+
+  async assertRegion(user: AccessUser, regionId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT "id", "id" AS "regionId" FROM "Region" WHERE "id" = $1 LIMIT 1`,
+      regionId,
+    );
+    return this.assertOrg(user, rows[0]);
+  }
+
   async assertBranch(user: AccessUser, branchId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT "id", "id" AS "branchId", "areaId", "divisionId", "regionId" FROM "Branch" WHERE "id" = $1 LIMIT 1`, branchId);
     return this.assertOrg(user, rows[0]);

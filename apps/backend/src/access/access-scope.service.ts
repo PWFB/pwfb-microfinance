@@ -10,37 +10,62 @@ export class AccessScopeService {
   async getScope(user: AccessUser) {
     const role = String(user?.role || '').toUpperCase();
     if (role === 'SUPER_ADMIN') return { role, staffId: user?.staffId ?? null, branchId: null, areaId: null, divisionId: null, regionId: null, global: true };
+
     const userId = String(user?.id || '').trim();
     const staffId = String(user?.staffId || '').trim();
     let rows: any[] = [];
     if (userId) {
       rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "userId" = $1 LIMIT 1`,
+        `SELECT "id" FROM "Staff" WHERE "userId" = $1 LIMIT 1`,
         userId,
       );
     }
     if (!rows[0] && staffId) {
-      // Backward compatibility for staff logins created before Staff.userId
-      // was populated; do not let a conflicting duplicate link choose either
-      // record nondeterministically.
       rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT "id", "branchId", "areaId", "divisionId", "regionId" FROM "Staff" WHERE "id" = $1 LIMIT 1`,
+        `SELECT "id" FROM "Staff" WHERE "id" = $1 LIMIT 1`,
         staffId,
       );
     }
-    const staff = rows[0] || {};
-    if (staffId && staff.id && staff.id !== staffId) {
+    const staff = rows[0];
+    if (!staff?.id) {
+      if (role === 'CUSTOMER') {
+        return { role, staffId: null, branchId: null, areaId: null, divisionId: null, regionId: null, global: false };
+      }
+      throw new ForbiddenException('No Staff profile is linked to this account. Ask an administrator to connect your staff login.');
+    }
+    if (staffId && staff.id !== staffId) {
       throw new ForbiddenException('Staff identity links do not match. Contact Super Admin to reconcile the login before processing financial records.');
     }
+
+    const assignments: any[] = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT "role", "branchId", "areaId", "divisionId", "regionId"
+       FROM "StaffAssignment"
+       WHERE "staffId" = $1
+         AND "active" = TRUE
+         AND "startsAt" <= CURRENT_TIMESTAMP
+         AND ("endsAt" IS NULL OR "endsAt" > CURRENT_TIMESTAMP)
+       ORDER BY "startsAt" DESC
+       LIMIT 1`,
+      staff.id,
+    );
+    const assignment = assignments[0];
+    if (!assignment) {
+      throw new ForbiddenException('No active Staff Assignment is linked to this account. Assign the correct role and branch before accessing financial records.');
+    }
+    if (String(assignment.role || '').toUpperCase() !== role) {
+      throw new ForbiddenException('Your login role does not match your active Staff Assignment. Ask an administrator to reconcile the assignment.');
+    }
+
     return {
       role,
-      staffId: staff.id ?? null,
-      branchId: staff.branchId ?? null,
-      areaId: staff.areaId ?? null,
-      divisionId: staff.divisionId ?? null,
-      regionId: staff.regionId ?? null,
-      // Only Super Admin is organization-wide. An Admin without an assigned
-      // organizational record is deliberately not granted global access.
+      staffId: staff.id,
+      // The active assignment is authoritative. Do not fall back to stale
+      // Staff profile hierarchy fields when the assignment intentionally has
+      // a null or different branch/area/division/region.
+      branchId: assignment.branchId ?? null,
+      areaId: assignment.areaId ?? null,
+      divisionId: assignment.divisionId ?? null,
+      regionId: assignment.regionId ?? null,
       global: false,
     };
   }
@@ -66,6 +91,10 @@ export class AccessScopeService {
       );
     } else if (scope.branchId) {
       rows = [{ id: scope.branchId }];
+    } else if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && !scope.regionId && !scope.divisionId && !scope.areaId) {
+      // Audit and monitoring assignments without a narrower organizational
+      // target are organization-wide read scopes; controller roles remain read-only.
+      rows = await this.prisma.$queryRawUnsafe<any[]>(`SELECT \"id\" FROM \"Branch\" ORDER BY \"name\" ASC`);
     }
     return rows.map((row) => String(row.id)).filter(Boolean);
   }
@@ -78,6 +107,7 @@ export class AccessScopeService {
     if (scope.role === 'REGIONAL_MANAGER' && same(scope.regionId, target.regionId)) return true;
     if (scope.role === 'DIVISIONAL_MANAGER' && same(scope.divisionId, target.divisionId)) return true;
     if (scope.role === 'AREA_MANAGER' && same(scope.areaId, target.areaId)) return true;
+    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && !scope.branchId && !scope.areaId && !scope.divisionId && !scope.regionId) return true;
     if (['CREDIT_OFFICER', 'TELLER', 'LOAN_OFFICER', 'STAFF'].includes(scope.role) && Object.prototype.hasOwnProperty.call(target, 'assignedStaffId')) {
       if (same(scope.staffId, target.assignedStaffId)) return true;
       throw new ForbiddenException('Access denied: this record is not assigned to your staff account');
@@ -146,6 +176,7 @@ export class AccessScopeService {
   }
 
   private orgCondition(scope: any, alias: string) {
+    if (['AUDITOR', 'MONITORING_TEAM'].includes(scope.role) && !scope.branchId && !scope.areaId && !scope.divisionId && !scope.regionId) return 'TRUE';
     if (scope.role === 'REGIONAL_MANAGER') return `"${alias}"."regionId" = '${this.escape(scope.regionId)}'`;
     if (scope.role === 'DIVISIONAL_MANAGER') return `"${alias}"."divisionId" = '${this.escape(scope.divisionId)}'`;
     if (scope.role === 'AREA_MANAGER') return `"${alias}"."areaId" = '${this.escape(scope.areaId)}'`;

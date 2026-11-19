@@ -233,8 +233,10 @@ export class CustomerAiService {
   private async openAi(history: ChatMessage[], message: string, customer: any, financialContext: any, file?: ReceiptUpload) {
     const key = process.env.OPENAI_API_KEY?.trim();
     if (!key) throw new Error('OpenAI is not configured');
-    const configuredModel = process.env.BALMZ_AI_MODEL?.trim();
-    const model = configuredModel || (file ? 'gpt-6.1-terra' : 'gpt-6.1-sol');
+    // Receipt uploads use a vision-capable model independently from the text-chat model.
+    const model = file
+      ? process.env.BALMZ_AI_VISION_MODEL?.trim() || 'gpt-6.1-terra'
+      : process.env.BALMZ_AI_MODEL?.trim() || 'gpt-6.1-sol';
     const client = {
       clientId: customer.id,
       name: [customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Customer',

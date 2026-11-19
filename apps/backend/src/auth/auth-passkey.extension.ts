@@ -52,7 +52,7 @@ async function resolvePasskeyLoginUser(service: any, identifierValue: string, mo
       include: { user: true },
     });
     if (!customer) throw new Error('No PWFB customer profile matches that customer ID, email or phone number.');
-    user = customer.user || await service.prisma.user.findUnique({ where: { customerId: customer.id } });
+    user = customer.user || await service.prisma.user.findUnique({ where: { customerId: customer.id } }) || await service.prisma.user.findUnique({ where: { email: String(customer.email || '').trim().toLowerCase() } });
     if (!user) throw new Error('Your PWFB customer profile is not linked to a login account. Sign in with your password or contact your branch.');
     if ((customer.userId && customer.userId !== user.id) || (user.customerId && user.customerId !== customer.id)) {
       throw new Error('Your PWFB customer profile and login account do not match.');
@@ -142,7 +142,7 @@ AuthService.prototype.passkeyLoginVerify = async function(this: any, body: any, 
     assertLoginModeRole(mode, user.role);
     if (mode === 'CUSTOMER') {
       const customer = await this.prisma.customer.findFirst({
-        where: { OR: [{ userId: user.id }, ...(user.customerId ? [{ id: user.customerId }] : [])] },
+        where: { OR: [{ userId: user.id }, ...(user.customerId ? [{ id: user.customerId }] : []), ...(user.email ? [{ email: { equals: String(user.email).trim().toLowerCase(), mode: 'insensitive' as const } }] : [])] },
         select: { id: true, userId: true },
       });
       if (!customer || (customer.userId && customer.userId !== user.id)) {

@@ -150,7 +150,7 @@ export class CustomerAiService {
           customerId: customer.id,
           fileName: attachment.fileName,
           mimeType: attachment.mimeType,
-          contentBytes: attachment.contentBytes,
+          contentBytes: Uint8Array.from(attachment.contentBytes),
           size: attachment.contentBytes.length,
         },
       });

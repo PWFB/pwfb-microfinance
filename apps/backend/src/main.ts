@@ -10,14 +10,17 @@ function getCorsOrigins() {
   const defaults = process.env.NODE_ENV !== 'production'
     ? ['http://localhost:3000', 'http://localhost:3001']
     : [
-        process.env.FRONTEND_URL || 'https://pwfb-microfinance-965u.onrender.com',
+        process.env.FRONTEND_URL,
+        'https://pwfb-financial-portal-web.onrender.com',
+        'https://pwfb-financial-portal-web-live.onrender.com',
+    'https://pwfb-financial-portal-frontend.onrender.com',
+        'https://pwfb-microfinance-staging.onrender.com',
+        'https://pwfb-microfinance-965u.onrender.com',
         'https://pwfb-microfinance-1.onrender.com',
         'https://pwfb-frontend.onrender.com',
-      ];
+      ].filter(Boolean) as string[];
 
-  // The staging web client is hosted on Vercel and must be allowed even when
-  // CORS_ORIGINS is explicitly configured. Keep every existing configured
-  // origin and add the stable staging-branch alias.
+  // Keep explicit CORS settings while allowing the known production and LAB customer web clients.
   const stagingFrontendOrigin = process.env.STAGING_FRONTEND_URL?.trim();
 
   return [

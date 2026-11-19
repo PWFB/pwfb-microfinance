@@ -211,6 +211,7 @@ model Guarantor {
 
 model Transaction {
   id String @id @default(cuid())
+  reference String? @unique
   customerId String
   type String
   amount Float

@@ -233,6 +233,8 @@ export class CustomerAiService {
   private async openAi(history: ChatMessage[], message: string, customer: any, financialContext: any, file?: ReceiptUpload) {
     const key = process.env.OPENAI_API_KEY?.trim();
     if (!key) throw new Error('OpenAI is not configured');
+    const configuredModel = process.env.BALMZ_AI_MODEL?.trim();
+    const model = configuredModel || (file ? 'gpt-6.1-terra' : 'gpt-6.1-sol');
     const client = {
       clientId: customer.id,
       name: [customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Customer',
@@ -264,7 +266,7 @@ export class CustomerAiService {
   private async gemini(history: ChatMessage[], message: string, customer: any, financialContext: any, file?: ReceiptUpload) {
     const key = process.env.GEMINI_API_KEY?.trim();
     if (!key) throw new Error('Gemini is not configured');
-    const model = String(process.env.BALMZ_AI_GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.6-flash').trim();
+    const model = String(process.env.BALMZ_AI_GEMINI_MODEL || process.env.GEMINI_MODEL || 'gemini-3.8-flash').trim();
     const instructions = `You are BALMZ AI, the private support assistant for ONE PWFB Microfinance customer. Server-verified client ID: ${customer.id}. Never reveal another customer's information. Never ask for passwords, PINs, OTPs or bank login. A receipt is evidence, not proof of payment settlement. Use ONLY this read-only snapshot of the authenticated customer's PWFB records for account answers: ${JSON.stringify(financialContext)}. For receipts, compare visible reference and amount against these customer-owned records; a match only shows that a corresponding PWFB record exists, not that an external bank settlement is confirmed. If not found in this recent snapshot, say it is not visible and leave the complaint for staff review. Do not invent balances, references, fees, policies or dates. Never change financial records or promise refunds. Explain next steps and refer unreadable or unverified issues to PWFB staff.`;
     const parts: any[] = [];
     for (const item of history.slice(-10)) parts.push({ text: `${item.role === 'assistant' ? 'BALMZ AI' : 'Customer'}: ${item.content}` });

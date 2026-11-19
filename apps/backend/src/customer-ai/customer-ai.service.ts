@@ -31,7 +31,7 @@ export class CustomerAiService {
 
   private caseReference() {
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    return 'PWFB-AI-' + date + '-' + randomBytes(4).toString('hex').toUpperCase();
+    return 'PWFB-AI-' + date + '-' + randomBytes(6).toString('hex').toUpperCase();
   }
 
   private prepareAttachments(raw: unknown): PreparedAttachment[] {

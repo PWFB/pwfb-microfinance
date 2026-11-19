@@ -1,23 +1,27 @@
 const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-microfinance-1.onrender.com';
 const DEFAULT_PRODUCTION_RP_ID = 'pwfb-microfinance-1.onrender.com';
-const STAGING_FRONTEND_ORIGIN = 'https://pwfb-microfinance-staging.onrender.com';
+const KNOWN_WEB_ORIGINS = [
+  DEFAULT_PRODUCTION_ORIGIN,
+  'https://pwfb-microfinance-staging.onrender.com',
+  'https://pwfb-financial-portal-web.onrender.com',
+  'https://pwfb-financial-portal-web-live.onrender.com',
+  'https://pwfb-financial-portal-frontend.onrender.com',
+  'https://pwfb-frontend.onrender.com',
+];
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
 const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const PLACEHOLDER_RP_IDS = new Set(['your-frontend-domain.com', 'example.com', 'localhost']);
 
 export function normalizeOrigin(value?: string | null): string {
-  return String(value || '').trim().replace(/\/$/, '');
+  return String(value || '').trim().replace(/\\/$/, '');
 }
 
 export function isAndroidAppOrigin(value?: string | null): boolean {
   return /^android:apk-key-hash:[A-Za-z0-9_-]+$/.test(normalizeOrigin(value));
 }
 
-function configuredOrigin(requestOrigin?: string | null): string {
-  const request = normalizeOrigin(requestOrigin);
-  const staging = normalizeOrigin(process.env.STAGING_FRONTEND_URL) || STAGING_FRONTEND_ORIGIN;
-  if (request === staging) return staging;
+function configuredOrigin(): string {
   const value = normalizeOrigin(process.env.WEBAUTHN_ORIGIN);
   return value === 'https://your-frontend-domain.com' || value === 'your-frontend-domain.com' ? '' : value;
 }
@@ -31,12 +35,33 @@ function configuredAndroidOrigins(): string[] {
   ])).filter(isAndroidAppOrigin);
 }
 
+export function getWebAuthnExpectedOrigins(requestOrigin?: string | null): string[] {
+  const configured = (process.env.WEBAUTHN_ALLOWED_ORIGINS || process.env.WEBAUTHN_ORIGIN || '')
+    .split(',')
+    .map(normalizeOrigin)
+    .filter(Boolean)
+    .filter(value => value !== 'https://your-frontend-domain.com' && value !== 'your-frontend-domain.com');
+  const allowed = Array.from(new Set([
+    ...configured,
+    ...(process.env.NODE_ENV === 'production' ? KNOWN_WEB_ORIGINS : []),
+    ...configuredAndroidOrigins(),
+  ]));
+  if (!allowed.length) allowed.push('http://localhost:3000');
+
+  const request = normalizeOrigin(requestOrigin);
+  if (request && !allowed.includes(request)) {
+    throw new Error(`WebAuthn origin is not allowed: ${request}`);
+  }
+  return allowed;
+}
+
 export function getWebAuthnOrigin(requestOrigin?: string | null): string {
-  const configured = configuredOrigin(requestOrigin);
+  const request = normalizeOrigin(requestOrigin);
+  const configured = configuredOrigin();
+  if (request && !isAndroidAppOrigin(request) && getWebAuthnExpectedOrigins(request).includes(request)) return request;
   if (configured) return configured;
   if (process.env.NODE_ENV === 'production') return DEFAULT_PRODUCTION_ORIGIN;
-  const request = normalizeOrigin(requestOrigin);
-  return request && !isAndroidAppOrigin(request) ? request : 'http://localhost:3000';
+  return 'http://localhost:3000';
 }
 
 export function getWebAuthnRpId(requestOrigin?: string | null): string {
@@ -47,27 +72,6 @@ export function getWebAuthnRpId(requestOrigin?: string | null): string {
     if (configured === hostname || hostname.endsWith(`.${configured}`)) return configured;
   }
   return new URL(baseOrigin).hostname || DEFAULT_PRODUCTION_RP_ID;
-}
-
-export function getWebAuthnExpectedOrigins(requestOrigin?: string | null): string[] {
-  const configured = [process.env.WEBAUTHN_ALLOWED_ORIGINS, process.env.WEBAUTHN_ORIGIN, process.env.STAGING_FRONTEND_URL, STAGING_FRONTEND_ORIGIN].filter(Boolean).join(',')
-    .split(',')
-    .map(normalizeOrigin)
-    .filter(Boolean)
-    .filter(value => value !== 'https://your-frontend-domain.com' && value !== 'your-frontend-domain.com');
-
-  const allowed = Array.from(new Set([
-    ...configured,
-    ...(process.env.NODE_ENV === 'production' ? [DEFAULT_PRODUCTION_ORIGIN] : []),
-    ...configuredAndroidOrigins(),
-  ]));
-  if (!allowed.length) allowed.push('http://localhost:3000');
-
-  const request = normalizeOrigin(requestOrigin);
-  if (request && !allowed.includes(request)) {
-    throw new Error(`WebAuthn origin is not allowed: ${request}`);
-  }
-  return allowed;
 }
 
 export function assertAllowedWebAuthnOrigin(requestOrigin?: string | null): string {

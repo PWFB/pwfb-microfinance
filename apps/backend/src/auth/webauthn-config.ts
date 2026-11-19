@@ -1,6 +1,11 @@
 const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-microfinance-1.onrender.com';
 const DEFAULT_PRODUCTION_RP_ID = 'pwfb-microfinance-1.onrender.com';
 const STAGING_FRONTEND_ORIGIN = 'https://pwfb-microfinance-staging.onrender.com';
+const PRODUCTION_FRONTEND_ORIGINS = [
+  'https://pwfb-financial-portal-web.onrender.com',
+  'https://pwfb-financial-portal-web-live.onrender.com',
+  'https://pwfb-microfinance-965u.onrender.com',
+];
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
 const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
@@ -32,10 +37,24 @@ function configuredAndroidOrigins(): string[] {
 }
 
 export function getWebAuthnOrigin(requestOrigin?: string | null): string {
+  const request = normalizeOrigin(requestOrigin);
   const configured = configuredOrigin(requestOrigin);
+  const staging = normalizeOrigin(process.env.STAGING_FRONTEND_URL) || STAGING_FRONTEND_ORIGIN;
+  const configuredOrigins = [
+    process.env.WEBAUTHN_ALLOWED_ORIGINS,
+    process.env.WEBAUTHN_ORIGIN,
+    process.env.STAGING_FRONTEND_URL,
+  ].filter(Boolean).join(',').split(',').map(normalizeOrigin).filter(Boolean);
+  const knownOrigins = [
+    DEFAULT_PRODUCTION_ORIGIN,
+    staging,
+    ...PRODUCTION_FRONTEND_ORIGINS,
+    ...configuredOrigins,
+  ];
+  // Bind the RP ID to the browser-facing PWFB origin, not the API service host.
+  if (request && !isAndroidAppOrigin(request) && knownOrigins.includes(request)) return request;
   if (configured) return configured;
   if (process.env.NODE_ENV === 'production') return DEFAULT_PRODUCTION_ORIGIN;
-  const request = normalizeOrigin(requestOrigin);
   return request && !isAndroidAppOrigin(request) ? request : 'http://localhost:3000';
 }
 
@@ -58,7 +77,9 @@ export function getWebAuthnExpectedOrigins(requestOrigin?: string | null): strin
 
   const allowed = Array.from(new Set([
     ...configured,
-    ...(process.env.NODE_ENV === 'production' ? [DEFAULT_PRODUCTION_ORIGIN] : []),
+    DEFAULT_PRODUCTION_ORIGIN,
+    STAGING_FRONTEND_ORIGIN,
+    ...PRODUCTION_FRONTEND_ORIGINS,
     ...configuredAndroidOrigins(),
   ]));
   if (!allowed.length) allowed.push('http://localhost:3000');

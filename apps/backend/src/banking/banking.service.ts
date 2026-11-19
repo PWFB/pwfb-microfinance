@@ -51,7 +51,55 @@ export class BankingService {
   async recordBranchDeposit(data:{accountNumber:string;amount:number;reference?:string;narration?:string}){const amount=this.amount(data.amount);return this.prisma.$transaction(async tx=>{const account=await tx.branchVirtualAccount.findUnique({where:{accountNumber:data.accountNumber},include:{branch:true,institution:true}});if(!account)throw new NotFoundException('Branch virtual account not found');if(account.status!=='ACTIVE')throw new BadRequestException('Branch virtual account is not active');const period=await this.openPeriod(tx);const reference=data.reference?.trim()||this.ref('BDEP');const entry=await tx.cashbookEntry.create({data:{periodId:period.id,branchId:account.branchId,type:'CASH_IN',amount,reference,description:data.narration||`Virtual account deposit - ${account.accountNumber}`}});return{branch:account.branch,virtualAccount:account,institution:account.institution,entry}})}
   async getBranchLedger(branchId:string){const branch=await this.prisma.branch.findUnique({where:{id:branchId}});if(!branch)throw new NotFoundException('Branch not found');const entries=await this.prisma.cashbookEntry.findMany({where:{branchId},orderBy:{entryDate:'desc'}});const totalIn=entries.filter(e=>e.type==='CASH_IN').reduce((s,e)=>s+e.amount,0);const totalOut=entries.filter(e=>e.type==='CASH_OUT').reduce((s,e)=>s+e.amount,0);return{branch,entries,totalIn,totalOut,balance:totalIn-totalOut}}
   async getCustomerWallet(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.customerWallet.upsert({where:{customerId},create:{customerId},update:{}})}
-  async getCustomerTransactions(customerId:string){const customer=await this.prisma.customer.findUnique({where:{id:customerId}});if(!customer)throw new NotFoundException('Customer not found');return this.prisma.walletTransaction.findMany({where:{customerId},orderBy:{createdAt:'desc'}})}
+  async getCustomerTransactions(customerId: string) {
+    const customer = await this.prisma.customer.findUnique({
+      where: { id: customerId },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const [ledgerTransactions, walletTransactions] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.walletTransaction.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    // Savings deposits and withdrawals are written to the general ledger,
+    // while wallet operations are written to WalletTransaction. Return both
+    // sources so the customer sees one complete, reference-preserving history.
+    const ledger = ledgerTransactions.map((transaction: any) => ({
+      ...transaction,
+      type: String(transaction.type || 'TRANSACTION')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_'),
+      source: 'LEDGER',
+      status: 'COMPLETED',
+      provider: null,
+      providerReference: null,
+      processedAt: transaction.createdAt,
+      walletBalanceBefore: null,
+      walletBalanceAfter: null,
+    }));
+
+    const wallet = walletTransactions.map((transaction: any) => ({
+      ...transaction,
+      type: String(transaction.type || 'TRANSACTION')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, '_'),
+      source: 'WALLET',
+    }));
+
+    return [...ledger, ...wallet].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
+  }
   async deposit(customerId: string, data: any) {
     const amount = this.amount(data.amount);
     return this.prisma.$transaction(async (tx) => {

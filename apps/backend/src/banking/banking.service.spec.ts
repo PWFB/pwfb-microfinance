@@ -160,4 +160,102 @@ describe('BankingService wallet flows', () => {
     expect(tx.customerWallet.update).not.toHaveBeenCalled();
     expect(tx.walletTransaction.create).not.toHaveBeenCalled();
   });
+
+  it('returns savings ledger and wallet activity together with references', async () => {
+    const customerId = 'customer-history-1';
+    const older = new Date('2026-11-18T08:00:00.000Z');
+    const middle = new Date('2026-11-18T10:00:00.000Z');
+    const newer = new Date('2026-11-18T11:00:00.000Z');
+    prisma.customer = {
+      findUnique: jest.fn().mockResolvedValue({ id: customerId }),
+    };
+    prisma.transaction = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'savings-withdrawal',
+          customerId,
+          type: 'Withdrawal',
+          amount: 250,
+          reference: 'PWFB-SAV-WDR-001',
+          description: 'Fixed savings withdrawal',
+          createdAt: older,
+          updatedAt: older,
+        },
+        {
+          id: 'savings-deposit',
+          customerId,
+          type: 'Deposit',
+          amount: 1500,
+          reference: 'PWFB-SAV-DEP-001',
+          description: 'Fixed savings deposit',
+          createdAt: middle,
+          updatedAt: middle,
+        },
+      ]),
+    };
+    prisma.walletTransaction = {
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'wallet-deposit',
+          customerId,
+          type: 'DEPOSIT',
+          amount: 500,
+          reference: 'PWFB-DEP-001',
+          status: 'COMPLETED',
+          createdAt: newer,
+          updatedAt: newer,
+        },
+      ]),
+    };
+
+    const history = await service.getCustomerTransactions(customerId);
+
+    expect(prisma.transaction.findMany).toHaveBeenCalledWith({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(prisma.walletTransaction.findMany).toHaveBeenCalledWith({
+      where: { customerId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(history.map((entry: any) => entry.id)).toEqual([
+      'wallet-deposit',
+      'savings-deposit',
+      'savings-withdrawal',
+    ]);
+    expect(history[1]).toMatchObject({
+      type: 'DEPOSIT',
+      source: 'LEDGER',
+      status: 'COMPLETED',
+      reference: 'PWFB-SAV-DEP-001',
+      processedAt: middle,
+    });
+    expect(history[2]).toMatchObject({
+      type: 'WITHDRAWAL',
+      source: 'LEDGER',
+      reference: 'PWFB-SAV-WDR-001',
+    });
+    expect(history[0]).toMatchObject({
+      type: 'DEPOSIT',
+      source: 'WALLET',
+      reference: 'PWFB-DEP-001',
+      status: 'COMPLETED',
+    });
+  });
+
+  it('does not query or return transactions for an unknown customer', async () => {
+    prisma.customer = {
+      findUnique: jest.fn().mockResolvedValue(null),
+    };
+    prisma.transaction = { findMany: jest.fn() };
+    prisma.walletTransaction = { findMany: jest.fn() };
+
+    await expect(
+      service.getCustomerTransactions('missing-customer'),
+    ).rejects.toThrow('Customer not found');
+
+    expect(prisma.transaction.findMany).not.toHaveBeenCalled();
+    expect(prisma.walletTransaction.findMany).not.toHaveBeenCalled();
+  });
+
 });

@@ -80,6 +80,73 @@ export class CustomerAiService {
     });
   }
 
+  private async getCustomerFinancialContext(customerId: string) {
+    const [wallet, savings, ledgerTransactions, walletTransactions] = await Promise.all([
+      this.prisma.customerWallet.findUnique({
+        where: { customerId },
+        select: { balance: true, currency: true, status: true, updatedAt: true },
+      }),
+      this.prisma.savings.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        select: { amount: true, accountType: true, createdAt: true, updatedAt: true },
+      }),
+      this.prisma.transaction.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: { type: true, amount: true, description: true, reference: true, createdAt: true },
+      }),
+      this.prisma.walletTransaction.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        select: { type: true, amount: true, description: true, reference: true, status: true, createdAt: true },
+      }),
+    ]);
+
+    const recentTransactions = [
+      ...ledgerTransactions.map((item: any) => ({
+        source: 'SAVINGS_OR_LEDGER',
+        type: String(item.type || 'TRANSACTION'),
+        amount: Number(item.amount || 0),
+        reference: item.reference || null,
+        description: item.description || null,
+        status: 'RECORDED_IN_LEDGER',
+        date: item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt),
+      })),
+      ...walletTransactions.map((item: any) => ({
+        source: 'WALLET',
+        type: String(item.type || 'TRANSACTION'),
+        amount: Number(item.amount || 0),
+        reference: item.reference || null,
+        description: item.description || null,
+        status: String(item.status || 'UNKNOWN'),
+        date: item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt),
+      })),
+    ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date)).slice(0, 30);
+
+    return {
+      customerId,
+      snapshotAt: new Date().toISOString(),
+      wallet: wallet ? {
+        balance: Number(wallet.balance || 0),
+        currency: wallet.currency,
+        status: wallet.status,
+        updatedAt: wallet.updatedAt instanceof Date ? wallet.updatedAt.toISOString() : String(wallet.updatedAt),
+      } : null,
+      savingsAccounts: savings.map((item: any) => ({
+        accountType: item.accountType || 'Savings',
+        balance: Number(item.amount || 0),
+        openedAt: item.createdAt instanceof Date ? item.createdAt.toISOString() : String(item.createdAt),
+        updatedAt: item.updatedAt instanceof Date ? item.updatedAt.toISOString() : String(item.updatedAt),
+      })),
+      recentTransactions,
+      recentTransactionsLimit: 30,
+    };
+  }
+
   async listCases(authUser: any) {
     const customer = await this.resolveCustomer(authUser);
     const cases = await this.prisma.customerAiCase.findMany({
@@ -110,6 +177,7 @@ export class CustomerAiService {
 
   async chat(message: string, authUser: any, caseId?: string, rawAttachments?: unknown, category?: string) {
     const customer = await this.resolveCustomer(authUser);
+    const financialContext = await this.getCustomerFinancialContext(customer.id);
     const attachments = this.prepareAttachments(rawAttachments);
     const text = String(message || '').trim().slice(0, 4000);
     if (!text && !attachments.length) throw new BadRequestException('Enter a message or attach a receipt.');
@@ -189,7 +257,7 @@ export class CustomerAiService {
 
     const inputContent: any[] = [{
       type: 'input_text',
-      text: 'Customer ID: ' + customer.id + '\nCase reference: ' + supportCase.reference + '\nCase subject: ' + supportCase.subject + '\nConversation history:\n' + transcript + '\n\nRespond to the latest message and attached evidence.',
+      text: 'Customer ID: ' + customer.id + '\nCase reference: ' + supportCase.reference + '\nCase subject: ' + supportCase.subject + '\nConversation history:\n' + transcript + '\n\nRead-only PWFB financial snapshot (server-fetched for this customer):\n' + JSON.stringify(financialContext) + '\n\nRespond to the latest message and attached evidence.',
     }];
     for (const attachment of attachments) {
       const dataUrl = 'data:' + attachment.mimeType + ';base64,' + attachment.dataBase64;

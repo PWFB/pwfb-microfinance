@@ -125,6 +125,7 @@ model Customer {
   walletTransactions WalletTransaction[]
   virtualAccounts CustomerVirtualAccount[]
   atmCards CustomerAtmCard[]
+  customerAiCases CustomerAiCase[]
 }
 
 model CustomerAtmCard {
@@ -662,4 +663,46 @@ model WalletTransaction {
   @@index([status])
   @@index([providerReference])
   @@unique([providerReference])
+}
+
+model CustomerAiCase {
+  id String @id @default(cuid())
+  customerId String
+  reference String @unique
+  subject String
+  category String @default("GENERAL")
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  messages CustomerAiCaseMessage[]
+  attachments CustomerAiCaseAttachment[]
+  @@unique([id, customerId])
+  @@index([customerId, updatedAt])
+}
+
+model CustomerAiCaseMessage {
+  id String @id @default(cuid())
+  caseId String
+  customerId String
+  role String
+  content String
+  createdAt DateTime @default(now())
+  supportCase CustomerAiCase @relation(fields: [caseId, customerId], references: [id, customerId], onDelete: Cascade)
+  @@index([caseId, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model CustomerAiCaseAttachment {
+  id String @id @default(cuid())
+  caseId String
+  customerId String
+  fileName String
+  mimeType String
+  contentBytes Bytes
+  size Int
+  createdAt DateTime @default(now())
+  supportCase CustomerAiCase @relation(fields: [caseId, customerId], references: [id, customerId], onDelete: Cascade)
+  @@index([caseId, createdAt])
+  @@index([customerId, createdAt])
 }

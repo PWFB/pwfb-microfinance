@@ -211,7 +211,7 @@ describe('SavingsService', () => {
         customerId: customer.id,
         type: 'Deposit',
         amount: 5000,
-        reference: expect.stringMatching(/^PWFB-SAV-\\d{14}-[A-F0-9]{12}$/),
+        reference: expect.stringMatching(/^PWFB-SAV-\d{14}-[A-F0-9]{12}$/),
       }),
     });
   });

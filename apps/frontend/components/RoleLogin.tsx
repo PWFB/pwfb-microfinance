@@ -64,7 +64,7 @@ export default function RoleLogin() {
   const validateMode = (role: string | undefined, mode: LoginMode) => {
     if (mode === "SUPER_ADMIN" && role !== "SUPER_ADMIN") throw new Error("This account is not a Super Admin account. Use another login.");
     if (mode === "ADMIN" && role !== "ADMIN") throw new Error("This account is not an Admin account. Use another login.");
-    if (mode === "STAFF" && (role === "SUPER_ADMIN" || role === "ADMIN")) throw new Error("Admin accounts must use Admin or Super Admin login.");
+    if (mode === "STAFF" && (role === "SUPER_ADMIN" || role === "ADMIN" || role === "CUSTOMER")) throw new Error(role === "CUSTOMER" ? "This account is not a Staff account. Use another login." : "Admin accounts must use Admin or Super Admin login.");
     if (mode === "CUSTOMER" && role !== "CUSTOMER") throw new Error("This account is not a Customer account. Use another login.");
   };
 

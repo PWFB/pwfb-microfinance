@@ -49,18 +49,18 @@ async function resolvePasskeyLoginUser(service: any, identifierValue: string, mo
   if (mode === 'CUSTOMER') {
     // Support 11-digit customer login IDs without depending on a column that is
     // not present in every deployed PWFB schema.
-    const publicIdColumn = await service.prisma.$queryRawUnsafe<any[]>(
+    const publicIdColumn = await service.prisma.$queryRawUnsafe(
       `SELECT 1 FROM information_schema.columns
         WHERE table_schema = current_schema()
           AND table_name = 'User'
           AND column_name = 'publicUserId'
         LIMIT 1`,
-    );
+    ) as any[];
     if (publicIdColumn.length) {
-      const byPublicId = await service.prisma.$queryRawUnsafe<any[]>(
+      const byPublicId = await service.prisma.$queryRawUnsafe(
         `SELECT "id" FROM "User" WHERE "publicUserId" = $1 LIMIT 1`,
         identifier,
-      );
+      ) as any[];
       if (byPublicId.length) user = await service.prisma.user.findUnique({ where: { id: byPublicId[0].id } });
     }
     const customer = user

@@ -139,6 +139,8 @@ export default function RoleLogin() {
     if (app) return;
     let active = true;
     let script: HTMLScriptElement | null = null;
+    let scriptLoadHandler: (() => void) | null = null;
+    let scriptErrorHandler: (() => void) | null = null;
     let scriptTimeout: number | undefined;
 
     const renderSelectedGoogleButton = (clientId: string) => {
@@ -206,11 +208,11 @@ export default function RoleLogin() {
           renderSelectedGoogleButton(clientId);
           return;
         }
-        const onLoad = () => {
+        scriptLoadHandler = () => {
           if (scriptTimeout !== undefined) window.clearTimeout(scriptTimeout);
           renderSelectedGoogleButton(clientId);
         };
-        const onError = () => {
+        scriptErrorHandler = () => {
           if (scriptTimeout !== undefined) window.clearTimeout(scriptTimeout);
           if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration.");
         };
@@ -222,8 +224,8 @@ export default function RoleLogin() {
           script.async = true;
           script.defer = true;
         }
-        script.addEventListener("load", onLoad);
-        script.addEventListener("error", onError);
+        script.addEventListener("load", scriptLoadHandler);
+        script.addEventListener("error", scriptErrorHandler);
         scriptTimeout = window.setTimeout(() => {
           if (active && !window.google?.accounts?.id) {
             setGoogleError("Google sign-in is taking too long to load. Check your connection or content blockers.");
@@ -240,8 +242,8 @@ export default function RoleLogin() {
       active = false;
       if (scriptTimeout !== undefined) window.clearTimeout(scriptTimeout);
       if (script) {
-        script.removeEventListener("load", () => {});
-        script.removeEventListener("error", () => {});
+        if (scriptLoadHandler) script.removeEventListener("load", scriptLoadHandler);
+        if (scriptErrorHandler) script.removeEventListener("error", scriptErrorHandler);
       }
     };
   }, [selectedMode]);
@@ -253,7 +255,7 @@ export default function RoleLogin() {
       try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); } catch (error) { setMessage(error instanceof Error ? error.message : "Google sign-in failed."); setLoading(null); }
     };
     window.__pwfbNativePasskeyResult = async (payload) => {
-      const mode = (payload?.loginMode || "CUSTOMER") as LoginMode;
+      const mode = (payload?.loginMode || selectedModeRef.current) as LoginMode;
       if (!payload?.ok || !payload?.access_token) { setMessage(payload?.message || "Fingerprint / Face Unlock could not be completed."); setLoading(null); return; }
       try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); } catch (error) { setMessage(error instanceof Error ? error.message : "Biometric sign-in failed."); setLoading(null); }
     };

@@ -47,7 +47,6 @@ async function resolvePasskeyLoginUser(service: any, identifierValue: string, mo
 
   let user: any = null;
   if (mode === 'CUSTOMER') {
-    let user: any = null;
     // Support 11-digit customer login IDs without depending on a column that is
     // not present in every deployed PWFB schema.
     const publicIdColumn = await service.prisma.$queryRawUnsafe<any[]>(
@@ -64,10 +63,20 @@ async function resolvePasskeyLoginUser(service: any, identifierValue: string, mo
       );
       if (byPublicId.length) user = await service.prisma.user.findUnique({ where: { id: byPublicId[0].id } });
     }
-    const customer = user ? null : await service.prisma.customer.findFirst({
-      where: { OR: [{ id: identifier }, { email: identifier.toLowerCase() }, { phone: identifier }] },
-      include: { user: true },
-    });
+    const customer = user
+      ? await service.prisma.customer.findFirst({
+          where: {
+            OR: [
+              { userId: user.id },
+              ...(user.customerId ? [{ id: user.customerId }] : []),
+              ...(user.email ? [{ email: { equals: String(user.email).trim(), mode: 'insensitive' as const } }] : []),
+            ],
+          },
+        })
+      : await service.prisma.customer.findFirst({
+          where: { OR: [{ id: identifier }, { email: identifier.toLowerCase() }, { phone: identifier }] },
+          include: { user: true },
+        });
     if (!customer) throw new Error('No PWFB customer profile matches that customer ID, email or phone number.');
     user = user || customer.user || await service.prisma.user.findUnique({ where: { customerId: customer.id } }) || (customer.email ? await service.prisma.user.findUnique({ where: { email: String(customer.email).trim().toLowerCase() } }) : null);
     if (!user) throw new Error('Your PWFB customer profile is not linked to a login account. Sign in with your password or contact your branch.');

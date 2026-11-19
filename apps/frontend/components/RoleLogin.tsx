@@ -137,12 +137,8 @@ export default function RoleLogin() {
         localStorage.setItem(GOOGLE_NONCE_PREFIX + mode, nonce);
         host.innerHTML = "";
         window.google.accounts.id.initialize({
-          client_id: clientId,
-          nonce,
-          auto_select: false,
-          cancel_on_tap_outside: false,
-          use_fedcm_for_prompt: false,
-          context: "signin",
+          client_id: clientId, nonce, auto_select: false,
+          cancel_on_tap_outside: false, use_fedcm_for_prompt: false, context: "signin",
           callback: (response: any) => {
             if (!response?.credential) {
               setMessage("Google did not return a sign-in credential. Please try again.");
@@ -230,7 +226,7 @@ export default function RoleLogin() {
       try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); } catch (error) { setMessage(error instanceof Error ? error.message : "Google sign-in failed."); setLoading(null); }
     };
     window.__pwfbNativePasskeyResult = async (payload) => {
-      const mode = (payload?.loginMode || "CUSTOMER") as LoginMode;
+      const mode = (payload?.loginMode || selectedMode) as LoginMode;
       if (!payload?.ok || !payload?.access_token) { setMessage(payload?.message || "Fingerprint / Face Unlock could not be completed."); setLoading(null); return; }
       try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); } catch (error) { setMessage(error instanceof Error ? error.message : "Biometric sign-in failed."); setLoading(null); }
     };

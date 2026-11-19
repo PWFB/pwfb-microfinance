@@ -67,7 +67,7 @@ describe('CustomerAiService customer case isolation', () => {
     );
 
     expect(prisma.customer.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: { userId: 'user-42' },
+      where: { OR: [{ userId: 'user-42' }] },
     }));
     expect(prisma.customerAiCase.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ customerId: 'PWFB-CUS-0042', status: 'OPEN' }),

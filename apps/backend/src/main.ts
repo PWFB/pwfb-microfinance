@@ -13,6 +13,7 @@ function getCorsOrigins() {
         process.env.FRONTEND_URL,
         'https://pwfb-financial-portal-web.onrender.com',
         'https://pwfb-financial-portal-web-live.onrender.com',
+    'https://pwfb-financial-portal-frontend.onrender.com',
         'https://pwfb-microfinance-staging.onrender.com',
         'https://pwfb-microfinance-965u.onrender.com',
         'https://pwfb-microfinance-1.onrender.com',

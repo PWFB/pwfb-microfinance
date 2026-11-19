@@ -14,7 +14,7 @@ const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583
 const PLACEHOLDER_RP_IDS = new Set(['your-frontend-domain.com', 'example.com', 'localhost']);
 
 export function normalizeOrigin(value?: string | null): string {
-  return String(value || '').trim().replace(/\\/$/, '');
+  return String(value || '').trim().replace(/\/$/, '');
 }
 
 export function isAndroidAppOrigin(value?: string | null): boolean {

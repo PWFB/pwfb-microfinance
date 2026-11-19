@@ -216,4 +216,57 @@ describe('SavingsService', () => {
     });
   });
 
+
+  it('records a reference when depositing into an existing savings account', async () => {
+    const existing = {
+      id: 'savings-deposit-1',
+      customerId: 'customer-deposit-1',
+      amount: 500,
+      accountType: 'FIXED',
+    };
+    prisma.savings.findUnique = jest.fn().mockResolvedValue(existing);
+    prisma.savings.update = jest.fn().mockResolvedValue({
+      ...existing,
+      amount: 750,
+    });
+
+    await service.deposit(existing.id, 250, 'Additional fixed savings deposit');
+
+    expect(prisma.transaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: existing.customerId,
+        type: 'Deposit',
+        amount: 250,
+        description: 'Additional fixed savings deposit',
+        reference: expect.stringMatching(/^PWFB-SAV-\\d{14}-[A-F0-9]{12}$/),
+      }),
+    });
+  });
+
+  it('records a reference when withdrawing from an existing savings account', async () => {
+    const existing = {
+      id: 'savings-withdrawal-1',
+      customerId: 'customer-withdrawal-1',
+      amount: 900,
+      accountType: 'FIXED',
+    };
+    prisma.savings.findUnique = jest.fn().mockResolvedValue(existing);
+    prisma.savings.update = jest.fn().mockResolvedValue({
+      ...existing,
+      amount: 600,
+    });
+
+    await service.withdraw(existing.id, 300, 'Fixed savings withdrawal');
+
+    expect(prisma.transaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: existing.customerId,
+        type: 'Withdrawal',
+        amount: 300,
+        description: 'Fixed savings withdrawal',
+        reference: expect.stringMatching(/^PWFB-SAV-\\d{14}-[A-F0-9]{12}$/),
+      }),
+    });
+  });
+
 });

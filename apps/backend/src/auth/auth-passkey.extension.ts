@@ -4,7 +4,7 @@ import { AuthService } from './auth.service';
 import { assertAllowedWebAuthnOrigin, getWebAuthnExpectedOrigins, getWebAuthnRpId } from './webauthn-config';
 
 declare module './auth.service' {
-  interface AuthService { passkeyRegisterOptions(authUser:any, origin?:string, replaceExisting?:boolean):Promise<any>; passkeyRegisterVerify(authUser:any, body:any, origin?:string):Promise<any>; passkeyLoginOptions(email?:string, origin?:string):Promise<any>; passkeyLoginVerify(body:any, origin?:string):Promise<any>; passkeyUnregisterAll(authUser:any):Promise<any>; }
+  interface AuthService { passkeyRegisterOptions(authUser:any, origin?:string, replaceExisting?:boolean):Promise<any>; passkeyRegisterVerify(authUser:any, body:any, origin?:string):Promise<any>; passkeyLoginOptions(identifier?:string,loginMode?:string,origin?:string):Promise<any>; passkeyLoginVerify(body:any,origin?:string,loginMode?:string):Promise<any>; passkeyUnregisterAll(authUser:any):Promise<any>; }
 }
 const tableReady=new WeakSet<object>();
 async function ensureTables(service:any){if(tableReady.has(service))return;await service.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PasskeyChallenge" ("challenge" TEXT PRIMARY KEY,"userId" TEXT,"kind" TEXT NOT NULL,"expiresAt" TIMESTAMP(3) NOT NULL)`);tableReady.add(service)}

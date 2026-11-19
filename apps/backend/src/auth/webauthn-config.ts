@@ -1,5 +1,12 @@
 const DEFAULT_PRODUCTION_ORIGIN = 'https://pwfb-microfinance-1.onrender.com';
 const DEFAULT_PRODUCTION_RP_ID = 'pwfb-microfinance-1.onrender.com';
+const DEFAULT_WEB_ORIGINS = [
+  DEFAULT_PRODUCTION_ORIGIN,
+  'https://pwfb-financial-portal-web.onrender.com',
+  'https://pwfb-financial-portal-web-live.onrender.com',
+  'https://pwfb-financial-portal-frontend.onrender.com',
+  'https://pwfb-microfinance-staging.onrender.com',
+];
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';
 const CURRENT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbDY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
 const ACTUAL_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydbY6N21LaX0LLvx4Qks583zIW5-AaZP5_8vsNy7TU';
@@ -28,10 +35,18 @@ function configuredAndroidOrigins(): string[] {
 }
 
 export function getWebAuthnOrigin(requestOrigin?: string | null): string {
+  const request = normalizeOrigin(requestOrigin);
   const configured = configuredOrigin();
+  const explicitlyAllowed = (process.env.WEBAUTHN_ALLOWED_ORIGINS || process.env.WEBAUTHN_ORIGIN || '')
+    .split(',')
+    .map(normalizeOrigin)
+    .filter(Boolean);
+  const allowedOrigins = Array.from(new Set([...explicitlyAllowed, ...DEFAULT_WEB_ORIGINS]));
+  // The browser origin is the WebAuthn RP boundary. Use its hostname when it is
+  // an explicitly configured or known PWFB frontend, rather than the API host.
+  if (request && !isAndroidAppOrigin(request) && allowedOrigins.includes(request)) return request;
   if (configured) return configured;
   if (process.env.NODE_ENV === 'production') return DEFAULT_PRODUCTION_ORIGIN;
-  const request = normalizeOrigin(requestOrigin);
   return request && !isAndroidAppOrigin(request) ? request : 'http://localhost:3000';
 }
 
@@ -54,7 +69,7 @@ export function getWebAuthnExpectedOrigins(requestOrigin?: string | null): strin
 
   const allowed = Array.from(new Set([
     ...configured,
-    ...(process.env.NODE_ENV === 'production' ? [DEFAULT_PRODUCTION_ORIGIN] : []),
+    ...DEFAULT_WEB_ORIGINS,
     ...configuredAndroidOrigins(),
   ]));
   if (!allowed.length) allowed.push('http://localhost:3000');

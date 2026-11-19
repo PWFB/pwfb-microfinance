@@ -6,16 +6,21 @@ function getCorsOrigins() {
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
-
-  if (configured.length) return configured;
-  if (process.env.NODE_ENV !== 'production') {
-    return ['http://localhost:3000', 'http://localhost:3001'];
-  }
-  return [
-    process.env.FRONTEND_URL || 'https://pwfb-microfinance-965u.onrender.com',
+  const deployedFrontends = [
+    process.env.FRONTEND_URL,
+    'https://pwfb-financial-portal-web.onrender.com',
+    'https://pwfb-financial-portal-web-live.onrender.com',
+    'https://pwfb-financial-portal-frontend.onrender.com',
+    'https://pwfb-microfinance-staging.onrender.com',
+    'https://pwfb-microfinance-965u.onrender.com',
     'https://pwfb-microfinance-1.onrender.com',
     'https://pwfb-frontend.onrender.com',
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
+
+  if (process.env.NODE_ENV !== 'production') {
+    return Array.from(new Set(['http://localhost:3000', 'http://localhost:3001', ...configured]));
+  }
+  return Array.from(new Set([...configured, ...deployedFrontends]));
 }
 
 async function bootstrap() {

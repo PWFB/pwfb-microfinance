@@ -113,7 +113,7 @@ export default function RoleLogin() {
       }
       const options = await apiRequest("/auth/passkey/login/options", { method: "POST", body: JSON.stringify({ identifier: values[mode].trim(), loginMode: mode }) });
       const credential = await startAuthentication({ optionsJSON: options });
-      await completeLogin(await apiRequest("/auth/passkey/login/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) }), mode);
+      await completeLogin(await apiRequest("/auth/passkey/login/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge, loginMode: mode }) }), mode);
     } catch (error) { setMessage(error instanceof Error ? error.message : "Fingerprint / Face Unlock failed."); setLoading(null); }
   };
 

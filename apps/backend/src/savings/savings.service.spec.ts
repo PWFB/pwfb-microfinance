@@ -238,7 +238,7 @@ describe('SavingsService', () => {
         type: 'Deposit',
         amount: 250,
         description: 'Additional fixed savings deposit',
-        reference: expect.stringMatching(/^PWFB-SAV-\\d{14}-[A-F0-9]{12}$/),
+        reference: expect.stringMatching(/^PWFB-SAV-\d{14}-[A-F0-9]{12}$/),
       }),
     });
   });
@@ -264,7 +264,7 @@ describe('SavingsService', () => {
         type: 'Withdrawal',
         amount: 300,
         description: 'Fixed savings withdrawal',
-        reference: expect.stringMatching(/^PWFB-SAV-\\d{14}-[A-F0-9]{12}$/),
+        reference: expect.stringMatching(/^PWFB-SAV-\d{14}-[A-F0-9]{12}$/),
       }),
     });
   });

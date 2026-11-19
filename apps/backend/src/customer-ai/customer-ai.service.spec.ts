@@ -6,6 +6,7 @@ describe('CustomerAiService customer case isolation', () => {
   let prisma: any;
   const savedApiKey = process.env.OPENAI_API_KEY;
   const savedModel = process.env.BALMZ_AI_MODEL;
+  const savedFetch = global.fetch;
 
   beforeEach(() => {
     process.env.OPENAI_API_KEY = 'test-only-key';
@@ -18,6 +19,18 @@ describe('CustomerAiService customer case isolation', () => {
           firstName: 'Test',
           lastName: 'Customer',
         }),
+      },
+      customerWallet: {
+        findUnique: jest.fn().mockResolvedValue({ balance: 2500, currency: 'NGN', status: 'ACTIVE', updatedAt: new Date('2026-11-19T10:00:00.000Z') }),
+      },
+      savings: {
+        findMany: jest.fn().mockResolvedValue([{ amount: 10000, accountType: 'FIXED', createdAt: new Date('2026-11-01T10:00:00.000Z'), updatedAt: new Date('2026-11-19T10:00:00.000Z') }]),
+      },
+      transaction: {
+        findMany: jest.fn().mockResolvedValue([{ type: 'Deposit', amount: 10000, description: 'Opening deposit', reference: 'PWFB-SAV-OPEN-1', createdAt: new Date('2026-11-01T10:00:00.000Z') }]),
+      },
+      walletTransaction: {
+        findMany: jest.fn().mockResolvedValue([{ type: 'DEPOSIT', amount: 2500, description: 'Wallet deposit', reference: 'PWFB-WALLET-1', status: 'COMPLETED', createdAt: new Date('2026-11-19T10:00:00.000Z') }]),
       },
       customerAiCase: {
         create: jest.fn().mockResolvedValue({
@@ -54,6 +67,7 @@ describe('CustomerAiService customer case isolation', () => {
     else process.env.OPENAI_API_KEY = savedApiKey;
     if (savedModel === undefined) delete process.env.BALMZ_AI_MODEL;
     else process.env.BALMZ_AI_MODEL = savedModel;
+    (global as any).fetch = savedFetch;
     jest.restoreAllMocks();
   });
 
@@ -82,6 +96,9 @@ describe('CustomerAiService customer case isolation', () => {
     }));
     const providerBody = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
     expect(providerBody.input[0].content.some((part: any) => part.type === 'input_image')).toBe(true);
+    expect(providerBody.input[0].content[0].text).toContain('PWFB-SAV-OPEN-1');
+    expect(prisma.transaction.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { customerId: 'PWFB-CUS-0042' } }));
+    expect(prisma.walletTransaction.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { customerId: 'PWFB-CUS-0042' } }));
     expect(result).toMatchObject({
       customerId: 'PWFB-CUS-0042',
       caseId: 'case-42',

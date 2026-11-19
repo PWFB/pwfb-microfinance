@@ -125,8 +125,10 @@ public class MainActivity extends Activity {
         final String loginIdentifier = identifier == null ? "" : identifier.trim();
         new Thread(() -> {
             try {
+                if (loginIdentifier.isEmpty()) throw new Exception("Enter your customer ID, email or phone number before using fingerprint login.");
                 JSONObject request = new JSONObject();
-                if (loginIdentifier.contains("@")) request.put("email", loginIdentifier);
+                request.put("identifier", loginIdentifier);
+                request.put("loginMode", mode);
                 JSONObject options = postPublic("/auth/passkey/login/options", request);
                 GetPublicKeyCredentialOption option = new GetPublicKeyCredentialOption(options.toString(), null, Collections.emptySet());
                 GetCredentialRequest credentialRequest = new GetCredentialRequest.Builder()
@@ -150,6 +152,7 @@ public class MainActivity extends Activity {
                                             JSONObject body = new JSONObject();
                                             body.put("credential", new JSONObject(authenticationJson));
                                             body.put("challenge", options.optString("challenge", ""));
+                                            body.put("loginMode", mode);
                                             JSONObject result = postPublic("/auth/passkey/login/verify", body);
                                             String token = result.optString("access_token", "");
                                             if (token.isEmpty()) throw new Exception("PWFB did not return a login session.");

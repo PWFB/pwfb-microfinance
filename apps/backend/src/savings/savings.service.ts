@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSavingsDto } from './dto/create-savings.dto';
 import { UpdateSavingsDto } from './dto/update-savings.dto';
@@ -18,6 +19,11 @@ export class SavingsService {
       throw new BadRequestException('Savings amount cannot be negative');
     }
     return Math.round(n * 100) / 100;
+  }
+
+  private reference(prefix: string) {
+    const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+    return `${prefix}-${timestamp}-${randomBytes(6).toString('hex').toUpperCase()}`;
   }
 
   async create(createSavingsDto: CreateSavingsDto) {
@@ -43,6 +49,7 @@ export class SavingsService {
         await tx.transaction.create({
           data: {
             customerId: createSavingsDto.customerId,
+            reference: this.reference('PWFB-SAV'),
             type: 'Deposit',
             amount: openingAmount,
             description: `Savings account opening deposit — ${createSavingsDto.accountType}`,
@@ -72,6 +79,7 @@ export class SavingsService {
       await tx.transaction.create({
         data: {
           customerId: savings.customerId,
+          reference: this.reference('PWFB-SAV'),
           type: 'Deposit',
           amount: value,
           description: description || `Savings deposit — ${savings.id}`,
@@ -105,6 +113,7 @@ export class SavingsService {
       await tx.transaction.create({
         data: {
           customerId: savings.customerId,
+          reference: this.reference('PWFB-SAV'),
           type: 'Withdrawal',
           amount: value,
           description: description || `Savings withdrawal — ${savings.id}`,
@@ -164,6 +173,7 @@ export class SavingsService {
           await tx.transaction.create({
             data: {
               customerId: updated.customerId,
+              reference: this.reference('PWFB-SAV-ADJ'),
               type: delta > 0 ? 'Deposit' : 'Withdrawal',
               amount: Math.abs(delta),
               description: `Savings balance correction — ${id}`,

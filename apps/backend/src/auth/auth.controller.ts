@@ -88,13 +88,13 @@ export class AuthController {
   }
 
   @Post('passkey/login/options')
-  passkeyLoginOptions(@Body() body: { email?: string }, @Headers('origin') origin?: string) {
-    return this.authService.passkeyLoginOptions(body?.email, origin);
+  passkeyLoginOptions(@Body() body: { identifier?: string; loginMode?: string }, @Headers('origin') origin?: string) {
+    return this.authService.passkeyLoginOptions(body?.identifier, body?.loginMode, origin);
   }
 
   @Post('passkey/login/verify')
   passkeyLoginVerify(@Body() body: any, @Headers('origin') origin?: string) {
-    return this.authService.passkeyLoginVerify(body, origin);
+    return this.authService.passkeyLoginVerify(body, origin, body?.loginMode);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -13,6 +13,10 @@ describe('CustomerAiService customer isolation and receipt cases', () => {
     prisma = {
       user: { findUnique: jest.fn().mockResolvedValue(user) },
       customer: { findFirst: jest.fn(), findUnique: jest.fn() },
+      customerWallet: { findUnique: jest.fn().mockResolvedValue(null) },
+      savings: { findMany: jest.fn().mockResolvedValue([]) },
+      walletTransaction: { findMany: jest.fn().mockResolvedValue([]) },
+      loan: { findMany: jest.fn().mockResolvedValue([]) },
       $executeRawUnsafe: jest.fn().mockResolvedValue(1),
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     };

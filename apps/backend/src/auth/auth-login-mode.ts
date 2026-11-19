@@ -14,7 +14,7 @@ export function assertLoginModeRole(modeValue: string, roleValue: string) {
   if (mode === 'ADMIN' && role !== 'ADMIN') {
     throw new UnauthorizedException('This account is not an Admin account. Use another login.');
   }
-  if (mode === 'STAFF' && (role === 'SUPER_ADMIN' || role === 'ADMIN')) {
+  if (mode === 'STAFF' && (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'CUSTOMER')) {
     throw new UnauthorizedException('Admin accounts must use Admin or Super Admin Login.');
   }
   if (mode === 'CUSTOMER' && role !== 'CUSTOMER') {

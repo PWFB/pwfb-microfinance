@@ -184,4 +184,36 @@ describe('SavingsService', () => {
       },
     });
   });
+
+  it('assigns a generated reference to a savings opening deposit', async () => {
+    const customer = {
+      id: 'customer-reference-1',
+      firstName: 'Test',
+      lastName: 'Customer',
+    };
+    prisma.customer.findUnique = jest.fn().mockResolvedValue(customer);
+    prisma.savings.create = jest.fn().mockResolvedValue({
+      id: 'savings-reference-1',
+      customerId: customer.id,
+      amount: 5000,
+      accountType: 'FIXED',
+      customer,
+    });
+
+    await service.create({
+      customerId: customer.id,
+      amount: 5000,
+      accountType: 'FIXED',
+    });
+
+    expect(prisma.transaction.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        customerId: customer.id,
+        type: 'Deposit',
+        amount: 5000,
+        reference: expect.stringMatching(/^PWFB-SAV-\\d{14}-[A-F0-9]{12}$/),
+      }),
+    });
+  });
+
 });

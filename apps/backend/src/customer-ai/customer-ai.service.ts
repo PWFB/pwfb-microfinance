@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { fetchWithTimeout } from '../ai/ai-http.util';
@@ -19,14 +19,32 @@ export class CustomerAiService {
     if (!userId || String(authUser?.role || '').toUpperCase() !== 'CUSTOMER') {
       throw new UnauthorizedException('Sign in with your PWFB customer account to use BALMZ AI.');
     }
+    const linkedCustomerId = String(authUser?.customerId || '').trim();
     const customer = await this.prisma.customer.findFirst({
-      where: { userId },
+      where: { OR: [{ userId }, ...(linkedCustomerId ? [{ id: linkedCustomerId }] : [])] },
       select: { id: true, userId: true, firstName: true, lastName: true },
     });
-    if (!customer || customer.userId !== userId) {
+    if (!customer || (customer.userId && customer.userId !== userId) || (customer.userId !== userId && customer.id !== linkedCustomerId)) {
       throw new UnauthorizedException('Your customer profile is not linked to this login. Contact PWFB support to link your account.');
     }
     return customer;
+  }
+
+  private async providerUnavailable(customerId: string, supportCase: any) {
+    const reply = 'I could not reach the AI service just now. Your complaint and any receipt you uploaded have been saved under case ' + supportCase.reference + '. Please retry or contact PWFB support and quote this reference.';
+    await this.prisma.customerAiCaseMessage.create({
+      data: { caseId: supportCase.id, customerId, role: 'assistant', content: reply },
+    });
+    await this.prisma.customerAiCase.update({ where: { id: supportCase.id }, data: { updatedAt: new Date() } });
+    return {
+      assistant: 'BALMZ AI',
+      configured: false,
+      reply,
+      customerId,
+      caseId: supportCase.id,
+      caseReference: supportCase.reference,
+      status: supportCase.status,
+    };
   }
 
   private caseReference() {
@@ -182,18 +200,23 @@ export class CustomerAiService {
       }
     }
 
-    const response = await fetchWithTimeout('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: process.env.BALMZ_AI_MODEL || 'gpt-5.6',
-        instructions,
-        input: [{ role: 'user', content: inputContent }],
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetchWithTimeout('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+        body: JSON.stringify({
+          model: process.env.BALMZ_AI_MODEL || 'gpt-5.6',
+          instructions,
+          input: [{ role: 'user', content: inputContent }],
+        }),
+      });
+    } catch {
+      return this.providerUnavailable(customer.id, supportCase);
+    }
     if (!response.ok) {
       await response.text();
-      throw new ServiceUnavailableException('BALMZ AI provider is temporarily unavailable. Your case and uploaded receipt are saved; please retry shortly or quote the case reference to PWFB support.');
+      return this.providerUnavailable(customer.id, supportCase);
     }
 
     const payload: any = await response.json();

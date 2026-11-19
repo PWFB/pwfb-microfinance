@@ -56,6 +56,8 @@ export default function RoleLogin() {
   const [selectedMode, setSelectedMode] = useState<LoginMode>("SUPER_ADMIN");
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
   const selectedCard = cards.find(card => card.mode === selectedMode) ?? cards[0];
+  const selectedModeRef = useRef<LoginMode>(selectedMode);
+  selectedModeRef.current = selectedMode;
 
   const destination = (role?: string) => role === "CUSTOMER" ? "/customer-dashboard" : role === "SUPER_ADMIN" ? "/dashboard" : "/staff-dashboard";
 
@@ -107,87 +109,146 @@ export default function RoleLogin() {
   const biometricLogin = async (mode: LoginMode) => {
     setMessage(""); setLoading(mode);
     try {
+      const identifier = values[mode].trim();
+      if (!identifier) throw new Error(mode === "CUSTOMER"
+        ? "Enter your Customer ID, email or phone number before using fingerprint login."
+        : "Enter the email address registered to this account before using fingerprint login.");
       if (nativeApp && window.PWFBNative?.signInWithPasskey) {
-        window.PWFBNative.signInWithPasskey(mode, values[mode].trim());
+        window.PWFBNative.signInWithPasskey(mode, identifier);
         return;
       }
-      const options = await apiRequest("/auth/passkey/login/options", { method: "POST", body: JSON.stringify({ email: values[mode].includes("@") ? values[mode].trim() : undefined }) });
+      const options = await apiRequest("/auth/passkey/login/options", {
+        method: "POST",
+        body: JSON.stringify({ identifier, loginMode: mode }),
+      });
       const credential = await startAuthentication({ optionsJSON: options });
-      await completeLogin(await apiRequest("/auth/passkey/login/verify", { method: "POST", body: JSON.stringify({ credential, challenge: options.challenge }) }), mode);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Fingerprint / Face Unlock failed."); setLoading(null); }
+      await completeLogin(await apiRequest("/auth/passkey/login/verify", {
+        method: "POST",
+        body: JSON.stringify({ credential, challenge: options.challenge, loginMode: mode }),
+      }), mode);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Fingerprint / Face Unlock failed.");
+      setLoading(null);
+    }
   };
 
   useEffect(() => {
     const app = typeof window !== "undefined" && !!window.PWFBNative;
     setNativeApp(app);
+    setGoogleReady(previous => ({ ...previous, [selectedMode]: false }));
     if (app) return;
     let active = true;
-    const renderGoogle = (clientId: string) => {
+    let script: HTMLScriptElement | null = null;
+    let scriptTimeout: number | undefined;
+
+    const renderSelectedGoogleButton = (clientId: string) => {
       try {
-      if (!active || !window.google?.accounts?.id) return;
-      cards.forEach(({ mode }) => {
+        if (!active || !window.google?.accounts?.id) return;
+        const mode = selectedModeRef.current;
         const host = googleRefs.current[mode];
         if (!host) return;
-        const bytes = new Uint8Array(32); crypto.getRandomValues(bytes);
+        const bytes = new Uint8Array(32);
+        crypto.getRandomValues(bytes);
         const nonce = Array.from(bytes, value => value.toString(16).padStart(2, "0")).join("");
         localStorage.setItem(GOOGLE_NONCE_PREFIX + mode, nonce);
         host.innerHTML = "";
-        window.google.accounts.id.initialize({ client_id: clientId, nonce, auto_select: false, cancel_on_tap_outside: false, use_fedcm_for_prompt: false, context: "signin", callback: (response: any) => googleLogin({ credential: response.credential, client_id: clientId, nonce: localStorage.getItem(GOOGLE_NONCE_PREFIX + mode) || nonce, loginMode: mode }) });
-        window.google.accounts.id.renderButton(host, { type: "standard", theme: "outline", size: "large", text: "continue_with", shape: "rectangular", logo_alignment: "left", width: Math.min(360, Math.max(220, host.clientWidth || 280)) });
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          nonce,
+          auto_select: false,
+          cancel_on_tap_outside: false,
+          use_fedcm_for_prompt: false,
+          context: "signin",
+          callback: (response: any) => {
+            const callbackMode = mode;
+            void googleLogin({
+              credential: response.credential,
+              client_id: clientId,
+              nonce: localStorage.getItem(GOOGLE_NONCE_PREFIX + callbackMode) || nonce,
+              loginMode: callbackMode,
+            });
+          },
+        });
+        window.google.accounts.id.renderButton(host, {
+          type: "standard",
+          theme: "outline",
+          size: "large",
+          text: "continue_with",
+          shape: "rectangular",
+          logo_alignment: "left",
+          width: Math.min(360, Math.max(220, host.clientWidth || 280)),
+        });
         setGoogleReady(previous => ({ ...previous, [mode]: true }));
-      });
       } catch (error) {
         if (active) setGoogleError(error instanceof Error ? error.message : "Google sign-in could not be initialized. Please try again later.");
       }
     };
+
     const load = async () => {
       try {
-        // Use the public frontend client ID immediately. Do not make the Google
-        // button wait for a backend config request that may be slow or unreachable.
         let clientId = GOOGLE_CLIENT_ID.trim();
         if (!clientId) {
           const config = await Promise.race([
             apiRequest("/auth/google/config", { method: "GET" }),
             new Promise<never>((_, reject) => window.setTimeout(
-              () => reject(new Error("Google configuration request timed out. Please check the LAB MICROFINANCE API URL.")),
-              10000
-            ))
+              () => reject(new Error("Google configuration request timed out. Please check the PWFB API URL.")),
+              10000,
+            )),
           ]);
           clientId = String(config?.client_id || "").trim();
         }
+        if (!active) return;
         if (!clientId) {
-          if (active) setGoogleError("Google sign-in is not configured for this environment.");
+          setGoogleError("Google sign-in is not configured for this environment.");
           return;
         }
-        if (window.google?.accounts?.id) { renderGoogle(clientId); return; }
-        const script = document.createElement("script");
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.defer = true;
-        const scriptTimeout = window.setTimeout(() => {
+        if (window.google?.accounts?.id) {
+          renderSelectedGoogleButton(clientId);
+          return;
+        }
+        const onLoad = () => {
+          if (scriptTimeout !== undefined) window.clearTimeout(scriptTimeout);
+          renderSelectedGoogleButton(clientId);
+        };
+        const onError = () => {
+          if (scriptTimeout !== undefined) window.clearTimeout(scriptTimeout);
+          if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration.");
+        };
+        script = document.getElementById("pwfb-google-identity") as HTMLScriptElement | null;
+        if (!script) {
+          script = document.createElement("script");
+          script.id = "pwfb-google-identity";
+          script.src = "https://accounts.google.com/gsi/client";
+          script.async = true;
+          script.defer = true;
+        }
+        script.addEventListener("load", onLoad);
+        script.addEventListener("error", onError);
+        scriptTimeout = window.setTimeout(() => {
           if (active && !window.google?.accounts?.id) {
             setGoogleError("Google sign-in is taking too long to load. Check your connection or content blockers.");
           }
         }, 12000);
-        script.onload = () => {
-          window.clearTimeout(scriptTimeout);
-          renderGoogle(clientId);
-        };
-        script.onerror = () => {
-          window.clearTimeout(scriptTimeout);
-          if (active) setGoogleError("Google sign-in could not load. Check the network and Google configuration.");
-        };
-        document.head.appendChild(script);
+        if (!script.isConnected) document.head.appendChild(script);
       } catch (error) {
         if (active) setGoogleError(error instanceof Error ? error.message : "Google sign-in could not be initialized. Please try again later.");
       }
     };
-    load(); return () => { active = false; };
-  }, []);
+
+    void load();
+    return () => {
+      active = false;
+      if (scriptTimeout !== undefined) window.clearTimeout(scriptTimeout);
+      if (script) {
+        script.removeEventListener("load", () => {});
+        script.removeEventListener("error", () => {});
+      }
+    };
+  }, [selectedMode]);
 
   useEffect(() => {
     window.__pwfbNativeGoogleResult = async (payload) => {
-      const mode = (payload?.loginMode || "CUSTOMER") as LoginMode;
+      const mode = (payload?.loginMode || selectedModeRef.current) as LoginMode;
       if (!payload?.ok || !payload?.access_token) { setMessage(payload?.message || "Google sign-in could not be completed."); setLoading(null); return; }
       try { await completeLogin({ access_token: payload.access_token, user: payload.user }, mode); } catch (error) { setMessage(error instanceof Error ? error.message : "Google sign-in failed."); setLoading(null); }
     };

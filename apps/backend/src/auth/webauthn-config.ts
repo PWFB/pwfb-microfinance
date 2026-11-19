@@ -4,6 +4,7 @@ const DEFAULT_WEB_ORIGINS = [
   DEFAULT_PRODUCTION_ORIGIN,
   'https://pwfb-financial-portal-web.onrender.com',
   'https://pwfb-financial-portal-web-live.onrender.com',
+  'https://pwfb-financial-portal-frontend.onrender.com',
   'https://pwfb-microfinance-staging.onrender.com',
 ];
 const DEFAULT_ANDROID_APP_ORIGIN = 'android:apk-key-hash:EydDY6N2lLaxOLlvx4Qks583zlW5-AaZP5_8vsNy7TU';

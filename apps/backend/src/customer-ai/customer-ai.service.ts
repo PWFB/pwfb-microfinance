@@ -28,7 +28,7 @@ export class CustomerAiService {
     if (!customer && user.customerId) customer = await this.prisma.customer.findUnique({ where: { id: user.customerId } });
     if (!customer) customer = await this.prisma.customer.findFirst({ where: { userId: user.id } });
     if (!customer && user.email) {
-      customer = await this.prisma.customer.findUnique({ where: { email: String(user.email).trim().toLowerCase() } });
+      customer = await this.prisma.customer.findFirst({ where: { email: { equals: String(user.email).trim(), mode: 'insensitive' } } });
     }
     if (!customer) {
       throw new NotFoundException('Your PWFB login is not linked to a customer profile. Contact your branch to link your existing account.');

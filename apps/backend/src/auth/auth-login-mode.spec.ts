@@ -17,4 +17,7 @@ describe('PWFB login mode role validation', () => {
   it('keeps staff separate from privileged admin accounts', () => {
     expect(() => assertLoginModeRole('STAFF', 'SUPER_ADMIN')).toThrow(UnauthorizedException);
   });
+  it('does not allow customer accounts through the staff login screen', () => {
+    expect(() => assertLoginModeRole('STAFF', 'CUSTOMER')).toThrow(UnauthorizedException);
+  });
 });

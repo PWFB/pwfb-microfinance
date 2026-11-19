@@ -75,7 +75,7 @@ export class BankingService {
       type: String(transaction.type || 'TRANSACTION')
         .trim()
         .toUpperCase()
-        .replace(/[\\s-]+/g, '_'),
+        .replace(/[\s-]+/g, '_'),
       source: 'LEDGER',
       status: 'COMPLETED',
       provider: null,
@@ -90,7 +90,7 @@ export class BankingService {
       type: String(transaction.type || 'TRANSACTION')
         .trim()
         .toUpperCase()
-        .replace(/[\\s-]+/g, '_'),
+        .replace(/[\s-]+/g, '_'),
       source: 'WALLET',
     }));
 

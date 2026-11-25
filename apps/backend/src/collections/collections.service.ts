@@ -32,10 +32,6 @@ export class CollectionsService {
     return where;
   }
 
-  private async ensureAllocationTable(tx: any = this.prisma) {
-    await tx.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS "PWFBRepaymentAllocation" ("repaymentId" TEXT PRIMARY KEY,"principalPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,"interestPaid" DOUBLE PRECISION NOT NULL DEFAULT 0,"createdAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"updatedAt" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
-  }
-
   private async allocateLoanRepayment(tx: any, loanId: string, repaymentId: string, amount: number) {
     const loan = await tx.loan.findUnique({ where: { id: loanId } });
     if (!loan) throw new NotFoundException('Loan not found');
@@ -110,9 +106,7 @@ export class CollectionsService {
     if (collection.settled) throw new BadRequestException('Collection has already been settled');
     const amount = Number(collection.amount), reference = collection.reference || `COL-${collection.id}`, description = `Field collection ${reference} — ${collection.type}`;
     if (!targetId) targetId = await this.resolveSettlementTarget(collection.customerId, collection.type);
-    await this.staffWallet.ensureTables();
     return this.prisma.$transaction(async tx => {
-      await this.ensureAllocationTable(tx);
       let transactionId: string;
       let recordId: string | undefined;
       let allocation: any = null;

@@ -30,7 +30,7 @@ type CashbookScope =
   | { kind: 'staff'; role: string; branchIds: string[]; staff: CashbookStaffProfile; canWrite: boolean };
 
 const MONEY_FIELDS = [
-  'previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','fixedOther','otherIncome',
+  'previousCashAtHand','savingsDeposits','dailyCollection','weeklyCollection','monthlyCollection','monitorRegistrationFees','riskPremium','passbookSales','loanApplicationForm','withdrawalFromBank','fundReceivedHeadOffice','fundReceivedBranchOther','receiptOthers','fixedOther','otherIncome',
   'dailyDisbursementAmount','weeklyDisbursementAmount','monthlyDisbursementAmount','bankDeposit','savingsWithdrawalAmount','savingsReturnedDW','savingsReturnedD','savingsReturnedW','savingsReturnedCash','savingsReturnedAdjust','fundTransferHeadOffice','fundTransferBranch','others','otherAfterTotal',
 ] as const;
 const COUNT_FIELDS = ['dailyDisbursementCount','weeklyDisbursementCount','monthlyDisbursementCount','savingsWithdrawalCount'] as const;
@@ -39,7 +39,6 @@ const snake = (s: string) => s.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`);
 
 @Injectable()
 export class CashbookService {
-  private ready: Promise<void> | null = null;
   constructor(private readonly prisma: PrismaService) {}
 
 
@@ -73,7 +72,7 @@ export class CashbookService {
     }
 
     const assignments = await this.prisma.staffAssignment.findMany({
-      where: { staffId: staff.id, active: true },
+      where: { staffId: staff.id, role: role as any, active: true },
       select: { branchId: true, areaId: true, divisionId: true, regionId: true, startsAt: true, endsAt: true },
     });
     const now = new Date();
@@ -183,7 +182,6 @@ export class CashbookService {
   }
 
   private async openingBalanceFor(branchId: string, staffId: string, entryDate: Date) {
-    await this.ensureDailyTable();
     const startOfDay = new Date(Date.UTC(entryDate.getUTCFullYear(), entryDate.getUTCMonth(), entryDate.getUTCDate()));
     const rows: any[] = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT other_after_total FROM cashbook_daily_records WHERE branch_id=$1 AND staff_id=$2 AND entry_date < $3 ORDER BY entry_date DESC, created_at DESC LIMIT 1',
@@ -210,62 +208,6 @@ export class CashbookService {
   }
 
   private number(value: unknown, label = 'Amount') { const n = Number(value ?? 0); if (!Number.isFinite(n) || n < 0) throw new BadRequestException(`${label} must be zero or greater`); return n; }
-
-  private async ensureDailyTable() {
-    if (!this.ready) this.ready = this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS cashbook_daily_records (
-        id TEXT PRIMARY KEY, period_id TEXT NOT NULL REFERENCES "FinancialPeriod"(id), branch_id TEXT NOT NULL REFERENCES "Branch"(id), staff_id TEXT,
-        entry_date TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, description TEXT,
-        previous_cash_at_hand DOUBLE PRECISION NOT NULL DEFAULT 0,
-        savings_deposits DOUBLE PRECISION NOT NULL DEFAULT 0, daily_collection DOUBLE PRECISION NOT NULL DEFAULT 0, weekly_collection DOUBLE PRECISION NOT NULL DEFAULT 0, monthly_collection DOUBLE PRECISION NOT NULL DEFAULT 0,
-        monitor_registration_fees DOUBLE PRECISION NOT NULL DEFAULT 0, risk_premium DOUBLE PRECISION NOT NULL DEFAULT 0, passbook_sales DOUBLE PRECISION NOT NULL DEFAULT 0, loan_application_form DOUBLE PRECISION NOT NULL DEFAULT 0,
-        withdrawal_from_bank DOUBLE PRECISION NOT NULL DEFAULT 0, fund_received_head_office DOUBLE PRECISION NOT NULL DEFAULT 0, fund_received_branch_other DOUBLE PRECISION NOT NULL DEFAULT 0, receipt_others DOUBLE PRECISION NOT NULL DEFAULT 0,
-        fixed_other DOUBLE PRECISION NOT NULL DEFAULT 0, other_income DOUBLE PRECISION NOT NULL DEFAULT 0,
-        daily_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0, daily_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-        weekly_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0, weekly_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-        monthly_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0, monthly_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-        bank_deposit DOUBLE PRECISION NOT NULL DEFAULT 0, savings_withdrawal_count DOUBLE PRECISION NOT NULL DEFAULT 0, savings_withdrawal_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
-        savings_returned_d_w DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_d DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_w DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_cash DOUBLE PRECISION NOT NULL DEFAULT 0, savings_returned_adjust DOUBLE PRECISION NOT NULL DEFAULT 0,
-        fund_transfer_head_office DOUBLE PRECISION NOT NULL DEFAULT 0, fund_transfer_branch DOUBLE PRECISION NOT NULL DEFAULT 0, others DOUBLE PRECISION NOT NULL DEFAULT 0,
-        narration TEXT, reference_no TEXT, created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      );
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS staff_id TEXT;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS previous_cash_at_hand DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_deposits DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS daily_collection DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS weekly_collection DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS monthly_collection DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS monitor_registration_fees DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS risk_premium DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS passbook_sales DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS loan_application_form DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS withdrawal_from_bank DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_received_head_office DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_received_branch_other DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS receipt_others DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fixed_other DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS other_income DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS daily_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS daily_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS weekly_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS weekly_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS monthly_disbursement_count DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS monthly_disbursement_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS bank_deposit DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_withdrawal_count DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_withdrawal_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_d_w DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_d DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_w DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_cash DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS savings_returned_adjust DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_transfer_head_office DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS fund_transfer_branch DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS others DOUBLE PRECISION NOT NULL DEFAULT 0;
-      ALTER TABLE cashbook_daily_records ADD COLUMN IF NOT EXISTS other_after_total DOUBLE PRECISION NOT NULL DEFAULT 0;
-    `).then(() => undefined).catch(e => { this.ready = null; throw e; });
-    await this.ready;
-  }
 
   private values(data: CashbookDailyInput) { const v:any = {}; for (const f of ALL_FIELDS) v[f] = this.number(data[f], f); return v; }
   private totals(r:any) {
@@ -345,7 +287,6 @@ export class CashbookService {
   async createDaily(data: CashbookDailyInput, actor: CashbookActor) {
     const scope = await this.accessScope(actor, true);
     const identity = await this.dailyIdentity(scope, data);
-    await this.ensureDailyTable();
     const period = await this.prisma.financialPeriod.findUnique({ where: { id: data.periodId } });
     if (!period) throw new NotFoundException('Financial period not found');
     if (period.status === 'CLOSED') throw new BadRequestException('Cannot add entries to a closed period');
@@ -372,7 +313,6 @@ export class CashbookService {
   }
 
   async dailyOne(id: string, actor: CashbookActor) {
-    await this.ensureDailyTable();
     const rows: any[] = await this.prisma.$queryRawUnsafe<any[]>(
       'SELECT r.*, b.name AS branch_name, p.name AS period_name, s."staffId" AS staff_code, s."firstName" AS staff_first_name, s."lastName" AS staff_last_name, s.position AS staff_position FROM cashbook_daily_records r JOIN "Branch" b ON b.id=r.branch_id JOIN "FinancialPeriod" p ON p.id=r.period_id LEFT JOIN "Staff" s ON s.id=r.staff_id WHERE r.id=$1',
       id,
@@ -386,7 +326,6 @@ export class CashbookService {
   async findDaily(periodId: string | undefined, branchId: string | undefined, from: string | undefined, to: string | undefined, actor: CashbookActor) {
     const scope = await this.accessScope(actor);
     this.assertBranch(scope, branchId);
-    await this.ensureDailyTable();
     const clauses: string[] = [];
     const params: any[] = [];
     if (periodId) { params.push(periodId); clauses.push('r.period_id=$' + params.length); }

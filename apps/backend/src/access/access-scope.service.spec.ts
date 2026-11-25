@@ -5,11 +5,19 @@ import { lastValueFrom, of } from 'rxjs';
 
 describe('AccessScopeService', () => {
   let query: jest.Mock;
+  let assignments: jest.Mock;
+  let branches: jest.Mock;
   let service: AccessScopeService;
 
   beforeEach(() => {
     query = jest.fn();
-    service = new AccessScopeService({ $queryRawUnsafe: query } as any);
+    assignments = jest.fn().mockResolvedValue([]);
+    branches = jest.fn().mockResolvedValue([]);
+    service = new AccessScopeService({
+      $queryRawUnsafe: query,
+      staffAssignment: { findMany: assignments },
+      branch: { findMany: branches },
+    } as any);
   });
 
   it('grants global scope only to Super Admin', async () => {
@@ -71,6 +79,64 @@ describe('AccessScopeService', () => {
     })).rejects.toThrow('Staff identity links do not match');
   });
 
+  it('uses the active assignment matching the authenticated role before staff profile fallback', async () => {
+    query.mockResolvedValueOnce([{
+      id: 'staff-manager', branchId: 'branch-assigned', areaId: 'area-assigned',
+      divisionId: 'division-assigned', regionId: 'region-assigned',
+    }]);
+    await expect(service.getScope({ id: 'manager-user', role: 'AREA_MANAGER' })).resolves.toMatchObject({
+      staffId: 'staff-manager', branchId: 'branch-assigned', areaId: 'area-assigned',
+      divisionId: 'division-assigned', regionId: 'region-assigned', global: false,
+    });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('FROM "StaffAssignment"'),
+      'manager-user',
+      'AREA_MANAGER',
+    );
+    expect(query.mock.calls[0][0]).toContain('a."active" = TRUE');
+    expect(query.mock.calls[0][0]).toContain('a."startsAt" <= CURRENT_TIMESTAMP');
+    expect(assignments).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ staffId: 'staff-manager', role: 'AREA_MANAGER', active: true }),
+    }));
+  });
+
+  it('returns all active area assignments without broadening an Area Manager to the staff profile region', async () => {
+    query.mockResolvedValueOnce([{
+      id: 'staff-manager', branchId: 'home-branch', areaId: 'profile-area',
+      divisionId: 'profile-division', regionId: 'profile-region',
+    }]);
+    assignments.mockResolvedValueOnce([
+      { branchId: 'assigned-branch-a', areaId: 'area-a', divisionId: 'division-a', regionId: 'region-a' },
+      { branchId: 'assigned-branch-b', areaId: 'area-b', divisionId: 'division-b', regionId: 'region-b' },
+    ]);
+    branches.mockResolvedValueOnce([{ id: 'home-branch' }, { id: 'assigned-branch-a' }, { id: 'assigned-branch-b' }, { id: 'area-a-branch' }, { id: 'area-b-branch' }]);
+
+    await expect(service.getScopedBranchIds({ id: 'manager-user', role: 'AREA_MANAGER' }))
+      .resolves.toEqual(['home-branch', 'assigned-branch-a', 'assigned-branch-b', 'area-a-branch', 'area-b-branch']);
+
+    const branchWhere = branches.mock.calls[0][0].where;
+    expect(branchWhere.OR).toEqual(expect.arrayContaining([
+      { id: { in: expect.arrayContaining(['home-branch', 'assigned-branch-a', 'assigned-branch-b']) } },
+      { areaId: { in: expect.arrayContaining(['profile-area', 'area-a', 'area-b']) } },
+    ]));
+    expect(branchWhere.OR).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ regionId: expect.anything() }),
+    ]));
+  });
+
+  it('denies a repayment associated with another officer customer', async () => {
+    query
+      .mockResolvedValueOnce([{
+        id: 'repayment-b', branchId: 'branch-a', assignedStaffId: 'staff-b',
+        areaId: null, divisionId: null, regionId: null,
+      }])
+      .mockResolvedValueOnce([{
+        id: 'staff-a', branchId: 'branch-a', areaId: null, divisionId: null, regionId: null,
+      }]);
+    await expect(service.assertRepayment({ id: 'user-a', role: 'CREDIT_OFFICER' }, 'repayment-b'))
+      .rejects.toBeInstanceOf(ForbiddenException);
+  });
+
 });
 describe('AccessScopeInterceptor async response filtering', () => {
   it('awaits the access-scope database filter before emitting a list response', async () => {
@@ -97,6 +163,47 @@ describe('AccessScopeInterceptor async response filtering', () => {
     ]);
     expect(response).toEqual([{ id: 'customer-own' }]);
     expect(response).not.toBeInstanceOf(Promise);
+  });
+
+  it('does not bypass scoped routes merely because their path contains a messages segment', async () => {
+    const assertBranch = jest.fn().mockResolvedValue(true);
+    const interceptor = new AccessScopeInterceptor({ assertBranch } as any);
+    const user = { id: 'staff-user', role: 'BRANCH_MANAGER' };
+    const request = {
+      user, originalUrl: '/staff/messages/export', path: '/staff/messages/export',
+      route: { path: '/staff/messages/export' }, params: {}, query: {},
+      body: { branchId: 'branch-a' },
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+    const handler = { handle: () => of({ ok: true }) } as any;
+
+    const response$ = await interceptor.intercept(context, handler);
+    await expect(lastValueFrom(response$ as any)).resolves.toEqual({ ok: true });
+    expect(assertBranch).toHaveBeenCalledWith(user, 'branch-a');
+  });
+
+  it('applies repayment list filtering and checks the loan linked to repayment creation', async () => {
+    const filterList = jest.fn().mockResolvedValue([{ id: 'repayment-own' }]);
+    const assertLoan = jest.fn().mockResolvedValue(true);
+    const interceptor = new AccessScopeInterceptor({ filterList, assertLoan } as any);
+    const user = { id: 'officer-user', role: 'CREDIT_OFFICER' };
+    const request = {
+      user, originalUrl: '/repayments', path: '/repayments',
+      route: { path: '/repayments' }, params: {}, query: {},
+      body: { loanId: 'loan-own' },
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => request }) } as any;
+    const handler = { handle: () => of([{ id: 'repayment-own' }, { id: 'repayment-other' }]) } as any;
+
+    const response$ = await interceptor.intercept(context, handler);
+    const response = await lastValueFrom(response$ as any);
+
+    expect(assertLoan).toHaveBeenCalledWith(user, 'loan-own');
+    expect(filterList).toHaveBeenCalledWith(user, 'repayments', [
+      { id: 'repayment-own' },
+      { id: 'repayment-other' },
+    ]);
+    expect(response).toEqual([{ id: 'repayment-own' }]);
   });
 });
 

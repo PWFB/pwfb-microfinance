@@ -36,6 +36,8 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [branchId, setBranchId] = useState("");
   const [directory, setDirectory] = useState<StaffMember[]>([]);
+  const [roleTargets, setRoleTargets] = useState<string[]>([]);
+  const [loadingRoleTargets, setLoadingRoleTargets] = useState(false);
   const [newMode, setNewMode] = useState<"ROLE" | "GROUP" | null>(null);
   const [roleTarget, setRoleTarget] = useState("BRANCH_MANAGER");
   const [groupTitle, setGroupTitle] = useState("");
@@ -94,6 +96,12 @@ export default function MessagesPage() {
         setContext(result);
         const firstBranch = result?.currentBranchId || result?.branches?.[0]?.id || "";
         setBranchId(firstBranch);
+        setRoleTargets(Array.isArray(result?.roleTargets) ? result.roleTargets : []);
+        if (Array.isArray(result?.roleTargets) && result.roleTargets.length) {
+          setRoleTarget(result.roleTargets.includes("BRANCH_MANAGER") ? "BRANCH_MANAGER" : result.roleTargets[0]);
+        } else {
+          setRoleTarget("");
+        }
         const items = await pwfbApi.messages.list();
         if (!alive) return;
         setConversations(Array.isArray(items) ? items : []);
@@ -118,6 +126,36 @@ export default function MessagesPage() {
     const timer = window.setInterval(() => { void loadConversation(selectedId); }, 12000);
     return () => window.clearInterval(timer);
   }, [selectedId, loadConversation]);
+
+  useEffect(() => {
+    if (!branchId) {
+      setRoleTargets([]);
+      setRoleTarget("");
+      setLoadingRoleTargets(false);
+      return;
+    }
+    let alive = true;
+    setLoadingRoleTargets(true);
+    setRoleTargets([]);
+    setRoleTarget("");
+    pwfbApi.messages.roles(branchId)
+      .then((items: string[]) => {
+        if (!alive) return;
+        const available = Array.isArray(items) ? items : [];
+        setRoleTargets(available);
+        setRoleTarget(available.includes("BRANCH_MANAGER") ? "BRANCH_MANAGER" : available[0] || "");
+        setLoadingRoleTargets(false);
+      })
+      .catch((err: unknown) => {
+        if (alive) {
+          setRoleTargets([]);
+          setRoleTarget("");
+          setLoadingRoleTargets(false);
+          setError(err instanceof Error ? err.message : "Unable to load roles for this branch");
+        }
+      });
+    return () => { alive = false; };
+  }, [branchId]);
 
   useEffect(() => {
     if (!branchId) {
@@ -156,7 +194,7 @@ export default function MessagesPage() {
 
   const startRoleMessage = async () => {
     const body = draft.trim();
-    if (!branchId || !roleTarget || !body || sending) return;
+    if (!branchId || !roleTarget || !roleTargets.includes(roleTarget) || !body || sending || loadingRoleTargets) return;
     setSending(true);
     setError("");
     try {
@@ -263,10 +301,10 @@ export default function MessagesPage() {
           {newMode === "ROLE" && (
             <div className={styles.composerPanel}>
               <div className={styles.panelTitle}><div><span className={styles.sectionLabel}>NEW CONVERSATION</span><h2>Message a branch role</h2></div><button onClick={() => setNewMode(null)}>×</button></div>
-              {context && context.branches.length > 1 && <label className={styles.field}>Branch<select value={branchId} onChange={(event) => setBranchId(event.target.value)}>{context.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>}
-              <label className={styles.field}>Send to role<select value={roleTarget} onChange={(event) => setRoleTarget(event.target.value)}>{(context?.roleTargets || Object.keys(ROLE_LABELS)).map((role) => <option key={role} value={role}>{ROLE_LABELS[role] || role}</option>)}</select></label>
+              {context && <label className={styles.field}>Branch<select value={branchId} disabled={context.branches.length <= 1} onChange={(event) => setBranchId(event.target.value)}>{context.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>{!context.branches.length && <small className={styles.helper}>No branch assignment was detected for this login. Ask an administrator to check your active Staff Assignment.</small>}</label>}
+              <label className={styles.field}>Send to role<select value={roleTarget} disabled={!roleTargets.length || loadingRoleTargets} onChange={(event) => setRoleTarget(event.target.value)}>{roleTargets.map((role) => <option key={role} value={role}>{ROLE_LABELS[role] || role}</option>)}</select>{loadingRoleTargets && <small className={styles.helper}>Loading available roles for this branch…</small>}{!loadingRoleTargets && !roleTargets.length && <small className={styles.helper}>No active recipient roles were found in this branch. Choose another assigned branch or ask an administrator to review staff role assignments.</small>}</label>
               <label className={styles.field}>Message<textarea value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="Write a branch update or request…" rows={4} maxLength={5000} /></label>
-              <div className={styles.panelFooter}><small>{draft.length}/5,000 characters</small><button disabled={!draft.trim() || sending} onClick={() => void startRoleMessage()}>{sending ? "Sending…" : "Send to role"}</button></div>
+              <div className={styles.panelFooter}><small>{draft.length}/5,000 characters</small><button disabled={!branchId || !roleTarget || !roleTargets.includes(roleTarget) || loadingRoleTargets || !draft.trim() || sending} onClick={() => void startRoleMessage()}>{sending ? "Sending…" : "Send to role"}</button></div>
               <p className={styles.helper}>The selected role and authorized branch administrators can read and reply. Staff cannot open private one-to-one chats.</p>
             </div>
           )}
@@ -274,7 +312,7 @@ export default function MessagesPage() {
           {newMode === "GROUP" && (
             <div className={styles.composerPanel}>
               <div className={styles.panelTitle}><div><span className={styles.sectionLabel}>NEW GROUP</span><h2>Create staff group chat</h2></div><button onClick={() => setNewMode(null)}>×</button></div>
-              {context && context.branches.length > 1 && <label className={styles.field}>Branch<select value={branchId} onChange={(event) => { setBranchId(event.target.value); setGroupStaffIds([]); }}>{context.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label>}
+              {context && <label className={styles.field}>Branch<select value={branchId} disabled={context.branches.length <= 1} onChange={(event) => { setBranchId(event.target.value); setGroupStaffIds([]); }}>{context.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select>{!context.branches.length && <small className={styles.helper}>No branch assignment was detected for this login. Ask an administrator to check your active Staff Assignment.</small>}</label>}
               <label className={styles.field}>Group name<input value={groupTitle} onChange={(event) => setGroupTitle(event.target.value)} placeholder="e.g. Monday Operations Team" maxLength={80} /></label>
               <div className={styles.memberPicker}>
                 <div className={styles.memberPickerHead}><strong>Add branch staff</strong><span>{groupStaffIds.length + 1} selected incl. you</span></div>

@@ -40,27 +40,8 @@ const DEFAULTS: Record<string, Record<PermissionKey, boolean>> = {
 export class PermissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * This table is intentionally managed with SQL because it is not a Prisma
-   * model. Create it before reading or writing so the UI never silently falls
-   * back to defaults while the toggle writes to a missing table.
-   */
-  private async ensureTable() {
-    await this.prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS "RolePermission" (
-        "id" TEXT PRIMARY KEY,
-        "role" TEXT NOT NULL,
-        "permission" TEXT NOT NULL,
-        "enabled" BOOLEAN NOT NULL DEFAULT FALSE,
-        "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await this.prisma.$executeRawUnsafe('CREATE UNIQUE INDEX IF NOT EXISTS "RolePermission_role_permission_key" ON "RolePermission" ("role", "permission")');
-    await this.prisma.$executeRawUnsafe('CREATE INDEX IF NOT EXISTS "RolePermission_role_idx" ON "RolePermission" ("role")');
-  }
-
+  // RolePermission is created by the versioned Prisma migration chain.
   async list() {
-    await this.ensureTable();
     const rows = await this.prisma.$queryRawUnsafe<Array<{ role: string; permission: string; enabled: boolean }>>(
       'SELECT "role", "permission", "enabled" FROM "RolePermission" ORDER BY "role", "permission"',
     );
@@ -73,7 +54,6 @@ export class PermissionsService {
   }
 
   async get(role: string, permission: PermissionKey) {
-    await this.ensureTable();
     const rows = await this.prisma.$queryRawUnsafe<Array<{ enabled: boolean }>>(
       'SELECT "enabled" FROM "RolePermission" WHERE "role" = $1 AND "permission" = $2 LIMIT 1',
       role, permission,
@@ -88,7 +68,6 @@ export class PermissionsService {
   }
 
   async set(role: string, permission: PermissionKey, enabled: boolean) {
-    await this.ensureTable();
     await this.prisma.$executeRawUnsafe(
       'INSERT INTO "RolePermission" ("id","role","permission","enabled","updatedAt") VALUES ($1,$2,$3,$4,CURRENT_TIMESTAMP) ON CONFLICT ("role","permission") DO UPDATE SET "enabled"=$4,"updatedAt"=CURRENT_TIMESTAMP',
       `rp_${role}_${permission}`, role, permission, enabled,

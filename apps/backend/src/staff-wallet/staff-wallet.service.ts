@@ -5,19 +5,7 @@ import { AccessScopeService } from '../access/access-scope.service';
 
 @Injectable()
 export class StaffWalletService {
-  private ready: Promise<void> | null = null;
   constructor(private readonly prisma: PrismaService, private readonly accessScope: AccessScopeService) {}
-
-  async ensureTables(db: any = this.prisma) {
-    if (db !== this.prisma) {
-      await db.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS staff_wallets (id TEXT PRIMARY KEY, staff_id TEXT NOT NULL UNIQUE REFERENCES "Staff"(id) ON DELETE CASCADE, branch_id TEXT NOT NULL REFERENCES "Branch"(id), balance DOUBLE PRECISION NOT NULL DEFAULT 0, currency TEXT NOT NULL DEFAULT 'NGN', created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS staff_wallet_transactions (id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL REFERENCES staff_wallets(id) ON DELETE CASCADE, type TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, previous_balance DOUBLE PRECISION NOT NULL, new_balance DOUBLE PRECISION NOT NULL, reference TEXT, description TEXT, created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE INDEX IF NOT EXISTS staff_wallet_tx_wallet_created_idx ON staff_wallet_transactions(wallet_id, created_at DESC);`);
-      return;
-    }
-    if (!this.ready) {
-      this.ready = this.prisma.$executeRawUnsafe(`CREATE TABLE IF NOT EXISTS staff_wallets (id TEXT PRIMARY KEY, staff_id TEXT NOT NULL UNIQUE REFERENCES "Staff"(id) ON DELETE CASCADE, branch_id TEXT NOT NULL REFERENCES "Branch"(id), balance DOUBLE PRECISION NOT NULL DEFAULT 0, currency TEXT NOT NULL DEFAULT 'NGN', created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS staff_wallet_transactions (id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL REFERENCES staff_wallets(id) ON DELETE CASCADE, type TEXT NOT NULL, amount DOUBLE PRECISION NOT NULL, previous_balance DOUBLE PRECISION NOT NULL, new_balance DOUBLE PRECISION NOT NULL, reference TEXT, description TEXT, created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP); CREATE INDEX IF NOT EXISTS staff_wallet_tx_wallet_created_idx ON staff_wallet_transactions(wallet_id, created_at DESC);`).then(() => undefined).catch((e) => { this.ready = null; throw e; });
-    }
-    await this.ready;
-  }
 
   private async ensureUniqueReference(db: any, reference?: string) {
     const normalized = String(reference ?? '').trim();
@@ -47,7 +35,6 @@ export class StaffWalletService {
   }
 
   async list(user: any, branchId?: string) {
-    await this.ensureTables();
     const scope = await this.accessScope.getScope(user);
     if (scope.global) {
       const rows: any[] = await this.prisma.$queryRawUnsafe(
@@ -71,7 +58,6 @@ export class StaffWalletService {
 
   async get(staffId: string, user: any) {
     await this.accessScope.assertStaff(user, staffId);
-    await this.ensureTables();
     const wallet = await this.staff(staffId);
     const transactions: any[] = await this.prisma.$queryRawUnsafe(`SELECT id, type, amount, previous_balance AS "previousBalance", new_balance AS "newBalance", reference, description, created_at AS "createdAt" FROM staff_wallet_transactions WHERE wallet_id=$1 ORDER BY created_at DESC LIMIT 100`, wallet.id);
     return { ...wallet, transactions };
@@ -93,7 +79,6 @@ export class StaffWalletService {
     if (db === this.prisma) {
       return this.prisma.$transaction((tx: any) => this.credit(staffId, amountValue, reference, description, tx));
     }
-    await this.ensureTables(db);
     const amount = this.amount(amountValue);
     await this.ensureUniqueReference(db, reference);
     const wallet = await this.staff(staffId, db);
@@ -109,7 +94,6 @@ export class StaffWalletService {
     if (db === this.prisma) {
       return this.prisma.$transaction((tx: any) => this.debit(staffId, amountValue, reference, description, tx));
     }
-    await this.ensureTables(db);
     const amount = this.amount(amountValue);
     await this.ensureUniqueReference(db, reference);
     const wallet = await this.staff(staffId, db);
@@ -124,7 +108,6 @@ export class StaffWalletService {
 
   async history(staffId: string, user: any) {
     await this.accessScope.assertStaff(user, staffId);
-    await this.ensureTables();
     const wallet = await this.staff(staffId);
     return this.prisma.$queryRawUnsafe(`SELECT id, type, amount, previous_balance AS "previousBalance", new_balance AS "newBalance", reference, description, created_at AS "createdAt" FROM staff_wallet_transactions WHERE wallet_id=$1 ORDER BY created_at DESC`, wallet.id);
   }

@@ -1,5 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { AccessScopeService } from './access-scope.service';
+import { mergeMap } from 'rxjs';
 
 @Injectable()
 export class AccessScopeInterceptor implements NestInterceptor {
@@ -13,43 +14,55 @@ export class AccessScopeInterceptor implements NestInterceptor {
     // Customer banking endpoints enforce ownership in BankingController.resolveCustomerId.
     // Do not apply staff branch/organization scope to a customer's own wallet/account routes.
     const requestPath = String(request.originalUrl || request.url || request.path || '').toLowerCase();
-    // Communication endpoints enforce branch and participant policy in their own services.
-    // Internal staff voice calls span branches; client calls remain explicitly branch-scoped.
-    if (requestPath.startsWith('/calls') || requestPath.startsWith('/messages')) return next.handle();
+    const path = requestPath.split('?')[0].replace(/\/+$/, '');
+    // Delegate only the exact Messages/Calls route trees; similarly named routes
+    // elsewhere in the API must remain subject to the normal scope checks.
+    if (path === '/calls' || path.startsWith('/calls/') || path === '/messages' || path.startsWith('/messages/')) {
+      return next.handle();
+    }
     const isCustomerBankingRoute = String(user.role || '').toUpperCase() === 'CUSTOMER' && requestPath.includes('/banking/customers/');
     if (isCustomerBankingRoute) return next.handle();
 
-    const path = requestPath.split('?')[0];
     const id = request.params?.id;
     const branchId = request.params?.branchId || request.body?.branchId || request.query?.branchId;
     const staffId = request.params?.staffId || request.body?.staffId || request.query?.staffId;
     const customerId = request.params?.customerId || request.body?.customerId || request.query?.customerId;
+    const loanId = request.params?.loanId || request.body?.loanId || request.query?.loanId;
 
     if (branchId) await this.scope.assertBranch(user, String(branchId));
     if (staffId) await this.scope.assertStaff(user, String(staffId));
     if (customerId) await this.scope.assertCustomer(user, String(customerId));
+    if (loanId) await this.scope.assertLoan(user, String(loanId));
 
     if (id) {
-      if (path.includes('/staff')) await this.scope.assertStaff(user, String(id));
+      if (path.includes('/staff/') && !path.includes('/staff-wallet/') && !path.includes('/staff/organization/')) await this.scope.assertStaff(user, String(id));
       else if (path.includes('/customers')) await this.scope.assertCustomer(user, String(id));
       else if (path.includes('/loans')) await this.scope.assertLoan(user, String(id));
       else if (path.includes('/savings')) await this.scope.assertSavings(user, String(id));
       else if (path.includes('/collections')) await this.scope.assertCollection(user, String(id));
+      else if (path.includes('/repayments')) await this.scope.assertRepayment(user, String(id));
+      else if (path.includes('/transactions')) await this.scope.assertTransaction(user, String(id));
       else if (path.includes('/branches')) await this.scope.assertBranch(user, String(id));
     }
 
-    const { map } = require('rxjs');
-    const resource = path.includes('/staff') ? 'staff'
-      : path.includes('/customers') ? 'customers'
-      : path.includes('/loans') ? 'loans'
-      : path.includes('/savings') ? 'savings'
-      : path.includes('/collections') ? 'collections'
-      : path.includes('/branches') ? 'branches'
+    // Filter only true collection-list routes. Sub-resources such as staff-wallet,
+    // organization hierarchy, loan rates and account provisioning have their own
+    // service-level access rules and must not be mistaken for base record lists.
+    const resource = path.endsWith('/staff') ? 'staff'
+      : path.endsWith('/customers') ? 'customers'
+      : path.endsWith('/loans') ? 'loans'
+      : path.endsWith('/savings') ? 'savings'
+      : path.endsWith('/collections') ? 'collections'
+      : path.endsWith('/branches') ? 'branches'
+      : path.endsWith('/repayments') ? 'repayments'
+      : path.endsWith('/transactions') ? 'transactions'
+      : path.endsWith('/cashbook/daily') ? 'cashbook_daily'
+      : path.endsWith('/cashbook/entries') ? 'cashbook_entries'
       : '';
 
     if (!resource || id) return next.handle();
 
-    return next.handle().pipe(map(async (data: any) => {
+    return next.handle().pipe(mergeMap(async (data: any) => {
       if (Array.isArray(data)) return this.scope.filterList(user, resource, data);
       if (Array.isArray(data?.data)) return { ...data, data: await this.scope.filterList(user, resource, data.data) };
       if (Array.isArray(data?.items)) return { ...data, items: await this.scope.filterList(user, resource, data.items) };
